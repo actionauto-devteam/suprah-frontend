@@ -124,7 +124,7 @@ export function useSuprahMeet() {
   const [tiles, setTiles] = useState<Record<number, TileInfo>>({});
   const [activeSpeakerId, setActiveSpeakerId] = useState("");
 
-  const [micOn, setMicOn] = useState(true);
+  const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
@@ -151,6 +151,11 @@ export function useSuprahMeet() {
   const captionCleanupRef = useRef<(() => void) | null>(null);
   const captionEventTimeRef = useRef(0);
   const captionOperationRef = useRef(false);
+  useEffect(() => {
+    if (phase !== 'in' || captionStatus !== 'starting') return;
+    const timeout = setTimeout(() => setCaptionStatus((status) => status === 'starting' ? 'failed' : status), 20_000);
+    return () => clearTimeout(timeout);
+  }, [phase, captionStatus]);
 
   useEffect(() => {
     if (phase !== 'in') return;
@@ -194,6 +199,7 @@ export function useSuprahMeet() {
   // meeting with Chime's "Error fetching device." — and the mic button then
   // retries acquisition once the user unblocks it.
   const micStartedRef = useRef(false);
+  const micTogglePendingRef = useRef(false);
 
   const av = () => sessionRef.current?.audioVideo ?? null;
 
@@ -229,6 +235,7 @@ export function useSuprahMeet() {
 
   const join = useCallback(async (code: string, guest?: { token: string }) => {
     setPhase("joining");
+    setMicOn(false);
     setCanEndForAll(false);
     captionCleanupRef.current?.();
     captionCleanupRef.current = null;
@@ -282,7 +289,7 @@ export function useSuprahMeet() {
         else if (event.type === 'interrupted') setCaptionStatus('interrupted');
         else if (event.type === 'failed') {
           setCaptionStatus('failed');
-          setNotice('Live captions are unavailable. The host can retry or contact an administrator.');
+          setNotice('Live captions are unavailable. Try enabling captions again.');
         }
       };
       audioVideo.transcriptionController?.subscribeToTranscriptEvent(onTranscript);
@@ -305,7 +312,7 @@ export function useSuprahMeet() {
               attendeeId, crmUserId,
               name: isSelf ? selfNameRef.current : known?.fullName || (isGuestAtt ? "Guest" : "Joining…"),
               avatar: known?.avatar ?? null,
-              muted: false, handRaised: false,
+              muted: isSelf ? audioVideo.realtimeIsLocalAudioMuted() : false, handRaised: false,
               isGuest: isGuestAtt,
             },
           }));
@@ -397,25 +404,12 @@ export function useSuprahMeet() {
         } catch { /* ignore */ }
       });
 
-      // Devices: NEVER let a blocked/busy mic or camera kill the join.
-      // (Chime throws GetUserMediaError "Error fetching device." when the
-      // browser refuses the device — e.g. permissions set to Block.)
       micStartedRef.current = false;
-      try {
-        const audioInputs = await audioVideo.listAudioInputDevices();
-        if (audioInputs[0]) {
-          await audioVideo.startAudioInput(audioInputs[0].deviceId);
-          micStartedRef.current = true;
-        }
-      } catch { /* mic blocked or in use — join listen-only */ }
+      audioVideo.realtimeMuteLocalAudio();
 
-      try {
-        const videoInputs = await audioVideo.listVideoInputDevices();
-        videoDevicesRef.current = videoInputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
-      } catch { videoDevicesRef.current = []; }
-      const frontIdx = videoDevicesRef.current.findIndex((d) => /front|user/i.test(d.label));
-      camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
-      setVideoDeviceCount(videoDevicesRef.current.length);
+      videoDevicesRef.current = [];
+      camIndexRef.current = 0;
+      setVideoDeviceCount(0);
 
       // Bind remote audio NOW — the provider's <audio> element mounted long
       // before this session existed, so its ref-time bind was a no-op.
@@ -425,10 +419,7 @@ export function useSuprahMeet() {
 
       audioVideo.start();
       joinedAtRef.current = Date.now();
-      setMicOn(micStartedRef.current);
-      if (!micStartedRef.current) {
-        setNotice("You've joined without a microphone — the browser is blocking it (or another app is using it). Allow the mic in the site permissions, then tap the mic button.");
-      }
+      setMicOn(false);
       setPhase("in");
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");
@@ -446,28 +437,33 @@ export function useSuprahMeet() {
 
   const toggleMic = useCallback(async () => {
     const audioVideo = av();
-    if (!audioVideo) return;
+    if (!audioVideo || phase !== 'in' || micTogglePendingRef.current) return;
     if (micOn) {
       audioVideo.realtimeMuteLocalAudio();
       setMicOn(false);
       return;
     }
-    // If the mic was blocked at join time, retry acquiring it now (the user
-    // may have just allowed it in the browser's site permissions).
-    if (!micStartedRef.current) {
-      try {
+    micTogglePendingRef.current = true;
+    try {
+      if (!micStartedRef.current) {
         const audioInputs = await audioVideo.listAudioInputDevices();
-        if (!audioInputs[0]) throw new Error("no mic");
+        if (av() !== audioVideo) return;
+        if (!audioInputs[0]) throw new Error('No microphone found');
         await audioVideo.startAudioInput(audioInputs[0].deviceId);
+        if (av() !== audioVideo) {
+          await audioVideo.stopAudioInput();
+          return;
+        }
         micStartedRef.current = true;
-      } catch {
-        setNotice("The microphone is still blocked. Open the browser's site permissions for suprah-app.com, set Microphone to Allow, then try again.");
-        return;
       }
+      setMicOn(audioVideo.realtimeUnmuteLocalAudio());
+    } catch {
+      setMicOn(false);
+      setNotice("The microphone couldn't be started. Check your microphone and browser permissions, then try again.");
+    } finally {
+      micTogglePendingRef.current = false;
     }
-    audioVideo.realtimeUnmuteLocalAudio();
-    setMicOn(true);
-  }, [micOn]);
+  }, [micOn, phase]);
 
   // Backgrounds need WebGL2 + WASM — probe once, hide the UI when unsupported.
   useEffect(() => {
@@ -536,6 +532,8 @@ export function useSuprahMeet() {
         if (videoDevicesRef.current.length === 0) {
           const inputs = await audioVideo.listVideoInputDevices();
           videoDevicesRef.current = inputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
+          const frontIdx = videoDevicesRef.current.findIndex((device) => /front|user/i.test(device.label));
+          camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
           setVideoDeviceCount(videoDevicesRef.current.length);
         }
         await startCamAt(camIndexRef.current);
@@ -786,6 +784,8 @@ export function useSuprahMeet() {
     setCaptionStatus('off');
     setCaptionsVisible(false);
     const audioVideo = av();
+    sessionRef.current = null;
+    setMicOn(false);
     if (audioVideo) {
       try {
         audioVideo.stopContentShare();
@@ -797,7 +797,6 @@ export function useSuprahMeet() {
       } catch { /* best effort */ }
     }
     releaseWakeLock();
-    sessionRef.current = null;
   }, [stopTransform, releaseWakeLock]);
 
   const leave = useCallback(async () => {
@@ -830,27 +829,42 @@ export function useSuprahMeet() {
     setPhase("ended");
   }, [canEndForAll, teardown]);
 
-  const changeLiveCaptions = useCallback(async (enabled: boolean, languageCode = captionLanguage) => {
-    if (!canEndForAll || phase !== 'in' || captionOperationRef.current) return;
+  const retryCaptions = useCallback(async () => {
+    if (phase !== 'in' || captionOperationRef.current) return;
     const session = sessionRef.current;
     captionOperationRef.current = true;
     setCaptionBusy(true);
+    setCaptionStatus((status) => status === 'on' ? 'on' : 'starting');
     try {
-      await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/captions`, { enabled, languageCode });
+      const token = guestTokenRef.current;
+      const url = token
+        ? `/api/crm/meet/guest/${codeRef.current}/captions`
+        : `/api/crm/meet/meetings/${codeRef.current}/captions`;
+      const response = await apiClient.post(url, { enabled: true, languageCode: 'en-US', retry: captionStatus === 'failed' },
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
       if (sessionRef.current !== session) return;
-      setCaptionLanguage(languageCode);
-      if (enabled) setCaptionsVisible(true);
-      setCaptionStatus((current) => enabled ? current === 'on' ? 'on' : 'starting' : 'off');
-      if (!enabled) setCaptionLines([]);
+      setCaptionLanguage('en-US');
+      setCaptionStatus((current) => current === 'on' || current === 'failed' ? current
+        : response.data?.data?.reused ? 'on' : 'starting');
     } catch (err: any) {
-      setNotice(err?.response?.data?.message || 'Live captions could not be updated. Please try again.');
+      if (sessionRef.current !== session) return;
+      setCaptionStatus('failed');
+      setNotice(err?.response?.data?.message || 'Live captions could not be started. Please try again.');
     } finally {
       captionOperationRef.current = false;
       setCaptionBusy(false);
     }
-  }, [canEndForAll, phase, captionLanguage]);
+  }, [phase, captionStatus]);
 
-  const toggleCaptions = useCallback(() => setCaptionsVisible((visible) => !visible), []);
+  const toggleCaptions = useCallback(() => {
+    if (phase !== 'in') return;
+    if (captionsVisible) {
+      setCaptionsVisible(false);
+      return;
+    }
+    setCaptionsVisible(true);
+    void retryCaptions();
+  }, [phase, captionsVisible, retryCaptions]);
 
   useEffect(() => () => { leftIntentionallyRef.current = true; void teardown(); }, [teardown]);
 
@@ -867,6 +881,6 @@ export function useSuprahMeet() {
     toggleMic, toggleCam, switchCamera, toggleShare, toggleHand,
     sendReaction, sendChat, markChatRead,
     startRecording, stopRecording, leave, endMeeting,
-    captionsVisible, toggleCaptions, captionStatus, captionLanguage, captionBusy, captionLines, changeLiveCaptions,
+    captionsVisible, toggleCaptions, captionStatus, captionLanguage, captionBusy, captionLines, retryCaptions,
   };
 }

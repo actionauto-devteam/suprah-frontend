@@ -91,19 +91,22 @@ test('an out-of-order partial in the same batch cannot overwrite finalized text'
 });
 
 const meet = {
+  phase: 'in',
   captionsVisible: true, captionStatus: 'off', captionLanguage: 'en-US', captionLines: [],
   canEndForAll: false, captionBusy: false, roster: {}, meeting: { participants: [] }, toggleCaptions() {},
 };
 
-test('participants can show captions without being offered shared start/stop controls', () => {
+test('participants never see a host approval or shared start/stop requirement', () => {
   const html = renderToStaticMarkup(React.createElement(component.exports.MeetCaptionsPanel, { meet }));
-  assert.match(html, /Waiting for the host/);
+  assert.match(html, /Starting live captions/);
+  assert.doesNotMatch(html, /host/i);
   assert.doesNotMatch(html, /Start live captions<|Stop live captions|<select/);
 });
 
-test('only the host sees shared transcription controls, with English clearly labeled', () => {
+test('hosts use the same English caption panel without shared stop controls', () => {
   const html = renderToStaticMarkup(React.createElement(component.exports.MeetCaptionsPanel, { meet: { ...meet, canEndForAll: true } }));
-  assert.match(html, /Start live captions<\/button>/);
+  assert.match(html, /Retry captions/);
+  assert.doesNotMatch(html, /Start live captions<\/button>|Stop live captions/);
   assert.match(html, /English \(US\)/);
   assert.doesNotMatch(html, /<select/);
 });

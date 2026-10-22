@@ -8,13 +8,12 @@ type Meet = ReturnType<typeof useSuprahMeet>;
 
 export function MeetCaptionsButton({ meet }: { meet: Meet }) {
   return (
-    <button type="button" onClick={meet.toggleCaptions} aria-pressed={meet.captionsVisible}
+    <button type="button" onClick={meet.toggleCaptions} disabled={meet.phase !== 'in'} aria-pressed={meet.captionsVisible}
       aria-label={meet.captionsVisible ? 'Hide captions' : 'Show captions'}
       title={meet.captionsVisible ? 'Hide captions' : 'Show captions'}
-      className={cn('flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors',
+      className={cn('flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors',
         meet.captionsVisible ? 'border-emerald-400/50 bg-emerald-400/20 text-emerald-100' : 'border-emerald-400/20 text-emerald-200 hover:bg-emerald-400/10')}>
-      <Captions className="size-5" aria-hidden="true" />
-      <span className="hidden sm:inline">Captions</span>
+      {meet.captionBusy && meet.captionsVisible ? <Loader2 className="size-5 animate-spin" aria-hidden="true" /> : <Captions className="size-5" aria-hidden="true" />}
     </button>
   );
 }
@@ -24,10 +23,11 @@ export function MeetCaptionsPanel({ meet }: { meet: Meet }) {
   const active = ['starting', 'on', 'interrupted', 'stopping'].includes(meet.captionStatus);
   const lines = meet.captionLines.slice(-2);
   const statusText = meet.captionStatus === 'failed'
-    ? 'Live captions are unavailable. The host can retry.'
+    ? 'Live captions are unavailable. Try again.'
     : meet.captionStatus === 'interrupted' ? 'Captions interrupted. Reconnecting…'
+    : meet.captionStatus === 'starting' ? 'Starting live captions…'
     : active ? 'Listening… captions appear when someone speaks.'
-    : meet.canEndForAll ? 'Start live captions to subtitle this meeting.' : 'Waiting for the host to start live captions.';
+    : 'Starting live captions…';
   return (
     <section aria-label="Live captions" className="shrink-0 rounded-xl border border-emerald-400/25 bg-black/85 p-3 text-white shadow-lg">
       <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -45,12 +45,12 @@ export function MeetCaptionsPanel({ meet }: { meet: Meet }) {
           </p>;
         }) : <p className="py-1 text-sm text-white/65">{statusText}</p>}
       </div>
-      {meet.canEndForAll && (
+      {(meet.captionStatus === 'failed' || meet.captionStatus === 'off') && (
         <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
-          <button type="button" disabled={meet.captionBusy} onClick={() => void meet.changeLiveCaptions(!active, 'en-US')}
+          <button type="button" disabled={meet.captionBusy} onClick={() => void meet.retryCaptions()}
             className="flex min-h-11 items-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 text-xs font-medium text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-50">
             {meet.captionBusy && <Loader2 className="size-3.5 animate-spin" />}
-            {active ? 'Stop live captions' : 'Start live captions'}
+            Retry captions
           </button>
         </div>
       )}

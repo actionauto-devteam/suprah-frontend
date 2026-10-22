@@ -1,18 +1,20 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangle, BookOpen, ChevronLeft, ChevronRight, GraduationCap, Loader2, Plus } from "lucide-react"
+import { AlertTriangle, BookOpen, ChevronLeft, ChevronRight, FileUp, GraduationCap, Loader2, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { apiClient } from "@/lib/api-client"
-import { trainingErrorMessage, trainingRequest, useTrainingProposals, useTrainingStatus } from "@/hooks/useAiTraining"
+import { trainingErrorMessage, trainingRequest, useImportBatches, useTrainingProposals, useTrainingStatus } from "@/hooks/useAiTraining"
 import { TRAINING_RULE_HANDLING, TRAINING_SOURCE_LABELS, TRAINING_STATUS_LABELS, type TrainingStatus, type TrainingStatusInfo } from "@/lib/aiTraining"
 import { HubCard, HubState, formatHubDate } from "./ShadowStatusBadge"
 import { TrainingProposalDrawer, TrainingStatusBadge } from "./TrainingProposalDrawer"
 import { TrainingRuleEditor, type TrainingRuleEditorTarget } from "./TrainingRuleEditor"
 import { LabRunSheet, type LabRunTarget } from "./LabRunSheet"
 import { LabResultDrawer } from "./LabResultView"
+import { PodiumImportSheet } from "./PodiumImportSheet"
+import { ImportBatchDrawer, ImportHistoryPanel } from "./ImportHistoryPanel"
 
 const FILTER_STATUSES: TrainingStatus[] = ["draft", "in_review", "changes_requested", "approved", "rejected", "withdrawn"]
 
@@ -119,7 +121,13 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
   const [runTarget, setRunTarget] = React.useState<LabRunTarget | null>(null)
   const [openRunId, setOpenRunId] = React.useState<string | null>(null)
   const [testsRefresh, setTestsRefresh] = React.useState(0)
-  const proposals = useTrainingProposals(getToken, { status: statusFilter || undefined, mine, page }, Boolean(info?.enabled))
+  const [sourceFilter, setSourceFilter] = React.useState("")
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [importsPage, setImportsPage] = React.useState(1)
+  const [openBatchId, setOpenBatchId] = React.useState<string | null>(null)
+  const proposals = useTrainingProposals(getToken, { status: statusFilter || undefined, source: sourceFilter || undefined, mine, page }, Boolean(info?.enabled))
+  const imports = useImportBatches(getToken, importsPage, Boolean(info?.enabled && info?.canReview))
+  const importAvailable = Boolean(info?.canReview && imports.data)
 
   if (!info) {
     return <HubCard title="Training rules" icon={<GraduationCap className="h-4 w-4 text-primary" />}><HubState loading={status.loading} error={status.error} onRetry={status.reload}>{null}</HubState></HubCard>
@@ -135,6 +143,11 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
         icon={<GraduationCap className="h-4 w-4 text-primary" />}
         action={(
           <div className="flex items-center gap-3">
+            {info.enabled && importAvailable && (
+              <Button size="sm" variant="outline" className="h-8" onClick={() => setImportOpen(true)}>
+                <FileUp className="mr-1 h-3.5 w-3.5" /> Import from Podium
+              </Button>
+            )}
             {info.enabled && (
               <Button size="sm" className="h-8" onClick={() => setEditor({ mode: "create" })}>
                 <Plus className="mr-1 h-3.5 w-3.5" /> New rule
@@ -171,6 +184,16 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
               >
                 <option value="">All statuses</option>
                 {FILTER_STATUSES.map((value) => <option key={value} value={value}>{TRAINING_STATUS_LABELS[value]}</option>)}
+              </select>
+              <label className="sr-only" htmlFor="training-filter-source">Source</label>
+              <select
+                id="training-filter-source"
+                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs sm:w-auto"
+                value={sourceFilter}
+                onChange={(event) => { setSourceFilter(event.target.value); setPage(1) }}
+              >
+                <option value="">All sources</option>
+                {Object.entries(TRAINING_SOURCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
               {info.canReview && (
                 <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -233,7 +256,31 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
         )}
       </HubCard>
 
+      {info.enabled && info.canReview && (
+        <ImportHistoryPanel history={imports} page={importsPage} onPage={setImportsPage} onOpen={setOpenBatchId} />
+      )}
+
       {info.canReview && <LegacyCoaching getToken={getToken} />}
+
+      {info.enabled && importAvailable && (
+        <PodiumImportSheet
+          open={importOpen}
+          getToken={getToken}
+          onClose={() => setImportOpen(false)}
+          onSaved={() => { imports.reload(); proposals.reload(); status.reload() }}
+          onOpenBatch={setOpenBatchId}
+        />
+      )}
+
+      {info.enabled && info.canReview && (
+        <ImportBatchDrawer
+          batchId={openBatchId}
+          getToken={getToken}
+          onClose={() => setOpenBatchId(null)}
+          onOpenProposal={(id) => { setOpenBatchId(null); setOpenId(id) }}
+          onChanged={imports.reload}
+        />
+      )}
 
       {info.enabled && (
         <TrainingProposalDrawer
