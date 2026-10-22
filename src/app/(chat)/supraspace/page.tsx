@@ -7470,7 +7470,7 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
             )}
           </div>
         ) : (
-          <div className="relative max-h-full max-w-full" onClick={e => e.stopPropagation()}>
+          <div className="relative h-full w-full min-h-0 min-w-0" onClick={e => e.stopPropagation()}>
             <video
               key={src}
               src={src}
@@ -7479,8 +7479,8 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
               playsInline
               preload="metadata"
               poster={poster}
-              className="rounded-xl"
-              style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
+              className="block h-full w-full rounded-xl object-contain"
+              style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
               onError={() => setVideoLoadFailed(true)}
             />
             {videoLoadFailed && (
