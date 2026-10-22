@@ -35,7 +35,9 @@ export function AuthSplitLayout({ children }: { children: React.ReactNode }) {
             <div className="auth-dot-grid absolute inset-0 opacity-[0.5]" />
           </div>
 
-          <div className="relative z-10 w-full">{children}</div>
+          {/* Above the link: a form that opens a full-screen step (the driver
+              application) must cover the link instead of the link floating on top. */}
+          <div className="relative z-20 w-full">{children}</div>
           <a
             href="https://suprah.ai/"
             className={`${AUTH_LINK_CLASS} relative z-10 mt-4 mb-2 text-xs sm:mt-6 sm:text-sm`}
