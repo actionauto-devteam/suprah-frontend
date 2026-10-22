@@ -74,6 +74,7 @@ import {
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
+import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
 
 
 // Constants
@@ -103,6 +104,18 @@ const isSmsLead = (lead: Lead | null | undefined): boolean => {
 
 const isWebchatLead = (lead: Lead | null | undefined): boolean =>
   String(lead?.channel || "").toLowerCase() === "webchat";
+
+const hasTextablePhone = (phone: string | null | undefined): boolean => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
+};
+
+const NO_VALID_PHONE_MESSAGE =
+  "This lead has no valid phone number, so a text can't be sent. Add a phone number in the contact details.";
+const SMS_OPTED_OUT_MESSAGE =
+  "This customer replied STOP, so texting is turned off. Texting turns back on only after they reply START.";
+const NO_CUSTOMER_EMAIL_MESSAGE =
+  "This lead has no customer email on file. Add the customer's email in the contact details before replying by email.";
 
 const isEmailLead = (lead: Lead | null | undefined): boolean => {
   if (!lead) return false;
@@ -429,7 +442,37 @@ export function LeadsTab({
   const [centralEmail, setCentralEmail] = React.useState("");
   const [lastSyncTime, setLastSyncTime] = React.useState<Date | null>(null);
 
-  const [replyMessage, setReplyMessage] = React.useState("");
+  const [replyDrafts, setReplyDrafts] = React.useState<Record<string, string>>({});
+  const [smsOptOutByLead, setSmsOptOutByLead] = React.useState<Record<string, boolean>>({});
+  const selectedLeadId = selectedLead?._id;
+  const replyMessage = selectedLeadId ? replyDrafts[selectedLeadId] ?? "" : "";
+
+  const setLeadDraft = React.useCallback((leadId: string, value: string) => {
+    setReplyDrafts((previous) => {
+      if (value) return { ...previous, [leadId]: value };
+      if (!(leadId in previous)) return previous;
+      const next = { ...previous };
+      delete next[leadId];
+      return next;
+    });
+  }, []);
+
+  const setReplyMessage = React.useCallback(
+    (value: string) => {
+      if (selectedLeadId) setLeadDraft(selectedLeadId, value);
+    },
+    [selectedLeadId, setLeadDraft],
+  );
+
+  const replyUnavailableReason = React.useMemo(() => {
+    if (!selectedLead || isWebchatLead(selectedLead)) return null;
+    if (isSmsLead(selectedLead)) {
+      if (!hasTextablePhone(selectedLead.phone)) return NO_VALID_PHONE_MESSAGE;
+      if (smsOptOutByLead[selectedLead._id]) return SMS_OPTED_OUT_MESSAGE;
+      return null;
+    }
+    return resolveCustomerEmail(selectedLead) ? null : NO_CUSTOMER_EMAIL_MESSAGE;
+  }, [selectedLead, smsOptOutByLead]);
   const lastTypingPingRef = React.useRef(0);
 
   const pingWebchatTyping = React.useCallback((lead: Lead | null) => {
@@ -1018,6 +1061,12 @@ export function LeadsTab({
           const smsMessages =
             smsResponse.data?.data?.messages || [];
           const smsConversation = smsResponse.data?.data?.conversation;
+          const smsOptedOut = Boolean(smsResponse.data?.data?.smsOptedOut);
+          setSmsOptOutByLead((previous) =>
+            previous[lead._id] === smsOptedOut
+              ? previous
+              : { ...previous, [lead._id]: smsOptedOut },
+          );
           setAiAgentStatus((previous) => ({
             ...previous,
             [lead._id]: {
@@ -1268,6 +1317,12 @@ export function LeadsTab({
       return;
     }
 
+    if (replyUnavailableReason) {
+      addToast("error", replyUnavailableReason);
+      return;
+    }
+
+    const sendingLeadId = selectedLead._id;
     setIsSending(true);
 
     try {
@@ -1311,7 +1366,7 @@ export function LeadsTab({
           });
         }
 
-        setReplyMessage("");
+        setLeadDraft(sendingLeadId, "");
         addToast("success", "Chat message sent");
 
         await updateLeadStatus({
@@ -1371,7 +1426,7 @@ export function LeadsTab({
           });
         }
 
-        setReplyMessage("");
+        setLeadDraft(sendingLeadId, "");
         addToast("success", "Text message sent");
 
         await updateLeadStatus({
@@ -1407,7 +1462,7 @@ export function LeadsTab({
         },
       );
 
-      setReplyMessage("");
+      setLeadDraft(sendingLeadId, "");
       addToast("success", "Reply sent");
 
       await updateLeadStatus({
@@ -1424,6 +1479,14 @@ export function LeadsTab({
       const message =
         error?.response?.data?.message ||
         "Failed to send reply";
+
+      const responseErrors = error?.response?.data?.errors;
+      if (
+        Array.isArray(responseErrors) &&
+        responseErrors.some((item: { code?: string }) => item?.code === "SMS_OPTED_OUT")
+      ) {
+        setSmsOptOutByLead((previous) => ({ ...previous, [sendingLeadId]: true }));
+      }
 
       addToast("error", message);
       throw error;
@@ -2275,6 +2338,7 @@ export function LeadsTab({
                     }
                     selectedLeadStatus={selectedLead.status}
                     leadId={selectedLead._id}
+                    replyUnavailableReason={replyUnavailableReason}
                     replyChannel={
                       isSmsLead(selectedLead) || isWebchatLead(selectedLead)
                         ? "sms"
