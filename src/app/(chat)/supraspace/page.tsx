@@ -15530,7 +15530,7 @@ export default function SupraSpacePage() {
                           </div>
                         )}
                         <div className="ss4-composer-main flex flex-col max-md:grid max-md:grid-cols-[44px_minmax(0,1fr)_auto] max-md:items-end max-md:gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
-                          <div className="ss4-mobile-leading flex md:hidden">
+                          <div className="ss4-mobile-leading relative flex md:hidden">
                             <button
                               type="button"
                               onPointerDown={e => e.stopPropagation()}
@@ -15543,6 +15543,10 @@ export default function SupraSpacePage() {
                             >
                               <Plus className="h-6 w-6" />
                             </button>
+                            <input id={fileInputId} ref={fileRef} type="file" multiple className="absolute inset-0 h-full w-full opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                            <input id={imageInputId} ref={imageFileRef} type="file" accept={SS4_MEDIA_INPUT_ACCEPT} multiple className="absolute inset-0 h-full w-full opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                            <input id={videoInputId} ref={videoFileRef} type="file" accept={SS4_VIDEO_INPUT_ACCEPT} multiple className="absolute inset-0 h-full w-full opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                            <input id={cameraInputId} ref={cameraFileRef} type="file" accept={SS4_MEDIA_INPUT_ACCEPT} capture="environment" className="absolute inset-0 h-full w-full opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
                           </div>
                           <div
                             className="ss4-composer-pill relative flex-1 min-w-0"
@@ -16011,10 +16015,6 @@ export default function SupraSpacePage() {
                             <ComposerCounter metrics={composerMetrics} />
                           </div>
                         )}
-                        <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
-                        <input id={imageInputId} ref={imageFileRef} type="file" accept={SS4_MEDIA_INPUT_ACCEPT} multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
-                        <input id={videoInputId} ref={videoFileRef} type="file" accept={SS4_VIDEO_INPUT_ACCEPT} multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
-                        <input id={cameraInputId} ref={cameraFileRef} type="file" accept={SS4_MEDIA_INPUT_ACCEPT} capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
