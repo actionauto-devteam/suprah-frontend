@@ -7488,9 +7488,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             {videoAttachments.length > 0 && (
                               <div className="flex flex-col gap-1.5 mt-1">
                                 {videoAttachments.map((a: SSAttachment, i: number) => (
-                                  <video key={i} controls preload="metadata" className="rounded-xl block" style={{ maxWidth: 240, maxHeight: 200 }}>
-                                    <source src={a.url} type={a.mimeType || 'video/mp4'} />
-                                  </video>
+                                  <video key={i} src={a.url} controls playsInline preload="metadata" className="rounded-xl block" style={{ maxWidth: 240, maxHeight: 200 }} />
                                 ))}
                               </div>
                             )}

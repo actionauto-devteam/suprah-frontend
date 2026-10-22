@@ -4933,6 +4933,7 @@ function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlayback
       {!loadFailed && (
         <video
           key={`${mediaUrl}:${reloadKey}`}
+          src={mediaUrl}
           controls
           preload={localPreviewUrl ? 'auto' : 'metadata'}
           poster={attachment.thumbnailUrl || undefined}
@@ -4946,9 +4947,7 @@ function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlayback
           onTimeUpdate={event => {
             if (event.currentTarget.currentTime > 0.05) clearRecoveryTimer();
           }}
-        >
-          <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
-        </video>
+        />
       )}
       {loadFailed && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl px-4 text-center" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)', border: '1px solid var(--border-2)' }}>
@@ -7223,7 +7222,7 @@ const Bubble = React.memo(function Bubble({
   );
 });
 
-function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onNext, galleryPosition }: {
+function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galleryPosition }: {
   src: string; type: 'image' | 'video'; name: string; mimeType?: string; poster?: string; onClose: () => void;
   onPrev?: () => void; onNext?: () => void;
   galleryPosition?: { index: number; total: number };
@@ -7473,6 +7472,7 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
           <div className="relative max-h-full max-w-full" onClick={e => e.stopPropagation()}>
             <video
               key={src}
+              src={src}
               controls
               autoPlay
               playsInline
@@ -7481,9 +7481,7 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
               className="rounded-xl"
               style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
               onError={() => setVideoLoadFailed(true)}
-            >
-              <source src={src} type={mimeType} />
-            </video>
+            />
             {videoLoadFailed && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-black/75 px-6 text-center">
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>This video could not be loaded.</p>
