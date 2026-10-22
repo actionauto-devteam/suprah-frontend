@@ -84,7 +84,9 @@ function normalizeSnapshot(snapshot: SupraSpaceCacheSnapshot): SupraSpaceCacheSn
     return acc;
   }, {});
   const hasMore = Object.keys(messages).reduce<Record<string, boolean>>((acc, id) => {
-    acc[id] = Boolean(snapshot.hasMore[id]);
+    // Trimming a fully loaded conversation still leaves older messages on
+    // the server. Preserve pagination after restoring the bounded cache.
+    acc[id] = Boolean(snapshot.hasMore[id]) || (snapshot.messages[id]?.length || 0) > MAX_MESSAGES_PER_CONVERSATION;
     return acc;
   }, {});
 

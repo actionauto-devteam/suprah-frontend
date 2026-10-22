@@ -4112,6 +4112,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const recSecondsRef = React.useRef(0);
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const recSendIntentRef = React.useRef<SupraSpaceVoiceRecordingIntent | null>(null);
+  const recRequestRef = React.useRef(0);
+  const recStartingRef = React.useRef(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLDivElement>(null);
   const inputSelectionRangeRef = React.useRef<Range | null>(null);
@@ -4846,9 +4848,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // ── Voice recording ──
   const startRecording = React.useCallback(async () => {
-    if (isReadOnlyConversation) return;
+    if (isReadOnlyConversation || recStartingRef.current || (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')) return;
+    recStartingRef.current = true;
+    const request = ++recRequestRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (request !== recRequestRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
       recStreamRef.current = stream;
       const voiceMimeType = getSupportedSupraSpaceVoiceMimeType();
       const mr = voiceMimeType ? new MediaRecorder(stream, { mimeType: voiceMimeType }) : new MediaRecorder(stream);
@@ -4858,7 +4866,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       recSendIntentRef.current = sendIntent;
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       mr.onstop = async () => {
-        recStreamRef.current?.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(t => t.stop());
         if (!sendIntent.sendRequested) return;
         const mimeType = mr.mimeType || getSupportedSupraSpaceVoiceMimeType() || 'audio/webm';
         const blob = new Blob(chunks, { type: mimeType });
@@ -4887,7 +4895,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       recSecondsRef.current = 0;
       recTimerRef.current = setInterval(() => { recSecondsRef.current += 1; setRecSeconds(recSecondsRef.current); }, 1000);
     } catch {
-      toast.error('Microphone permission denied.');
+      if (request === recRequestRef.current) {
+        recStreamRef.current?.getTracks().forEach(track => track.stop());
+        toast.error('Unable to start microphone recording. Check microphone access.');
+      }
+    } finally {
+      if (request === recRequestRef.current) recStartingRef.current = false;
     }
   }, [conv._id, crmToken, isReadOnlyConversation]);
 
@@ -4919,7 +4932,13 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   React.useEffect(() => () => {
+    recRequestRef.current += 1;
+    recStartingRef.current = false;
     if (recTimerRef.current) clearInterval(recTimerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      setSupraSpaceVoiceRecordingSendIntent(recSendIntentRef.current, false);
+      mediaRecorderRef.current.stop();
+    }
     recStreamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 

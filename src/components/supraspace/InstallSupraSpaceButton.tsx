@@ -8,6 +8,11 @@ import { usePwaNagSlot } from '@/hooks/usePwaNagSlot';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 function detectPlatform(): Platform {
   if (typeof navigator === 'undefined') return 'desktop';
   const ua = navigator.userAgent || '';
@@ -32,7 +37,7 @@ const SUPRASPACE_INSTALL_PROMPT_DISABLED_KEY = 'supraspace-install-prompt-disabl
 // means SupraSpace itself was launched, not the main app's shell.
 export function isRunningAsSupraSpaceStandalone(): boolean {
   if (typeof window === 'undefined') return false;
-  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   if (!standalone) return false;
   const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
   const entryUrl = nav ? new URL(nav.name) : window.location;
@@ -40,7 +45,7 @@ export function isRunningAsSupraSpaceStandalone(): boolean {
 }
 
 export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon' | 'row' }) {
-  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = React.useState<InstallPromptEvent | null>(null);
   const [installed, setInstalled] = React.useState(false);
   const [showHint, setShowHint] = React.useState(false);
   const [platform, setPlatform] = React.useState<Platform>('desktop');
@@ -69,7 +74,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     if (standalone) markSupraSpaceInstalled();
     setPlatform(detectPlatform());
     setAutoInstallPromptDisabled(localStorage.getItem(SUPRASPACE_INSTALL_PROMPT_DISABLED_KEY) === '1');
-    const onBip = (e: any) => { e.preventDefault(); setDeferredPrompt(e); };
+    const onBip = (e: Event) => { e.preventDefault(); setDeferredPrompt(e as InstallPromptEvent); };
     const onInstalled = () => { setInstalled(true); setDeferredPrompt(null); markSupraSpaceInstalled(); };
     window.addEventListener('beforeinstallprompt', onBip);
     window.addEventListener('appinstalled', onInstalled);
@@ -81,9 +86,17 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
 
   const handleClick = async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      setDeferredPrompt(null);
+      try {
+        await deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        setShowHint(false);
+        slot.release();
+      } catch {
+        setShowHint(true);
+        slot.request();
+      } finally {
+        setDeferredPrompt(null);
+      }
       return;
     }
     setShowHint(true);
@@ -102,21 +115,27 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   // SupraSpace's own origin — see the comment on those links). This is what
   // turns that redirect into a true one-more-tap install instead of dumping
   // the user on a page with nothing obviously to do: fire the same flow
-  // handleClick would, automatically, as soon as we know what's available.
+  // Show installation instructions automatically; the native prompt itself
+  // must run from the user's click.
   const autoTriggeredRef = React.useRef(false);
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const autoInstallRequested = new URLSearchParams(window.location.search).get('install') === '1';
     if (!autoInstallRequested || autoTriggeredRef.current || installed || alreadyInstalledElsewhere || autoInstallPromptDisabled) return;
 
-    // Drop the param so a later refresh of this tab doesn't re-trigger.
-    const cleanUrl = new URL(window.location.href);
-    cleanUrl.searchParams.delete('install');
-    window.history.replaceState(null, '', cleanUrl.toString());
+    // Consume only when shown: dependency updates and Strict Mode can cancel
+    // the timer before it fires, so the request must survive effect cleanup.
+    const consumeRequest = () => {
+      autoTriggeredRef.current = true;
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('install');
+      window.history.replaceState(window.history.state, '', cleanUrl.toString());
+    };
 
     if (deferredPrompt) {
-      autoTriggeredRef.current = true;
-      handleClick();
+      consumeRequest();
+      setShowHint(true);
+      slot.request();
       return;
     }
     // Android/Chrome's beforeinstallprompt can take a moment to fire (or
@@ -126,7 +145,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     // manual instructions instead of leaving the user with nothing.
     const t = setTimeout(() => {
       if (!autoTriggeredRef.current) {
-        autoTriggeredRef.current = true;
+        consumeRequest();
         setShowHint(true);
         slot.request();
       }

@@ -4422,7 +4422,7 @@ const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   );
 });
 
-function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: string; duration?: number; own: boolean }) {
+function VoicePlayer({ convId, msgId, duration, own, sourceUrl }: { convId: string; msgId: string; duration?: number; own: boolean; sourceUrl?: string }) {
   const { crmToken } = useSupraSpaceMessenger();
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = React.useState(false);
@@ -4435,13 +4435,15 @@ function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: 
 
   const handlePlay = React.useCallback(() => {
     const a = audioRef.current;
-    if (!a || pending || !crmToken) return;
+    if (!a || pending || (!sourceUrl && !crmToken)) return;
     if (playing) { a.pause(); return; }
+    if (audioErr) a.load();
+    setAudioErr(false);
     setPending(true);
     a.play()
       .then(() => setPending(false))
       .catch(() => { setPending(false); setAudioErr(true); });
-  }, [playing, pending, crmToken]);
+  }, [playing, pending, crmToken, sourceUrl, audioErr]);
 
   return (
     <div className={cn('ss4-voice-bar', own ? 'ss4-file-own' : 'ss4-file-other')} style={{ minWidth: 200, maxWidth: 280 }}>
@@ -4470,7 +4472,7 @@ function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: 
       </div>
       <audio
         ref={audioRef}
-        src={crmToken ? `${proxySrc}?t=${encodeURIComponent(crmToken)}` : ''}
+        src={sourceUrl || (crmToken ? `${proxySrc}?t=${encodeURIComponent(crmToken)}` : undefined)}
         preload="metadata"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -9878,6 +9880,22 @@ export default function SupraSpacePage() {
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const recStreamRef = React.useRef<MediaStream | null>(null);
   const recSendIntentRef = React.useRef<SupraSpaceVoiceRecordingIntent | null>(null);
+  const recRequestRef = React.useRef(0);
+  const recStartingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setRecording(false);
+    return () => {
+      recRequestRef.current += 1;
+      recStartingRef.current = false;
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        setSupraSpaceVoiceRecordingSendIntent(recSendIntentRef.current, false);
+        mediaRecorderRef.current.stop();
+      }
+      recStreamRef.current?.getTracks().forEach(track => track.stop());
+    };
+  }, [activeId]);
 
   const [msgResults, setMsgResults] = React.useState<SSMessageSearchResult[]>([]);
   const [searching, setSearching] = React.useState(false);
@@ -12458,8 +12476,15 @@ export default function SupraSpacePage() {
   }, [getComposerTextBeforeCaret, mentionAnchor, mentionCandidateFromTextBeforeCaret, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
 
   const startRecording = async () => {
+    if (recStartingRef.current || mediaRecorderRef.current?.state === 'recording' || !activeId) return;
+    recStartingRef.current = true;
+    const request = ++recRequestRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (request !== recRequestRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
       recStreamRef.current = stream;
       const voiceMimeType = getSupportedSupraSpaceVoiceMimeType();
       const mr = voiceMimeType ? new MediaRecorder(stream, { mimeType: voiceMimeType }) : new MediaRecorder(stream);
@@ -12472,7 +12497,7 @@ export default function SupraSpacePage() {
         const mimeType = mr.mimeType || getSupportedSupraSpaceVoiceMimeType() || 'audio/webm';
         const blob = new Blob(chunks, { type: mimeType });
         const seconds = recSecondsRef.current;
-        recStreamRef.current?.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach(t => t.stop());
         if (sendIntent.sendRequested && blob.size > 0 && activeId) {
           const extension = mimeType.includes('mp4') ? 'm4a' : 'webm';
           const file = new File([blob], `voice-note-${Date.now()}.${extension}`, { type: mimeType });
@@ -12487,13 +12512,20 @@ export default function SupraSpacePage() {
       mr.start();
       setRecording(true); setRecSeconds(0); recSecondsRef.current = 0;
       recTimerRef.current = setInterval(() => { recSecondsRef.current += 1; setRecSeconds(recSecondsRef.current); }, 1000);
-    } catch { showUploadNotice('error', 'Microphone permission denied.'); }
+    } catch {
+      if (request === recRequestRef.current) {
+        recStreamRef.current?.getTracks().forEach(track => track.stop());
+        showUploadNotice('error', 'Unable to start microphone recording. Check microphone access.');
+      }
+    } finally {
+      if (request === recRequestRef.current) recStartingRef.current = false;
+    }
   };
   const stopRecording = (send = false) => {
     if (recTimerRef.current) clearInterval(recTimerRef.current);
     setSupraSpaceVoiceRecordingSendIntent(recSendIntentRef.current, send);
     if (!send) recChunksRef.current = [];
-    mediaRecorderRef.current?.stop();
+    if (mediaRecorderRef.current?.state !== 'inactive') mediaRecorderRef.current?.stop();
     setRecording(false);
   };
 
@@ -16288,7 +16320,7 @@ export default function SupraSpacePage() {
                             {ssFileItems.map(({ messageId, attachment: a }, i) => a.mimeType?.startsWith('audio/') ? (
                               <div key={`${messageId}-${i}`} className="rounded-xl px-3 py-2.5 ss4-file-other">
                                 <p className="mb-1.5 text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p>
-                                <VoicePlayer convId={activeId} msgId={messageId} duration={a.duration} own={false} />
+                                <VoicePlayer convId={activeId} msgId={messageId} duration={a.duration} own={false} sourceUrl={a.url} />
                               </div>
                             ) : (
                               <a key={`${messageId}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">

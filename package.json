@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test:supraspace-rich-links": "node scripts/test-supraspace-rich-links.mjs"
+    "test:supraspace-rich-links": "node scripts/test-supraspace-rich-links.mjs",
+    "test:supraspace": "node scripts/test-supraspace-rich-links.mjs && node scripts/test-supraspace-voice-recording.mjs && node scripts/test-supraspace-unread-boundary.mjs && node scripts/test-supraspace-conversation-search.mjs && node tests/supraspace-lifecycle.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
