@@ -1444,8 +1444,7 @@ if (typeof document !== 'undefined') {
     .ss4-file-own { background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.12); border-radius:10px; }
     .ss4-file-other { background:var(--surface-2); border:1px solid var(--border-1); border-radius:10px; }
     .ss4-badge { background:var(--accent); color:#fff; font-size:9px; font-weight:700; border-radius:10px; min-width:16px; height:16px; line-height:16px; padding:0 4px; text-align:center; }
-    @keyframes ss4-fade-up { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
-    .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; -webkit-touch-callout:default; -webkit-user-select:text; user-select:text; }
+    .ss4-msg-enter { -webkit-touch-callout:default; -webkit-user-select:text; user-select:text; }
     .ss4-copyable-text { -webkit-user-select:text; user-select:text; cursor:text; line-height:inherit; }
     .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(22,163,74,0.25); border-radius:16px; }
     .ss4-divider { height:1px; background:var(--border-1); }
