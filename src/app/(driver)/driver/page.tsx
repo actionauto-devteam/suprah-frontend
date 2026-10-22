@@ -110,6 +110,7 @@ import { DriverReleaseLoadDialog } from "@/components/driver/DriverReleaseLoadDi
 import { DriverPickupProofDialog } from "@/components/driver/DriverPickupProofDialog";
 import { DriverLoadChangesDialog, type DriverLoadChange } from "@/components/driver/DriverLoadChangesDialog";
 import { DriverStatusChangeDialog } from "@/components/driver/DriverStatusChangeDialog";
+import { announceDeliveryCompleted } from "@/components/driver/KeepSharingAfterDelivery";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
@@ -2560,7 +2561,7 @@ export default function DriverDashboardPage() {
                         ? "GPS is optional while your Work Availability is On Leave."
                         : opStatus === "maintenance"
                           ? "GPS is optional while your Work Availability is In Shop."
-                          : "No accepted active loads. Location sharing is optional and is not visible to Dispatch unless they own an accepted active load for you."}
+                          : "No accepted active loads. Sharing is optional. While it's on, Dispatch sees only about how far you are from a pickup, never your exact location, so they can offer you nearby loads."}
                   </p>
                   <Button
                     size="sm"
@@ -3597,6 +3598,7 @@ function DriverDeliveryProofDialog({
       );
 
       setWaitingForSignal(false);
+      announceDeliveryCompleted(String(load._id));
       await onDelivered();
     } catch (err: any) {
       if (isNoConnectionError(err)) {

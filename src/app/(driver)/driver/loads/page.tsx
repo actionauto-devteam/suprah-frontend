@@ -56,6 +56,7 @@ import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirma
 import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
 import { DriverReleaseLoadDialog } from '@/components/driver/DriverReleaseLoadDialog';
 import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDialog';
+import { announceDeliveryCompleted } from '@/components/driver/KeepSharingAfterDelivery';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import { userErrorMessage } from "@/lib/user-error";
 import {
@@ -1239,6 +1240,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
       );
 
       setWaitingForSignal(false);
+      announceDeliveryCompleted(String(load._id));
       onSuccess();
     } catch (err: any) {
       if (isNoConnectionError(err)) {

@@ -18,6 +18,25 @@ function miles(value: number | null | undefined) {
     : null;
 }
 
+// "45 min ago", "3 h ago"; null when the time is missing.
+function timeAgo(iso: string | null | undefined) {
+  const at = iso ? new Date(iso).getTime() : Number.NaN;
+  if (!Number.isFinite(at)) return null;
+  const minutes = Math.max(1, Math.round((Date.now() - at) / 60_000));
+  return minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
+}
+
+function proximitySourceLabel(source: string | null | undefined, lastSeenAt: string | null | undefined) {
+  if (source === "live_gps") return " · Live GPS";
+  if (source === "shared_location") return " · Location shared by the driver";
+  if (source === "last_delivery") {
+    const ago = timeAgo(lastSeenAt);
+    return ago ? ` · From last delivery, ${ago}` : " · From last delivery";
+  }
+  if (source === "home_base") return " · Home base";
+  return "";
+}
+
 export function DriverLoadRecommendationBadges({
   compatibility,
   className,
@@ -124,12 +143,9 @@ export function DriverLoadRecommendationBadges({
           className="border-blue-500/30 bg-blue-500/5 text-[10px] font-bold text-blue-700 dark:text-blue-400"
         >
           <Navigation2 className="mr-1 size-3 shrink-0" />
+          {proximity.approximate ? "About " : ""}
           {distance.toLocaleString()} mi from pickup
-          {proximity.source === "live_gps"
-            ? " · Live GPS"
-            : proximity.source === "home_base"
-              ? " · Home base"
-              : ""}
+          {proximitySourceLabel(proximity.source, proximity.lastSeenAt)}
         </Badge>
       ) : showUnknown ? (
         <Badge
