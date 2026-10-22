@@ -69,7 +69,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { normalizeSupraSpaceEditorBlockText, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -2117,6 +2117,23 @@ function htmlToMarkdown(el: HTMLElement): string {
     const isMonospace = !fontFamily
       && /(monospace|courier|consolas|menlo|monaco)/i.test(rawFontFamily);
 
+    if (['div', 'p', 'section', 'article'].includes(tag)) {
+      const breaks = element.querySelectorAll('br');
+      const terminalBreak = breaks.item(breaks.length - 1);
+      // A nested block handles its own placeholder; do not strip it twice.
+      let breakBlock = terminalBreak?.parentElement;
+      while (breakBlock && breakBlock !== element
+        && !['div', 'p', 'section', 'article'].includes(breakBlock.tagName.toLowerCase())) {
+        breakBlock = breakBlock.parentElement;
+      }
+      if (breakBlock === element) {
+        inner = normalizeSupraSpaceEditorBlockText(
+          inner,
+          Boolean(terminalBreak?.hasAttribute('data-ss4-soft-break')),
+        );
+      }
+    }
+
     const hasInlineContent = Boolean(inner.trim());
     if (hasInlineContent && elementIsBold && !inherited.bold) inner = `**${inner}**`;
     if (hasInlineContent && elementIsItalic && !inherited.italic) inner = `_${inner}_`;
@@ -2146,27 +2163,11 @@ function htmlToMarkdown(el: HTMLElement): string {
     const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
 
-    // WebKit may leave a terminal <br> inside every visual block in a
-    // contentEditable composer. The block itself already supplies the line
-    // boundary below, so serializing both turns one visible line break into a
-    // stored blank line. Keep an otherwise empty block intact: that is an
-    // intentional blank line.
-    const breaks = element.querySelectorAll('br');
-    const terminalBreak = breaks.item(breaks.length - 1);
-    const hasIntentionalTerminalSoftBreak = terminalBreak?.hasAttribute('data-ss4-soft-break');
-    if (
-      ['div', 'p', 'section', 'article'].includes(tag)
-      && inner.endsWith('\n')
-      && inner.slice(0, -1).trim()
-      && !hasIntentionalTerminalSoftBreak
-    ) inner = inner.slice(0, -1);
-
     if (
       ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
       || /^h[1-6]$/.test(tag)
     ) {
-      const separator = element.hasAttribute('data-ss4-paste-paragraph') ? '\n\n' : '\n';
-      inner = `${separator}${inner}`;
+      inner = `\n${inner}`;
     }
     return inner;
   };

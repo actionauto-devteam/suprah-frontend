@@ -180,3 +180,15 @@ export function sanitizeSupraSpacePastedEditorHtml(
 
   return doc.body.innerHTML;
 }
+
+/** Remove a browser's block placeholder before applying inline formatting.
+ * The surrounding block already supplies its own newline. Marked soft breaks
+ * are authored content and must survive, including repeated Shift+Enter.
+ */
+export function normalizeSupraSpaceEditorBlockText(
+  text: string,
+  hasIntentionalTerminalSoftBreak: boolean,
+): string {
+  if (hasIntentionalTerminalSoftBreak || !text.endsWith('\n')) return text;
+  return text.slice(0, -1);
+}

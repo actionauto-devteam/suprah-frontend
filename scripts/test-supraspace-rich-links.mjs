@@ -231,3 +231,88 @@ assert.equal(richPaste.stripSupraSpaceSemanticListMarker('Release 2.0 is ready.'
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('\u2022 Keep this bullet text.', false), 'Keep this bullet text.');
 
 console.log('SupraSpace rich-text regression checks passed.');
+
+// Exercise both real serializers with browser-shaped editor nodes.
+function editorNode(tag, children = [], attributes = {}) {
+  const node = typeof tag === 'string' && tag === '#text'
+    ? { nodeType: 3, textContent: children }
+    : {
+      nodeType: 1, tagName: tag.toUpperCase(), childNodes: children,
+      style: new Proxy({}, { get: () => '' }),
+      getAttribute: name => attributes[name] ?? null,
+      hasAttribute: name => Object.hasOwn(attributes, name),
+      querySelectorAll(selector) {
+        const found = [];
+        const visit = current => (current.childNodes || []).forEach(child => {
+          if (child.tagName?.toLowerCase() === selector) found.push(child);
+          visit(child);
+        });
+        visit(this);
+        found.item = index => found[index] || null;
+        return found;
+      },
+    };
+  if (Array.isArray(children)) children.forEach(child => { child.parentElement = node; });
+  return node;
+}
+const textNode = value => editorNode('#text', value);
+for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/supraspace/ChatPopupManager.tsx']) {
+  const source = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+  const start = source.indexOf('function htmlToMarkdown(');
+  const end = source.indexOf('\nfunction ', start + 1);
+  const compiled = typescript.transpileModule(source.slice(start, end), {
+    compilerOptions: { target: typescript.ScriptTarget.ES2022 },
+  }).outputText;
+  const context = {
+    Node: { TEXT_NODE: 3, ELEMENT_NODE: 1 },
+    stripCopiedTextArtifacts: value => value,
+    clipboardElementIsHidden: () => false,
+    clipboardElementIsDecorativeMarker: () => false,
+    clipboardElementIsMetadata: () => false,
+    ss4FontFamilyIdFromCss: () => null,
+    ss4FontSizeFromCss: () => null,
+    ss4FontSizeFromLegacyAttribute: () => null,
+    getSupraSpaceClipboardTextColor: () => null,
+    cssColorToHex: () => null,
+    normalizeSupraSpaceEditorBlockText: richPaste.normalizeSupraSpaceEditorBlockText,
+    normalizeListExitLineSpacing: value => value,
+    normalizeSupraSpaceLegacyMarkup: value => value,
+    canonicalizeColorMarkup: value => value,
+    richTextSerializationDropsVisibleText: () => false,
+  };
+  vm.createContext(context);
+  vm.runInContext(compiled, context);
+  const serialize = children => context.htmlToMarkdown(editorNode('div', children));
+  assert.equal(serialize([
+    editorNode('div', [textNode('first')]),
+    editorNode('div', [editorNode('br'), editorNode('br')]),
+    editorNode('div', [textNode('second')]),
+  ]), 'first\n\n\nsecond', path);
+  assert.equal(serialize([textNode('first'), editorNode('br'), textNode('second')]), 'first\nsecond', path);
+  assert.equal(serialize([textNode('first'), editorNode('br'), editorNode('br'), textNode('second')]), 'first\n\nsecond', path);
+  assert.equal(serialize([
+    editorNode('div', [
+      editorNode('div', [textNode('first')]),
+      editorNode('div', [editorNode('br')]),
+    ]),
+    editorNode('div', [textNode('second')]),
+  ]), 'first\n\nsecond', path);
+  assert.equal(serialize([
+    editorNode('div', [textNode('first')]),
+    editorNode('div', [editorNode('br')]),
+    editorNode('div', [textNode('second')]),
+  ]), 'first\n\nsecond', path);
+  assert.equal(serialize([
+    editorNode('div', [textNode('first')], { 'data-ss4-paste-paragraph': 'true' }),
+    editorNode('div', [textNode('second')], { 'data-ss4-paste-paragraph': 'true' }),
+  ]), 'first\nsecond', path);
+  assert.equal(serialize([
+    editorNode('div', [editorNode('strong', [textNode('first')]), editorNode('br')]),
+    editorNode('div', [textNode('second')]),
+  ]), '**first**\nsecond', path);
+  assert.equal(serialize([
+    editorNode('div', [textNode('first'), editorNode('br', [], { 'data-ss4-soft-break': 'true' })]),
+    editorNode('div', [textNode('second')]),
+  ]), 'first\n\nsecond', path);
+}
+console.log('SupraSpace editor newline regression tests passed.');
