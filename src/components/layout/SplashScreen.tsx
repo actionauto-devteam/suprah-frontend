@@ -47,14 +47,15 @@ export const SplashScreen = () => {
   const pathname = usePathname();
   const skipForSupraSpace = isSupraSpacePathname(pathname);
 
-  // Keep the pathname-based value SSR/hydration-safe. Client-only checks for
-  // the dedicated SupraSpace subdomain and same-tab repeat visits happen in
-  // useLayoutEffect before the browser paints the next frame.
-  const [isVisible, setIsVisible] = useState(!skipForSupraSpace);
+  // Rewrites can expose different pathnames on the server and in the browser.
+  // Start hidden on both, then decide whether to show the splash before paint.
+  const [isVisible, setIsVisible] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     if (skipForSupraSpace) {
+      // Resolve browser-only routing/storage before paint to avoid a splash flash.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsVisible(false);
       return;
     }
@@ -79,6 +80,7 @@ export const SplashScreen = () => {
       // sessionStorage can be unavailable in hardened/private contexts.
       // In that case, keep the short first-load splash rather than blocking.
     }
+    setIsVisible(true);
   }, [skipForSupraSpace]);
 
   useEffect(() => {
