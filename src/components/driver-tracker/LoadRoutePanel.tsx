@@ -217,7 +217,7 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
 
       <p className="mt-2 text-[11px] text-muted-foreground">
         {route.available
-          ? `Best truck route with live traffic · updated ${formatClock(shown.computedAt)}`
+          ? `${shown.optimizedFor === "shortest" ? "Shortest" : "Fastest"} truck route with live traffic · updated ${formatClock(shown.computedAt)}`
           : `Couldn't refresh · showing the route from ${formatClock(shown.computedAt)}`}
       </p>
     </div>

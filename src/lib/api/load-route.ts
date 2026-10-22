@@ -22,6 +22,8 @@ export type LoadRouteLines = {
 export type AvailableLoadRoute = {
   available: true;
   stop: "pickup" | "delivery";
+  /** Which route was planned: the fastest drive time or the shortest distance (server setting). */
+  optimizedFor?: "fastest" | "shortest";
   /** Seconds from computedAt, including the driver-pace adjustment. */
   durationSeconds: number;
   arrivalAt: string;
