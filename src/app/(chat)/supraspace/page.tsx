@@ -7254,6 +7254,8 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
     setZoom(1);
     setOffset({ x: 0, y: 0 });
     setVideoLoadFailed(false);
+    setIsDragging(false);
+    hasDraggedRef.current = false;
     dragRef.current = null;
     pinchRef.current = null;
   }, [src]);
@@ -7286,14 +7288,16 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
     applyZoom(zoom + (e.deltaY < 0 ? 0.2 : -0.2));
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (zoom <= 1) return;
+  const handleMouseDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (type !== 'image' || zoom <= 1 || e.pointerType === 'touch' || e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
     hasDraggedRef.current = false;
     dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
     setIsDragging(true);
   };
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     if (!dragRef.current) return;
     hasDraggedRef.current = true;
     setOffset({
@@ -7408,17 +7412,22 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
 
       { }
       <div
-        className="flex-1 flex items-center justify-center overflow-hidden"
+        className="min-h-0 flex-1 flex items-center justify-center overflow-hidden"
         style={{
           cursor: type !== 'image' ? 'default' : zoom > 1 ? 'move' : 'zoom-in',
           touchAction: type === 'image' ? 'none' : 'auto',
           userSelect: 'none',
         }}
         onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onPointerDown={handleMouseDown}
+        onPointerMove={handleMouseMove}
+        onPointerUp={e => {
+          if (e.pointerType === 'touch') return;
+          handleMouseUp();
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onPointerCancel={handleMouseUp}
+        onLostPointerCapture={handleMouseUp}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

@@ -24,6 +24,7 @@ export function AttachmentLightbox({
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const suppressClickRef = React.useRef(false);
   const dragRef = React.useRef<{ startX: number; startY: number; originX: number; originY: number; dragged: boolean } | null>(null);
   const rootRef = React.useRef<HTMLDivElement>(null);
   // A capability flag, not tied to whether rootRef is attached yet — iOS
@@ -36,6 +37,8 @@ export function AttachmentLightbox({
   React.useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    dragRef.current = null;
+    suppressClickRef.current = false;
   }, [attachment?.src]);
 
   // Reflect the real fullscreen state (also changes when the user exits via
@@ -87,12 +90,18 @@ export function AttachmentLightbox({
 
   const onImageClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (dragRef.current?.dragged) return;
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     zoomTo(zoom > 1 ? 1 : 2);
   };
 
   const beginPan = (e: React.PointerEvent) => {
+    suppressClickRef.current = false;
+    if (!e.isPrimary || e.button !== 0) return;
     if (zoom <= 1) return;
+    e.preventDefault();
     dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pan.x, originY: pan.y, dragged: false };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
@@ -105,8 +114,9 @@ export function AttachmentLightbox({
     setPan({ x: drag.originX + dx, y: drag.originY + dy });
   };
   const endPan = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    suppressClickRef.current = dragRef.current?.dragged ?? false;
     dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   if (!attachment) return null;
