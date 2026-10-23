@@ -5699,9 +5699,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     });
     const lastSeen: Record<string, string> = {};
     messages.forEach(m => {
-      // Keep the receipt under the newest message the popup viewer sent that
-      // the member has read, instead of moving it to another sender's bubble.
-      if (String(m.sender?._id) !== crmUserId) return;
+      // Move each reader's marker to their newest visible read message,
+      // regardless of who sent it.
       (m.readBy || []).forEach((id: string) => {
         const readerId = String(id);
         if (readerId !== crmUserId) lastSeen[readerId] = m._id;
@@ -7610,8 +7609,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           </div>
                         )}
                         {/* Seen avatars — outside the bubble so they're always visible */}
-                        {isOwn && seenMembers.length > 0 && (
-                          <div className="flex items-center justify-end gap-0.5 mt-0.5 px-0.5">
+                        {seenMembers.length > 0 && (
+                          <div className={cn('flex items-center gap-0.5 mt-0.5 px-0.5', isOwn ? 'justify-end' : 'justify-start')}>
                             {seenMembers.slice(0, 4).map(m => (
                               <div key={m._id} title={`Seen by ${m.fullName}`}
                                 className="h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-white"

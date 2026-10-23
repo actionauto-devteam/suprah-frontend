@@ -7077,17 +7077,15 @@ const Bubble = React.memo(function Bubble({
         )}
 
         {(() => {
-          // This list is mapped to each member's latest outgoing message from
-          // this viewer that they have read, matching Messenger's placement.
-          const seenByOthers = isOwn
-            ? members as Array<{ _id: string; fullName: string; avatar?: string }>
-            : [];
+          // Each reader is anchored to their latest visible read position,
+          // regardless of who sent that message.
+          const seenByOthers = members as Array<{ _id: string; fullName: string; avatar?: string }>;
           const hasSeen = seenByOthers.length > 0;
           if (hideTime && !hasSeen && !failedSend) return null;
           return (
             <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
               {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)', userSelect: 'none', WebkitUserSelect: 'none' }}>{fmtTime(message.createdAt)}</span>}
-              {isOwn && (hasSeen ? (
+              {hasSeen ? (
                 <div className="flex items-center" style={{ gap: 2 }}>
                   {seenByOthers.slice(0, 5).map(m => (
                     <div key={m._id} title={m.fullName}
@@ -7098,9 +7096,9 @@ const Bubble = React.memo(function Bubble({
                   ))}
                   {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
                 </div>
-              ) : !hideTime ? (
+              ) : isOwn && !hideTime ? (
                 <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
-              ) : null)}
+              ) : null}
               {isOwn && failedSend && failedSend.deliveryStatus !== 'checking' && (
                 <button
                   type="button"
@@ -10228,9 +10226,8 @@ export default function SupraSpacePage() {
     });
     const lastSeen: Record<string, string> = {};
     activeMsgs.forEach(m => {
-      // Keep the receipt under the newest outgoing message this viewer sent
-      // that the member has read, matching Messenger's read marker.
-      if (String(m.sender?._id) !== uid) return;
+      // Move each reader's marker to their newest visible read message,
+      // regardless of who sent it.
       (m.readBy || []).forEach((id: string) => {
         const readerId = String(id);
         if (readerId !== uid) lastSeen[readerId] = m._id;
