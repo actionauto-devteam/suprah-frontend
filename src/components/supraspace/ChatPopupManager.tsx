@@ -31,6 +31,7 @@ import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
 import { PreSendMediaPreview } from './PreSendMediaPreview';
 import { AdaptiveAttachmentImage } from './AdaptiveAttachmentImage';
+import { SeenBySummary } from './SeenBySummary';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -7047,7 +7048,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     <React.Fragment key={msg._id}>
                     {msg._id === unreadBoundaryMessageId && <UnreadMessagesDivider compact />}
                     <div
-                      className={cn(operationalKind ? 'block' : 'flex gap-2', !operationalKind && (isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end'), showName && 'mt-2')}
+                      className={cn(operationalKind ? 'block' : 'flex gap-2', !operationalKind && (isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end'), showName && 'mt-2', seenMembers.length > 0 && 'relative pb-5')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
                     >
@@ -7647,21 +7648,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             )}
                           </div>
                         )}
-                        {/* Seen avatars — outside the bubble so they're always visible */}
-                        {seenMembers.length > 0 && (
-                          <div className={cn('flex items-center gap-0.5 mt-0.5 px-0.5', isOwn ? 'justify-end' : 'justify-start')}>
-                            {seenMembers.slice(0, 4).map(m => (
-                              <div key={m._id} title={`Seen by ${m.fullName}`}
-                                className="h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center shrink-0 text-white"
-                                style={{ fontSize: 6, background: stringToColor(m.fullName), border: '1px solid var(--background, #fff)' }}>
-                                {m.avatar
-                                  ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" />
-                                  : m.fullName[0]?.toUpperCase()}
-                              </div>
-                            ))}
-                            {seenMembers.length > 4 && <span className="text-[8px] text-muted-foreground">+{seenMembers.length - 4}</span>}
-                          </div>
-                        )}
                         {/* Reaction pills */}
                         {msg.reactions && msg.reactions.length > 0 && (
                           <div className={cn('flex flex-wrap gap-1 mt-1', isOwn ? 'justify-end' : 'justify-start')}>
@@ -7708,6 +7694,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           </div>
                         )}
                       </div>
+                      <SeenBySummary members={seenMembers} className="absolute bottom-0 right-0" />
                     </div>
                     </React.Fragment>
                   );

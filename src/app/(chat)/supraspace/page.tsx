@@ -76,6 +76,7 @@ import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpa
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
 import { AdaptiveAttachmentImage } from '@/components/supraspace/AdaptiveAttachmentImage';
+import { SeenBySummary } from '@/components/supraspace/SeenBySummary';
 import { getSupraSpaceMessageTextSizeOptions, getSupraSpaceMessageTextStyle, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
 import { runSupraSpaceBulkOperation } from '@/lib/supraspace-bulk-operations';
 import { filterSupraSpaceConversations, recentSupraSpaceConversations } from '@/lib/supraspace-conversation-search';
@@ -6148,7 +6149,7 @@ const Bubble = React.memo(function Bubble({
   const actionBorder = isLightTheme ? 'rgba(15,23,42,0.14)' : 'rgba(255,255,255,0.14)';
 
   return (
-    <div id={`ss4-msg-${message._id}`} ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
+    <div id={`ss4-msg-${message._id}`} ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight', members.length > 0 && 'pb-5')}
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onTouchMove={handleTouchMove} onContextMenu={handleMobileContextMenu}>
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
@@ -7081,22 +7082,11 @@ const Bubble = React.memo(function Bubble({
           // regardless of who sent that message.
           const seenByOthers = members as Array<{ _id: string; fullName: string; avatar?: string }>;
           const hasSeen = seenByOthers.length > 0;
-          if (hideTime && !hasSeen && !failedSend) return null;
+          if (hideTime && !failedSend) return null;
           return (
             <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
               {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)', userSelect: 'none', WebkitUserSelect: 'none' }}>{fmtTime(message.createdAt)}</span>}
-              {hasSeen ? (
-                <div className="flex items-center" style={{ gap: 2 }}>
-                  {seenByOthers.slice(0, 5).map(m => (
-                    <div key={m._id} title={m.fullName}
-                      className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
-                      style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
-                      {m.avatar ? <SS4AvatarImage src={m.avatar} name={m.fullName} className="w-full h-full object-cover" size={6} /> : m.fullName[0]?.toUpperCase()}
-                    </div>
-                  ))}
-                  {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
-                </div>
-              ) : isOwn && !hideTime ? (
+              {isOwn && !hasSeen && !hideTime ? (
                 <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
               ) : null}
               {isOwn && failedSend && failedSend.deliveryStatus !== 'checking' && (
@@ -7118,6 +7108,8 @@ const Bubble = React.memo(function Bubble({
           );
         })()}
       </div>
+
+      <SeenBySummary members={members} className="absolute bottom-0 right-4 sm:right-5" />
 
       {mobileMenu && !disableActions && mobileOverlayHost && createPortal(
         <div
