@@ -1245,7 +1245,7 @@ if (typeof document !== 'undefined') {
     .ss4-mono { font-family:'Geist Mono',monospace; }
     .ss4-topbar { background:var(--bg-elevated); border-bottom:1px solid var(--border-1); }
     .ss4-sidebar { background:var(--sidebar-bg); border-right:1px solid var(--sidebar-border); }
-    .ss4-conv { border-radius:10px; cursor:pointer; transition:background .15s ease,box-shadow .15s ease; position:relative; }
+    .ss4-conv { border-radius:10px; cursor:pointer; transition:box-shadow .15s ease; position:relative; }
     .ss4-conv:hover { background:var(--bg-hover); }
     .ss4-conv-active { background:rgba(22,163,74,0.18)!important; }
     .ss4-conv-name { color:var(--text-primary); }
