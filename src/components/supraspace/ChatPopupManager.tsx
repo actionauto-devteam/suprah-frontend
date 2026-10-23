@@ -30,6 +30,7 @@ import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupr
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
 import { PreSendMediaPreview } from './PreSendMediaPreview';
+import { AdaptiveAttachmentImage } from './AdaptiveAttachmentImage';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -7492,33 +7493,51 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 imageAttachments.length === 1 ? 'inline-block' : 'grid gap-1 overflow-hidden rounded-2xl',
                                 imageAttachments.length === 2 && 'grid-cols-2',
                                 imageAttachments.length >= 3 && 'grid-cols-2'
-                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : { width: 220, maxWidth: '100%', height: 180 }}>
+                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : undefined}>
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
                                   const imageKey = `${msg._id}:${i}:${src}`;
+                                  if (imageAttachments.length === 1) return (
+                                    <AdaptiveAttachmentImage key={i} attachment={a} maxWidth="220px" maxHeight={300}>
+                                      {({ style, onImageLoad }) => (
+                                        <button
+                                          type="button"
+                                          onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
+                                          className="block max-w-full overflow-hidden rounded-2xl border border-white/10 bg-black/20"
+                                          style={style}
+                                          title="Preview image"
+                                        >
+                                          {failedPopupImages.has(imageKey) ? (
+                                            <span className="flex h-32 items-center justify-center px-3 text-center text-[11px] text-muted-foreground">Image unavailable</span>
+                                          ) : (
+                                            <img
+                                              key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
+                                              src={src}
+                                              alt={a.originalName || 'photo'}
+                                              className="h-full w-full rounded-2xl object-contain"
+                                              onLoad={onImageLoad}
+                                              onError={() => recoverPopupImage(imageKey)}
+                                            />
+                                          )}
+                                        </button>
+                                      )}
+                                    </AdaptiveAttachmentImage>
+                                  );
                                   return (
                                     <button
                                       key={i}
                                       type="button"
                                       onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
                                       className={cn(
-                                        imageAttachments.length === 1 ? 'block h-full w-full max-w-full' : 'block',
+                                        'block',
                                         'overflow-hidden border border-white/10 bg-black/20',
-                                        imageAttachments.length === 1 ? 'rounded-2xl' : 'h-32',
+                                        'h-32',
                                       )}
                                       title="Preview image"
                                     >
                                       {failedPopupImages.has(imageKey) ? (
                                         <span className="flex h-32 items-center justify-center px-3 text-center text-[11px] text-muted-foreground">Image unavailable</span>
-                                      ) : imageAttachments.length === 1 ? (
-                                        <img
-                                          key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
-                                          src={src}
-                                          alt={a.originalName || 'photo'}
-                                          className="block h-full w-full rounded-2xl object-contain"
-                                          onError={() => recoverPopupImage(imageKey)}
-                                        />
                                       ) : (
                                         <img
                                           key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}

@@ -12,6 +12,8 @@ export interface SSAttachment {
   size: number;
   thumbnailUrl?: string;
   duration?: number;        // seconds (voice notes)
+  width?: number;
+  height?: number;
 }
 
 export interface SSReaction { emoji: string; users: string[] }

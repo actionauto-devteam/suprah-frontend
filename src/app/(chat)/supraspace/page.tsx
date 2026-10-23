@@ -75,6 +75,7 @@ import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpa
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
+import { AdaptiveAttachmentImage } from '@/components/supraspace/AdaptiveAttachmentImage';
 import { getSupraSpaceMessageTextSizeOptions, getSupraSpaceMessageTextStyle, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
 import { runSupraSpaceBulkOperation } from '@/lib/supraspace-bulk-operations';
 import { filterSupraSpaceConversations, recentSupraSpaceConversations } from '@/lib/supraspace-conversation-search';
@@ -4884,7 +4885,7 @@ function mergeLocalAttachmentPreviews(message: SSMessage, localPreviewUrls: stri
   };
 }
 
-function SS4RemoteImage({ src, alt, className, style, imageClassName, imageStyle, onRecover }: { src: string; alt: string; className?: string; style?: React.CSSProperties; imageClassName?: string; imageStyle?: React.CSSProperties; onRecover?: () => void }) {
+function SS4RemoteImage({ src, alt, className, style, imageClassName, imageStyle, onRecover, onLoadDimensions }: { src: string; alt: string; className?: string; style?: React.CSSProperties; imageClassName?: string; imageStyle?: React.CSSProperties; onRecover?: () => void; onLoadDimensions?: React.ReactEventHandler<HTMLImageElement> }) {
   const previewUrl = src;
   const [loadedUrl, setLoadedUrl] = React.useState<string | null>(null);
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
@@ -4912,7 +4913,10 @@ function SS4RemoteImage({ src, alt, className, style, imageClassName, imageStyle
           className={cn('h-full w-full object-contain', imageClassName)}
           style={{ display: 'block', ...imageStyle }}
           decoding="async"
-          onLoad={() => setLoadedUrl(previewUrl)}
+          onLoad={(event) => {
+            setLoadedUrl(previewUrl);
+            onLoadDimensions?.(event);
+          }}
           onError={() => {
             if (onRecover && recoveredUrlRef.current !== previewUrl) {
               recoveredUrlRef.current = previewUrl;
@@ -4927,8 +4931,8 @@ function SS4RemoteImage({ src, alt, className, style, imageClassName, imageStyle
   );
 }
 
-function SS4AttachmentImage({ attachment, alt, className, style, imageClassName, imageStyle, onRecover }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties; imageClassName?: string; imageStyle?: React.CSSProperties; onRecover?: () => void }) {
-  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} imageClassName={imageClassName} imageStyle={imageStyle} onRecover={onRecover} />;
+function SS4AttachmentImage({ attachment, alt, className, style, imageClassName, imageStyle, onRecover, onLoadDimensions }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties; imageClassName?: string; imageStyle?: React.CSSProperties; onRecover?: () => void; onLoadDimensions?: React.ReactEventHandler<HTMLImageElement> }) {
+  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} imageClassName={imageClassName} imageStyle={imageStyle} onRecover={onRecover} onLoadDimensions={onLoadDimensions} />;
 }
 
 function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlaybackFailure }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void; onPlaybackFailure?: () => void }) {
@@ -6972,10 +6976,14 @@ const Bubble = React.memo(function Bubble({
                 .filter(({ attachment }) => isImageAttachment(attachment));
               if (images.length === 0) return null;
               if (images.length === 1) return (
-                <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
-                  className="inline-block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', maxWidth: '100%', height: 220, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="rounded-xl" style={{ width: '100%', height: '100%' }} imageStyle={{ width: '100%', height: '100%', objectFit: 'contain' }} onRecover={onRefreshMedia} />
-                </button>
+                <AdaptiveAttachmentImage attachment={images[0].attachment} maxWidth="min(420px, 72vw)" maxHeight={420}>
+                  {({ style, onImageLoad }) => (
+                    <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
+                      className="inline-block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ ...style, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                      <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="rounded-xl" style={{ width: '100%', height: '100%' }} imageStyle={{ width: '100%', height: '100%', objectFit: 'contain' }} onRecover={onRefreshMedia} onLoadDimensions={onImageLoad} />
+                    </button>
+                  )}
+                </AdaptiveAttachmentImage>
               );
               const galleryImages = images.slice(0, 4);
               return (
@@ -9820,6 +9828,7 @@ export default function SupraSpacePage() {
   const [ssMediaItems, setSsMediaItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssFileItems, setSsFileItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssAttachmentsLoading, setSsAttachmentsLoading] = React.useState(false);
+  const [ssAttachmentsRevision, setSsAttachmentsRevision] = React.useState(0);
 
   React.useEffect(() => {
     if (!showInfo || !activeId || !token) return;
@@ -9839,7 +9848,7 @@ export default function SupraSpacePage() {
       .catch(() => { if (!cancelled) { if (infoTab === 'media') setSsMediaItems([]); else setSsFileItems([]); } })
       .finally(() => { if (!cancelled) setSsAttachmentsLoading(false); });
     return () => { cancelled = true; };
-  }, [showInfo, activeId, infoTab, token]);
+  }, [showInfo, activeId, infoTab, token, ssAttachmentsRevision]);
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
   const [pinnedMessages, setPinnedMessages] = React.useState<SSMessage[]>([]);
   const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
@@ -10344,6 +10353,9 @@ export default function SupraSpacePage() {
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
     markConversationActivity(conversationId);
+    if (conversationId === activeIdRef.current && message.attachments?.length) {
+      setSsAttachmentsRevision(revision => revision + 1);
+    }
     const alreadyLoaded = conversationId in msgsRef.current;
     if (alreadyLoaded) {
       setMsgs(p => {
@@ -10370,6 +10382,9 @@ export default function SupraSpacePage() {
   }, [uid, me?.fullName, me?.username, markConversationActivity]);
 
   const replaceMessageLocal = React.useCallback((conversationId: string, tempId: string, message: SSMessage) => {
+    if (conversationId === activeIdRef.current && message.attachments?.length) {
+      setSsAttachmentsRevision(revision => revision + 1);
+    }
     setMsgs(p => {
       const ex = p[conversationId] || [];
       if (tempId === message._id) {
@@ -11056,6 +11071,7 @@ export default function SupraSpacePage() {
     };
     const onDel = ({ conversationId, messageId, unreadUserIds = [] }: { conversationId: string; messageId: string; unreadUserIds?: string[] }) => {
       markConversationActivity(conversationId);
+      if (conversationId === activeIdRef.current) setSsAttachmentsRevision(revision => revision + 1);
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] });
       if (conversationId === activeIdRef.current) {
         setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(messageId); return next; });
@@ -11158,6 +11174,9 @@ export default function SupraSpacePage() {
       if (Array.isArray(attachments)) patch.attachments = attachments;
       if (type) patch.type = type;
       patchMsg(conversationId, messageId, patch);
+      if (conversationId === activeIdRef.current && Array.isArray(attachments)) {
+        setSsAttachmentsRevision(revision => revision + 1);
+      }
       setConvos(prev => prev.map(conversation => {
         const lastMessage = conversation.lastMessage;
         if (conversation._id !== conversationId || !lastMessage || lastMessage._id !== messageId) return conversation;
