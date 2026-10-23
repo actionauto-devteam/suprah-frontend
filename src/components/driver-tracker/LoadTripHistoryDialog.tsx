@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TripRouteMap } from "./TripRouteMap";
+import { formatGpsAccuracy } from "@/lib/driver-tracking-view";
 
 // GET /api/driver-tracking/loads/:id/trip-history (driverTracking.controller)
 interface TripPoint {
@@ -186,7 +187,7 @@ export function LoadTripHistoryDialog({ open, onOpenChange, loadId }: LoadTripHi
                     <span className="text-muted-foreground">{driverNames.get(point.driverId) ?? "Driver"}</span>
                   )}
                   {point.accuracyMeters !== null && (
-                    <span className="text-muted-foreground">±{Math.round(point.accuracyMeters)} m</span>
+                    <span className="text-muted-foreground">±{formatGpsAccuracy(point.accuracyMeters)}</span>
                   )}
                   {point.speedMetersPerSecond !== null && (
                     <span className="text-muted-foreground">{Math.round(point.speedMetersPerSecond * 2.23694)} mph</span>

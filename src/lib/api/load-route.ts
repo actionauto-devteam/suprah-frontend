@@ -44,7 +44,10 @@ export type AvailableLoadRoute = {
     positionStale: boolean;
     /** How precise the starting location is, in metres (null when unknown). */
     positionAccuracyMeters?: number | null;
-    /** The route starts from a rough location (worse than 100 m). */
+    /**
+     * The route starts from an approximate location (off by more than 1 km),
+     * the same cut-off as the Driver Tracker's "Approximate GPS" label.
+     */
     positionApproximate?: boolean;
   };
   /**

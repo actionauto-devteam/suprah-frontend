@@ -5,7 +5,7 @@ import { Activity, ArrowRight, Crosshair, MapPin, MessageCircle, Package, Radio,
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { DriverStatus, DriverTrackingItem } from "@/types/driver-tracking";
-import { formatTrackingTime, trackingState, validCoordinates } from "@/lib/driver-tracking-view";
+import { formatGpsAccuracy, formatTrackingTime, trackingState, validCoordinates } from "@/lib/driver-tracking-view";
 import type { LoadRouteState } from "@/hooks/useLoadRoute";
 import { LoadRouteSummary } from "./LoadRoutePanel";
 
@@ -64,7 +64,7 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
       <LoadRouteSummary state={route} audience="staff" variant="line" className="mt-1" />
       <div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" className={"min-h-11 text-xs " + followClass} aria-pressed={mode === "following"} disabled={followDisabled} onClick={onFollow}>{followLabel}</Button><Button type="button" variant="outline" className="min-h-11 text-xs" onClick={onChat}><MessageCircle className="size-4" />Chat</Button><Button type="button" className="col-span-2 min-h-11 text-sm" onClick={onDetails}>Open driver workspace</Button></div>
       {followStatus && <p role="status" className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">{followStatus}{stopWhilePaused}</p>}
-      <details className="mt-2 text-xs text-muted-foreground"><summary className="flex min-h-11 cursor-pointer items-center font-semibold">Location details</summary><p>Measured: {formatTrackingTime(driver.locationRecordedAt)}</p><p className="mt-1">Confirmed: {formatTrackingTime(driver.lastSeenAt)}</p>{accuracy != null && Number.isFinite(accuracy) && <p className="mt-1">Accuracy ±{Math.round(accuracy)} m</p>}{!fresh && <p className="mt-1">This may be a last known position.</p>}</details>
+      <details className="mt-2 text-xs text-muted-foreground"><summary className="flex min-h-11 cursor-pointer items-center font-semibold">Location details</summary><p>Measured: {formatTrackingTime(driver.locationRecordedAt)}</p><p className="mt-1">Confirmed: {formatTrackingTime(driver.lastSeenAt)}</p>{accuracy != null && Number.isFinite(accuracy) && <p className="mt-1">Accuracy ±{formatGpsAccuracy(accuracy)}</p>}{!fresh && <p className="mt-1">This may be a last known position.</p>}</details>
     </section>
     <section aria-label="Selected driver" className="relative hidden min-w-0 md:block overflow-hidden rounded-xl border border-primary/25 bg-linear-to-br from-primary/[0.08] via-card to-card p-3 text-card-foreground shadow-sm sm:p-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/70 to-transparent" />
@@ -99,7 +99,7 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
             <div><dt className="inline text-muted-foreground">Measured: </dt><dd className="inline font-medium">{formatTrackingTime(driver.locationRecordedAt)}</dd></div>
             <div><dt className="inline text-muted-foreground">Confirmed: </dt><dd className="inline font-medium">{formatTrackingTime(driver.lastSeenAt)}</dd></div>
           </dl>
-          {accuracy != null && Number.isFinite(accuracy) && <p className="mt-1 text-xs text-muted-foreground">Accuracy ±{Math.round(accuracy)} m</p>}
+          {accuracy != null && Number.isFinite(accuracy) && <p className="mt-1 text-xs text-muted-foreground">Accuracy ±{formatGpsAccuracy(accuracy)}</p>}
         </div>
       </div>
 

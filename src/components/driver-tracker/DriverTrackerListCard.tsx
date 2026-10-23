@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { driverAttentionReasons, relativeLocationTime } from "@/lib/driver-tracker-mobile";
-import { trackingState, formatTrackingTime } from "@/lib/driver-tracking-view";
+import { trackingState, formatTrackingTime, formatGpsAccuracy } from "@/lib/driver-tracking-view";
 import {
   Package,
   Clock,
@@ -622,7 +622,7 @@ export function DriverTrackerListCard({
                     {driver.coords && (
                       <p className="mt-1.5 hidden text-[11px] leading-relaxed text-muted-foreground md:block">
                         GPS measured: {formatTrackingTime(driver.locationRecordedAt)} · Server confirmed: {formatTrackingTime(driver.lastSeenAt)}
-                        {driver.accuracy != null && Number.isFinite(driver.accuracy) ? ` · Accuracy ±${Math.round(driver.accuracy)} m` : ""}
+                        {driver.accuracy != null && Number.isFinite(driver.accuracy) ? ` · Accuracy ±${formatGpsAccuracy(driver.accuracy)}` : ""}
                         {tracking.kind !== "live" && " · Last known position; location may have changed."}
                       </p>
                     )}

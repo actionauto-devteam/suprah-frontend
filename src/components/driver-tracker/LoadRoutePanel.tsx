@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { AvailableLoadRoute, LoadRouteAudience } from "@/lib/api/load-route";
 import { useLoadRoute, type LoadRouteState } from "@/hooks/useLoadRoute";
 import { shownRoute } from "@/lib/load-route-lines";
+import { formatGpsAccuracy } from "@/lib/driver-tracking-view";
 import { formatRigHeight, formatRigLength } from "@/lib/rig-size";
 import { EQUIPMENT_PAGE_PATH } from "@/lib/trailer-setup";
 
@@ -62,12 +63,6 @@ const DEADLINE = {
   at_risk: { label: "At risk", style: TRAFFIC_STYLE.moderate },
   late: { label: "Late", style: TRAFFIC_STYLE.heavy },
 } as const;
-
-/** How far off a rough location may be: "500 ft", "0.9 mi". */
-function formatAccuracy(meters: number) {
-  if (meters < 800) return `${Math.max(50, Math.round((meters * 3.28084) / 50) * 50)} ft`;
-  return formatMiles(meters);
-}
 
 /** "a and b", "a, b and c". */
 function listOf(items: string[]) {
@@ -182,7 +177,7 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
   const checkIn = audience === "driver" ? "Check it in your truck navigation app before you drive." : "The driver should check it in a truck navigation app.";
   const planIn = audience === "driver" ? "Plan that part in your truck navigation app." : "The driver should plan that part in a truck navigation app.";
   const approximate = shown.driver.positionApproximate && shown.driver.positionAccuracyMeters != null
-    ? formatAccuracy(shown.driver.positionAccuracyMeters)
+    ? formatGpsAccuracy(shown.driver.positionAccuracyMeters)
     : null;
 
   const trafficDelay = Math.round(shown.traffic.delaySeconds / 60);
