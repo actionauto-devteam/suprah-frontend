@@ -1133,84 +1133,125 @@ function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly 
   const label = MEDIA_LABELS[msg.type];
   if (label) return label;
 
-  // Keep Mini Space on the same malformed-marker recovery path as the full
-  // timeline. This helper was present but never reached the popup renderer,
-  // leaving historical report rows with visible trailing ** markers only in
-  // the compact surface.
+  // Keep Mini Space on the same recovery and block-layout path as the full
+  // timeline. Image attachment type is presentation, not an instruction to
+  // expose the stored Markdown caption as literal text.
   const text = normalizeMessageMarkdownForDisplay(normalizeFinalMessageMarkup(msg.content ?? ''));
   const lines = text.split('\n');
   const bulletRe = POPUP_SOURCE_BULLET_RE;
   const numberedRe = /^(\s*)(\d+)\.\s+(.+)$/;
-  const tables = new Map<number, ReturnType<typeof parseSupraSpaceMarkdownTable>>();
-  const tableCoveredLines = new Set<number>();
-  for (let index = 0; index < lines.length; index += 1) {
-    const table = parseSupraSpaceMarkdownTable(lines, index);
-    if (!table) continue;
-    tables.set(index, table);
-    for (let covered = index + 1; covered < table.endIndex; covered += 1) tableCoveredLines.add(covered);
-    index = table.endIndex - 1;
-  }
+  const quoteRe = /^>\s?(.*)$/;
+  const fenceRe = /^```/;
+  const result: React.ReactNode[] = [];
+  let blockIndex = 0;
+  let lineIndex = 0;
+  let hasRenderedContent = false;
+  let pendingBlankLineCount = 0;
 
-  const depthFrom = (indent: string, marker?: string) => {
-    const indentDepth = Math.round(indent.replace(/\t/g, '    ').length / 2);
-    const markerDepth = marker ? Math.max(0, POPUP_BULLET_GLYPHS.indexOf(marker)) : 0;
-    return Math.max(indentDepth, markerDepth);
+  // Match the primary Space renderer: normal rows are separated by one <br>,
+  // while intentional empty rows and blocks retain their semantic spacing.
+  // The old Mini renderer added 4px to every non-empty line.
+  const addSeparation = (kind: 'line' | 'block') => {
+    if (!hasRenderedContent) {
+      pendingBlankLineCount = 0;
+      return;
+    }
+    if (pendingBlankLineCount > 0) {
+      result.push(<span key={`gap-${blockIndex++}`} aria-hidden="true" style={{ display: 'block', height: `${pendingBlankLineCount * 1.66}em` }} />);
+    } else if (kind === 'line') {
+      result.push(<br key={`br-${blockIndex++}`} />);
+    } else {
+      result.push(<span key={`block-gap-${blockIndex++}`} aria-hidden="true" style={{ display: 'block', height: '0.24em' }} />);
+    }
+    pendingBlankLineCount = 0;
   };
 
-  return (
-    <span className="block" style={{ lineHeight: 1.66, whiteSpace: 'pre-wrap' }}>
-      {lines.map((line, index) => {
-        const table = tables.get(index);
-        if (table) {
-          const renderCells = (cells: string[], tag: 'th' | 'td', rowIndex: number) => cells.map((cell, cellIndex) => React.createElement(
-            tag,
-            { key: `${tag}-${rowIndex}-${cellIndex}`, style: { border: '1px solid rgba(255,255,255,.22)', padding: '5px 7px', textAlign: 'left', verticalAlign: 'top' } },
-            renderInlineMd(cell.replace(/<br>/g, '\n'), isOwn, `table-${index}-${rowIndex}-${cellIndex}`, mentionAliases),
-          ));
-          return <span key={`table-${index}`} className="block max-w-full overflow-x-auto my-1.5"><table className="border-collapse text-[11px]" style={{ minWidth: '100%' }}><thead><tr style={{ background: 'rgba(255,255,255,.12)' }}>{renderCells(table.header, 'th', 0)}</tr></thead>{table.rows.length > 0 && <tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{renderCells(row, 'td', rowIndex + 1)}</tr>)}</tbody>}</table></span>;
-        }
-        if (tableCoveredLines.has(index)) return null;
-        if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return null;
-        if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: '1.66em' }} aria-hidden="true" />;
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex];
+    if (!line.trim()) {
+      if (hasRenderedContent) pendingBlankLineCount += 1;
+      lineIndex += 1;
+      continue;
+    }
+    if (fenceRe.test(line)) {
+      const codeLines: string[] = [];
+      lineIndex += 1;
+      while (lineIndex < lines.length && !fenceRe.test(lines[lineIndex])) codeLines.push(lines[lineIndex++]);
+      if (lineIndex < lines.length) lineIndex += 1;
+      addSeparation('block');
+      result.push(<pre key={`code-${blockIndex++}`} className="max-w-full overflow-x-auto rounded-lg bg-black/15 px-2 py-1.5 text-[.84em]"><code>{codeLines.join('\n')}</code></pre>);
+      hasRenderedContent = true;
+      continue;
+    }
 
-        const bullet = line.match(bulletRe);
-        if (bullet) {
-          const depth = depthFrom(bullet[1], bullet[2]);
-          return (
-            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
-              <span aria-hidden="true" style={{ width: 12, flex: '0 0 12px', textAlign: 'center' }}>{bullet[2]}</span>
-              <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`, mentionAliases)}</span>
-            </span>
-          );
-        }
+    const table = parseSupraSpaceMarkdownTable(lines, lineIndex);
+    if (table) {
+      const renderCells = (cells: string[], tag: 'th' | 'td', rowIndex: number) => cells.map((cell, cellIndex) => React.createElement(
+        tag,
+        { key: `${tag}-${rowIndex}-${cellIndex}`, style: { border: '1px solid rgba(255,255,255,.22)', padding: '5px 7px', textAlign: 'left', verticalAlign: 'top' } },
+        renderInlineMd(cell.replace(/<br>/g, '\n'), isOwn, `table-${blockIndex}-${rowIndex}-${cellIndex}`, mentionAliases),
+      ));
+      addSeparation('block');
+      result.push(<span key={`table-${blockIndex++}`} className="block max-w-full overflow-x-auto my-1.5"><table className="border-collapse text-[11px]" style={{ minWidth: '100%' }}><thead><tr style={{ background: 'rgba(255,255,255,.12)' }}>{renderCells(table.header, 'th', 0)}</tr></thead>{table.rows.length > 0 && <tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{renderCells(row, 'td', rowIndex + 1)}</tr>)}</tbody>}</table></span>);
+      hasRenderedContent = true;
+      lineIndex = table.endIndex;
+      continue;
+    }
 
-        const numbered = line.match(numberedRe);
-        if (numbered) {
-          const depth = depthFrom(numbered[1]);
-          return (
-            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
-              <span aria-hidden="true" style={{ minWidth: 16, flexShrink: 0, textAlign: 'right' }}>{numbered[2]}.</span>
-              <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`, mentionAliases)}</span>
-            </span>
-          );
-        }
+    const bulletMatch = line.match(bulletRe);
+    if (bulletMatch) {
+      const items: Array<{ depth: number; marker: string; text: string }> = [];
+      while (lineIndex < lines.length) {
+        const match = lines[lineIndex].match(bulletRe);
+        if (!match) break;
+        const indentDepth = Math.round(match[1].replace(/\t/g, '    ').length / 2);
+        const markerDepth = Math.max(0, POPUP_BULLET_GLYPHS.indexOf(match[2]));
+        items.push({ depth: Math.max(indentDepth, markerDepth), marker: match[2], text: match[3] });
+        lineIndex += 1;
+      }
+      addSeparation('block');
+      result.push(<ul key={`ul-${blockIndex++}`} style={{ display: 'flex', flexDirection: 'column', gap: 0, margin: '.18em 0 .32em', padding: 0, listStyle: 'none' }}>{items.map((item, index) => <li key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, margin: 0, marginLeft: `${item.depth * 1.1}em`, padding: 0, listStyle: 'none' }}><span aria-hidden="true" style={{ width: '1em', flex: '0 0 1em', textAlign: 'center', lineHeight: 1.66 }}>{item.marker}</span><span>{renderInlineMd(item.text, isOwn, `bullet-${blockIndex}-${index}`, mentionAliases)}</span></li>)}</ul>);
+      hasRenderedContent = true;
+      continue;
+    }
 
-        if (/^\s*>\s?/.test(line)) {
-          return (
-            <span key={`quote-${index}`} className="block" style={{ borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, marginTop: index > 0 ? 5 : 0, opacity: 0.88 }}>
-              {renderInlineMd(line.replace(/^\s*>\s?/, ''), isOwn, `quote-${index}`, mentionAliases)}
-            </span>
-          );
-        }
+    const numberedMatch = line.match(numberedRe);
+    if (numberedMatch) {
+      const items: Array<{ depth: number; number: string; text: string }> = [];
+      while (lineIndex < lines.length) {
+        const match = lines[lineIndex].match(numberedRe);
+        if (!match) break;
+        items.push({ depth: Math.round(match[1].replace(/\t/g, '    ').length / 2), number: match[2], text: match[3] });
+        lineIndex += 1;
+      }
+      addSeparation('block');
+      result.push(<ol key={`ol-${blockIndex++}`} style={{ display: 'flex', flexDirection: 'column', gap: 0, margin: '.18em 0 .32em', padding: 0, listStyle: 'none' }}>{items.map((item, index) => <li key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, margin: 0, marginLeft: `${item.depth * 1.1}em`, padding: 0, listStyle: 'none' }}><span aria-hidden="true" style={{ minWidth: '1.35em', flexBasis: 'auto', textAlign: 'right', lineHeight: 1.66 }}>{item.number}.</span><span>{renderInlineMd(item.text, isOwn, `number-${blockIndex}-${index}`, mentionAliases)}</span></li>)}</ol>);
+      hasRenderedContent = true;
+      continue;
+    }
 
-        return (
-          <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 4 : 0 }}>
-            {renderInlineMd(line, isOwn, `line-${index}`, mentionAliases)}
-          </span>
-        );
-      })}
-    </span>
-  );
+    const quoteMatch = line.match(quoteRe);
+    if (quoteMatch) {
+      const quoteLines: string[] = [];
+      while (lineIndex < lines.length) {
+        const match = lines[lineIndex].match(quoteRe);
+        if (!match) break;
+        quoteLines.push(match[1]);
+        lineIndex += 1;
+      }
+      addSeparation('block');
+      result.push(<blockquote key={`quote-${blockIndex++}`} style={{ borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', margin: '.32em 0', paddingLeft: 10, opacity: 0.88 }}>{quoteLines.map((quoteLine, index) => <React.Fragment key={index}>{index > 0 && <br />}{renderInlineMd(quoteLine, isOwn, `quote-${blockIndex}-${index}`, mentionAliases)}</React.Fragment>)}</blockquote>);
+      hasRenderedContent = true;
+      continue;
+    }
+
+    addSeparation('line');
+    result.push(...renderInlineMd(line, isOwn, `line-${blockIndex++}`, mentionAliases));
+    hasRenderedContent = true;
+    lineIndex += 1;
+  }
+
+  return result;
 }
 
 // ─── Paste helpers
@@ -7444,7 +7485,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           </div>
                         ) : (
                           <div className={cn(
-                            'text-[15px] leading-[1.66] min-w-0',
+                            'text-[15px] leading-[1.5] md:leading-[1.66] min-w-0',
                             bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-2 rounded-2xl',
                             !bareMessage && (isOwn ? 'text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
                           )} data-popup-bubble-id={msg._id} onCopy={event => {
@@ -7563,11 +7604,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <PopupPollCard poll={msg.poll} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onVote={(optId) => handleVotePoll(msg._id, optId)} />
                             ) : msg.type === 'event' && msg.event ? (
                               <PopupEventCard event={msg.event} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onRsvp={(r) => handleRsvpEvent(msg._id, r)} />
-                            ) : msg.type !== 'image'
-                              ? emojiOnly
-                                ? <span className="block text-[32px] leading-none">{msg.content}</span>
-                                : renderContent(msg, isOwn, mentionAliases)
-                              : msg.content ? <span>{msg.content}</span> : null}
+                            ) : emojiOnly
+                              ? <span className="block text-[32px] leading-none">{msg.content}</span>
+                              : msg.content ? renderContent(msg, isOwn, mentionAliases) : null}
                             {videoAttachments.length > 0 && (
                               <div className="flex flex-col gap-1.5 mt-1">
                                 {videoAttachments.map((a: SSAttachment, i: number) => (
