@@ -53,6 +53,11 @@ export type AvailableLoadRoute = {
    * the pickup to the delivery breaks a limit, so it isn't drawn.
    */
   safety?: { status: "ok" | "check"; limits: string[]; restOfTripUnsafe: boolean; restOfTripLimits: string[] };
+  /**
+   * The rig size the route was planned for (null for car routes): each part
+   * from the driver's Equipment page, or the company default when missing.
+   */
+  truck?: { heightInches: number; lengthFeet: number; fromEquipment: { height: boolean; length: boolean } } | null;
   deadline: { day: string; status: "on_time" | "at_risk" | "late" } | null;
   /** Null when no road line came back; the arrival time still stands. */
   route: LoadRouteLines | null;

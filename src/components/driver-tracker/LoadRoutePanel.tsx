@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Clock, Gauge, Route, TrafficCone, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { Clock, Gauge, Route, Ruler, TrafficCone, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LoadRouteAudience } from "@/lib/api/load-route";
+import type { AvailableLoadRoute, LoadRouteAudience } from "@/lib/api/load-route";
 import { useLoadRoute, type LoadRouteState } from "@/hooks/useLoadRoute";
 import { shownRoute } from "@/lib/load-route-lines";
+import { formatRigHeight, formatRigLength } from "@/lib/rig-size";
+import { EQUIPMENT_PAGE_PATH } from "@/lib/trailer-setup";
 
 /*
  * Arrival time at a load's next stop along the best truck route, with live
@@ -79,6 +82,31 @@ const DRIVER_MESSAGES: Record<string, string> = {
 };
 
 const WARNING_TEXT = "text-amber-800 dark:text-amber-300";
+
+/** Which rig size the route was planned for, and what the driver still needs to add. */
+function RigSizeNote({ truck, audience }: { truck: NonNullable<AvailableLoadRoute["truck"]>; audience: LoadRouteAudience }) {
+  const size = `${formatRigHeight(truck.heightInches)} tall, ${formatRigLength(truck.lengthFeet)} long`;
+  const missing = [!truck.fromEquipment.height && "height", !truck.fromEquipment.length && "length"].filter(Boolean) as string[];
+  const standard = missing.length === 2 ? "standard " : "";
+  const parts = missing.join(" and ");
+  return (
+    <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+      <Ruler className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 break-words">
+        {missing.length === 0 && (audience === "driver" ? `Planned for your ${size} rig.` : `Planned for the driver's ${size} rig.`)}
+        {missing.length > 0 && audience === "driver" && (
+          <>
+            Planned for a {standard}{size} rig. Add your rig&apos;s {parts} on the{" "}
+            <Link href={EQUIPMENT_PAGE_PATH} className="font-semibold text-primary underline underline-offset-2">Equipment page</Link>{" "}
+            so routes fit your rig.
+          </>
+        )}
+        {missing.length > 0 && audience === "staff" &&
+          `Planned for a ${standard}${size} rig. The driver hasn't added their rig's ${parts} yet.`}
+      </span>
+    </p>
+  );
+}
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = React.useState(() => Date.now());
@@ -269,6 +297,8 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
           ))}
         </ul>
       )}
+
+      {shown.truck && <RigSizeNote truck={shown.truck} audience={audience} />}
 
       <p className="mt-2 text-[11px] text-muted-foreground">
         {route.available

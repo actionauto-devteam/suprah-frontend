@@ -83,6 +83,10 @@ export interface DriverEquipment {
   gvwr?: number;
   trailerAxles?: number;
   trailerGvwr?: number;
+  /** Overall rig height (truck and trailer, loaded), in inches. */
+  rigHeightInches?: number;
+  /** Overall rig length (front bumper to the end of the trailer), in feet. */
+  rigLengthFeet?: number;
   engineType?: string;
   trailerMake?: string;
   trailerModel?: string;
@@ -152,6 +156,8 @@ export interface DriverProfile {
   gvwr?: number;
   trailerAxles?: number;
   trailerGvwr?: number;
+  rigHeightInches?: number;
+  rigLengthFeet?: number;
   engineType?: string;
   trailerMake?: string;
   trailerModel?: string;

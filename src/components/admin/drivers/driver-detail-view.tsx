@@ -30,6 +30,7 @@ import { DocumentReviewWorkspace } from './DocumentReviewWorkspace';
 import { ADMIN_HEADER_PANEL_CLASS } from '@/components/admin/theme';
 import { StatCard } from '@/components/admin/StatCard';
 import { userErrorMessage } from '@/lib/user-error';
+import { formatRigHeight, formatRigLength } from '@/lib/rig-size';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '—';
 const fmtDateTime = (d?: string) => d ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver', timeZoneName: 'short' }).format(new Date(d)) : '—';
@@ -783,6 +784,8 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                                 <Field label="Axles" value={profile.trailerAxles} />
                                                 <Field label="GVWR" value={profile.trailerGvwr ? `${profile.trailerGvwr.toLocaleString()} lbs` : undefined} icon={Gauge} />
                                                 <Field label="Max Vehicles" value={profile.maxVehicleCapacity} />
+                                                <Field label="Rig Height" value={formatRigHeight(profile.rigHeightInches)} />
+                                                <Field label="Rig Length" value={formatRigLength(profile.rigLengthFeet)} />
                                             </div>
                                         </div>
                                     </div>
