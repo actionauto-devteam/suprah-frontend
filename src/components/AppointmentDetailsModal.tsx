@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Calendar, Car, Clock, MapPin, Users, Video, Phone, Mail,
   Edit2, Save, X, Trash2, Ban, CheckCircle, AlertCircle,
   Link as LinkIcon, RefreshCw,
 } from "lucide-react"
-import { Appointment } from "@/types/appointment"
+import { Appointment, AppointmentSmsNotice, AppointmentSmsNoticeStatus } from "@/types/appointment"
 import { fmtLongDateMDT, fmtTimeMDT, fmtLongDateTimeMDT, mdtCalendarDate, mdtTimePickerSeed, mdtWallTimeToUtc } from "@/lib/timezone"
 import { useUser } from "@/providers/AuthProvider"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -39,7 +39,7 @@ interface AppointmentDetailsModalProps {
   onOpenChange: (open: boolean) => void
   appointment: Appointment | null
   // All handlers are optional — when absent the modal is read-only (e.g. dashboard)
-  onUpdate?: (id: string, data: any) => Promise<void>
+  onUpdate?: (id: string, data: any) => Promise<Partial<Appointment> | void>
   onCancel?: (id: string) => Promise<void>
   onDelete?: (id: string) => Promise<void>
 }
@@ -93,6 +93,39 @@ function getParticipantEmail(participant: any): string {
 function getParticipantName(participant: any): string {
   if (typeof participant !== "object" || participant == null) return "Participant"
   return participant.fullName || participant.name || participant.email || "Participant"
+}
+
+const SMS_SENDING_STALE_MS = 10 * 60 * 1000
+
+function textProblemAdvice(reason?: string | null): string {
+  if (reason && /Do Not Contact/i.test(reason)) return "Don't call or message this customer unless an admin removes Do Not Contact."
+  if (reason && /couldn't confirm this customer can be contacted/i.test(reason)) return "Check the lead before contacting this customer."
+  return "Call the customer or use another way they have agreed to be contacted."
+}
+
+function currentSmsNotice(notice: AppointmentSmsNotice | undefined, startTime: string | undefined): AppointmentSmsNotice | null {
+  if (!notice?.forStartTime || !startTime) return null
+  if (new Date(notice.forStartTime).getTime() !== new Date(startTime).getTime()) return null
+  const stale = notice.status === "sending" && notice.updatedAt && Date.now() - new Date(notice.updatedAt).getTime() > SMS_SENDING_STALE_MS
+  return stale ? { ...notice, status: "unknown", reason: notice.reason || "We couldn't confirm whether this text went out." } : notice
+}
+
+const RESCHEDULE_TEXT_PROBLEMS: Partial<Record<AppointmentSmsNoticeStatus, string>> = {
+  not_sent: "Customer was not texted about the new time",
+  failed:   "The text about the new time could not be sent",
+  unknown:  "We couldn't confirm the text about the new time went out",
+}
+
+const SMS_TEXT_PROGRESS: Partial<Record<AppointmentSmsNoticeStatus, string>> = {
+  sending:   "sending…",
+  accepted:  "sent to the carrier, delivery not confirmed yet",
+  delivered: "delivered",
+}
+
+const REMINDER_TEXT_PROBLEMS: Partial<Record<AppointmentSmsNoticeStatus, string>> = {
+  not_sent: "not sent",
+  failed:   "could not be sent",
+  unknown:  "may not have gone out",
 }
 
 function getLinkedLeadId(appointment: { leadId?: unknown } | null): string {
@@ -229,6 +262,11 @@ export function AppointmentDetailsModal({
 
   if (!appointment) return null
 
+  const rescheduleNotice = currentSmsNotice(appointment.rescheduleNotice, appointment.startTime)
+  const reminderSms = currentSmsNotice(appointment.reminderSms, appointment.startTime)
+  const rescheduleProblem = rescheduleNotice ? RESCHEDULE_TEXT_PROBLEMS[rescheduleNotice.status] : undefined
+  const reminderProblem = reminderSms ? REMINDER_TEXT_PROBLEMS[reminderSms.status] : undefined
+
   // senior dev: resolve display type — use customTypeDetails when type is "other"
   const resolvedDisplayType = appointment.type === "other" && (appointment as any).customTypeDetails
     ? (appointment as any).customTypeDetails
@@ -282,7 +320,7 @@ export function AppointmentDetailsModal({
           })
         : undefined
 
-      await onUpdate(appointment._id, {
+      const saved = await onUpdate(appointment._id, {
         title:            editData.title,
         description:      editData.description   || undefined,
         startTime:        startDateTime.toISOString(),
@@ -310,6 +348,11 @@ export function AppointmentDetailsModal({
         notes:        editData.notes || undefined,
         status:       editData.status as Appointment["status"],
         outcomeNotes: editData.outcomeNotes || undefined,
+        ...(saved ? {
+          rescheduleNotice: saved.rescheduleNotice,
+          reminderSms:      saved.reminderSms,
+          customerEmailNotice: saved.customerEmailNotice,
+        } : {}),
       } : current)
       setIsEditing(false)
       setError(null)
@@ -417,6 +460,28 @@ export function AppointmentDetailsModal({
                   <AlertDescription className="text-sm text-red-800 dark:text-red-200">{error}</AlertDescription>
                 </div>
               </div>
+            </Alert>
+          )}
+
+          {appointment.customerEmailNotice && (
+            <Alert className="border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100">
+              <AlertCircle className="text-amber-600 dark:text-amber-400" />
+              <AlertTitle className="line-clamp-none font-semibold">
+                {`The appointment ${appointment.customerEmailNotice.emailType} email was not sent`}
+              </AlertTitle>
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                {`${appointment.customerEmailNotice.reason} `}{textProblemAdvice(appointment.customerEmailNotice.reason)}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {rescheduleNotice && rescheduleProblem && (
+            <Alert className="border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100">
+              <AlertCircle className="text-amber-600 dark:text-amber-400" />
+              <AlertTitle className="line-clamp-none font-semibold">{rescheduleProblem}</AlertTitle>
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                {rescheduleNotice.reason ? `${rescheduleNotice.reason} ` : ""}{textProblemAdvice(rescheduleNotice.reason)}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -769,6 +834,16 @@ export function AppointmentDetailsModal({
                 ? `Reminder sent: ${fmtLongDateTimeMDT(appointment.reminderSentAt || appointment.updatedAt)}`
                 : "Reminder not yet sent"}
             </p>
+            {reminderSms && (reminderProblem || SMS_TEXT_PROGRESS[reminderSms.status]) && (
+              <p className={reminderProblem ? "text-amber-700 dark:text-amber-300" : undefined}>
+                {reminderProblem
+                  ? `Reminder text ${reminderProblem}${reminderSms.reason ? `: ${reminderSms.reason}` : ""}`
+                  : `Reminder text: ${SMS_TEXT_PROGRESS[reminderSms.status]}`}
+              </p>
+            )}
+            {rescheduleNotice && SMS_TEXT_PROGRESS[rescheduleNotice.status] && (
+              <p>Text about the new time: {SMS_TEXT_PROGRESS[rescheduleNotice.status]}</p>
+            )}
             {appointment.rescheduleStatedPreference ? (
               <p className="text-foreground/80">
                 <span className="font-semibold">Customer&apos;s stated reschedule preference:</span> &quot;{appointment.rescheduleStatedPreference}&quot;

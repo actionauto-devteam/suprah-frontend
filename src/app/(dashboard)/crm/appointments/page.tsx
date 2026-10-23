@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -802,7 +803,7 @@ function AppointmentsPageInner() {
   const handleUpdateAppointment = React.useCallback(
     async (id: string, data: any) => {
       const headers = await getAuthHeaders();
-      await apiClient.put(`/api/crm/calendar/appointments/${id}`, data, headers);
+      const response = await apiClient.put(`/api/crm/calendar/appointments/${id}`, data, headers);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["appointments"] }),
         queryClient.invalidateQueries({ queryKey: ["customer-bookings-count"] }),
@@ -810,6 +811,7 @@ function AppointmentsPageInner() {
         refetchGlobal(),
         refetchCalendar(),
       ]);
+      return response.data?.data;
     },
     [refetchGlobal, refetchCalendar, queryClient]
   );
@@ -836,7 +838,11 @@ function AppointmentsPageInner() {
   const handleDeleteAppointment = React.useCallback(
     async (id: string) => {
       const headers = await getAuthHeaders();
-      await apiClient.delete(`/api/crm/calendar/appointments/${id}`, headers);
+      const deleteResponse = await apiClient.delete(`/api/crm/calendar/appointments/${id}`, headers);
+      const emailNotice = deleteResponse.data?.data?.customerEmailNotice;
+      if (emailNotice?.reason) {
+        toast.warning(`The appointment cancellation email was not sent. ${emailNotice.reason}`);
+      }
 
       // Unmount the details modal immediately after a successful delete so its
       // live polling hook cannot issue another request for the deleted record.

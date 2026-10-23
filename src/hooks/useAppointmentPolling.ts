@@ -86,7 +86,12 @@ export function useAppointmentPolling({
       const appointment = response.data?.data || response.data;
 
       // Compare with last fetch to detect changes.
-      const currentData = JSON.stringify(appointment.guestEmails);
+      const currentData = JSON.stringify({
+        guestEmails: appointment.guestEmails,
+        rescheduleNotice: appointment.rescheduleNotice,
+        reminderSms: appointment.reminderSms,
+        customerEmailNotice: appointment.customerEmailNotice,
+      });
       if (lastFetchRef.current && lastFetchRef.current !== currentData) {
         console.log('[useAppointmentPolling] Guest status changed, updating UI');
         onUpdate(appointment);
