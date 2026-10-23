@@ -237,6 +237,8 @@ export function LeadDetailsPanel({
           .filter(Boolean),
       });
       setEditingContact(false);
+    } catch {
+      setEditingContact(true);
     } finally {
       setSavingContact(false);
     }

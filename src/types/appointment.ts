@@ -1,6 +1,23 @@
 export type AppointmentType = 'in-person' | 'phone' | 'video' | 'other';
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'no-show';
 export type EntryType = 'event' | 'task' | 'reminder' | 'appointment';
+export type AppointmentSmsNoticeStatus = 'not_sent' | 'sending' | 'accepted' | 'delivered' | 'failed' | 'unknown';
+
+export interface AppointmentSmsNotice {
+  status: AppointmentSmsNoticeStatus;
+  reason?: string | null;
+  forStartTime?: string;
+  updatedAt?: string;
+}
+
+export type AppointmentEmailNoticeType = 'invitation' | 'update' | 'cancellation' | 'reminder';
+
+export interface AppointmentEmailNotice {
+  status: 'not_sent';
+  emailType: AppointmentEmailNoticeType;
+  reason: string;
+  updatedAt?: string;
+}
 
 export interface GuestResponse {
   email: string;
@@ -55,6 +72,9 @@ export interface Appointment {
   reminderSent: boolean;
   reminderTime?: string;
   reminderSentAt?: string;
+  reminderSms?: AppointmentSmsNotice;
+  rescheduleNotice?: AppointmentSmsNotice;
+  customerEmailNotice?: AppointmentEmailNotice;
   noShowFollowUpSentAt?: string;
   noShowFollowUpStatus?: 'processing' | 'sent' | 'failed' | 'skipped';
   noShowFollowUpAttemptCount?: number;

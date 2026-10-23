@@ -107,6 +107,12 @@ export const REASON_REQUIRED_STATUSES: string[] = [
   ...LEAD_STATUS_CATEGORIES.ClosedLegacy,
 ];
 
+export const CONTACT_RESTRICTED_STATUSES: string[] = ["Do Not Contact"];
+
+export function isContactRestrictedStatus(status: unknown): boolean {
+  return typeof status === "string" && CONTACT_RESTRICTED_STATUSES.includes(status.trim());
+}
+
 export interface LeadStatusStyle {
   label: string;
   category: LeadStatusCategory;

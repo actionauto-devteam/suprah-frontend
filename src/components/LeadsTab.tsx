@@ -49,8 +49,11 @@ import { ToastStack, Toast } from "./leads/atomic/ToastStack";
 import {
   LEAD_STATUS_CATEGORY_ORDER,
   LEAD_STATUS_CATEGORIES,
+  isContactRestrictedStatus,
   type LeadStatusCategory,
 } from "@/lib/leadStatus";
+import { StatusReasonModal } from "./leads/StatusReasonModal";
+import { fmtTimeMDT } from "@/lib/timezone";
 import { LeadsList } from "./leads/LeadsList";
 import {
   LeadsFiltersPopover,
@@ -126,6 +129,41 @@ interface ReplyState {
   reason: string | null;
   smsReason: string | null;
   recipientEmail: string;
+}
+
+interface WebchatContactPolicy {
+  restricted: boolean;
+  lookupUnavailable: boolean;
+  restrictedSince: string | null;
+  windowMinutes: number;
+}
+
+const WEBCHAT_DNC_CLOSED_MESSAGE =
+  "This customer is marked Do Not Contact. You can reply in this chat only within 30 minutes of a new message from them.";
+const WEBCHAT_DNC_UNAVAILABLE_MESSAGE =
+  "We couldn't confirm this customer can be contacted, so replies are paused. Try again in a moment.";
+
+function webchatReplyWindow(
+  policy: WebchatContactPolicy | null | undefined,
+  messages: Array<{ direction?: string; createdAt?: string }> | undefined,
+  now: number,
+): { reason: string | null; note: string | null } {
+  if (!policy?.restricted) return { reason: null, note: null };
+  if (policy.lookupUnavailable) return { reason: WEBCHAT_DNC_UNAVAILABLE_MESSAGE, note: null };
+  const latestInbound = (messages || [])
+    .filter((message) => message?.direction === "inbound" && message?.createdAt)
+    .map((message) => new Date(message.createdAt as string).getTime())
+    .filter((time) => !Number.isNaN(time))
+    .reduce((latest, time) => Math.max(latest, time), 0);
+  const restrictedSince = policy.restrictedSince ? new Date(policy.restrictedSince).getTime() : null;
+  const windowEnds = latestInbound + policy.windowMinutes * 60 * 1000;
+  if (!latestInbound || restrictedSince === null || latestInbound <= restrictedSince || windowEnds <= now) {
+    return { reason: WEBCHAT_DNC_CLOSED_MESSAGE, note: null };
+  }
+  return {
+    reason: null,
+    note: `This customer is marked Do Not Contact. You can reply here until ${fmtTimeMDT(new Date(windowEnds))}, only about what they asked. Don't offer to call, text, or email them.`,
+  };
 }
 
 const isEmailLead = (lead: Lead | null | undefined): boolean => {
@@ -455,6 +493,8 @@ export function LeadsTab({
 
   const [replyDrafts, setReplyDrafts] = React.useState<Record<string, string>>({});
   const [smsOptOutByLead, setSmsOptOutByLead] = React.useState<Record<string, boolean>>({});
+  const [webchatContactPolicy, setWebchatContactPolicy] = React.useState<Record<string, WebchatContactPolicy | null>>({});
+  const [policyClock, setPolicyClock] = React.useState(() => Date.now());
   const [emailReplyByLead, setEmailReplyByLead] = React.useState<Record<string, boolean>>({});
   const selectedLeadId = selectedLead?._id;
   const replyMessage = selectedLeadId ? replyDrafts[selectedLeadId] ?? "" : "";
@@ -507,7 +547,6 @@ export function LeadsTab({
     }
     return { route: "sms", reason: smsReason, smsReason, recipientEmail };
   }, [selectedLead, smsOptOutByLead, emailReplyChosen]);
-  const replyUnavailableReason = replyState.reason;
 
   const chooseReplyChannel = React.useCallback((leadId: string, channel: "sms" | "email") => {
     setEmailReplyByLead((previous) => {
@@ -534,10 +573,27 @@ export function LeadsTab({
   const [reschedulePickerOpen, setReschedulePickerOpen] = React.useState(false);
   const [rescheduleCandidates, setRescheduleCandidates] = React.useState<Appointment[]>([]);
   const [rescheduleTarget, setRescheduleTarget] = React.useState<Appointment | null>(null);
+  const [doNotContactRemoval, setDoNotContactRemoval] = React.useState<{ status: string; lead: Lead } | null>(null);
+  const [contactReasonRequest, setContactReasonRequest] = React.useState<{ resolve: (reason: string | null) => void } | null>(null);
   const [rescheduleModalOpen, setRescheduleModalOpen] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [isClosed, setIsClosed] = React.useState(false);
   const [threads, setThreads] = React.useState<Record<string, any[]>>({});
+  const selectedWebchatPolicy = selectedLead && isWebchatLead(selectedLead) ? webchatContactPolicy[selectedLead._id] : null;
+  const selectedWebchatMessages = selectedLead ? threads[selectedLead._id] : undefined;
+
+  React.useEffect(() => {
+    if (!selectedWebchatPolicy?.restricted) return;
+    setPolicyClock(Date.now());
+    const timer = window.setInterval(() => setPolicyClock(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, [selectedWebchatPolicy]);
+
+  const webchatWindow = React.useMemo(
+    () => webchatReplyWindow(selectedWebchatPolicy, selectedWebchatMessages, policyClock),
+    [selectedWebchatPolicy, selectedWebchatMessages, policyClock],
+  );
+  const replyUnavailableReason = replyState.reason || webchatWindow.reason;
   const [aiAgentStatus, setAiAgentStatus] = React.useState<
     Record<string, { paused: boolean; pausedBy?: string; autoPausedUntil?: string } | undefined>
   >({});
@@ -1083,6 +1139,10 @@ export function LeadsTab({
               autoPausedUntil: chatResponse.data?.data?.aiAutoPausedUntil || undefined,
             },
           }));
+          setWebchatContactPolicy((previous) => ({
+            ...previous,
+            [lead._id]: chatResponse.data?.data?.contactPolicy || null,
+          }));
         } catch (error) {
           console.error("Failed to load web chat thread:", error);
         }
@@ -1306,7 +1366,17 @@ export function LeadsTab({
   ) => {
     const leadToUpdate = targetLead || selectedLead;
     if (!leadToUpdate) return;
-    await updateLeadStatus({ id: leadToUpdate._id, status, reason });
+    if (isContactRestrictedStatus(leadToUpdate.status) && !isContactRestrictedStatus(status) && !reason?.trim()) {
+      setDoNotContactRemoval({ status, lead: leadToUpdate });
+      return;
+    }
+    try {
+      await updateLeadStatus({ id: leadToUpdate._id, status, reason });
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      addToast("error", message || "The status could not be changed");
+      return;
+    }
     _setSelectedLead((p) =>
       p && p._id === leadToUpdate._id ? { ...p, status: status as any } : p,
     );
@@ -1609,9 +1679,10 @@ export function LeadsTab({
     const token = await getToken();
     if (!token) throw new Error("Authentication required.");
 
-    await apiClient.put(`/api/crm/calendar/appointments/${id}`, data, {
+    const response = await apiClient.put(`/api/crm/calendar/appointments/${id}`, data, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    return response.data?.data;
   };
 
   const openQuoteModal = () => {
@@ -1847,6 +1918,18 @@ export function LeadsTab({
   const handleUpdateSelectedLeadDetails = async (changes: any) => {
     if (!selectedLead?._id) {
       throw new Error("No lead selected");
+    }
+
+    const lastDigits = (value: unknown) => String(value || "").replace(/\D/g, "").slice(-10);
+    const restrictedContactChange =
+      isContactRestrictedStatus(selectedLead.status) &&
+      ((changes.email !== undefined &&
+        String(changes.email || "").trim().toLowerCase() !== String(selectedLead.email || "").trim().toLowerCase()) ||
+        (changes.phone !== undefined && lastDigits(changes.phone) !== lastDigits(selectedLead.phone)));
+    if (restrictedContactChange && !changes.restrictionReason) {
+      const restrictionReason = await new Promise<string | null>((resolve) => setContactReasonRequest({ resolve }));
+      if (!restrictionReason) throw new Error("Contact change cancelled");
+      changes = { ...changes, restrictionReason };
     }
 
     try {
@@ -2404,7 +2487,9 @@ export function LeadsTab({
                             actionLabel: replyState.smsReason ? undefined : "Use text instead",
                             onAction: () => chooseReplyChannel(selectedLead._id, "sms"),
                           }
-                        : null
+                        : webchatWindow.note
+                          ? { text: webchatWindow.note }
+                          : null
                     }
                     replyChannel={replyState.route === "email" ? "email" : "sms"}
                     threadContext={buildDraftThreadContext(
@@ -2580,6 +2665,39 @@ export function LeadsTab({
       )}
 
       <AddLeadModal isOpen={addLeadOpen} onOpenChange={setAddLeadOpen} />
+
+      <StatusReasonModal
+        open={Boolean(contactReasonRequest)}
+        onOpenChange={(open) => {
+          if (!open && contactReasonRequest) {
+            contactReasonRequest.resolve(null);
+            setContactReasonRequest(null);
+          }
+        }}
+        title="Change Do Not Contact details"
+        description="Only an organization admin can do this. Why is this customer's phone or email changing? The old details stay blocked, and this is saved on the lead."
+        confirmLabel="Save change"
+        onConfirm={(reason) => {
+          const request = contactReasonRequest;
+          setContactReasonRequest(null);
+          request?.resolve(reason);
+        }}
+      />
+
+      <StatusReasonModal
+        open={Boolean(doNotContactRemoval)}
+        onOpenChange={(open) => {
+          if (!open) setDoNotContactRemoval(null);
+        }}
+        title="Remove Do Not Contact"
+        description={`Only an admin can do this. Why can this customer be contacted again? This is saved on the lead. The status will change to "${doNotContactRemoval?.status || ""}".`}
+        confirmLabel="Remove Do Not Contact"
+        onConfirm={(reason) => {
+          const request = doNotContactRemoval;
+          setDoNotContactRemoval(null);
+          if (request) void handleStatus(request.status, reason, request.lead);
+        }}
+      />
 
       <CreateAppointmentModal
         open={apptOpen}
