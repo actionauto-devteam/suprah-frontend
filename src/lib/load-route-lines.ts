@@ -20,11 +20,15 @@ export const KEEP_LAST_ROUTE_MS = 10 * 60_000;
 /** Further than this from the route, the line isn't cut at the driver (a new route is on its way). */
 const TRIM_WITHIN_METERS = 250;
 
-/** The route to show: the latest, or the last good one through a short failure. */
+/**
+ * The route to show: the latest, or the last good one through a short failure.
+ * Never an earlier route once the server finds no route that is safe for the truck.
+ */
 export function shownRoute(state: LoadRouteState | null, nowMs = Date.now()): AvailableLoadRoute | null {
   if (!state?.route) return null;
   if (state.route.available) return state.route;
-  if (state.route.reason === "routes_off" || state.route.reason === "not_tracked") return null;
+  const { reason } = state.route;
+  if (reason === "routes_off" || reason === "not_tracked" || reason === "no_safe_route") return null;
   const last = state.lastAvailable;
   return last && nowMs - Date.parse(last.computedAt) < KEEP_LAST_ROUTE_MS ? last : null;
 }

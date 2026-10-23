@@ -42,7 +42,17 @@ export type AvailableLoadRoute = {
     stoppedMinutes: number | null;
     positionAgeMinutes: number;
     positionStale: boolean;
+    /** How precise the starting location is, in metres (null when unknown). */
+    positionAccuracyMeters?: number | null;
+    /** The route starts from a rough location (worse than 100 m). */
+    positionApproximate?: boolean;
   };
+  /**
+   * The server's second check against the truck's limits. "check": a limit
+   * may apply on the way to the next stop. restOfTripUnsafe: the part from
+   * the pickup to the delivery breaks a limit, so it isn't drawn.
+   */
+  safety?: { status: "ok" | "check"; limits: string[]; restOfTripUnsafe: boolean; restOfTripLimits: string[] };
   deadline: { day: string; status: "on_time" | "at_risk" | "late" } | null;
   /** Null when no road line came back; the arrival time still stands. */
   route: LoadRouteLines | null;
@@ -53,7 +63,8 @@ export type LoadRoute =
   | AvailableLoadRoute
   | {
       available: false;
-      reason: "routes_off" | "not_tracked" | "no_driver_position" | "no_destination" | "unavailable";
+      /** no_safe_route: every route found breaks one of the truck's limits, so none is shown. */
+      reason: "routes_off" | "not_tracked" | "no_driver_position" | "no_destination" | "unavailable" | "no_safe_route";
       message: string;
     };
 

@@ -60,11 +60,25 @@ const DEADLINE = {
   late: { label: "Late", style: TRAFFIC_STYLE.heavy },
 } as const;
 
+/** How far off a rough location may be: "500 ft", "0.9 mi". */
+function formatAccuracy(meters: number) {
+  if (meters < 800) return `${Math.max(50, Math.round((meters * 3.28084) / 50) * 50)} ft`;
+  return formatMiles(meters);
+}
+
+/** "a and b", "a, b and c". */
+function listOf(items: string[]) {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 const DRIVER_MESSAGES: Record<string, string> = {
   no_driver_position: "Share your location to see your route and arrival time.",
   no_destination: "This stop couldn't be found on the map, so no route yet.",
   unavailable: "Your route couldn't be worked out right now. It will try again shortly.",
 };
+
+const WARNING_TEXT = "text-amber-800 dark:text-amber-300";
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = React.useState(() => Date.now());
@@ -96,9 +110,15 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
   if (!shown) {
     if (route.available) return null;
     const message = audience === "driver" ? DRIVER_MESSAGES[route.reason] ?? route.message : route.message;
+    // No route is safe for the truck: a warning, not a "please wait".
+    const unsafe = route.reason === "no_safe_route";
+    const Icon = unsafe ? TriangleAlert : Clock;
     return (
-      <p className={cn("flex items-start gap-1.5 text-xs text-muted-foreground", className)}>
-        <Clock className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <p
+        role={unsafe ? "alert" : undefined}
+        className={cn("flex items-start gap-1.5 text-xs", unsafe ? WARNING_TEXT : "text-muted-foreground", className)}
+      >
+        <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0 break-words">{message}</span>
       </p>
     );
@@ -109,6 +129,8 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
   const arrival = formatArrival(arrivalMs, now);
   const stopLabel = shown.stop === "pickup" ? "pickup" : "delivery";
   const restOfTrip = shown.route?.later ?? null;
+  const safety = shown.safety;
+  const needsCheck = safety?.status === "check";
 
   if (variant === "line") {
     return (
@@ -122,10 +144,18 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
               {" "}· {DEADLINE[shown.deadline.status].label}
             </span>
           )}
+          {needsCheck && <span className="text-amber-700 dark:text-amber-300"> · Check route for truck limits</span>}
         </span>
       </p>
     );
   }
+
+  const whose = audience === "driver" ? "your" : "the driver's";
+  const checkIn = audience === "driver" ? "Check it in your truck navigation app before you drive." : "The driver should check it in a truck navigation app.";
+  const planIn = audience === "driver" ? "Plan that part in your truck navigation app." : "The driver should plan that part in a truck navigation app.";
+  const approximate = shown.driver.positionApproximate && shown.driver.positionAccuracyMeters != null
+    ? formatAccuracy(shown.driver.positionAccuracyMeters)
+    : null;
 
   const trafficDelay = Math.round(shown.traffic.delaySeconds / 60);
   const pace = Math.round(shown.paceAdjustmentSeconds / 60);
@@ -166,6 +196,28 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
         )}
       </div>
 
+      {needsCheck && safety && (safety.limits.length > 0 || safety.restOfTripUnsafe) && (
+        <div role="alert" className={cn("mt-2 space-y-1 rounded-md border px-2 py-1.5 text-xs", TRAFFIC_STYLE.moderate)}>
+          {safety.limits.length > 0 && (
+            <p className="flex items-start gap-1.5">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">
+                This route may pass {listOf(safety.limits)}. {checkIn}
+              </span>
+            </p>
+          )}
+          {safety.restOfTripUnsafe && (
+            <p className="flex items-start gap-1.5">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">
+                No safe truck route was found from the pickup to the delivery
+                {safety.restOfTripLimits.length > 0 ? ` (it would pass ${listOf(safety.restOfTripLimits)})` : ""}. {planIn}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+
       {(shown.traffic.comparedWithUsual === "worse" || shown.traffic.comparedWithUsual === "better") && (
         <p className="mt-1.5 text-xs text-muted-foreground">
           {shown.traffic.comparedWithUsual === "worse" ? "Traffic is heavier than usual for this time of day." : "Traffic is lighter than usual for this time of day."}
@@ -192,9 +244,12 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
         </p>
       )}
 
-      {shown.driver.positionStale && (
-        <p className="mt-1.5 text-xs text-amber-800 dark:text-amber-300">
-          Based on {audience === "driver" ? "your" : "the driver's"} location from {shown.driver.positionAgeMinutes} min ago.
+      {(shown.driver.positionStale || approximate) && (
+        <p className={cn("mt-1.5 text-xs", WARNING_TEXT)}>
+          Based on {whose} {approximate ? "approximate " : ""}location
+          {shown.driver.positionStale ? ` from ${shown.driver.positionAgeMinutes} min ago` : ""}
+          {approximate ? ` (within about ${approximate})` : ""}.
+          {approximate && audience === "driver" ? " Your route updates once your phone has a precise location." : ""}
         </p>
       )}
 
