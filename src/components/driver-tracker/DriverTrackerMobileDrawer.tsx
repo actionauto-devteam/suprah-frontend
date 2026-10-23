@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { trackingState, formatTrackingTime } from "@/lib/driver-tracking-view";
+import { trackingState, formatTrackingTime, formatGpsAccuracy } from "@/lib/driver-tracking-view";
 import {
   AlertTriangle,
   Bell,
@@ -673,7 +673,7 @@ export function DriverTrackerMobileDrawer({
                   value={formatTrackingTime(driver.locationRecordedAt)}
                 />
                 <InfoTile label="Server confirmed" value={formatTrackingTime(driver.lastSeenAt)} />
-                <InfoTile label="GPS accuracy" value={driver.accuracy != null && Number.isFinite(driver.accuracy) ? `±${Math.round(driver.accuracy)} m` : "Not available"} />
+                <InfoTile label="GPS accuracy" value={driver.accuracy != null && Number.isFinite(driver.accuracy) ? `±${formatGpsAccuracy(driver.accuracy)}` : "Not available"} />
               </div>
 
               {(driver.coords && onLocateDriver) || onOpenLoadManagement ? (

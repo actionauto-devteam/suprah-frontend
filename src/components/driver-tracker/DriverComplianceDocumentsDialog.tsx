@@ -45,6 +45,7 @@ import {
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 import { userErrorMessage } from "@/lib/user-error";
 import { mountainDaysUntil } from "@/lib/mountain-time";
+import { formatRigHeight, formatRigLength } from "@/lib/rig-size";
 
 interface DriverReviewAccess {
   level:
@@ -193,6 +194,8 @@ interface DriverReviewProfile {
     trailerLength?: number;
     trailerAxles?: number;
     trailerGvwr?: number;
+    rigHeightInches?: number;
+    rigLengthFeet?: number;
     hitchType?: string;
     specialFeatures?: string[];
   };
@@ -1105,6 +1108,8 @@ export function DriverComplianceDocumentsDialog({
                           <Field label="Engine" value={profile.equipment?.engineType} />
                           <Field label="GVWR" value={profile.equipment?.gvwr ? `${profile.equipment.gvwr.toLocaleString()} lbs` : undefined} />
                           <Field label="Trailer" value={[profile.equipment?.trailerMake, profile.equipment?.trailerModel].filter(Boolean).join(" ")} />
+                          <Field label="Rig Height" value={formatRigHeight(profile.equipment?.rigHeightInches)} />
+                          <Field label="Rig Length" value={formatRigLength(profile.equipment?.rigLengthFeet)} />
                         </div>
                         {profile.equipment?.specialFeatures && profile.equipment.specialFeatures.length > 0 && (
                           <div className="rounded-2xl border border-border/60 p-4">

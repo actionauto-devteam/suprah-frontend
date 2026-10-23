@@ -22,6 +22,7 @@ import {
 } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
 import { getEquipmentReadiness } from '@/lib/driver-readiness';
+import { RIG_HEIGHT_INCHES, RIG_LENGTH_FEET } from '@/lib/rig-size';
 import Link from 'next/link';
 import { userErrorMessage } from "@/lib/user-error";
 
@@ -33,6 +34,8 @@ interface EquipmentForm {
   trailerYear: number | undefined; hitchType: string; maxVehicleCapacity: number;
   trailerLength: number | undefined; trailerAxles: number;
   trailerGvwr: number | undefined; specialFeatures: string[];
+  // Overall rig size for truck routes: height as feet + inches, length in feet.
+  rigHeightFeet: number | undefined; rigHeightExtraInches: number | undefined; rigLengthFeet: number | undefined;
 }
 
 const INIT: EquipmentForm = {
@@ -42,7 +45,31 @@ const INIT: EquipmentForm = {
   trailerYear: undefined, hitchType: '', maxVehicleCapacity: 1,
   trailerLength: undefined, trailerAxles: 2, trailerGvwr: undefined,
   specialFeatures: [],
+  rigHeightFeet: undefined, rigHeightExtraInches: undefined, rigLengthFeet: undefined,
 };
+
+/** The height in inches, or null when neither box is filled in. */
+const rigHeightInchesOf = (form: Pick<EquipmentForm, 'rigHeightFeet' | 'rigHeightExtraInches'>) =>
+  form.rigHeightFeet === undefined && form.rigHeightExtraInches === undefined
+    ? null
+    : (form.rigHeightFeet ?? 0) * 12 + (form.rigHeightExtraInches ?? 0);
+
+/** What's wrong with the rig size as typed, in plain English (null when fine). */
+function rigSizeProblem(form: EquipmentForm): string | null {
+  const height = rigHeightInchesOf(form);
+  if (form.rigHeightExtraInches !== undefined && (form.rigHeightExtraInches < 0 || form.rigHeightExtraInches > 11)) {
+    return 'Inches go from 0 to 11. Put whole feet in the feet box.';
+  }
+  if (height !== null && (height < RIG_HEIGHT_INCHES.min || height > RIG_HEIGHT_INCHES.max)) {
+    return 'Overall height must be between 6 ft and 16 ft.';
+  }
+  if (form.rigLengthFeet !== undefined && (form.rigLengthFeet < RIG_LENGTH_FEET.min || form.rigLengthFeet > RIG_LENGTH_FEET.max)) {
+    return 'Overall length must be between 20 ft and 100 ft.';
+  }
+  return null;
+}
+
+const numberOrUndefined = (value: string) => (value === '' ? undefined : Number(value));
 
 const TH: Record<string, { bg: string; text: string; fill: string; grad: string; ring: string; glow: string }> = {
   open: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', fill: 'fill-emerald-500', grad: 'from-emerald-600 to-teal-500', ring: 'ring-emerald-500/30', glow: 'shadow-emerald-500/20' },
@@ -196,6 +223,9 @@ export const EquipmentPage: React.FC = () => {
           // A number saved before the 10-vehicle limit shows (and saves) as 10.
           hitchType: d.hitchType || '', maxVehicleCapacity: Math.min(d.maxVehicleCapacity || 1, MAX_TRAILER_VEHICLES), trailerLength: d.trailerLength,
           trailerAxles: d.trailerAxles || 2, trailerGvwr: d.trailerGvwr, specialFeatures: d.specialFeatures || [],
+          rigHeightFeet: d.rigHeightInches ? Math.floor(d.rigHeightInches / 12) : undefined,
+          rigHeightExtraInches: d.rigHeightInches ? d.rigHeightInches % 12 : undefined,
+          rigLengthFeet: d.rigLengthFeet,
         });
         const match = trailerTypeOptions.find(t => t.value === d.trailerType);
         if (match) setDialogCategory(match.category);
@@ -251,6 +281,8 @@ export const EquipmentPage: React.FC = () => {
         trailerLength: form.trailerLength ?? null,
         trailerAxles: form.trailerAxles,
         trailerGvwr: form.trailerGvwr ?? null,
+        rigHeightInches: rigHeightInchesOf(form),
+        rigLengthFeet: form.rigLengthFeet ?? null,
       });
     }
 
@@ -269,6 +301,12 @@ export const EquipmentPage: React.FC = () => {
       options: { announce?: boolean } = {},
     ): Promise<boolean> => {
       if (saving || !loadedRef.current) return false;
+
+      const rigProblem = section === 'specs' || section === 'all' ? rigSizeProblem(form) : null;
+      if (rigProblem) {
+        toast.error(`${rigProblem} Fix it in Specs, then save again.`);
+        return false;
+      }
 
       setSaving(true);
       try {
@@ -293,7 +331,7 @@ export const EquipmentPage: React.FC = () => {
         setSaving(false);
       }
     },
-    [buildEquipmentPayload, getToken, saving],
+    [buildEquipmentPayload, form, getToken, saving],
   );
 
   const handleSave = useCallback(async () => {
@@ -720,6 +758,52 @@ export const EquipmentPage: React.FC = () => {
                         <Input type="number" min={0} max={100000} value={form.trailerGvwr ?? ''} onChange={e => patch({ trailerGvwr: e.target.value === '' ? undefined : Number(e.target.value) })}
                           placeholder="e.g. 14000" className="h-12 text-lg font-bold text-center bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                         <p className="text-xs text-muted-foreground text-center font-medium">Weight in pounds (lbs)</p>
+                      </motion.div>
+
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3 sm:col-span-2">
+                        <div className="flex items-center gap-3">
+                          <div className="size-10 shrink-0 rounded-xl bg-linear-to-br from-sky-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-sky-500/30">
+                            <Ruler className="size-5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-black">Overall Rig Size</h4>
+                            <p className="text-xs text-muted-foreground">Your truck and trailer together, loaded. Routes use this to avoid low bridges and roads your rig can&apos;t take.</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <fieldset className="min-w-0 space-y-2">
+                            <legend className="text-xs font-bold text-muted-foreground">Overall Height</legend>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label htmlFor="rig-height-feet" className="text-[11px] text-muted-foreground">Feet</Label>
+                                <Input id="rig-height-feet" type="number" inputMode="numeric" min={6} max={16} step={1} value={form.rigHeightFeet ?? ''}
+                                  onChange={e => patch({ rigHeightFeet: numberOrUndefined(e.target.value) })} placeholder="13"
+                                  className="h-11 font-bold bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label htmlFor="rig-height-inches" className="text-[11px] text-muted-foreground">Inches</Label>
+                                <Input id="rig-height-inches" type="number" inputMode="numeric" min={0} max={11} step={1} value={form.rigHeightExtraInches ?? ''}
+                                  onChange={e => patch({ rigHeightExtraInches: numberOrUndefined(e.target.value) })} placeholder="6"
+                                  className="h-11 font-bold bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">From the ground to the tallest point, with the top deck loaded.</p>
+                          </fieldset>
+                          <div className="min-w-0 space-y-2">
+                            <Label htmlFor="rig-length-feet" className="text-xs font-bold text-muted-foreground">Overall Length (feet)</Label>
+                            <Input id="rig-length-feet" type="number" inputMode="numeric" min={RIG_LENGTH_FEET.min} max={RIG_LENGTH_FEET.max} step={1} value={form.rigLengthFeet ?? ''}
+                              onChange={e => patch({ rigLengthFeet: numberOrUndefined(e.target.value) })} placeholder="75"
+                              className="h-11 font-bold bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <p className="text-[11px] text-muted-foreground">From the front bumper to the end of the trailer.</p>
+                          </div>
+                        </div>
+                        {rigSizeProblem(form) ? (
+                          <p role="alert" className="text-xs font-semibold text-rose-700 dark:text-rose-300">{rigSizeProblem(form)}</p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">
+                            Not sure? Leave the height or length empty, and routes plan for a standard 13 ft 6 in tall, 75 ft long rig.
+                          </p>
+                        )}
                       </motion.div>
                     </div>
 

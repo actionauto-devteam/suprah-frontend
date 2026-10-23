@@ -18,6 +18,9 @@ import {
 } from "@/components/driver/driver-next-stop-layer";
 import { describeStopDistance, formatShortAge, resolveStopPosition, type StopPosition } from "@/lib/driver-next-stop";
 import { nextStopForMap, placeAddressText, placePin } from "@/lib/load-navigation";
+import { LoadRouteSummary } from "@/components/driver-tracker/LoadRoutePanel";
+import { useLoadRoute } from "@/hooks/useLoadRoute";
+import { mapRouteOf } from "@/lib/load-route-lines";
 import {
   createGoogleMap,
   GOOGLE_MAPS_KEY_REJECTED,
@@ -197,6 +200,8 @@ const LIVE_STATUS_LABEL: Record<DriverStatus, string> = {
 };
 
 const MAP_CENTER: [number, number] = [-98.5795, 39.8283];
+// The best route to the next stop exists while the driver is on the trip.
+const ROUTE_LOAD_STATUSES = ["Accepted", "Picked Up", "In-Transit"];
 // Google Maps once its browser settings are present; Mapbox until then.
 const GOOGLE_MAPS = googleMapsConfig();
 const OWN_LOCATION_MARKER_HTML = `<div style="width:22px;height:22px;border-radius:50%;background:#10b981;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);position:relative"><div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid #10b981;opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div></div>`;
@@ -748,6 +753,11 @@ export default function DriverDashboardPage() {
   const currentLoadHasPendingRelease =
     currentLoad?.releaseRequest?.status === "pending";
 
+  // ── Best route to the next stop (Amazon Location; nothing until it's switched on) ──
+  const currentLoadStatus = String(currentLoad?.status ?? "");
+  const routeState = useLoadRoute(currentLoadId, "driver", ROUTE_LOAD_STATUSES.includes(currentLoadStatus), currentLoadStatus);
+  const mapRoute = React.useMemo(() => mapRouteOf(routeState), [routeState]);
+
   // ── Next stop on the map: the pickup, then the delivery ──
   const nextStop = React.useMemo(() => nextStopForMap(currentLoad), [currentLoad]);
   const nextStopPin = nextStop ? placePin(nextStop.place) : null;
@@ -786,7 +796,8 @@ export default function DriverDashboardPage() {
         }
       : null,
     driver: lastCoords ? { lat: lastCoords.lat, lng: lastCoords.lng } : null,
-  }), [nextStop, nextStopKey, nextStopPosition, nextStopAddress, lastCoords]);
+    route: mapRoute,
+  }), [nextStop, nextStopKey, nextStopPosition, nextStopAddress, lastCoords, mapRoute]);
   const nextStopLayerRef = React.useRef<NextStopLayer | null>(null);
   const nextStopStateRef = React.useRef(nextStopMapState);
   // Stops already framed once, kept across map rebuilds (theme changes).
@@ -2272,6 +2283,7 @@ export default function DriverDashboardPage() {
                         {nextStop.place.notes}
                       </p>
                     )}
+                    <LoadRouteSummary state={routeState} audience="driver" variant="compact" className="mt-2" />
                   </div>
                   <OpenInGoogleMapsButton load={currentLoad} className="w-full sm:w-auto" />
                 </div>

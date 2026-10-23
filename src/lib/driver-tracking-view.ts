@@ -1,8 +1,20 @@
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 
 export const LOCATION_FRESH_MS = 90_000;
-/** Positions less precise than this (e.g. cell-tower fixes) are labelled approximate. */
+/**
+ * Positions less precise than this (e.g. cell-tower fixes) are labelled
+ * approximate, here and on the arrival card. Must match
+ * APPROXIMATE_POSITION_METERS in the backend's services/loadRoute.service.ts.
+ */
 export const LOW_ACCURACY_M = 1_000;
+
+/** How far off a GPS reading may be, in US units: 12 -> "40 ft", 1500 -> "0.9 mi". */
+export function formatGpsAccuracy(meters: number): string {
+  const feet = meters * 3.28084;
+  if (feet < 1_000) return `${Math.max(10, Math.round(feet / 10) * 10).toLocaleString("en-US")} ft`;
+  const miles = meters / 1609.344;
+  return miles < 10 ? `${miles.toFixed(1)} mi` : `${Math.round(miles).toLocaleString("en-US")} mi`;
+}
 export function validCoordinates(value: unknown): value is { lat: number; lng: number } {
   if (!value || typeof value !== "object") return false;
   const { lat, lng } = value as { lat: unknown; lng: unknown };
@@ -27,7 +39,7 @@ export function trackingState(driver: Pick<DriverTrackingItem, "coords" | "isSha
   }
   if (!driver.isSharing) return { kind: "stopped", label: "Sharing stopped" } as const;
   if (typeof driver.accuracy === "number" && Number.isFinite(driver.accuracy) && driver.accuracy > LOW_ACCURACY_M) {
-    return { kind: "live", label: `Approximate GPS (±${(driver.accuracy / 1000).toFixed(1)} km)` } as const;
+    return { kind: "live", label: `Approximate GPS (±${formatGpsAccuracy(driver.accuracy)})` } as const;
   }
   return { kind: "live", label: "Fresh GPS" } as const;
 }

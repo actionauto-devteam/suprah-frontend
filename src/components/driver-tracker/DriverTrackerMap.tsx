@@ -3,6 +3,7 @@
 import * as React from "react";
 import { DriverTrackerSelectedDriver, type FollowMode } from "./DriverTrackerSelectedDriver";
 import type { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
+import type { LoadRouteState } from "@/hooks/useLoadRoute";
 import {
   Plus,
   Minus,
@@ -52,6 +53,8 @@ const MAP_STATUS_ITEMS: MapStatusItem[] = [
 
 interface DriverTrackerMapProps {
   selectedDriver?: DriverTrackingItem | null;
+  /** The best route and arrival time for the selected driver's current load. */
+  selectedRoute?: LoadRouteState | null;
   trackingNow?: number;
   following?: boolean;
   followMode?: FollowMode;
@@ -89,7 +92,7 @@ interface DriverTrackerMapProps {
 }
 
 export function DriverTrackerMap({
-  selectedDriver, trackingNow = Date.now(), following = false, followMode, onFollow, onStopFollowing, onClearSelection, onDetails, onChat, activityLabels,
+  selectedDriver, selectedRoute = null, trackingNow = Date.now(), following = false, followMode, onFollow, onStopFollowing, onClearSelection, onDetails, onChat, activityLabels,
   mapboxToken,
   mapConfigured,
   mapRef,
@@ -496,7 +499,7 @@ export function DriverTrackerMap({
         {selectedDriver ? (
           <div className="p-3 md:p-0 md:pt-3">
             <DriverTrackerSelectedDriver driver={selectedDriver} now={trackingNow} following={following} followMode={followMode} mapReady={isMapReady}
-              activityLabels={activityLabels} onFollow={onFollow} onStopFollowing={onStopFollowing} onClear={onClearSelection} onDetails={onDetails} onChat={onChat} />
+              activityLabels={activityLabels} onFollow={onFollow} onStopFollowing={onStopFollowing} onClear={onClearSelection} onDetails={onDetails} onChat={onChat} route={selectedRoute} />
           </div>
         ) : <p className="px-3 py-2 text-xs text-muted-foreground">Select a driver card or map marker. Numbered circles group nearby drivers.</p>}
         </div>
