@@ -122,6 +122,13 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
   };
   const uploadedCount = requiredDocs.filter(d => getDocStatus(d.type) !== 'missing').length;
   const documentsDone = uploadedCount === requiredDocs.length;
+  // The badge follows the review, not just the uploads: "Verified" only once
+  // every required document is approved.
+  const requiredStatuses = requiredDocs.map(d => getDocStatus(d.type));
+  const documentsBadge = requiredStatuses.includes('missing') ? 'missing'
+    : requiredStatuses.includes('rejected') ? 'rejected'
+      : requiredStatuses.every(s => s === 'verified') ? 'approved'
+        : 'pending';
   const complianceDone = !!(licenseNumber.trim() && licenseState && licenseExp);
   const completedStepIds = React.useMemo(() => {
     const done = new Set<string>();
@@ -303,7 +310,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                 <h2 className="text-lg font-bold text-foreground">Required Documents</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{uploadedCount} of {requiredDocs.length} uploaded</p>
               </div>
-              <StatusBadge status={documentsDone ? 'approved' : 'pending'} domain="documentReview" className="text-xs" />
+              <StatusBadge status={documentsBadge} domain="documentReview" className="text-xs" />
             </div>
 
             {requiredDocs.map(req => {
@@ -327,8 +334,9 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                       <p className="text-sm font-bold text-foreground">{req.label}</p>
                       <p className="text-[11px] text-muted-foreground">{req.description}</p>
                       {ups[0] && (
-                        <button type="button" onClick={() => setPreviewDoc(ups[0])} className="text-[11px] text-muted-foreground mt-0.5 underline decoration-dotted hover:text-foreground">
-                          {ups[0].fileName} · {fmtSize(ups[0].fileSize)}
+                        <button type="button" onClick={() => setPreviewDoc(ups[0])} title={ups[0].fileName} className="mt-0.5 flex w-full min-w-0 items-baseline text-left text-[11px] text-muted-foreground hover:text-foreground">
+                          <span className="truncate underline decoration-dotted">{ups[0].fileName}</span>
+                          <span className="shrink-0">&nbsp;· {fmtSize(ups[0].fileSize)}</span>
                         </button>
                       )}
                       {status === 'rejected' && ups[0]?.rejectionReason && (
@@ -360,7 +368,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                     <div key={req.type} className="rounded-xl border border-border p-3 flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-foreground">{req.label}</p>
-                        {ups[0] && <p className="text-[10px] text-muted-foreground">{ups[0].fileName}</p>}
+                        {ups[0] && <p className="truncate text-[10px] text-muted-foreground" title={ups[0].fileName}>{ups[0].fileName}</p>}
                       </div>
                       <Button variant="outline" size="sm" onClick={() => openUploadFor(req.type)} className="gap-1.5 rounded-lg"><Upload className="size-3.5" /></Button>
                     </div>
@@ -384,39 +392,56 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
               <p className="text-xs text-muted-foreground mt-0.5">Required for FMCSA compliance</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">CDL Number *</Label>
-                <Input value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} placeholder="DL-XXXXXXXX" className="h-11 rounded-xl" />
+            {/* Grouped by document, in the same order as the Documents step, so
+                the fields read the same way on a phone and on a computer. */}
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-bold text-foreground">Commercial Driver&apos;s License (CDL)</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-cdl-number" className="text-xs font-bold text-muted-foreground">CDL Number *</Label>
+                  <Input id="compliance-cdl-number" value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)} placeholder="DL-XXXXXXXX" className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-cdl-state" className="text-xs font-bold text-muted-foreground">License State *</Label>
+                  <Select value={licenseState} onValueChange={setLicenseState}>
+                    <SelectTrigger id="compliance-cdl-state" className="h-11 rounded-xl w-full"><SelectValue placeholder="Select state" /></SelectTrigger>
+                    <SelectContent>{US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-cdl-expiration" className="text-xs font-bold text-muted-foreground">Expiration Date *</Label>
+                  <Input id="compliance-cdl-expiration" type="date" value={licenseExp} onChange={e => setLicenseExp(e.target.value)} className="h-11 rounded-xl" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">License State *</Label>
-                <Select value={licenseState} onValueChange={setLicenseState}>
-                  <SelectTrigger className="h-11 rounded-xl w-full"><SelectValue placeholder="Select state" /></SelectTrigger>
-                  <SelectContent>{US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                </Select>
+            </fieldset>
+
+            <fieldset className="space-y-3 border-t border-border pt-5">
+              <legend className="text-sm font-bold text-foreground">DOT Medical Card <span className="font-normal text-muted-foreground">(optional)</span></legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-medical-expiration" className="text-xs font-bold text-muted-foreground">Expiration Date</Label>
+                  <Input id="compliance-medical-expiration" type="date" value={medicalExp} onChange={e => setMedicalExp(e.target.value)} className="h-11 rounded-xl" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">CDL Expiration *</Label>
-                <Input type="date" value={licenseExp} onChange={e => setLicenseExp(e.target.value)} className="h-11 rounded-xl" />
+            </fieldset>
+
+            <fieldset className="space-y-3 border-t border-border pt-5">
+              <legend className="text-sm font-bold text-foreground">Auto Liability Insurance <span className="font-normal text-muted-foreground">(optional)</span></legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-insurance-provider" className="text-xs font-bold text-muted-foreground">Insurance Provider</Label>
+                  <Input id="compliance-insurance-provider" value={insuranceProvider} onChange={e => setInsuranceProvider(e.target.value)} placeholder="e.g. Progressive" className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-insurance-policy" className="text-xs font-bold text-muted-foreground">Policy Number</Label>
+                  <Input id="compliance-insurance-policy" value={insurancePolicyNumber} onChange={e => setInsurancePolicyNumber(e.target.value)} placeholder="e.g. POL-123456" className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="compliance-insurance-expiration" className="text-xs font-bold text-muted-foreground">Expiration Date</Label>
+                  <Input id="compliance-insurance-expiration" type="date" value={insuranceExp} onChange={e => setInsuranceExp(e.target.value)} className="h-11 rounded-xl" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">Medical Card Expires</Label>
-                <Input type="date" value={medicalExp} onChange={e => setMedicalExp(e.target.value)} className="h-11 rounded-xl" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">Insurance Provider</Label>
-                <Input value={insuranceProvider} onChange={e => setInsuranceProvider(e.target.value)} placeholder="e.g. Progressive" className="h-11 rounded-xl" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">Policy Number</Label>
-                <Input value={insurancePolicyNumber} onChange={e => setInsurancePolicyNumber(e.target.value)} placeholder="e.g. POL-123456" className="h-11 rounded-xl" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground">Insurance Expires</Label>
-                <Input type="date" value={insuranceExp} onChange={e => setInsuranceExp(e.target.value)} className="h-11 rounded-xl" />
-              </div>
-            </div>
+            </fieldset>
 
             <div className="flex items-center justify-between pt-4">
               <Button variant="ghost" onClick={() => setActiveStep('documents')} className="text-muted-foreground">Back</Button>
@@ -507,12 +532,14 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       </div>
 
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-md">
+        {/* One column that can't grow past the window, so a long file name is
+            cut off with "…" instead of widening the window off the screen. */}
+        <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Upload className="size-5" /> Upload Document</DialogTitle>
             <DialogDescription className="flex items-center gap-1.5"><Lock className="size-3.5 text-emerald-500" /> Encrypted upload. Max 5MB.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="min-w-0 space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">Document Type</Label>
               <Select value={uploadType} onValueChange={setUploadType}>
@@ -538,10 +565,10 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                 className={cn('flex flex-col items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all',
                   dragOver ? 'border-blue-500 bg-blue-500/10' : uploadFile ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border hover:border-blue-500/50')}>
                 {uploadFile ? (
-                  <div className="flex items-center gap-3 w-full px-4">
+                  <div className="flex items-center gap-3 w-full min-w-0 px-4">
                     <FileText className="size-6 text-emerald-500 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate">{uploadFile.name}</p>
+                      <p className="text-sm font-bold truncate" title={uploadFile.name}>{uploadFile.name}</p>
                       <p className="text-xs text-muted-foreground">{fmtSize(uploadFile.size)}</p>
                     </div>
                     <Button size="icon" variant="ghost" className="size-10" onClick={e => { e.stopPropagation(); setUploadFile(null); }}><X className="size-4" /></Button>
