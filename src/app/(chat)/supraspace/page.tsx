@@ -415,7 +415,8 @@ function mergeSupraSpaceConversations(
 
 function supraSpaceReactionAffectsViewer(reaction: SSLastReaction | null | undefined, viewerId?: string | null): boolean {
   if (!reaction || !viewerId) return false;
-  return String(reaction.userId) === viewerId || String(reaction.targetUserId) === viewerId;
+  // Do not promote a conversation just because the viewer reacted to it.
+  return String(reaction.targetUserId) === viewerId;
 }
 
 function supraSpaceConversationActivityAt(conversation: SSConversation, viewerId?: string | null): number {
@@ -2504,6 +2505,52 @@ function insertTextAtRichEditorSelection(
   range.deleteContents();
   range.insertNode(inserted);
   range.setStartAfter(inserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
+}
+
+/**
+ * Plain clipboard newlines must become DOM soft breaks. Raw LF characters in
+ * a text node survive serialization but collapse visibly in contentEditable,
+ * making a pasted draft look different from the message that is sent.
+ */
+function insertPlainTextWithSoftBreaksAtRichEditorSelection(
+  root: HTMLElement,
+  text: string,
+): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const fragment = document.createDocumentFragment();
+  let lastInserted: Node | null = null;
+  text.replace(/\r\n?/g, '\n').split('\n').forEach((line, index) => {
+    if (index > 0) {
+      lastInserted = document.createElement('br');
+      fragment.appendChild(lastInserted);
+    }
+    if (line) {
+      lastInserted = document.createTextNode(line);
+      fragment.appendChild(lastInserted);
+    }
+  });
+  if (!lastInserted) return range.cloneRange();
+
+  range.deleteContents();
+  range.insertNode(fragment);
+  range.setStartAfter(lastInserted);
   range.collapse(true);
   root.focus();
   selection?.removeAllRanges();
@@ -6495,11 +6542,8 @@ const Bubble = React.memo(function Bubble({
                     || shortcutPlainText
                     || richPasteDropsVisibleText(text, html)
                     || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
-                  document.execCommand(
-                    usePlainText ? 'insertText' : 'insertHTML',
-                    false,
-                    usePlainText ? plainText : richEditorHtml,
-                  );
+                  if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(editAreaRef.current!, plainText);
+                  else document.execCommand('insertHTML', false, richEditorHtml);
                   requestAnimationFrame(() => {
                     normalizeContentEditableListArtifacts(editAreaRef.current);
                     normalizeRichEditorListExitArtifacts(editAreaRef.current);
@@ -7025,8 +7069,10 @@ const Bubble = React.memo(function Bubble({
         )}
 
         {(() => {
+          // This list is mapped to each member's latest outgoing message from
+          // this viewer that they have read, matching Messenger's placement.
           const seenByOthers = isOwn
-            ? (members as Array<{ _id: string; fullName: string; avatar?: string }>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id))
+            ? members as Array<{ _id: string; fullName: string; avatar?: string }>
             : [];
           const hasSeen = seenByOthers.length > 0;
           if (hideTime && !hasSeen && !failedSend) return null;
@@ -10172,11 +10218,19 @@ export default function SupraSpacePage() {
       }
     });
     const lastSeen: Record<string, string> = {};
-    activeMsgs.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== uid) lastSeen[id] = m._id; }); });
+    activeMsgs.forEach(m => {
+      // Keep the receipt under the newest outgoing message this viewer sent
+      // that the member has read, matching Messenger's read marker.
+      if (String(m.sender?._id) !== uid) return;
+      (m.readBy || []).forEach((id: string) => {
+        const readerId = String(id);
+        if (readerId !== uid) lastSeen[readerId] = m._id;
+      });
+    });
     const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
     (activeConv ? safeMembers(activeConv) : []).forEach(member => {
       if (member._id === uid) return;
-      const lastMsgId = lastSeen[member._id];
+      const lastMsgId = lastSeen[String(member._id)];
       if (lastMsgId) {
         if (!result[lastMsgId]) result[lastMsgId] = [];
         result[lastMsgId].push({
@@ -11070,15 +11124,15 @@ export default function SupraSpacePage() {
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } : c));
     const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
       setConvos(p => p.map(c => c.spaceId === spaceId ? { ...c, spaceId: null } : c));
-    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, reactionActorId, reactionTargetUserId }: {
+    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, reactionTargetUserId }: {
       conversationId: string; messageId: string; reactions: SSMessage['reactions'];
-      reactionActivity?: SSLastReaction | null; reactionActorId?: string; reactionTargetUserId?: string;
+      reactionActivity?: SSLastReaction | null; reactionTargetUserId?: string;
     }) => {
       patchMsg(conversationId, messageId, { reactions });
       if (reactionActivity === undefined) return;
       const affectsViewer = reactionActivity
         ? supraSpaceReactionAffectsViewer(reactionActivity, uid)
-        : reactionActorId === uid || reactionTargetUserId === uid;
+        : String(reactionTargetUserId) === String(uid);
       if (!affectsViewer) return;
       markConversationActivity(conversationId);
       setConvos(p => {
@@ -15865,11 +15919,8 @@ export default function SupraSpacePage() {
                                     || richPasteDropsVisibleText(text, html)
                                     || pasteExceededLimit
                                     || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
-                                  document.execCommand(
-                                    usePlainText ? 'insertText' : 'insertHTML',
-                                    false,
-                                    usePlainText ? limitedPlainText : richEditorHtml,
-                                  );
+                                  if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(textareaRef.current!, limitedPlainText);
+                                  else document.execCommand('insertHTML', false, richEditorHtml);
                                   if (pasteExceededLimit) showMessageLimitNotice();
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;

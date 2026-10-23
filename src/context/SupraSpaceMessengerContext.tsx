@@ -153,7 +153,9 @@ function decodeCrmUserId(token: string): string | null {
 
 function reactionAppliesToViewer(reaction: SSLastReaction | null | undefined, viewerId?: string | null): boolean {
   if (!reaction || !viewerId) return false;
-  return reaction.userId === viewerId || reaction.targetUserId === viewerId;
+  // A reaction changes list recency only for the author of the reacted-to
+  // message. The reactor still sees the reaction on the message itself.
+  return String(reaction.targetUserId) === String(viewerId);
 }
 
 function conversationActivityAt(conv: SSConv, viewerId?: string | null): number {
@@ -179,7 +181,6 @@ function applyReactionActivityToConversations(
   payload: {
     conversationId: string;
     reactionActivity?: SSLastReaction | null;
-    reactionActorId?: string;
     reactionTargetUserId?: string;
   },
   viewerId?: string | null,
@@ -190,7 +191,7 @@ function applyReactionActivityToConversations(
     if (conv._id !== payload.conversationId) return conv;
     const affectsViewer = payload.reactionActivity
       ? reactionAppliesToViewer(payload.reactionActivity, viewerId)
-      : payload.reactionActorId === viewerId || payload.reactionTargetUserId === viewerId;
+      : String(payload.reactionTargetUserId) === String(viewerId);
     if (!affectsViewer) return conv;
     changed = true;
     if (payload.reactionActivity === null) {
@@ -655,12 +656,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     listen('message:reaction', (payload: {
       conversationId: string;
       reactionActivity?: SSLastReaction | null;
-      reactionActorId?: string;
       reactionTargetUserId?: string;
     }) => {
       const affectsViewer = payload.reactionActivity
         ? reactionAppliesToViewer(payload.reactionActivity, crmUserId)
-        : payload.reactionActorId === crmUserId || payload.reactionTargetUserId === crmUserId;
+        : String(payload.reactionTargetUserId) === String(crmUserId);
       if (affectsViewer) markConversationActivity(payload.conversationId);
       setConversations(prev => applyReactionActivityToConversations(prev, payload, crmUserId));
     });

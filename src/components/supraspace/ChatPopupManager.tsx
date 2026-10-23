@@ -2159,6 +2159,48 @@ function insertTextAtRichEditorSelection(
   return range.cloneRange();
 }
 
+/** Keep ordinary clipboard line spacing visible before send, matching the main composer. */
+function insertPlainTextWithSoftBreaksAtRichEditorSelection(
+  root: HTMLElement,
+  text: string,
+): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const fragment = document.createDocumentFragment();
+  let lastInserted: Node | null = null;
+  text.replace(/\r\n?/g, '\n').split('\n').forEach((line, index) => {
+    if (index > 0) {
+      lastInserted = document.createElement('br');
+      fragment.appendChild(lastInserted);
+    }
+    if (line) {
+      lastInserted = document.createTextNode(line);
+      fragment.appendChild(lastInserted);
+    }
+  });
+  if (!lastInserted) return range.cloneRange();
+
+  range.deleteContents();
+  range.insertNode(fragment);
+  range.setStartAfter(lastInserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
+}
+
 function htmlAppearsToContainLists(html: string): boolean {
   return /<(?:ul|ol|li)\b/i.test(html)
     || /display\s*:\s*list-item/i.test(html)
@@ -5655,11 +5697,19 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       }
     });
     const lastSeen: Record<string, string> = {};
-    messages.forEach(m => { (m.readBy || []).forEach((id: string) => { if (id !== crmUserId) lastSeen[id] = m._id; }); });
+    messages.forEach(m => {
+      // Keep the receipt under the newest message the popup viewer sent that
+      // the member has read, instead of moving it to another sender's bubble.
+      if (String(m.sender?._id) !== crmUserId) return;
+      (m.readBy || []).forEach((id: string) => {
+        const readerId = String(id);
+        if (readerId !== crmUserId) lastSeen[readerId] = m._id;
+      });
+    });
     const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
     conv.members.forEach(member => {
       if (member._id === crmUserId) return;
-      const lastMsgId = lastSeen[member._id];
+      const lastMsgId = lastSeen[String(member._id)];
       if (lastMsgId) {
         if (!result[lastMsgId]) result[lastMsgId] = [];
         result[lastMsgId].push({
@@ -7270,11 +7320,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   || shortcutPlainText
                                   || richPasteDropsVisibleText(text, html)
                                   || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
-                                document.execCommand(
-                                  usePlainText ? 'insertText' : 'insertHTML',
-                                  false,
-                                  usePlainText ? plainText : richEditorHtml,
-                                );
+                                if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(editAreaRef.current!, plainText);
+                                else document.execCommand('insertHTML', false, richEditorHtml);
                                 requestAnimationFrame(() => {
                                   normalizeRichEditorListExitArtifacts(editAreaRef.current);
                                   syncEditDraft();
@@ -8082,11 +8129,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         || shortcutPlainText
                         || richPasteDropsVisibleText(text, html)
                         || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
-                      document.execCommand(
-                        usePlainText ? 'insertText' : 'insertHTML',
-                        false,
-                        usePlainText ? plainText : richEditorHtml,
-                      );
+                      if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(inputRef.current!, plainText);
+                      else document.execCommand('insertHTML', false, richEditorHtml);
                       requestAnimationFrame(() => {
                         const el = inputRef.current;
                         if (el) {
