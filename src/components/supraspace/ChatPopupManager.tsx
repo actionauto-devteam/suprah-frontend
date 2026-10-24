@@ -7035,7 +7035,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     !a.mimeType?.startsWith('image/') && !a.mimeType?.startsWith('audio/') && !a.mimeType?.startsWith('video/'));
                   const voiceAtt = msg.type === 'voice' ? (msg.attachments || []).find((a: SSAttachment) => a.mimeType?.startsWith('audio/')) : null;
                   const imageOnly = imageAttachments.length > 0 && !msg.content?.trim();
-                  const gifOnly = msg.type === 'gif' && !!msg.gif?.url;
+                  const hasGif = msg.type === 'gif' && !!msg.gif?.url;
+                  const gifOnly = hasGif && !msg.content?.trim();
+                  const hasCaptionedMedia = Boolean(msg.content?.trim()) && (imageAttachments.length > 0 || hasGif);
+                  const hasStandaloneMedia = imageAttachments.length > 0 || hasGif;
                   const emojiOnly = imageAttachments.length === 0 && msg.type === 'text' && isEmojiOnlyText(msg.content);
                   const isRichCard = !!voiceAtt || (msg.type === 'poll' && !!msg.poll) || (msg.type === 'event' && !!msg.event);
                   const operationalKind = getOperationalMessageKind(msg, conv.name);
@@ -7047,6 +7050,23 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     && (editDraft.trim() !== (msg.content || '').trim() || editReplacementFiles.length > 0);
                   const senderColor = msg.sender?._id ? stringToColor(msg.sender._id) : accentColor;
                   const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
+                  const messageStatus = (!hideTime || failedPopupSendMessage) && !operationalKind ? (
+                    <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
+                      {!hideTime && <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>}
+                      {isOwn && failedPopupSendMessage ? (
+                        <button
+                          type="button"
+                          onClick={() => retryFailedPopupSend(msg)}
+                          className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[10px] font-medium text-red-500 transition-colors hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                          title={failedPopupSendMessage}
+                          aria-label="Message not sent. Retry message"
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          Retry
+                        </button>
+                      ) : isOwn && seenMembers.length === 0 ? <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} /> : null}
+                    </div>
+                  ) : null;
                   return (
                     <React.Fragment key={msg._id}>
                     {msg._id === unreadBoundaryMessageId && <UnreadMessagesDivider compact />}
@@ -7080,7 +7100,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               ? 'w-full max-w-full'
                               : fileAttachments.length > 0
                                 ? 'w-full max-w-full'
-                              : imageOnly || gifOnly || isRichCard
+                              : imageOnly || gifOnly || hasCaptionedMedia || isRichCard
                               ? 'max-w-[78%]'
                               : 'max-w-[62%]',
                         )}
@@ -7532,6 +7552,43 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 </div>
                               </button>
                             )}
+                            {operationalKind ? (
+                              <OperationalMessageCard kind={operationalKind} content={msg.content} createdAt={msg.createdAt} attachments={msg.attachments} compact />
+                            ) : voiceAtt ? (
+                              <PopupVoicePlayer convId={conv._id} msgId={msg._id} duration={voiceAtt.duration} own={isOwn} crmToken={crmToken} />
+                            ) : msg.type === 'poll' && msg.poll ? (
+                              <PopupPollCard poll={msg.poll} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onVote={(optId) => handleVotePoll(msg._id, optId)} />
+                            ) : msg.type === 'event' && msg.event ? (
+                              <PopupEventCard event={msg.event} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onRsvp={(r) => handleRsvpEvent(msg._id, r)} />
+                            ) : emojiOnly
+                              ? <span className="block text-[32px] leading-none">{msg.content}</span>
+                              : msg.content ? renderContent(msg, isOwn, mentionAliases) : null}
+                            {videoAttachments.length > 0 && (
+                              <div className="flex flex-col gap-1.5 mt-1">
+                                {videoAttachments.map((a: SSAttachment, i: number) => (
+                                  <video key={i} src={a.url} controls playsInline preload="metadata" className="rounded-xl block" style={{ width: 'min(240px, 100%)', aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain' }} />
+                                ))}
+                              </div>
+                            )}
+                            {fileAttachments.length > 0 && (
+                              <div className="flex flex-col gap-1 mt-1">
+                                {fileAttachments.map((a: SSAttachment, i: number) => (
+                                  <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download={a.originalName}
+                                    className={cn('flex w-full max-w-[280px] min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isOwn ? 'bg-white/15' : 'bg-black/5')}
+                                    title={a.originalName || 'Attachment'}>
+                                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate flex-1">{a.originalName || 'Attachment'}</span>
+                                    <Download className="h-3 w-3 shrink-0 opacity-60" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                            {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
+                            {!hasStandaloneMedia && messageStatus}
+                          </div>
+                        )}
+                        {(imageAttachments.length > 0 || hasGif) && (
+                          <div className={cn('mt-1', isOwn ? 'self-end' : 'self-start')}>
                             {imageAttachments.length > 0 && (
                               <div className={cn(
                                 imageAttachments.length === 1 ? 'inline-block' : 'grid gap-1 overflow-hidden rounded-2xl',
@@ -7596,61 +7653,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 })}
                               </div>
                             )}
-                            {operationalKind ? (
-                              <OperationalMessageCard kind={operationalKind} content={msg.content} createdAt={msg.createdAt} attachments={msg.attachments} compact />
-                            ) : gifOnly ? (
+                            {hasGif && (
                               <button type="button" onClick={() => setMediaPreview({ src: msg.gif!.url, name: msg.gif?.title || 'GIF' })} className="block">
                                 <img src={msg.gif!.url} alt={msg.gif?.title || 'GIF'} className="rounded-2xl block" style={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto' }} />
                               </button>
-                            ) : voiceAtt ? (
-                              <PopupVoicePlayer convId={conv._id} msgId={msg._id} duration={voiceAtt.duration} own={isOwn} crmToken={crmToken} />
-                            ) : msg.type === 'poll' && msg.poll ? (
-                              <PopupPollCard poll={msg.poll} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onVote={(optId) => handleVotePoll(msg._id, optId)} />
-                            ) : msg.type === 'event' && msg.event ? (
-                              <PopupEventCard event={msg.event} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onRsvp={(r) => handleRsvpEvent(msg._id, r)} />
-                            ) : emojiOnly
-                              ? <span className="block text-[32px] leading-none">{msg.content}</span>
-                              : msg.content ? renderContent(msg, isOwn, mentionAliases) : null}
-                            {videoAttachments.length > 0 && (
-                              <div className="flex flex-col gap-1.5 mt-1">
-                                {videoAttachments.map((a: SSAttachment, i: number) => (
-                                  <video key={i} src={a.url} controls playsInline preload="metadata" className="rounded-xl block" style={{ width: 'min(240px, 100%)', aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain' }} />
-                                ))}
-                              </div>
-                            )}
-                            {fileAttachments.length > 0 && (
-                              <div className="flex flex-col gap-1 mt-1">
-                                {fileAttachments.map((a: SSAttachment, i: number) => (
-                                  <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download={a.originalName}
-                                    className={cn('flex w-full max-w-[280px] min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isOwn ? 'bg-white/15' : 'bg-black/5')}
-                                    title={a.originalName || 'Attachment'}>
-                                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="truncate flex-1">{a.originalName || 'Attachment'}</span>
-                                    <Download className="h-3 w-3 shrink-0 opacity-60" />
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                            {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
-                            {(!hideTime || failedPopupSendMessage) && !operationalKind && (
-                              <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
-                                {!hideTime && <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>}
-                                {isOwn && failedPopupSendMessage ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => retryFailedPopupSend(msg)}
-                                    className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[10px] font-medium text-red-500 transition-colors hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/50"
-                                    title={failedPopupSendMessage}
-                                    aria-label="Message not sent. Retry message"
-                                  >
-                                    <AlertCircle className="h-3.5 w-3.5" />
-                                    Retry
-                                  </button>
-                                ) : isOwn && seenMembers.length === 0 ? <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} /> : null}
-                              </div>
                             )}
                           </div>
                         )}
+                        {hasStandaloneMedia && messageStatus}
                         {/* Reaction pills */}
                         {msg.reactions && msg.reactions.length > 0 && (
                           <div className={cn('flex flex-wrap gap-1 mt-1', isOwn ? 'justify-end' : 'justify-start')}>
