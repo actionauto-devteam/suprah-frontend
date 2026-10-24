@@ -20,6 +20,7 @@ import {
   StickyNote,
   AlertTriangle,
   Mail,
+  MessageSquare,
 } from "lucide-react";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
 import { REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
@@ -49,7 +50,26 @@ interface ReplySectionProps {
   threadContext?: Array<{ direction: "inbound" | "outbound"; text: string }>;
   onAddNote?: (payload: { text: string; mentionedUserIds: string[]; mentionedGroupIds: string[] }) => Promise<void>;
   isSavingNote?: boolean;
+  channelSelector?: ReplyChannelSelector | null;
+  emailSubject?: { value: string; onChange: (value: string) => void; locked: boolean } | null;
+  sendNotice?: { text: string; actionLabel?: string; onAction?: () => void; resend?: boolean } | null;
 }
+
+export interface ReplyChannelChoice {
+  available: boolean;
+  reason: string | null;
+  recipientLabel: string | null;
+}
+
+export interface ReplyChannelSelector {
+  value: "sms" | "email";
+  onChange: (channel: "sms" | "email") => void;
+  sms: ReplyChannelChoice;
+  email: ReplyChannelChoice;
+  loading?: boolean;
+}
+
+const CHANNEL_LABELS: Record<"sms" | "email", string> = { sms: "Text", email: "Email" };
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -146,7 +166,13 @@ export const ReplySection = React.memo(
     threadContext,
     onAddNote,
     isSavingNote,
+    channelSelector = null,
+    emailSubject = null,
+    sendNotice = null,
   }: ReplySectionProps) => {
+    const draftScope = channelSelector && leadId ? `${leadId}:${channelSelector.value}` : leadId;
+    const smsSelected = channelSelector?.value === "sms";
+    const subjectInputId = React.useId();
     const [reasonModal, setReasonModal] = React.useState<
       null | { kind: "status"; status: string } | "reopen"
     >(null);
@@ -193,30 +219,30 @@ export const ReplySection = React.memo(
       message: string;
     } | null>(null);
     const [draftedLeadId, setDraftedLeadId] = React.useState<string | null>(null);
-    const latestRef = React.useRef({ leadId, replyMessage });
+    const latestRef = React.useRef({ leadId: draftScope, replyMessage });
 
     React.useEffect(() => {
-      latestRef.current = { leadId, replyMessage };
-    }, [leadId, replyMessage]);
+      latestRef.current = { leadId: draftScope, replyMessage };
+    }, [draftScope, replyMessage]);
 
     const draftError =
-      draftFailure && draftFailure.leadId === leadId ? draftFailure.message : "";
+      draftFailure && draftFailure.leadId === draftScope ? draftFailure.message : "";
     const aiDrafted =
-      Boolean(leadId) && draftedLeadId === leadId && replyMessage.trim().length > 0;
+      Boolean(draftScope) && draftedLeadId === draftScope && replyMessage.trim().length > 0;
     const replyBlocked = Boolean(replyUnavailableReason);
     const showDraftChip =
       Boolean(leadId) && !isSending && !replyBlocked && (drafting || !replyMessage.trim());
 
     const handleAutrixDraft = async () => {
-      const requestedLeadId = leadId;
-      if (!requestedLeadId || drafting || isSending) return;
+      const requestedLeadId = draftScope;
+      if (!requestedLeadId || !leadId || drafting || isSending) return;
 
       setDrafting(true);
       setDraftFailure(null);
 
       try {
         const response = await apiClient.post("/api/supraleo/draft-lead-reply", {
-          leadId: requestedLeadId,
+          leadId,
           channel: replyChannel,
           recentMessages: threadContext,
         });
@@ -417,7 +443,8 @@ export const ReplySection = React.memo(
       if (
         isSending ||
         replyBlocked ||
-        (!replyMessage.trim() && attachments.length === 0)
+        (!replyMessage.trim() && attachments.length === 0) ||
+        (smsSelected && attachments.length > 0)
       ) {
         return;
       }
@@ -475,6 +502,68 @@ export const ReplySection = React.memo(
               : "relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm transition focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19]"
           }
         >
+          {composerMode === "reply" && channelSelector && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-slate-100 px-3 py-2 dark:border-emerald-400/10 sm:px-4">
+              <div
+                role="radiogroup"
+                aria-label="Send as"
+                className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-emerald-400/15 dark:bg-[#0a1410]"
+              >
+                {(["sms", "email"] as const).map((channel) => {
+                  const option = channelSelector[channel];
+                  const selected = channelSelector.value === channel;
+                  const ChannelIcon = channel === "sms" ? MessageSquare : Mail;
+                  return (
+                    <button
+                      key={channel}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={isSending || (!selected && !option.available)}
+                      title={option.available ? `Send by ${CHANNEL_LABELS[channel].toLowerCase()}` : option.reason || undefined}
+                      onClick={() => {
+                        if (!selected) channelSelector.onChange(channel);
+                      }}
+                      className={
+                        selected
+                          ? "inline-flex h-8 items-center gap-1.5 rounded-md bg-white px-3 text-[12px] font-semibold text-emerald-700 shadow-sm dark:bg-[#153426] dark:text-emerald-300 sm:h-7"
+                          : "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-medium text-slate-500 transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-400 dark:hover:text-slate-200 sm:h-7"
+                      }
+                    >
+                      <ChannelIcon className="h-3.5 w-3.5" />
+                      {CHANNEL_LABELS[channel]}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="min-w-0 flex-1 text-[12px] leading-snug text-slate-600 [overflow-wrap:anywhere] dark:text-slate-300">
+                {channelSelector.loading
+                  ? "Checking how this customer can be reached…"
+                  : channelSelector[channelSelector.value].recipientLabel
+                    ? (
+                      <>
+                        To{" "}
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          {channelSelector[channelSelector.value].recipientLabel}
+                        </span>
+                      </>
+                    )
+                    : null}
+              </span>
+              {(["sms", "email"] as const)
+                .filter((channel) => channel !== channelSelector.value)
+                .map((channel) => {
+                  const option = channelSelector[channel];
+                  if (channelSelector.loading || option.available || !option.reason || option.reason === replyUnavailableReason) return null;
+                  return (
+                    <p key={channel} className="w-full text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                      {CHANNEL_LABELS[channel]} isn&apos;t available: {option.reason}
+                    </p>
+                  );
+                })}
+            </div>
+          )}
+
           {composerMode === "reply" && showDraftChip && (
             <div className="flex items-center border-b border-slate-100 px-3 pb-2 pt-2.5 dark:border-emerald-400/10">
               <button
@@ -510,6 +599,56 @@ export const ReplySection = React.memo(
                 >
                   {replyNoticeAction.label}
                 </button>
+              )}
+            </div>
+          )}
+
+          {composerMode === "reply" && sendNotice && (
+            <div
+              role="status"
+              className="flex flex-wrap items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200 sm:px-4"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">{sendNotice.text}</span>
+              {sendNotice.actionLabel && sendNotice.onAction && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sendNotice.onAction?.();
+                    if (sendNotice.resend) void handleSendReply();
+                  }}
+                  disabled={isSending}
+                  className="shrink-0 rounded-md border border-amber-400/60 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50 dark:border-amber-400/30 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-400/10"
+                >
+                  {sendNotice.actionLabel}
+                </button>
+              )}
+            </div>
+          )}
+
+          {composerMode === "reply" && emailSubject && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-100 px-3 py-1.5 dark:border-emerald-400/10 sm:px-4">
+              <label
+                htmlFor={subjectInputId}
+                className="shrink-0 text-[12px] font-medium text-slate-500 dark:text-slate-400"
+              >
+                Subject
+              </label>
+              <input
+                id={subjectInputId}
+                type="text"
+                value={emailSubject.value}
+                maxLength={200}
+                readOnly={emailSubject.locked}
+                disabled={replyBlocked}
+                onChange={(event) => emailSubject.onChange(event.target.value)}
+                placeholder="Email subject"
+                className="min-w-0 flex-1 bg-transparent py-1 text-[13px] text-slate-800 outline-none placeholder:text-slate-400 read-only:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:read-only:text-slate-400"
+              />
+              {emailSubject.locked && (
+                <p className="w-full text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                  This reply stays in the same email thread, so the subject stays the same.
+                </p>
               )}
             </div>
           )}
@@ -613,6 +752,12 @@ export const ReplySection = React.memo(
                 </div>
               ))}
             </div>
+          )}
+
+          {composerMode === "reply" && smsSelected && attachments.length > 0 && (
+            <p className="border-t border-slate-100 px-3 py-2 text-xs text-amber-700 dark:border-emerald-400/10 dark:text-amber-300">
+              Attachments can only be sent by email. Remove them or switch to Email.
+            </p>
           )}
 
           {composerMode === "reply" && attachmentError && (
@@ -754,9 +899,9 @@ export const ReplySection = React.memo(
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isSending || replyBlocked}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
-                    title="Attach file (maximum 5 MB per file)"
+                    disabled={isSending || replyBlocked || smsSelected}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
+                    title={smsSelected ? "Attachments can only be sent by email" : "Attach file (maximum 5 MB per file)"}
                     aria-label="Attach file"
                   >
                     <Paperclip className="h-4 w-4" />
@@ -768,15 +913,20 @@ export const ReplySection = React.memo(
                     disabled={
                       isSending ||
                       replyBlocked ||
-                      (!replyMessage.trim() && attachments.length === 0)
+                      (!replyMessage.trim() && attachments.length === 0) ||
+                      (smsSelected && attachments.length > 0)
                     }
                     className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-emerald-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 dark:from-emerald-500 dark:to-cyan-600 sm:h-7"
                     title={
                       replyUnavailableReason
                         ? replyUnavailableReason
-                        : replyMessage.trim() || attachments.length > 0
-                          ? "Send reply"
-                          : "Write a reply or attach a file"
+                        : smsSelected && attachments.length > 0
+                          ? "Remove the attachments or switch to Email to send them"
+                          : replyMessage.trim() || attachments.length > 0
+                            ? channelSelector
+                              ? `Send ${channelSelector.value === "sms" ? "text" : "email"}`
+                              : "Send reply"
+                            : "Write a reply or attach a file"
                     }
                     aria-label="Send reply"
                   >

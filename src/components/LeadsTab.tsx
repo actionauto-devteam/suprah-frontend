@@ -84,6 +84,16 @@ import {
 } from "@/lib/api/leadConversation";
 import { getLeadReviewCount, type IntakeMode } from "@/lib/api/leadIntake";
 import {
+  RECIPIENT_CHANGED_CODE,
+  SEND_IN_PROGRESS_CODE,
+  SEND_UNCERTAIN_CODE,
+  fetchLeadReplyOptions,
+  formatSmsRecipient,
+  newClientRequestId,
+  type ComposerChannel,
+  type LeadReplyOptions,
+} from "@/lib/api/leadComposer";
+import {
   BulkReplyModal,
   BulkReplyRecipient,
 } from "@/components/leads/BulkReplyModal";
@@ -144,8 +154,29 @@ interface ReplyState {
   route: ReplyRoute;
   reason: string | null;
   smsReason: string | null;
+  emailReason: string | null;
   recipientEmail: string;
+  recipientPhone: string;
 }
+
+const REFRESH_OPTION_CODES = new Set([
+  RECIPIENT_CHANGED_CODE,
+  "SMS_OPTED_OUT",
+  "SMS_INVALID_DESTINATION",
+  "CONTACT_RESTRICTED",
+  "CONTACT_RESTRICTION_UNAVAILABLE",
+  "lead_closed",
+  "NO_CUSTOMER_EMAIL",
+]);
+
+const sendErrorCode = (data: unknown): string | undefined => {
+  const payload = (data || {}) as { code?: unknown; errors?: Array<{ code?: unknown }> };
+  const listed = Array.isArray(payload.errors)
+    ? payload.errors.find((item) => typeof item?.code === "string")?.code
+    : undefined;
+  if (typeof listed === "string") return listed;
+  return typeof payload.code === "string" ? payload.code : undefined;
+};
 
 interface WebchatContactPolicy {
   restricted: boolean;
@@ -516,35 +547,109 @@ export function LeadsTab({
   const [lastSyncTime, setLastSyncTime] = React.useState<Date | null>(null);
 
   const [replyDrafts, setReplyDrafts] = React.useState<Record<string, string>>({});
+  const [subjectDrafts, setSubjectDrafts] = React.useState<Record<string, string>>({});
   const [smsOptOutByLead, setSmsOptOutByLead] = React.useState<Record<string, boolean>>({});
   const [webchatContactPolicy, setWebchatContactPolicy] = React.useState<Record<string, WebchatContactPolicy | null>>({});
   const [policyClock, setPolicyClock] = React.useState(() => Date.now());
-  const [emailReplyByLead, setEmailReplyByLead] = React.useState<Record<string, boolean>>({});
+  const [channelByLead, setChannelByLead] = React.useState<Record<string, ComposerChannel>>({});
+  const [replyOptionsByLead, setReplyOptionsByLead] = React.useState<Record<string, LeadReplyOptions | null>>({});
+  const [replyOptionsLoading, setReplyOptionsLoading] = React.useState<Record<string, boolean>>({});
+  const [uncertainSendByDraft, setUncertainSendByDraft] = React.useState<Record<string, boolean>>({});
+  const sendRequestIdsRef = React.useRef<Record<string, { id: string; signature: string }>>({});
+  const sendingRef = React.useRef(false);
   const selectedLeadId = selectedLead?._id;
-  const replyMessage = selectedLeadId ? replyDrafts[selectedLeadId] ?? "" : "";
+  const selectedReplyOptions = selectedLeadId ? replyOptionsByLead[selectedLeadId] : undefined;
+  const directLeadSelected = Boolean(selectedLead) && !isWebchatLead(selectedLead);
+  const activeChannel: ComposerChannel | "webchat" =
+    !selectedLead || isWebchatLead(selectedLead)
+      ? "webchat"
+      : channelByLead[selectedLead._id] ||
+        selectedReplyOptions?.defaultChannel ||
+        (isSmsLead(selectedLead) ? "sms" : "email");
+  const draftKey = selectedLeadId ? `${selectedLeadId}:${activeChannel}` : null;
+  const replyMessage = draftKey ? replyDrafts[draftKey] ?? "" : "";
 
-  const setLeadDraft = React.useCallback((leadId: string, value: string) => {
+  const setLeadDraft = React.useCallback((key: string, value: string) => {
     setReplyDrafts((previous) => {
-      if (value) return { ...previous, [leadId]: value };
-      if (!(leadId in previous)) return previous;
+      if (value) return { ...previous, [key]: value };
+      if (!(key in previous)) return previous;
       const next = { ...previous };
-      delete next[leadId];
+      delete next[key];
       return next;
     });
   }, []);
 
   const setReplyMessage = React.useCallback(
     (value: string) => {
-      if (selectedLeadId) setLeadDraft(selectedLeadId, value);
+      if (draftKey) setLeadDraft(draftKey, value);
     },
-    [selectedLeadId, setLeadDraft],
+    [draftKey, setLeadDraft],
   );
 
-  const emailReplyChosen = selectedLeadId ? Boolean(emailReplyByLead[selectedLeadId]) : false;
+  const sendRequestIdFor = React.useCallback((key: string, parts: unknown[]) => {
+    const signature = JSON.stringify(parts);
+    const existing = sendRequestIdsRef.current[key];
+    if (existing && existing.signature === signature) return existing.id;
+    const id = newClientRequestId();
+    sendRequestIdsRef.current[key] = { id, signature };
+    return id;
+  }, []);
+
+  const clearSendRequest = React.useCallback((key: string) => {
+    delete sendRequestIdsRef.current[key];
+    setUncertainSendByDraft((previous) => {
+      if (!previous[key]) return previous;
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const loadReplyOptions = React.useCallback(async (leadId: string) => {
+    setReplyOptionsLoading((previous) => ({ ...previous, [leadId]: true }));
+    try {
+      const options = await fetchLeadReplyOptions(leadId);
+      setReplyOptionsByLead((previous) => ({ ...previous, [leadId]: options || null }));
+    } catch (error) {
+      console.error("Failed to check reply options:", error);
+      setReplyOptionsByLead((previous) => ({ ...previous, [leadId]: null }));
+    } finally {
+      setReplyOptionsLoading((previous) => ({ ...previous, [leadId]: false }));
+    }
+  }, []);
+
+  const replyOptionsKey =
+    selectedLead && !isWebchatLead(selectedLead)
+      ? [selectedLead._id, selectedLead.status, selectedLead.phone, selectedLead.email].join("|")
+      : null;
+
+  React.useEffect(() => {
+    if (!replyOptionsKey || !selectedLeadId) return;
+    void loadReplyOptions(selectedLeadId);
+  }, [replyOptionsKey, selectedLeadId, loadReplyOptions]);
 
   const replyState = React.useMemo<ReplyState>(() => {
     if (!selectedLead || isWebchatLead(selectedLead)) {
-      return { route: "webchat", reason: null, smsReason: null, recipientEmail: "" };
+      return { route: "webchat", reason: null, smsReason: null, emailReason: null, recipientEmail: "", recipientPhone: "" };
+    }
+    const route: ReplyRoute = activeChannel === "email" ? "email" : "sms";
+    const optedOut = Boolean(smsOptOutByLead[selectedLead._id]);
+    const options = replyOptionsByLead[selectedLead._id];
+    if (options && options.mode === "direct") {
+      const smsReason = !options.sms.available
+        ? options.sms.reason || NO_VALID_PHONE_MESSAGE
+        : optedOut
+          ? SMS_OPTED_OUT_MESSAGE
+          : null;
+      const emailReason = options.email.available ? null : options.email.reason || NO_CUSTOMER_EMAIL_MESSAGE;
+      return {
+        route,
+        reason: route === "sms" ? smsReason : emailReason,
+        smsReason,
+        emailReason,
+        recipientEmail: options.email.recipient || "",
+        recipientPhone: options.sms.recipient || "",
+      };
     }
     const recipientEmail = resolveReplyRecipientEmail(selectedLead);
     const emailReason = recipientEmail
@@ -552,9 +657,6 @@ export function LeadsTab({
       : resolveCustomerEmail(selectedLead)
         ? UNCONFIRMED_EMAIL_MESSAGE
         : NO_CUSTOMER_EMAIL_MESSAGE;
-    if (!isSmsLead(selectedLead)) {
-      return { route: "email", reason: emailReason, smsReason: null, recipientEmail };
-    }
     const phoneProblem = smsPhoneProblem(selectedLead.phone);
     const smsReason =
       phoneProblem === "extension"
@@ -563,23 +665,21 @@ export function LeadsTab({
           ? recipientEmail
             ? NO_VALID_PHONE_MESSAGE
             : NO_REPLY_CHANNEL_MESSAGE
-          : smsOptOutByLead[selectedLead._id]
+          : optedOut
             ? SMS_OPTED_OUT_MESSAGE
             : null;
-    if (emailReplyChosen) {
-      return { route: "email", reason: emailReason, smsReason, recipientEmail };
-    }
-    return { route: "sms", reason: smsReason, smsReason, recipientEmail };
-  }, [selectedLead, smsOptOutByLead, emailReplyChosen]);
+    return {
+      route,
+      reason: route === "sms" ? smsReason : emailReason,
+      smsReason,
+      emailReason,
+      recipientEmail,
+      recipientPhone: phoneProblem ? "" : String(selectedLead.phone || ""),
+    };
+  }, [selectedLead, smsOptOutByLead, activeChannel, replyOptionsByLead]);
 
-  const chooseReplyChannel = React.useCallback((leadId: string, channel: "sms" | "email") => {
-    setEmailReplyByLead((previous) => {
-      if (channel === "email") return previous[leadId] ? previous : { ...previous, [leadId]: true };
-      if (!previous[leadId]) return previous;
-      const next = { ...previous };
-      delete next[leadId];
-      return next;
-    });
+  const chooseReplyChannel = React.useCallback((leadId: string, channel: ComposerChannel) => {
+    setChannelByLead((previous) => (previous[leadId] === channel ? previous : { ...previous, [leadId]: channel }));
   }, []);
   const lastTypingPingRef = React.useRef(0);
 
@@ -1565,7 +1665,12 @@ export function LeadsTab({
       return;
     }
 
+    if (!draftKey) return;
+    if (sendingRef.current) throw new Error("A message is already being sent");
+    sendingRef.current = true;
     const sendingLeadId = selectedLead._id;
+    const sendingDraftKey = draftKey;
+    const sendingBody = replyMessage.trim();
     setIsSending(true);
 
     try {
@@ -1609,7 +1714,7 @@ export function LeadsTab({
           });
         }
 
-        setLeadDraft(sendingLeadId, "");
+        setLeadDraft(sendingDraftKey, "");
         addToast("success", "Chat message sent");
 
         await updateLeadStatus({
@@ -1639,13 +1744,15 @@ export function LeadsTab({
           throw new Error("Attachments unsupported for SMS");
         }
 
+        const smsRecipient = replyState.recipientPhone || selectedLead.phone;
         const smsResponse = await apiClient.post(
           "/api/crm/communications/messages",
           {
-            toPhone: selectedLead.phone,
-            body: replyMessage.trim(),
+            toPhone: smsRecipient,
+            body: sendingBody,
             leadId: selectedLead._id,
             customerName: `${selectedLead.firstName || ""} ${selectedLead.lastName || ""}`.trim(),
+            clientRequestId: sendRequestIdFor(sendingDraftKey, ["sms", smsRecipient, sendingBody]),
           },
           {
             headers: {
@@ -1669,8 +1776,12 @@ export function LeadsTab({
           });
         }
 
-        setLeadDraft(sendingLeadId, "");
-        addToast("success", "Text message sent");
+        clearSendRequest(sendingDraftKey);
+        setLeadDraft(sendingDraftKey, "");
+        addToast(
+          "success",
+          smsResponse.data?.data?.duplicate ? "This text was already sent" : "Text message sent",
+        );
 
         await updateLeadStatus({
           id: selectedLead._id,
@@ -1685,7 +1796,7 @@ export function LeadsTab({
 
       formData.append(
         "message",
-        replyMessage.trim(),
+        sendingBody,
       );
 
       attachments.forEach((file) => {
@@ -1695,7 +1806,23 @@ export function LeadsTab({
         );
       });
 
-      await apiClient.post(
+      const emailOptions = replyOptionsByLead[sendingLeadId];
+      const emailSubject =
+        emailOptions && !emailOptions.email.subjectLocked
+          ? subjectDrafts[sendingLeadId] ?? emailOptions.email.subject
+          : undefined;
+      if (emailSubject !== undefined) formData.append("subject", emailSubject);
+      formData.append(
+        "clientRequestId",
+        sendRequestIdFor(sendingDraftKey, [
+          "email",
+          sendingBody,
+          emailSubject ?? "",
+          attachments.map((file) => [file.name, file.size, file.lastModified]),
+        ]),
+      );
+
+      const emailResponse = await apiClient.post(
         `/api/leads/${selectedLead._id}/reply`,
         formData,
         {
@@ -1705,8 +1832,16 @@ export function LeadsTab({
         },
       );
 
-      setLeadDraft(sendingLeadId, "");
-      addToast("success", "Reply sent");
+      clearSendRequest(sendingDraftKey);
+      setLeadDraft(sendingDraftKey, "");
+      setSubjectDrafts((previous) => {
+        if (!(sendingLeadId in previous)) return previous;
+        const next = { ...previous };
+        delete next[sendingLeadId];
+        return next;
+      });
+      void loadReplyOptions(sendingLeadId);
+      addToast("success", emailResponse.data?.duplicate ? "This email was already sent" : "Reply sent");
 
       await updateLeadStatus({
         id: selectedLead._id,
@@ -1731,9 +1866,22 @@ export function LeadsTab({
         setSmsOptOutByLead((previous) => ({ ...previous, [sendingLeadId]: true }));
       }
 
+      const code = sendErrorCode(error?.response?.data);
+      if (code === SEND_UNCERTAIN_CODE) {
+        setUncertainSendByDraft((previous) => ({ ...previous, [sendingDraftKey]: true }));
+        void fetchThread(selectedLead);
+      } else if (code === SEND_IN_PROGRESS_CODE) {
+        window.setTimeout(() => {
+          void fetchThread(selectedLead);
+        }, 1500);
+      }
+      if (code === RECIPIENT_CHANGED_CODE) clearSendRequest(sendingDraftKey);
+      if (code && REFRESH_OPTION_CODES.has(code)) void loadReplyOptions(sendingLeadId);
+
       addToast("error", message);
       throw error;
     } finally {
+      sendingRef.current = false;
       setIsSending(false);
     }
   };
@@ -2625,31 +2773,55 @@ export function LeadsTab({
                     selectedLeadStatus={selectedLead.status}
                     leadId={selectedLead._id}
                     replyUnavailableReason={replyUnavailableReason}
-                    replyNoticeAction={
-                      replyState.route === "sms" && replyState.reason && replyState.recipientEmail
-                        ? {
-                            label: "Reply by email instead",
-                            onClick: () => chooseReplyChannel(selectedLead._id, "email"),
-                          }
-                        : emailReplyChosen && replyState.reason && !replyState.smsReason
-                          ? {
-                              label: "Use text instead",
-                              onClick: () => chooseReplyChannel(selectedLead._id, "sms"),
-                            }
-                          : null
-                    }
-                    replyRecipientNote={
-                      emailReplyChosen && replyState.route === "email" && !replyState.reason
-                        ? {
-                            text: `Replying by email to ${replyState.recipientEmail}`,
-                            actionLabel: replyState.smsReason ? undefined : "Use text instead",
-                            onAction: () => chooseReplyChannel(selectedLead._id, "sms"),
-                          }
-                        : webchatWindow.note
-                          ? { text: webchatWindow.note }
-                          : null
-                    }
+                    replyNoticeAction={null}
+                    replyRecipientNote={webchatWindow.note ? { text: webchatWindow.note } : null}
                     replyChannel={replyState.route === "email" ? "email" : "sms"}
+                    channelSelector={
+                      directLeadSelected
+                        ? {
+                            value: replyState.route === "email" ? "email" : "sms",
+                            onChange: (channel) => chooseReplyChannel(selectedLead._id, channel),
+                            loading:
+                              Boolean(replyOptionsLoading[selectedLead._id]) &&
+                              replyOptionsByLead[selectedLead._id] === undefined,
+                            sms: {
+                              available: !replyState.smsReason,
+                              reason: replyState.smsReason,
+                              recipientLabel: replyState.recipientPhone
+                                ? formatSmsRecipient(replyState.recipientPhone)
+                                : null,
+                            },
+                            email: {
+                              available: !replyState.emailReason,
+                              reason: replyState.emailReason,
+                              recipientLabel: replyState.recipientEmail || null,
+                            },
+                          }
+                        : null
+                    }
+                    emailSubject={
+                      directLeadSelected && replyState.route === "email" && selectedReplyOptions
+                        ? {
+                            value: subjectDrafts[selectedLead._id] ?? selectedReplyOptions.email.subject,
+                            onChange: (value) =>
+                              setSubjectDrafts((previous) => ({ ...previous, [selectedLead._id]: value })),
+                            locked: selectedReplyOptions.email.subjectLocked,
+                          }
+                        : null
+                    }
+                    sendNotice={
+                      draftKey && uncertainSendByDraft[draftKey]
+                        ? {
+                            text:
+                              replyState.route === "email"
+                                ? "We couldn't confirm whether your last email went out. Check the conversation first. If it isn't there, choose Send again."
+                                : "We couldn't confirm whether your last text went out. Check the conversation first. If it isn't there, choose Send again.",
+                            actionLabel: "Send again",
+                            onAction: () => clearSendRequest(draftKey),
+                            resend: true,
+                          }
+                        : null
+                    }
                     threadContext={buildDraftThreadContext(
                       threads[selectedLead._id] || [],
                     )}
