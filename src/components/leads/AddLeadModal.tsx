@@ -15,8 +15,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
-import { Loader2 } from "lucide-react"
+import { Loader2, ScanBarcode } from "lucide-react"
 import { isAxiosError } from "axios"
+import { DriverLicenseScanDialog, type LicenseAppliedValues } from "@/components/leads/DriverLicenseScanDialog"
 
 interface AddLeadModalProps {
   isOpen: boolean
@@ -30,6 +31,9 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
   const [lastName, setLastName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [phone, setPhone] = React.useState("")
+  const [address, setAddress] = React.useState("")
+  const [scanOpen, setScanOpen] = React.useState(false)
+  const [scanApplied, setScanApplied] = React.useState(false)
   const [vehicleYear, setVehicleYear] = React.useState("")
   const [vehicleMake, setVehicleMake] = React.useState("")
   const [vehicleModel, setVehicleModel] = React.useState("")
@@ -64,6 +68,9 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         setLastName("")
         setEmail("")
         setPhone("")
+        setAddress("")
+        setScanOpen(false)
+        setScanApplied(false)
         setVehicleYear("")
         setVehicleMake("")
         setVehicleModel("")
@@ -75,6 +82,13 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
   }, [isOpen])
 
   const isValid = firstName.trim() && (email.trim() || phone.trim())
+
+  const applyLicenseScan = (values: LicenseAppliedValues) => {
+    if (values.firstName !== undefined) setFirstName(values.firstName)
+    if (values.lastName !== undefined) setLastName(values.lastName)
+    if (values.address !== undefined) setAddress(values.address)
+    setScanApplied(true)
+  }
 
   const handleSubmit = async () => {
     if (!isValid || isSubmitting) return
@@ -89,6 +103,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
           lastName: lastName.trim() || undefined,
           email: email.trim(),
           phone: phone.trim(),
+          address: address.trim() || undefined,
           vehicle:
             vehicleYear.trim() || vehicleMake.trim() || vehicleModel.trim()
               ? { year: vehicleYear.trim(), make: vehicleMake.trim(), model: vehicleModel.trim() }
@@ -117,6 +132,18 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         </DialogHeader>
 
         <div className="space-y-3 py-2">
+          <div className="space-y-1.5">
+            <Button type="button" variant="outline" className="h-11 w-full sm:h-10" onClick={() => setScanOpen(true)}>
+              <ScanBarcode className="h-4 w-4" />
+              Scan driver&apos;s license
+            </Button>
+            {scanApplied && (
+              <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">
+                Name and address filled in from the license. Check them before adding the lead.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <Label htmlFor="add-lead-first-name">First name</Label>
@@ -156,6 +183,16 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(801) 555-0100"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="add-lead-address">Address</Label>
+            <Input
+              id="add-lead-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Main St, Salt Lake City, UT 84101"
             />
           </div>
 
@@ -220,6 +257,14 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         <Button onClick={handleSubmit} disabled={!isValid || isSubmitting} className="w-full">
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Lead"}
         </Button>
+
+        <DriverLicenseScanDialog
+          open={scanOpen}
+          onOpenChange={setScanOpen}
+          current={{ firstName, lastName, address }}
+          onApply={applyLicenseScan}
+          saveHint="Nothing is saved until you press Add Lead."
+        />
       </DialogContent>
     </Dialog>
   )

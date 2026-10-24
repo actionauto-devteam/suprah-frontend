@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Save } from "lucide-react";
+import { Save, ScanBarcode } from "lucide-react";
 import { ContactDetailsPanel } from "@/components/conversation-workspace/ContactDetailsPanel";
 import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
 import {
@@ -17,6 +17,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { AiAgentTasksSection } from "./AiAgentTasksSection";
 import { VehicleOfInterestCard } from "./VehicleOfInterestCard";
+import { DriverLicenseScanDialog, type LicenseAppliedValues } from "./DriverLicenseScanDialog";
 
 function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
   if (item.id.endsWith(":created") && item.id.startsWith("lead:")) return "inquiry";
@@ -182,13 +183,32 @@ export function LeadDetailsPanel({
 
   const [contactDraft, setContactDraft] = React.useState(initialContact);
   const [leadDraft, setLeadDraft] = React.useState(initialLeadInfo);
+  const [scanOpen, setScanOpen] = React.useState(false);
+  const [scanApplied, setScanApplied] = React.useState(false);
+  const scanLeadRef = React.useRef<string | null>(null);
+  const leadId = lead?._id ? String(lead._id) : null;
 
   React.useEffect(() => {
     setContactDraft(initialContact);
     setLeadDraft(initialLeadInfo);
     setEditingContact(false);
     setEditingLead(false);
+    setScanOpen(false);
+    setScanApplied(false);
+    scanLeadRef.current = null;
   }, [lead?._id, initialContact, initialLeadInfo]);
+
+  const openLicenseScanner = () => {
+    if (!leadId) return;
+    scanLeadRef.current = leadId;
+    setScanOpen(true);
+  };
+
+  const applyLicenseScan = (values: LicenseAppliedValues) => {
+    if (!scanLeadRef.current || scanLeadRef.current !== leadId) return;
+    setContactDraft((current) => ({ ...current, ...values }));
+    setScanApplied(true);
+  };
 
   const phone = String(lead?.phone || "").trim();
   const dialablePhone = phone.replace(/[^\d+]/g, "");
@@ -238,6 +258,7 @@ export function LeadDetailsPanel({
           .filter(Boolean),
       });
       setEditingContact(false);
+      setScanApplied(false);
     } catch {
       setEditingContact(true);
     } finally {
@@ -307,9 +328,19 @@ export function LeadDetailsPanel({
           onCancel: () => {
             setContactDraft(initialContact);
             setEditingContact(false);
+            setScanApplied(false);
           },
           content: (
             <div className="space-y-2">
+              <button type="button" onClick={openLicenseScanner} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md border text-xs font-semibold max-lg:h-11" style={{ borderColor: "var(--border-1)" }}>
+                <ScanBarcode className="h-3.5 w-3.5" />
+                Scan driver&apos;s license
+              </button>
+              {scanApplied && (
+                <p role="status" className="text-[11px] leading-snug text-emerald-700 dark:text-emerald-400">
+                  Name and address filled in from the license. Check them, then save.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <input value={contactDraft.firstName} onChange={(event) => setContactDraft((current) => ({ ...current, firstName: event.target.value }))} placeholder="First name" className={fieldClass} />
                 <input value={contactDraft.lastName} onChange={(event) => setContactDraft((current) => ({ ...current, lastName: event.target.value }))} placeholder="Last name" className={fieldClass} />
@@ -322,6 +353,13 @@ export function LeadDetailsPanel({
                 <Save className="h-3.5 w-3.5" />
                 {savingContact ? "Saving…" : "Save contact information"}
               </button>
+              <DriverLicenseScanDialog
+                open={scanOpen}
+                onOpenChange={setScanOpen}
+                current={{ firstName: contactDraft.firstName, lastName: contactDraft.lastName, address: contactDraft.address }}
+                onApply={applyLicenseScan}
+                saveHint="Nothing is saved until you press Save contact information."
+              />
             </div>
           ),
         },

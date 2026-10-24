@@ -83,7 +83,8 @@
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0",
     "xml2js": "^0.6.2",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zxing-wasm": "3.1.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
