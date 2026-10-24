@@ -523,31 +523,36 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
-                      <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Operating Authority</h3>
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Truck &amp; Carrier Numbers</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Your VIN and license plate are needed to finish your equipment setup. DOT and MC numbers are optional: add them if you run under your own authority.
+                        </p>
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">VIN</Label>
-                            <Input value={form.vin} onChange={e => patch({ vin: e.target.value.toUpperCase() })} placeholder="e.g. 1HGCM82633A004352" maxLength={17} className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.vin} onChange={e => patch({ vin: e.target.value.toUpperCase() })} placeholder="e.g. 1HGCM82633A004352" maxLength={17} className="h-11 font-mono uppercase placeholder:normal-case bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">License Plate</Label>
-                            <Input value={form.plateNumber} onChange={e => patch({ plateNumber: e.target.value.toUpperCase() })} placeholder="e.g. ABC-1234" maxLength={15} className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.plateNumber} onChange={e => patch({ plateNumber: e.target.value.toUpperCase() })} placeholder="e.g. ABC-1234" maxLength={15} className="h-11 font-mono uppercase placeholder:normal-case bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.45 }}>
                           <div className="space-y-2">
-                            <Label className="text-xs font-bold text-muted-foreground">DOT Number</Label>
+                            <Label className="text-xs font-bold text-muted-foreground">DOT Number (optional)</Label>
                             <Input value={form.dotNumber} onChange={e => patch({ dotNumber: e.target.value })} placeholder="e.g. 1234567" className="h-11 font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
                           <div className="space-y-2">
-                            <Label className="text-xs font-bold text-muted-foreground">MC Number</Label>
+                            <Label className="text-xs font-bold text-muted-foreground">MC Number (optional)</Label>
                             <Input value={form.mcNumber} onChange={e => patch({ mcNumber: e.target.value })} placeholder="e.g. MC-123456" className="h-11 font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
