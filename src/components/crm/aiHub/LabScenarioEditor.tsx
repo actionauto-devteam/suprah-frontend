@@ -225,7 +225,7 @@ export function LabScenarioEditor({ target, getToken, onClose, onSaved }: {
             ))}
           </section>
 
-          <Field id="lab-message" label="Customer message being tested" hint="The newest message Alex would respond to.">
+          <Field id="lab-message" label="Customer message being tested" hint="The newest message the AI Agent would respond to.">
             <Textarea id="lab-message" rows={3} maxLength={L.message} value={form.message} onChange={(event) => set("message", event.target.value)} className="resize-y" placeholder="Should I get a sedan or an SUV for my family of five?" />
             <p className="text-right text-[10px] text-muted-foreground">{form.message.length}/{L.message}</p>
             <FieldIssues issues={issues} field="message" />
@@ -261,7 +261,7 @@ export function LabScenarioEditor({ target, getToken, onClose, onSaved }: {
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field id="lab-must-ask" label="Alex must ask" hint={`One per line, up to ${L.listItems}.`}>
+            <Field id="lab-must-ask" label="AI Agent must ask" hint={`One per line, up to ${L.listItems}.`}>
               <Textarea id="lab-must-ask" rows={3} value={form.expectation.mustAsk} onChange={(event) => setExpectation("mustAsk", event.target.value)} className="resize-y" />
               <FieldIssues issues={issues} field="expectation.mustAsk" />
             </Field>

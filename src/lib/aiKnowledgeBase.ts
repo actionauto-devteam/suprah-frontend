@@ -308,7 +308,7 @@ export function approvalDisplay(approval?: KbApproval): KbDisplay | null {
   if (!approval) return null
   switch (approval.state) {
     case "valid":
-      return { label: "Approved", tone: "emerald", note: "Approved for every location it covers. Not used by Alex yet." }
+      return { label: "Approved", tone: "emerald", note: "Approved for every location it covers. Not used by the AI Agent yet." }
     case "partial":
       return { label: "Approved · suspended at some locations", tone: "amber", note: "Not valid at the suspended locations until it is reviewed again." }
     case "suspended":

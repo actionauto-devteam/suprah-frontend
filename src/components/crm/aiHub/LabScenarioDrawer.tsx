@@ -127,7 +127,7 @@ export function LabScenarioDrawer({ scenarioId, getToken, refreshKey, onClose, o
 
                 <section aria-label="Expectation" className="space-y-2">
                   <p className="text-xs"><span className="font-semibold">Should happen:</span> {labHandlingLabel(scenario.expectation.handling)}</p>
-                  <List label="Alex must ask" items={scenario.expectation.mustAsk} />
+                  <List label="AI Agent must ask" items={scenario.expectation.mustAsk} />
                   <List label="Reply must include" items={scenario.expectation.mustInclude} />
                   <List label="Reply must avoid" items={scenario.expectation.mustAvoid} />
                   {scenario.expectation.notes && <p className="break-words text-[11px] text-muted-foreground">Notes: {scenario.expectation.notes}</p>}

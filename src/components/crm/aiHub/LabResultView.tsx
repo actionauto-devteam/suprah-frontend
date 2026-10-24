@@ -121,7 +121,7 @@ export function LabResultView({ run }: { run: LabRun }) {
             Sample reply · {run.reply.source === "rule_example" ? `rule example ${(run.reply.exampleIndex ?? 0) + 1}` : "written for this test"}
           </p>
           <p className="whitespace-pre-wrap break-words">{run.reply.text}</p>
-          <p className="text-[10px] text-muted-foreground">This is the reply that was checked. Alex did not write it.</p>
+          <p className="text-[10px] text-muted-foreground">This is the reply that was checked. The AI Agent did not write it.</p>
         </section>
       )}
 

@@ -36,7 +36,7 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function InquiryMessage({ message }: { message: ShadowInquiryMessage }) {
-  const label = message.from === "customer" ? "Customer" : message.from === "ai" ? "Alex" : message.staffName || "Team"
+  const label = message.from === "customer" ? "Customer" : message.from === "ai" ? "AI Agent" : message.staffName || "Team"
   return (
     <li className={cn(
       "rounded-xl border p-3 text-xs",
@@ -107,7 +107,7 @@ export function ShadowDraftDrawer({ draftId, getToken, onClose, canEvaluate = fa
                 </section>
 
                 <section aria-labelledby="shadow-draft-heading" className="space-y-2">
-                  <h3 id="shadow-draft-heading" className="text-xs font-bold">What Alex would have said</h3>
+                  <h3 id="shadow-draft-heading" className="text-xs font-bold">What the AI Agent would have said</h3>
                   {data.draftText ? (
                     <p className="whitespace-pre-wrap break-words rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">{data.draftText}</p>
                   ) : (
@@ -119,7 +119,7 @@ export function ShadowDraftDrawer({ draftId, getToken, onClose, canEvaluate = fa
                     <p className="text-[11px] text-sky-700 dark:text-sky-300">Would hand off to a person: {data.handoffReason}</p>
                   )}
                   {data.wouldHaveBeenCapped && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-300">Live Alex would have hit its reply limits on this conversation.</p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">In Live mode, the AI Agent would have hit its reply limits on this conversation.</p>
                   )}
                 </section>
 

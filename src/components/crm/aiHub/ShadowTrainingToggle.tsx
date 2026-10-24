@@ -67,7 +67,7 @@ export function ShadowTrainingToggle({ data, isAdmin, getToken, onSaved }: {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">Shadow Training</p>
           <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground/70">
-            Alex writes a private practice draft for each new customer message on channels in Training. Drafts are never sent and only managers and admins can see them.
+            The AI Agent writes a private practice draft for each new customer message on channels in Training. Drafts are never sent and only managers and admins can see them.
           </p>
         </div>
         <Switch
@@ -114,8 +114,8 @@ export function ShadowTrainingToggle({ data, isAdmin, getToken, onSaved }: {
             <DialogTitle>{target ? "Turn on Shadow Training?" : "Turn off Shadow Training?"}</DialogTitle>
             <DialogDescription>
               {target
-                ? `Alex will write up to ${shadow.dailyLimit} private drafts a day for channels in Training. Nothing is sent to customers.`
-                : "Alex will stop writing private drafts. Existing drafts stay available until they expire."}
+                ? `The AI Agent will write up to ${shadow.dailyLimit} private drafts a day for channels in Training. Nothing is sent to customers.`
+                : "The AI Agent will stop writing private drafts. Existing drafts stay available until they expire."}
             </DialogDescription>
           </DialogHeader>
           {target && !shadow.globalEnabled && (

@@ -83,7 +83,7 @@ function ApprovalPanel({ detail, locations }: { detail: KbEntryDetail; locations
   if (!approval || !display) {
     return (
       <div className="rounded-xl border border-border/40 bg-muted/20 p-3 text-[11px] text-muted-foreground">
-        Not approved yet. Approved entries are still not used by Alex until runtime publishing exists.
+        Not approved yet. Approved entries are still not used by the AI Agent until runtime publishing exists.
       </div>
     )
   }
@@ -100,7 +100,7 @@ function ApprovalPanel({ detail, locations }: { detail: KbEntryDetail; locations
       {approval.invalidation && <p>Reason: {KB_INVALIDATION_LABELS[approval.invalidation.reason] || approval.invalidation.reason} ({formatKbDate(approval.invalidation.at)})</p>}
       {suspendedNames.length > 0 && <p>Suspended at: {suspendedNames.join(", ")}. A fresh review is needed before it applies there again.</p>}
       {approval.needsReapproval && <p className="font-semibold">Submit it for re-approval. Another manager or admin must approve it.</p>}
-      <p className="text-muted-foreground">Knowledge Base content is not used by Alex yet, even when approved.</p>
+      <p className="text-muted-foreground">Knowledge Base content is not used by the AI Agent yet, even when approved.</p>
     </section>
   )
 }

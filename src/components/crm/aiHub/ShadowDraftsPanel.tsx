@@ -56,7 +56,7 @@ export function ShadowDraftsPanel({ getToken, filters, onFiltersChange, onOpen }
   return (
     <HubCard
       title="Shadow drafts"
-      description="Private practice replies Alex wrote while in Training. Read-only. Kept for 90 days."
+      description="Private practice replies the AI Agent wrote while in Training. Read-only. Kept for 90 days."
       icon={<FileText className="h-4 w-4 text-primary" />}
     >
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">

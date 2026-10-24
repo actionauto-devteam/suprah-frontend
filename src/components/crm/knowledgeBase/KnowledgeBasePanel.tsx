@@ -95,7 +95,7 @@ function AvailabilityStrip({ availability, getToken, onChange }: {
           )}
         </AvailabilityItem>
         <AvailabilityItem
-          label={"Alex's replies"}
+          label={"AI Agent replies"}
           value={availability.affectsAlex ? "Uses approved content" : "Not using Knowledge Base content yet"}
           tone="info"
         />
@@ -104,7 +104,7 @@ function AvailabilityStrip({ availability, getToken, onChange }: {
         <div role="alertdialog" aria-label="Confirm Knowledge Base setting" className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px]">
           <p>
             {confirming
-              ? "Turn the Knowledge Base on for this organization? Reps can write drafts and managers can review them. Alex still won't use any of it."
+              ? "Turn the Knowledge Base on for this organization? Reps can write drafts and managers can review them. The AI Agent still won't use any of it."
               : "Turn the Knowledge Base off for this organization? Entries and history are kept, but nobody can manage them until an admin turns it back on."}
           </p>
           <div className="flex flex-wrap justify-end gap-2">
@@ -276,7 +276,7 @@ export function KnowledgeBasePanel({ getToken }: { getToken: () => Promise<strin
   return (
     <HubCard
       title="Knowledge Base"
-      description="Approved dealership answers and business information. Managing it here does not change what Alex says."
+      description="Approved dealership answers and business information. Managing it here does not change what the AI Agent says."
       icon={<BookOpen className="h-4 w-4 text-primary" />}
     >
       <HubState loading={status.loading && !status.data} error={status.error} onRetry={status.reload}>

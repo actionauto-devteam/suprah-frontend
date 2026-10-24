@@ -15,6 +15,7 @@ import { useShadowDraftList } from "@/hooks/useAiShadowDrafts"
 import { HubCard, HubState } from "./ShadowStatusBadge"
 import { ShadowDraftRow } from "./ShadowDraftsPanel"
 import { ShadowTrainingToggle } from "./ShadowTrainingToggle"
+import { aiAgentDisplayName } from "@/lib/aiAgentIdentity"
 
 export interface AiAgentSettingsSummary {
   agentName: string
@@ -34,7 +35,7 @@ const FOLLOW_UP_LABELS: Record<number, string> = { 24: "Daily", 48: "Every other
 export const RELATED_TOOLS = [
   { href: "/crm/settings/integrations", label: "Lead Integrations", description: "Lead sources, Gmail, website chat, and review requests." },
   { href: "/crm/vehicle-reengagement", label: "Vehicle Re-engagement", description: "Texts to past leads when a matching vehicle arrives." },
-  { href: "/crm/ai-tasks", label: "AI Tasks", description: "Handoffs where Alex asked a person to step in." },
+  { href: "/crm/ai-tasks", label: "AI Tasks", description: "Handoffs where the AI Agent asked a person to step in." },
   { href: "/crm/campaigns", label: "Campaigns", description: "SMS and email campaigns to selected leads." },
   { href: "/crm/price-drop-emails", label: "Price Drop Emails", description: "Automatic emails when a vehicle a lead asked about gets cheaper." },
 ]
@@ -53,7 +54,7 @@ export function AiHubOverview({ data, settings, isAdmin, getToken, onModesChange
 
   return (
     <div className="space-y-4">
-      <HubCard title={`${settings.agentName} status`} description="How the AI agent is set up for each channel right now." icon={<Bot className="h-4 w-4 text-primary" />}>
+      <HubCard title={`${aiAgentDisplayName(settings.agentName || null)} status`} description="How the AI agent is set up for each channel right now." icon={<Bot className="h-4 w-4 text-primary" />}>
         <div className="space-y-4">
           {!data.masterSwitchOn && (
             <div role="status" className="flex items-start gap-2 rounded-lg border border-slate-300/60 bg-slate-500/5 p-3 text-[11px] text-muted-foreground">
@@ -75,7 +76,7 @@ export function AiHubOverview({ data, settings, isAdmin, getToken, onModesChange
           <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Agent name</dt>
-              <dd className="mt-0.5">{settings.agentName}</dd>
+              <dd className="mt-0.5">{settings.agentName || <span className="font-semibold text-amber-700 dark:text-amber-300">Not set — AI features stay off</span>}</dd>
             </div>
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Handoff group</dt>

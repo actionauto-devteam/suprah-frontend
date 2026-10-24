@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { fmtLongDateTimeMDT } from "@/lib/timezone"
+import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
 import { TechnicalRecoveryDialog } from "@/components/crm/TechnicalRecoveryDialog"
 
 type TaskKindFilter = "all" | "customer" | "technical"
@@ -119,7 +120,7 @@ export default function AiTasksPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [busyId, setBusyId] = React.useState("")
-  const [agentName, setAgentName] = React.useState("Alex")
+  const agentName = useAiAgentIdentity().displayName
   const [kind, setKind] = React.useState<TaskKindFilter>("all")
   const [page, setPage] = React.useState(1)
   const [total, setTotal] = React.useState(0)
@@ -130,21 +131,6 @@ export default function AiTasksPage() {
     const initial = kindFromUrl()
     if (initial !== "all") setKind(initial)
   }, [])
-
-  React.useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const t = await getToken()
-        const res = await apiClient.get("/api/crm/org-settings", { headers: { Authorization: `Bearer ${t}` } })
-        const data = res.data?.data || res.data
-        if (!cancelled && data?.aiAgentName) setAgentName(data.aiAgentName)
-      } catch {
-        // Keep the "Alex" fallback if settings can't be loaded.
-      }
-    })()
-    return () => { cancelled = true }
-  }, [getToken])
 
   const requestRef = React.useRef(0)
 
