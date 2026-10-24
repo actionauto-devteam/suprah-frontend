@@ -75,7 +75,7 @@ import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpa
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
-import { AdaptiveAttachmentImage } from '@/components/supraspace/AdaptiveAttachmentImage';
+import { AdaptiveAttachmentImage, getSupraSpaceImageFileDimensions } from '@/components/supraspace/AdaptiveAttachmentImage';
 import { SeenBySummary } from '@/components/supraspace/SeenBySummary';
 import { getSupraSpaceMessageTextSizeOptions, getSupraSpaceMessageTextStyle, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
 import { runSupraSpaceBulkOperation } from '@/lib/supraspace-bulk-operations';
@@ -11625,9 +11625,10 @@ export default function SupraSpacePage() {
           return;
         }
         const filesToUpload = draftFiles;
+        const localImageDimensions = await Promise.all(filesToUpload.map(getSupraSpaceImageFileDimensions));
         const tempId = deliveryId;
         optimisticAttachmentId = tempId;
-        const optimisticAttachments: SSAttachment[] = filesToUpload.map(f => {
+        const optimisticAttachments: SSAttachment[] = filesToUpload.map((f, index) => {
           const url = URL.createObjectURL(f);
           optimisticAttachmentUrls.push(url);
           localAttachmentPreviewUrlsRef.current.add(url);
@@ -11639,6 +11640,7 @@ export default function SupraSpacePage() {
             size: f.size,
             thumbnailUrl: isImageFileLike(f) ? url : undefined,
             localPreviewUrl: url,
+            ...localImageDimensions[index],
           } as SSAttachment;
         });
         const allImages = filesToUpload.every(isImageFileLike);
@@ -11867,6 +11869,7 @@ export default function SupraSpacePage() {
       if (f.size > (vid ? SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES : SS4_MAX_UPLOAD_SIZE_BYTES)) { showUploadNotice('error', `${f.name} exceeds ${vid ? '100 MB' : '25 MB'}.`); return; }
     }
     setPendingFiles(prev => [...prev, ...uniqueSelected]);
+    uniqueSelected.forEach(file => { void getSupraSpaceImageFileDimensions(file); });
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
   }, [activeId, isArchivedActiveConv, pendingFiles, showUploadNotice, syncComposerText]);
   handleUploadFilesRef.current = handleUploadFiles;

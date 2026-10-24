@@ -30,7 +30,7 @@ import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupr
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
 import { PreSendMediaPreview } from './PreSendMediaPreview';
-import { AdaptiveAttachmentImage } from './AdaptiveAttachmentImage';
+import { AdaptiveAttachmentImage, getSupraSpaceImageFileDimensions } from './AdaptiveAttachmentImage';
 import { SeenBySummary } from './SeenBySummary';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
@@ -4661,6 +4661,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ...nextFiles.map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
       ];
     });
+    selected.forEach(file => { void getSupraSpaceImageFileDimensions(file); });
     setDraggingAttachment(false);
     dragDepthRef.current = 0;
     setTimeout(() => inputRef.current?.focus(), 40);
@@ -4695,13 +4696,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const clientMessageId = deliveryIdFor(deliveryKey);
     const currentReplyTo = replyTo;
     const member = conv.members.find(m => m._id === crmUserId);
-    const localAttachments = pendingAttachments.map(item => ({
+    const localImageDimensions = await Promise.all(pendingAttachments.map(item => getSupraSpaceImageFileDimensions(item.file)));
+    const localAttachments = pendingAttachments.map((item, index) => ({
       url: item.previewUrl,
       localPreviewUrl: item.previewUrl,
       originalName: item.file.name,
       mimeType: item.file.type || 'application/octet-stream',
       size: item.file.size,
       thumbnailUrl: item.file.type.startsWith('image/') ? item.previewUrl : undefined,
+      ...localImageDimensions[index],
     }));
     const allImages = localAttachments.every(attachment => attachment.mimeType.startsWith('image/'));
     setMessages(prev => prev.some(message => message._id === clientMessageId) ? prev : [...prev, {
@@ -7611,7 +7614,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             {videoAttachments.length > 0 && (
                               <div className="flex flex-col gap-1.5 mt-1">
                                 {videoAttachments.map((a: SSAttachment, i: number) => (
-                                  <video key={i} src={a.url} controls playsInline preload="metadata" className="rounded-xl block" style={{ maxWidth: 240, maxHeight: 200 }} />
+                                  <video key={i} src={a.url} controls playsInline preload="metadata" className="rounded-xl block" style={{ width: 'min(240px, 100%)', aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain' }} />
                                 ))}
                               </div>
                             )}
