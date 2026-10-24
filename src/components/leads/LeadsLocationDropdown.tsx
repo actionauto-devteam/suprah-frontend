@@ -35,15 +35,15 @@ export function LeadsLocationDropdown({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="ss4-pill-btn flex h-8 min-w-8 max-w-[11rem] items-center justify-center gap-1.5 px-2 text-[12px] font-medium transition-all sm:max-w-[14rem] sm:px-2.5"
+          className="ss4-pill-btn flex h-8 min-w-8 max-w-[11rem] items-center justify-center gap-1.5 px-2 text-[12px] font-medium transition-all lg:max-w-[14rem] lg:px-2.5"
           title={selected?.label || "All Locations"}
           aria-label="Filter by location"
         >
           <MapPin className="h-3.5 w-3.5 shrink-0 sm:h-3 sm:w-3" />
-          <span className="hidden min-w-0 truncate sm:inline">
+          <span className="hidden min-w-0 truncate lg:inline">
             {selected?.label || "All Locations"}
           </span>
-          <ChevronDown className="hidden h-3 w-3 shrink-0 sm:block" />
+          <ChevronDown className="hidden h-3 w-3 shrink-0 lg:block" />
         </button>
       </PopoverTrigger>
       <PopoverContent

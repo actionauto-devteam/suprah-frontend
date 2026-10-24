@@ -9,6 +9,7 @@ import {
   Edit3,
   Loader2,
   PanelRightClose,
+  ArrowLeft,
   RefreshCw,
   Save,
   StickyNote,
@@ -206,7 +207,7 @@ export function ContactDetailsPanel({
   };
 
   return (
-    <aside className="cw-details-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l" style={{ borderColor: "var(--border-1)", background: "var(--bg-elevated)" }}>
+    <aside className="cw-details-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l max-lg:overflow-y-auto max-lg:overscroll-contain" style={{ borderColor: "var(--border-1)", background: "var(--bg-elevated)" }}>
       <div className="cw-profile-header shrink-0 border-b p-4" style={{ borderColor: "var(--border-1)" }}>
         <div className="flex min-w-0 items-center gap-3">
           <Avatar first={contact.firstName} last={contact.lastName} size="lg" />
@@ -216,8 +217,9 @@ export function ContactDetailsPanel({
               {workspaceContactSubtitle(contact)}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="ss4-icon-btn h-9 w-9 shrink-0" aria-label="Close details panel" title="Close details panel">
-            <PanelRightClose className="h-4 w-4" />
+          <button type="button" onClick={onClose} className="ss4-icon-btn h-9 w-9 shrink-0 max-lg:order-first" aria-label="Close details panel" title="Close details panel">
+            <ArrowLeft className="h-4 w-4 lg:hidden" />
+            <PanelRightClose className="hidden h-4 w-4 lg:block" />
           </button>
         </div>
 
@@ -318,7 +320,7 @@ export function ContactDetailsPanel({
         </div>
       </div>
 
-      <div className="cw-details-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
+      <div className="cw-details-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 max-lg:flex-none max-lg:overflow-y-visible max-lg:pb-8">
         {tab === "details" ? (
           <div className="min-w-0 space-y-3">
             {detailsTop}

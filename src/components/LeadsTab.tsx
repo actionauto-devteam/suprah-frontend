@@ -14,6 +14,7 @@ import {
   Megaphone,
   MessageSquare,
   Moon,
+  MoreHorizontal,
   Plus,
   Loader2,
   RefreshCw,
@@ -26,6 +27,8 @@ import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/ho
 import { initializeSocket } from "@/lib/socket.client"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
 import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
+import { useTeamMembers } from "@/hooks/useTeamPulse"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal"
@@ -42,6 +45,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus";
@@ -49,6 +58,7 @@ import { ToastStack, Toast } from "./leads/atomic/ToastStack";
 import {
   LEAD_STATUS_CATEGORY_ORDER,
   LEAD_STATUS_CATEGORIES,
+  getLeadStatusStyle,
   isContactRestrictedStatus,
   type LeadStatusCategory,
 } from "@/lib/leadStatus";
@@ -56,10 +66,12 @@ import { StatusReasonModal } from "./leads/StatusReasonModal";
 import { fmtTimeMDT } from "@/lib/timezone";
 import { LeadsList } from "./leads/LeadsList";
 import {
+  LEAD_DATE_PRESET_OPTIONS,
   LeadsFiltersPopover,
   type LeadDateFilterValue,
   type LeadDatePreset,
 } from "./leads/LeadsFiltersPopover";
+import { LeadsActiveFilters, type LeadsActiveFilterChip } from "./leads/LeadsActiveFilters";
 import { LeadsLocationDropdown } from "./leads/LeadsLocationDropdown";
 import { ConversationView } from "./leads/ConversationView";
 import { LeadDetailsPanel } from "./leads/LeadDetailsPanel";
@@ -219,6 +231,12 @@ const isEmailLead = (lead: Lead | null | undefined): boolean => {
 };
 
 type LeadSortOption = "newest" | "oldest" | "waiting_longest";
+
+const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "waiting_longest", label: "Longest waiting" },
+];
 type LeadsViewportMode = "narrow" | "compact" | "wide";
 
 type LeadPaymentForm = CreatePaymentData & { customerPhone?: string };
@@ -346,6 +364,9 @@ export function LeadsTab({
   }, [viewportMode]);
 
   const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
+  const [assigneeFilterId, setAssigneeFilterId] = React.useState<string | null>(null);
+  const isMobile = useIsMobile();
+  const { data: teamMembers = [] } = useTeamMembers();
   const [locationFilter, setLocationFilter] = React.useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = React.useState<string | null>(null);
   const [dateFilter, setDateFilter] = React.useState<LeadDateFilterValue>({
@@ -380,7 +401,7 @@ export function LeadsTab({
     search: searchQuery,
     status: statusFilter,
     sortBy,
-    assignedTo: assignmentFilter === "mine" ? currentUserId : null,
+    assignedTo: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
     location: locationFilter,
     source: sourceFilter,
     dateFrom: resolvedDateFilter.from,
@@ -449,6 +470,7 @@ export function LeadsTab({
     const params = new URLSearchParams(window.location.search);
     const leadId = params.get("leadId");
     const leadSearch = params.get("leadSearch");
+    const urlLeadId = params.get("lead");
 
     if (leadId || leadSearch) {
       const url = new URL(window.location.href);
@@ -468,6 +490,8 @@ export function LeadsTab({
     } else if (leadSearch) {
       setSearchQuery(decodeURIComponent(leadSearch));
       setAutoSelectOnSingleResult(true);
+    } else if (urlLeadId) {
+      setPendingLeadId(urlLeadId);
     }
 
     if (params.get("review") === "1") {
@@ -512,6 +536,91 @@ export function LeadsTab({
 
     setShowLeadDetails(viewportMode !== "narrow");
   }, [selectedLead?._id, viewportMode]);
+
+  const historyLeadRef = React.useRef(false);
+  const historyDetailsRef = React.useRef(false);
+  const viewportModeRef = React.useRef(viewportMode);
+  const [lastViewedLeadId, setLastViewedLeadId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    viewportModeRef.current = viewportMode;
+  }, [viewportMode]);
+
+  React.useEffect(() => {
+    if (selectedLead?._id) setLastViewedLeadId(selectedLead._id);
+  }, [selectedLead?._id]);
+
+  React.useEffect(() => {
+    if (viewportMode === "wide") return;
+    const id = selectedLead?._id || null;
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get("lead");
+    if (id && current !== id) {
+      url.searchParams.set("lead", id);
+      url.searchParams.delete("panel");
+      const next = `${url.pathname}?${url.searchParams.toString()}`;
+      if (current) {
+        window.history.replaceState(null, "", next);
+      } else {
+        window.history.pushState(null, "", next);
+        historyLeadRef.current = true;
+      }
+      historyDetailsRef.current = false;
+      return;
+    }
+    if (!id && current) {
+      const steps = (historyLeadRef.current ? 1 : 0) + (historyDetailsRef.current ? 1 : 0);
+      historyLeadRef.current = false;
+      historyDetailsRef.current = false;
+      if (steps > 0) {
+        window.history.go(-steps);
+        return;
+      }
+      url.searchParams.delete("lead");
+      url.searchParams.delete("panel");
+      const rest = url.searchParams.toString();
+      window.history.replaceState(null, "", url.pathname + (rest ? `?${rest}` : ""));
+    }
+  }, [selectedLead?._id, viewportMode]);
+
+  React.useEffect(() => {
+    if (viewportMode !== "narrow" || !selectedLead?._id) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("lead") !== selectedLead._id) return;
+    const hasPanel = url.searchParams.get("panel") === "details";
+    if (showLeadDetails && !hasPanel) {
+      url.searchParams.set("panel", "details");
+      window.history.pushState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+      historyDetailsRef.current = true;
+    } else if (!showLeadDetails && hasPanel) {
+      if (historyDetailsRef.current) {
+        historyDetailsRef.current = false;
+        window.history.back();
+      } else {
+        url.searchParams.delete("panel");
+        window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+      }
+    }
+  }, [showLeadDetails, selectedLead?._id, viewportMode]);
+
+  React.useEffect(() => {
+    const onPopState = () => {
+      if (viewportModeRef.current === "wide") return;
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get("lead")) {
+        historyLeadRef.current = false;
+        historyDetailsRef.current = false;
+        _setSelectedLead((current) => (current ? null : current));
+        return;
+      }
+      if (params.get("panel") !== "details") {
+        historyDetailsRef.current = false;
+        setShowLeadDetails(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const [localIsSyncing, setLocalIsSyncing] = React.useState(false);
   const [centralConnected, setCentralConnected] = React.useState(false);
   const [centralStatusLoaded, setCentralStatusLoaded] = React.useState(false);
@@ -2215,6 +2324,91 @@ export function LeadsTab({
   const showLeadsPanel =
     !selectedLead || viewportMode === "wide";
 
+  const handleAssigneeFilter = (userId: string | null) => {
+    if (userId && userId === currentUserId) {
+      setAssignmentFilter("mine");
+      setAssigneeFilterId(null);
+    } else {
+      setAssignmentFilter("all");
+      setAssigneeFilterId(userId);
+    }
+    setCurrentPage(1);
+    setSelectedLead(null);
+  };
+
+  const dateFilterActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
+  const assigneeFilterName = assigneeFilterId
+    ? teamMembers.find((member: { _id: string; name: string }) => member._id === assigneeFilterId)?.name || "Team member"
+    : null;
+  const activeFilterChips: LeadsActiveFilterChip[] = [
+    ...(statusFilter && statusFilter !== "Inbound Calls"
+      ? [{
+          key: "status",
+          label: `Status: ${getLeadStatusStyle(statusFilter).label}`,
+          onRemove: () => {
+            setActiveStatusCategory(null);
+            setStatusFilter(null);
+            setCurrentPage(1);
+            setSelectedLead(null);
+          },
+        }]
+      : []),
+    ...(assigneeFilterName ? [{ key: "assignee", label: `Assigned: ${assigneeFilterName}`, onRemove: () => handleAssigneeFilter(null) }] : []),
+    ...(sourceFilter
+      ? [{
+          key: "source",
+          label: `Source: ${sourceFilter}`,
+          onRemove: () => {
+            handleSourceFilterChange(null);
+            setSelectedLead(null);
+          },
+        }]
+      : []),
+    ...(locationFilter
+      ? [{
+          key: "location",
+          label: `Location: ${locationFilter}`,
+          onRemove: () => {
+            setLocationFilter(null);
+            setCurrentPage(1);
+            setSelectedLead(null);
+          },
+        }]
+      : []),
+    ...(dateFilterActive
+      ? [{
+          key: "date",
+          label: `Date: ${LEAD_DATE_PRESET_OPTIONS.find((option) => option.value === dateFilter.preset)?.label || "Custom"}`,
+          onRemove: () => {
+            handleClearDateFilter();
+            setSelectedLead(null);
+          },
+        }]
+      : []),
+    ...(isMobile && sortBy !== "newest"
+      ? [{
+          key: "sort",
+          label: `Sort: ${LEAD_SORT_OPTIONS.find((option) => option.value === sortBy)?.label || sortBy}`,
+          onRemove: () => {
+            setSortBy("newest");
+            setCurrentPage(1);
+          },
+        }]
+      : []),
+  ];
+
+  const clearAllFilters = () => {
+    setActiveStatusCategory(null);
+    setStatusFilter(null);
+    handleSourceFilterChange(null);
+    handleClearDateFilter();
+    setLocationFilter(null);
+    setAssigneeFilterId(null);
+    if (isMobile) setSortBy("newest");
+    setCurrentPage(1);
+    setSelectedLead(null);
+  };
+
   const showConversationPanel =
     Boolean(selectedLead) || viewportMode === "wide";
 
@@ -2245,7 +2439,7 @@ export function LeadsTab({
       >
         <div className="flex min-h-12 items-center justify-between gap-2 px-3 py-2 sm:min-h-13 sm:gap-3 sm:px-5 sm:py-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <div className="ss4-logo-mark flex h-8 w-8 shrink-0 items-center justify-center">
+            <div className="ss4-logo-mark flex h-8 w-8 shrink-0 items-center justify-center max-[359px]:hidden">
               <Mail className="h-3.5 w-3.5" style={{ color: "#fff" }} />
             </div>
 
@@ -2320,36 +2514,40 @@ export function LeadsTab({
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-            <LeadsLocationDropdown
-              value={locationFilter}
-              options={locationFilterTabs}
-              counts={leadLocationCounts}
-              onChange={(key) => {
-                setLocationFilter(key);
-                setCurrentPage(1);
-                setSelectedLead(null);
-              }}
-            />
+            <div className="hidden sm:block">
+              <LeadsLocationDropdown
+                value={locationFilter}
+                options={locationFilterTabs}
+                counts={leadLocationCounts}
+                onChange={(key) => {
+                  setLocationFilter(key);
+                  setCurrentPage(1);
+                  setSelectedLead(null);
+                }}
+              />
+            </div>
 
             <button
               onClick={() => setAddLeadOpen(true)}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              className="ss4-pill-btn flex h-9 w-9 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
               title="Add Lead"
+              aria-label="Add Lead"
             >
               <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden sm:inline">Add Lead</span>
+              <span className="hidden lg:inline">Add Lead</span>
             </button>
 
             {((reviewSummary?.pending || 0) > 0 || reviewSummary?.canResolve) && (
               <button
                 onClick={() => setReviewOpen(true)}
-                className="ss4-pill-btn relative flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+                className="ss4-pill-btn relative flex h-9 w-9 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
                 title="Needs review"
+                aria-label="Needs review"
               >
                 <ListChecks className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-                <span className="hidden sm:inline">Needs review</span>
+                <span className="hidden lg:inline">Needs review</span>
                 {(reviewSummary?.pending || 0) > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white sm:static sm:h-4">
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white lg:static lg:h-4">
                     {reviewSummary!.pending > 99 ? "99+" : reviewSummary!.pending}
                   </span>
                 )}
@@ -2358,31 +2556,31 @@ export function LeadsTab({
 
             <button
               onClick={() => router.push("/crm/campaigns")}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              className="ss4-pill-btn hidden h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:flex sm:h-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
               title="Campaigns"
             >
               <Megaphone className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden sm:inline">Campaigns</span>
+              <span className="hidden lg:inline">Campaigns</span>
             </button>
 
             <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              className="ss4-pill-btn hidden h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-30 sm:flex sm:h-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
               title="Refresh leads"
             >
               <RefreshCw
                 className={`h-3.5 w-3.5 sm:h-3 sm:w-3 ${isWorkerSyncing || localIsSyncing ? "animate-spin" : ""
                   }`}
               />
-              <span className="hidden sm:inline">
+              <span className="hidden lg:inline">
                 {isWorkerSyncing || localIsSyncing ? "Syncing…" : "Refresh"}
               </span>
             </button>
 
             <button
               onClick={toggleTheme}
-              className="ss4-theme-btn flex h-8 w-8 shrink-0 items-center justify-center sm:h-7 sm:w-7"
+              className="ss4-theme-btn hidden h-8 w-8 shrink-0 items-center justify-center sm:flex sm:h-7 sm:w-7"
               title="Toggle theme"
             >
               {theme === "dark" ? (
@@ -2391,6 +2589,36 @@ export function LeadsTab({
                 <Moon className="h-3.5 w-3.5" />
               )}
             </button>
+
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="ss4-pill-btn flex h-9 w-9 items-center justify-center p-0 sm:hidden"
+                  title="More"
+                  aria-label="More lead actions"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={() => router.push("/crm/campaigns")}>
+                  <Megaphone />
+                  Campaigns
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
+                  onSelect={() => void syncAndRefresh()}
+                >
+                  <RefreshCw />
+                  {isWorkerSyncing || localIsSyncing ? "Syncing…" : "Refresh leads"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={toggleTheme}>
+                  {theme === "dark" ? <Sun /> : <Moon />}
+                  {theme === "dark" ? "Light mode" : "Dark mode"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
           </div>
         </div>
@@ -2455,6 +2683,7 @@ export function LeadsTab({
                 }}
                 onPageChange={setCurrentPage}
                 onLeadSelect={setSelectedLead}
+                focusLeadId={selectedLead ? null : lastViewedLeadId}
                 highlightedLeadIds={highlightedLeadIds}
                 itemsPerPage={LEADS_PER_PAGE}
                 sourceEmail={LEADS_SOURCE_EMAIL}
@@ -2485,115 +2714,151 @@ export function LeadsTab({
                         background: "var(--bg-elevated)",
                       }}
                     >
-                      {currentUserId ? (
-                        <div
-                          role="tablist"
-                          aria-label="Assignment filter"
-                          className="grid shrink-0 grid-cols-2 gap-1 rounded-lg p-1"
-                          style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
-                        >
-                          {(["mine", "all"] as const).map((key) => (
-                            <button
-                              key={key}
-                              type="button"
-                              role="tab"
-                              aria-selected={assignmentFilter === key}
-                              onClick={() => {
-                                setAssignmentFilter(key);
+                      <div
+                        className={cn(
+                          "grid min-w-0 gap-1.5 md:gap-2",
+                          currentUserId ? "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-2" : "grid-cols-1 md:grid-cols-2",
+                        )}
+                      >
+                        {currentUserId ? (
+                          <div
+                            role="tablist"
+                            aria-label="Assignment filter"
+                            className="grid min-w-0 grid-cols-2 gap-1 rounded-lg p-1 md:col-span-2"
+                            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
+                          >
+                            {(["mine", "all"] as const).map((key) => {
+                              const selected = assignmentFilter === key && !(key === "all" && assigneeFilterId);
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  role="tab"
+                                  aria-selected={selected}
+                                  onClick={() => {
+                                    setAssignmentFilter(key);
+                                    setAssigneeFilterId(null);
+                                    setCurrentPage(1);
+                                    setSelectedLead(null);
+                                  }}
+                                  className="min-h-8 truncate rounded-md px-2 py-1 text-[12px] font-semibold transition-colors md:min-h-0 md:text-[11px]"
+                                  style={
+                                    selected
+                                      ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
+                                      : { color: "var(--text-tertiary)" }
+                                  }
+                                >
+                                  {key === "mine" ? "My Leads" : "All Leads"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                          <LeadsFiltersPopover
+                            activeCategory={activeStatusCategory}
+                            statusFilter={statusFilter}
+                            statusCounts={leadStatusCounts}
+                            categoryCounts={categoryTabCounts}
+                            sourceFilter={sourceFilter}
+                            dateFilter={dateFilter}
+                            onAllStatuses={() => {
+                              setActiveStatusCategory(null);
+                              setStatusFilter(null);
+                              setCurrentPage(1);
+                              setSelectedLead(null);
+                            }}
+                            onInboundCalls={() => {
+                              setActiveStatusCategory(null);
+                              setStatusFilter("Inbound Calls");
+                              setCurrentPage(1);
+                              setSelectedLead(null);
+                            }}
+                            onCategory={(category) => {
+                              setActiveStatusCategory(category);
+                              setStatusFilter(null);
+                              setCurrentPage(1);
+                              setSelectedLead(null);
+                            }}
+                            onStatus={(status) => {
+                              setStatusFilter(status);
+                              setCurrentPage(1);
+                              setSelectedLead(null);
+                            }}
+                            onSource={(source) => {
+                              handleSourceFilterChange(source);
+                              setSelectedLead(null);
+                            }}
+                            onDatePreset={(preset) => {
+                              handleDatePresetChange(preset);
+                              setSelectedLead(null);
+                            }}
+                            onCustomDateChange={(range) => {
+                              handleCustomDateChange(range);
+                              setSelectedLead(null);
+                            }}
+                            onClearDate={() => {
+                              handleClearDateFilter();
+                              setSelectedLead(null);
+                            }}
+                            assignee={{
+                              value: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
+                              currentUserId,
+                              members: teamMembers.map((member: { _id: string; name: string }) => ({ _id: member._id, name: member.name })),
+                              onChange: handleAssigneeFilter,
+                            }}
+                            location={{
+                              value: locationFilter,
+                              options: locationFilterTabs,
+                              counts: leadLocationCounts,
+                              onChange: (key) => {
+                                setLocationFilter(key);
                                 setCurrentPage(1);
                                 setSelectedLead(null);
+                              },
+                            }}
+                            sort={{
+                              value: sortBy,
+                              defaultValue: "newest",
+                              options: LEAD_SORT_OPTIONS,
+                              onChange: (value) => {
+                                setSortBy(value as LeadSortOption);
+                                setCurrentPage(1);
+                              },
+                            }}
+                          />
+
+                          <label className="relative hidden min-w-0 md:block">
+                            <ArrowUpDown
+                              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
+                              style={{ color: "var(--text-tertiary)" }}
+                            />
+                            <select
+                              value={sortBy}
+                              onChange={(event) => {
+                                setSortBy(event.target.value as LeadSortOption);
+                                setCurrentPage(1);
                               }}
-                              className="rounded-md px-2 py-1 text-[11px] font-semibold transition-colors"
-                              style={
-                                assignmentFilter === key
-                                  ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
-                                  : { color: "var(--text-tertiary)" }
-                              }
+                              className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
+                              style={{
+                                background: "var(--input-bg)",
+                                border: "1px solid var(--input-border)",
+                                color: "var(--text-primary)",
+                              }}
+                              aria-label="Sort conversations"
                             >
-                              {key === "mine" ? "My Leads" : "All Leads"}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5 sm:gap-2">
-                        <LeadsFiltersPopover
-                          activeCategory={activeStatusCategory}
-                          statusFilter={statusFilter}
-                          statusCounts={leadStatusCounts}
-                          categoryCounts={categoryTabCounts}
-                          sourceFilter={sourceFilter}
-                          dateFilter={dateFilter}
-                          onAllStatuses={() => {
-                            setActiveStatusCategory(null);
-                            setStatusFilter(null);
-                            setCurrentPage(1);
-                            setSelectedLead(null);
-                          }}
-                          onInboundCalls={() => {
-                            setActiveStatusCategory(null);
-                            setStatusFilter("Inbound Calls");
-                            setCurrentPage(1);
-                            setSelectedLead(null);
-                          }}
-                          onCategory={(category) => {
-                            setActiveStatusCategory(category);
-                            setStatusFilter(null);
-                            setCurrentPage(1);
-                            setSelectedLead(null);
-                          }}
-                          onStatus={(status) => {
-                            setStatusFilter(status);
-                            setCurrentPage(1);
-                            setSelectedLead(null);
-                          }}
-                          onSource={(source) => {
-                            handleSourceFilterChange(source);
-                            setSelectedLead(null);
-                          }}
-                          onDatePreset={(preset) => {
-                            handleDatePresetChange(preset);
-                            setSelectedLead(null);
-                          }}
-                          onCustomDateChange={(range) => {
-                            handleCustomDateChange(range);
-                            setSelectedLead(null);
-                          }}
-                          onClearDate={() => {
-                            handleClearDateFilter();
-                            setSelectedLead(null);
-                          }}
-                        />
-
-                        <label className="relative min-w-0">
-                          <ArrowUpDown
-                            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                            style={{ color: "var(--text-tertiary)" }}
-                          />
-                          <select
-                            value={sortBy}
-                            onChange={(event) => {
-                              setSortBy(event.target.value as LeadSortOption);
-                              setCurrentPage(1);
-                            }}
-                            className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
-                            style={{
-                              background: "var(--input-bg)",
-                              border: "1px solid var(--input-border)",
-                              color: "var(--text-primary)",
-                            }}
-                            aria-label="Sort conversations"
-                          >
-                            <option value="newest">Newest</option>
-                            <option value="oldest">Oldest</option>
-                            <option value="waiting_longest">Longest waiting</option>
-                          </select>
-                          <ChevronDown
-                            className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                            style={{ color: "var(--text-tertiary)" }}
-                          />
-                        </label>
+                              <option value="newest">Newest</option>
+                              <option value="oldest">Oldest</option>
+                              <option value="waiting_longest">Longest waiting</option>
+                            </select>
+                            <ChevronDown
+                              className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
+                              style={{ color: "var(--text-tertiary)" }}
+                            />
+                          </label>
                       </div>
+
+                      <LeadsActiveFilters chips={activeFilterChips} onClearAll={clearAllFilters} />
                     </div>
 
                     {isFetching && !isLoading ? (

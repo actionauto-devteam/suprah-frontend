@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Lead } from "@/hooks/useLeads";
 import { resolveCustomerEmail } from "../customer-email";
+import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { AssigneePicker } from "@/components/leads/atomic/AssigneePicker";
 import type {
   WorkspaceActivityItem,
@@ -31,7 +32,7 @@ export function leadToWorkspaceContact(lead: Lead): WorkspaceContact {
       "Unknown Lead",
     email: resolveCustomerEmail(lead),
     phone: lead.phone,
-    subtitle: resolveCustomerEmail(lead) || lead.phone || "No contact information",
+    subtitle: resolveCustomerEmail(lead) || (lead.phone ? formatSmsRecipient(lead.phone) : "") || "No contact information",
     preview: lead.subject || "(No subject)",
     timestamp: lead.createdAt,
     status: lead.status,
@@ -86,7 +87,7 @@ export function leadDetailSections(
       title: "Contact information",
       rows: [
         { id: "name", label: "Name", value: leadName, icon: <UserRound size={15} />, copyText: leadName },
-        { id: "phone", label: "Phone", value: lead.phone || "Not provided", icon: <Phone size={15} />, copyText: lead.phone || "" },
+        { id: "phone", label: "Phone", value: lead.phone ? formatSmsRecipient(lead.phone) : "Not provided", icon: <Phone size={15} />, copyText: lead.phone || "" },
         { id: "email", label: "Email", value: customerEmail || "Not provided", icon: <Mail size={15} />, copyText: customerEmail },
         { id: "address", label: "Address", value: address, icon: <MapPin size={15} />, copyText: lead.address || "" },
         { id: "tags", label: "Tags", value: tags, icon: <Tag size={15} />, copyText: tags === "Not provided" ? "" : tags },

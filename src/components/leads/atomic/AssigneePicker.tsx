@@ -59,7 +59,7 @@ export function AssigneePicker({
           <span className="truncate">{currentMember ? currentMember.name : "Unassigned"}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-1.5" align="start">
+      <PopoverContent className="z-200 w-64 p-1.5" align="start">
         <div className="max-h-64 overflow-y-auto">
           {currentUserId ? (
             <button
