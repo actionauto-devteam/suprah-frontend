@@ -34,6 +34,8 @@ export type NotificationType =
   | 'ai_technical_failures_alert'
   | 'lead_note_mention'
   | 'new_lead'
+  | 'lead_new_inquiry'
+  | 'lead_inquiry_review'
   | 'lead_assigned'
   | 'lead_status_changed'
   | 'crm_message'

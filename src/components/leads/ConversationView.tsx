@@ -14,6 +14,13 @@ import {
   Play,
   AlertTriangle,
   Link2,
+  MessageCircle,
+  Paperclip,
+  PhoneIncoming,
+  PhoneOutgoing,
+  PhoneMissed,
+  RefreshCw,
+  ShieldAlert,
 } from "lucide-react";
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
@@ -21,6 +28,8 @@ import { Avatar } from "./atomic/Avatar";
 import { aiModeIndicatorLabel, type AiMode } from "@/lib/aiOperatingModes";
 import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
+import { EarlierConversations } from "./EarlierConversations";
+import type { LeadConversationMeta } from "@/lib/api/leadConversation";
 
 interface ConversationViewProps {
   lead: any;
@@ -32,7 +41,36 @@ interface ConversationViewProps {
   onReplyToSiblings?: () => void;
   aiAgentStatus?: { paused: boolean; pausedBy?: string; autoPausedUntil?: string; mode?: AiMode } | null;
   onToggleAiAgent?: () => void;
+  conversationMeta?: LeadConversationMeta | null;
+  loadState?: "loading" | "ready" | "error";
+  onRetryLoad?: () => void;
+  onLinkUnverified?: () => void;
 }
+
+const CHANNEL_LABELS: Record<string, string> = {
+  sms: "Text",
+  email: "Email",
+  webchat: "Web Chat",
+};
+
+const channelOf = (
+  message: { channel?: unknown; conversationId?: unknown; sessionId?: unknown; fromTimeline?: unknown } | null | undefined,
+  lead: { channel?: unknown } | null | undefined,
+) => {
+  if (message?.channel) return String(message.channel);
+  if (message?.conversationId) return "sms";
+  if (message?.sessionId) return "webchat";
+  if (message?.fromTimeline) return "";
+  const leadChannel = String(lead?.channel || "").toLowerCase();
+  return leadChannel === "webchat" ? "webchat" : "";
+};
+
+const formatDuration = (seconds?: number | null) => {
+  if (!seconds || seconds <= 0) return "";
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return minutes ? `${minutes} min${rest ? ` ${rest} sec` : ""}` : `${rest} sec`;
+};
 
 interface InquiryField {
   label: string;
@@ -333,6 +371,7 @@ const isLeadInquiryMessage = (
   message: any,
   index: number,
 ) => {
+  if (message?.fromTimeline) return Boolean(message?.isLeadFallback);
   const text = getMessageText(message).toLowerCase();
 
   return Boolean(
@@ -543,6 +582,10 @@ export function ConversationView({
   onReplyToSiblings,
   aiAgentStatus = null,
   onToggleAiAgent,
+  conversationMeta = null,
+  loadState = "ready",
+  onRetryLoad,
+  onLinkUnverified,
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -689,6 +732,15 @@ export function ConversationView({
                   {lead.status}
                 </span>
               )}
+              {(conversationMeta?.unverified || lead?.intakeIdentity === "unverified") && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300"
+                  title="This chat visitor's phone and email were typed in and not verified, so the chat is kept separate from other leads."
+                >
+                  <ShieldAlert className="h-3 w-3" />
+                  Unverified chat
+                </span>
+              )}
             </div>
             <p className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-xs text-slate-400 dark:text-slate-500">
               {lead?.phone && (
@@ -704,6 +756,17 @@ export function ConversationView({
               </span>
             </p>
           </div>
+
+          {(conversationMeta?.unverified || lead?.intakeIdentity === "unverified") && onLinkUnverified && (
+            <button
+              type="button"
+              onClick={onLinkUnverified}
+              className="hidden shrink-0 items-center gap-1 rounded-full border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-50 sm:flex dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
+            >
+              <Link2 className="h-3 w-3" />
+              Link to a lead
+            </button>
+          )}
 
           {aiToggleButton}
 
@@ -742,6 +805,32 @@ export function ConversationView({
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6"
       >
         <div className="mx-auto w-full max-w-4xl">
+          {lead?._id && <EarlierConversations leadId={String(lead._id)} earlier={conversationMeta?.earlier} />}
+
+          {loadState === "error" && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">We couldn&apos;t load the full conversation. Showing what we have.</span>
+              {onRetryLoad && (
+                <button type="button" onClick={onRetryLoad} className="flex items-center gap-1 font-semibold underline-offset-2 hover:underline">
+                  <RefreshCw className="h-3 w-3" />
+                  Try again
+                </button>
+              )}
+            </div>
+          )}
+
+          {conversationMeta?.unavailableSources?.length ? (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[12px] text-slate-600 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+              <span>
+                {conversationMeta.unavailableSources.includes("email")
+                  ? "Email messages couldn't be loaded right now. Everything else is shown."
+                  : "Some messages couldn't be loaded right now. Everything else is shown."}
+              </span>
+            </div>
+          ) : null}
+
           {/* Conversation start marker */}
           <div className="mb-6 flex flex-col items-center gap-2 text-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
@@ -755,7 +844,15 @@ export function ConversationView({
             </p>
           </div>
 
-          {renderItems.length === 0 ? (
+          {loadState === "loading" && renderItems.length === 0 ? (
+            <div className="mx-auto w-full max-w-xl space-y-3" aria-busy="true" aria-label="Loading conversation">
+              {[0, 1, 2].map((row) => (
+                <div key={row} className={cn("flex", row % 2 ? "justify-end" : "justify-start")}>
+                  <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-emerald-400/10" />
+                </div>
+              ))}
+            </div>
+          ) : renderItems.length === 0 ? (
             <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-emerald-400/15 dark:bg-[#0f1f19]">
               <Mail className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
               <div>
@@ -807,10 +904,65 @@ export function ConversationView({
                 const { message, index, stamp, showDayChip } = item;
                 const outbound = isOutboundMessage(message, sourceEmail);
                 const key =
+                  message?.timelineId ||
                   message?._id ||
                   message?.id ||
                   message?.messageId ||
                   `${lead?._id}-${index}`;
+
+                if (message?.timelineKind === "call") {
+                  const missed = ["missed", "failed", "canceled"].includes(String(message?.call?.status || ""));
+                  const CallIcon = missed ? PhoneMissed : outbound ? PhoneOutgoing : PhoneIncoming;
+                  const duration = formatDuration(message?.call?.durationSec);
+                  return (
+                    <React.Fragment key={key}>
+                      {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                      <div className="flex justify-center">
+                        <div
+                          className={cn(
+                            "flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[12px]",
+                            missed
+                              ? "border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300"
+                              : "border-slate-200 bg-white text-slate-600 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300",
+                          )}
+                        >
+                          <CallIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {outbound ? "Outgoing call" : "Incoming call"} · {message?.call?.label || "Call"}
+                            {duration ? ` · ${duration}` : ""}
+                            {message?.call?.answeredBy ? ` · ${message.call.answeredBy}` : ""}
+                          </span>
+                          <span className="shrink-0 text-[11px] opacity-70">{formatTimestamp(stamp)}</span>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                }
+
+                if (message?.timelineKind === "inquiry" && !message?.isLeadFallback) {
+                  const vehicle = [message?.inquiry?.vehicle?.year, message?.inquiry?.vehicle?.make, message?.inquiry?.vehicle?.model]
+                    .filter(Boolean)
+                    .join(" ");
+                  const source = [message?.inquiry?.source, message?.inquiry?.sourceProvider].filter(Boolean).join(" · ");
+                  return (
+                    <React.Fragment key={key}>
+                      {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                      <div className="mx-auto w-full max-w-2xl rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-[13px] text-sky-900 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                          <ClipboardList className="h-3.5 w-3.5" />
+                          <span>New inquiry</span>
+                          <span className="font-normal normal-case text-sky-600/80 dark:text-sky-300/80">
+                            {[source, formatTimestamp(stamp)].filter(Boolean).join(" · ")}
+                          </span>
+                        </div>
+                        {vehicle && <p className="mt-1 text-[12px] font-medium">Vehicle: {vehicle}</p>}
+                        {getMessageText(message) && (
+                          <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed">{getMessageText(message)}</p>
+                        )}
+                      </div>
+                    </React.Fragment>
+                  );
+                }
 
                 if (!outbound && isLeadInquiryMessage(message, index)) {
                   /*
@@ -848,6 +1000,12 @@ export function ConversationView({
                 }
 
                 const text = cleanAggregatorText(getMessageText(message));
+                const channelLabel = CHANNEL_LABELS[channelOf(message, lead)] || "";
+                const deliveryLabel =
+                  message?.statusLabel && (outbound || channelOf(message, lead) === "email") && message?.status !== "failed"
+                    ? message.statusLabel
+                    : "";
+                const attachments: string[] = Array.isArray(message?.attachments) ? message.attachments : [];
                 const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
                 const aiMessageChannel =
                   message?.channel === "webchat" ||
@@ -893,7 +1051,28 @@ export function ConversationView({
                               : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100",
                           )}
                         >
-                          {text || "Message content unavailable"}
+                          {message?.channel === "email" && message?.subject && (
+                            <span className={cn("mb-1 block text-[12px] font-semibold", outbound ? "text-white/90" : "text-slate-600 dark:text-slate-300")}>
+                              {message.subject}
+                            </span>
+                          )}
+                          {text || (attachments.length ? "" : "Message content unavailable")}
+                          {attachments.length > 0 && (
+                            <span className={cn("mt-1.5 flex flex-wrap gap-1.5", text ? "" : "mt-0")}>
+                              {attachments.map((name) => (
+                                <span
+                                  key={name}
+                                  className={cn(
+                                    "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
+                                    outbound ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600 dark:bg-emerald-400/10 dark:text-slate-300",
+                                  )}
+                                >
+                                  <Paperclip className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{name}</span>
+                                </span>
+                              ))}
+                            </span>
+                          )}
                         </div>
 
                         <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
@@ -908,6 +1087,22 @@ export function ConversationView({
                             </>
                           )}
                           {senderLabel} · {formatTimestamp(stamp)}
+                          {channelLabel && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              {channelLabel === "Email" ? <Mail className="h-2.5 w-2.5" /> : channelLabel === "Web Chat" ? <MessageCircle className="h-2.5 w-2.5" /> : <MessageSquare className="h-2.5 w-2.5" />}
+                              {channelLabel}
+                            </span>
+                          )}
+                          {deliveryLabel && (
+                            <span
+                              className={cn(
+                                "text-[10px] font-medium",
+                                message?.status === "unconfirmed" ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-slate-500",
+                              )}
+                            >
+                              · {deliveryLabel}
+                            </span>
+                          )}
                           {isAiAgentMessage && (
                             <span className="inline-flex items-center gap-0.5 rounded-full bg-fuchsia-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-300">
                               <Bot className="h-2.5 w-2.5" />

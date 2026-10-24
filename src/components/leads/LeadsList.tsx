@@ -326,6 +326,19 @@ export const LeadsList = React.memo(
                               {lead.channel}
                             </span>
                           )}
+                          {lead?.intakeIdentity === "unverified" && (
+                            <span
+                              className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"
+                              title="Contact details were typed in by the visitor and not verified"
+                            >
+                              Unverified
+                            </span>
+                          )}
+                          {(lead?.inquiryCount || 0) > 1 && (
+                            <span className="rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                              {lead.inquiryCount} inquiries
+                            </span>
+                          )}
                           <StatusDot status={lead?.status} />
                           <AssigneeChip assignedTo={lead?.assignedTo} members={teamMembers} />
                           <span

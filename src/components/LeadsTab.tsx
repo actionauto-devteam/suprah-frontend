@@ -10,6 +10,7 @@ import {
   ChevronDown,
   CreditCard,
   Inbox,
+  ListChecks,
   Mail,
   Megaphone,
   MessageSquare,
@@ -69,6 +70,19 @@ import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
 import { ReschedulePickerDialog } from "@/components/leads/ReschedulePickerDialog";
 import { Appointment } from "@/types/appointment";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
+import { ClosedLeadComposer } from "@/components/leads/ClosedLeadComposer";
+import { LeadReviewDialog } from "@/components/leads/LeadReviewDialog";
+import { LinkLeadDialog } from "@/components/leads/LinkLeadDialog";
+import {
+  DELIVERY_LABELS,
+  conversationItemsToThread,
+  fetchLeadConversation,
+  laterStatus,
+  liveThreadMessage,
+  mergeThreadStatuses,
+  type LeadConversationMeta,
+} from "@/lib/api/leadConversation";
+import { getLeadReviewCount, type IntakeMode } from "@/lib/api/leadIntake";
 import {
   BulkReplyModal,
   BulkReplyRecipient,
@@ -86,6 +100,8 @@ const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
 const LEADS_PER_PAGE = 20;
 const THREAD_POLL_INTERVAL_MS = 15_000;
 const LIVE_THREAD_REFRESH_DELAY_MS = 400;
+
+type LiveLeadEvent = { leadId?: string; _id?: string; lead?: { _id?: string }; call?: { leadId?: string } };
 
 const phoneTail = (value: unknown): string => String(value || "").replace(/\D/g, "").slice(-10);
 const DRAFT_STORAGE_KEY = "crm-appointment-draft";
@@ -450,6 +466,14 @@ export function LeadsTab({
       setSearchQuery(decodeURIComponent(leadSearch));
       setAutoSelectOnSingleResult(true);
     }
+
+    if (params.get("review") === "1") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("review");
+      const remaining = url.searchParams.toString();
+      window.history.replaceState({}, "", url.pathname + (remaining ? `?${remaining}` : ""));
+      setReviewOpen(true);
+    }
   }, []);
 
   // -- React to pendingNav prop (same-page navigation from CustomerCredentials) --
@@ -579,6 +603,19 @@ export function LeadsTab({
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [isClosed, setIsClosed] = React.useState(false);
   const [threads, setThreads] = React.useState<Record<string, any[]>>({});
+  const [conversationMeta, setConversationMeta] = React.useState<Record<string, LeadConversationMeta & { status?: string }>>({});
+  const [threadLoadState, setThreadLoadState] = React.useState<Record<string, "loading" | "ready" | "error">>({});
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [reviewSummary, setReviewSummary] = React.useState<{ pending: number; canResolve: boolean; intakeMode: IntakeMode } | null>(null);
+  const [linkLeadOpen, setLinkLeadOpen] = React.useState(false);
+  const refreshReviewSummary = React.useCallback(() => {
+    getLeadReviewCount().then(setReviewSummary).catch(() => undefined);
+  }, []);
+  React.useEffect(() => {
+    refreshReviewSummary();
+    const intervalId = window.setInterval(refreshReviewSummary, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [refreshReviewSummary]);
   const selectedWebchatPolicy = selectedLead && isWebchatLead(selectedLead) ? webchatContactPolicy[selectedLead._id] : null;
   const selectedWebchatMessages = selectedLead ? threads[selectedLead._id] : undefined;
 
@@ -870,7 +907,26 @@ export function LeadsTab({
           addToast("success", "New lead received!");
         }
       });
-      socket.on("lead:update", () => refetch());
+      const scheduleSelectedRefresh = (leadId?: string | null) => {
+        const current = selectedLeadRef.current;
+        if (!current || !leadId || String(leadId) !== current._id) return;
+        if (liveThreadRefreshTimerRef.current) window.clearTimeout(liveThreadRefreshTimerRef.current);
+        liveThreadRefreshTimerRef.current = window.setTimeout(() => {
+          liveThreadRefreshTimerRef.current = null;
+          if (selectedLeadRef.current?._id !== current._id) return;
+          void fetchThreadRef.current?.(current);
+        }, LIVE_THREAD_REFRESH_DELAY_MS);
+      };
+
+      socket.on("lead:update", (data?: LiveLeadEvent) => {
+        refetch();
+        scheduleSelectedRefresh(data?.leadId || data?._id);
+      });
+      socket.on("comm:call:incoming", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
+      socket.on("comm:call:update", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
+      socket.on("lead:review", () => {
+        getLeadReviewCount().then(setReviewSummary).catch(() => undefined);
+      });
 
       /*
        * Shared SMS pipeline: when any teammate's message (or an inbound
@@ -880,13 +936,13 @@ export function LeadsTab({
       socket.on("comm:message:new", (data: any) => {
         const message = data?.message;
         if (!message) return;
-        const leadId = message?.leadId || data?.conversation?.leadId;
+        const leadId = message?.leadId;
         if (leadId) {
           setThreads((previous) => {
             const existing = previous[leadId];
             if (!existing) return previous;
             if (existing.some((m: any) => m?._id === message._id)) return previous;
-            return { ...previous, [leadId]: [...existing, message] };
+            return { ...previous, [leadId]: [...existing, liveThreadMessage(message, "sms")] };
           });
         }
 
@@ -895,7 +951,7 @@ export function LeadsTab({
           data?.conversation?.customerPhone ||
           (message.direction === "inbound" ? message.from : message.to);
         const currentTail = phoneTail(current?.phone);
-        if (!current || !isSmsLead(current) || !currentTail || currentTail !== phoneTail(messagePhone)) return;
+        if (!current || !currentTail || currentTail !== phoneTail(messagePhone)) return;
         if (liveThreadRefreshTimerRef.current) window.clearTimeout(liveThreadRefreshTimerRef.current);
         liveThreadRefreshTimerRef.current = window.setTimeout(() => {
           liveThreadRefreshTimerRef.current = null;
@@ -916,7 +972,7 @@ export function LeadsTab({
             if (existing.some((m: { _id?: string }) => m?._id === message._id)) {
               return previous;
             }
-            return { ...previous, [leadId]: [...existing, message] };
+            return { ...previous, [leadId]: [...existing, liveThreadMessage(message, "webchat")] };
           });
         },
       );
@@ -931,9 +987,11 @@ export function LeadsTab({
             const idx = messages.findIndex((m: any) => m?._id === messageId);
             if (idx >= 0) {
               changed = true;
-              next[leadId] = messages.map((m: any) =>
-                m?._id === messageId ? { ...m, status } : m,
-              );
+              next[leadId] = messages.map((m: any) => {
+                if (m?._id !== messageId) return m;
+                const nextStatus = laterStatus(m?.status, status) || status;
+                return { ...m, status: nextStatus, statusLabel: DELIVERY_LABELS[nextStatus as keyof typeof DELIVERY_LABELS] || m?.statusLabel };
+              });
             } else {
               next[leadId] = messages;
             }
@@ -966,7 +1024,10 @@ export function LeadsTab({
       socket.on("webchat:ai_paused", handleAiPaused);
       socket.on("comm:ai_paused", handleAiPaused);
       socket.on("email:ai_paused", handleAiPaused);
-      socket.on("email:message:new", () => refetch());
+      socket.on("email:message:new", (data?: LiveLeadEvent) => {
+        refetch();
+        scheduleSelectedRefresh(data?.leadId || data?.lead?._id);
+      });
     };
     setupSocket();
     return () => {
@@ -985,6 +1046,9 @@ export function LeadsTab({
         socket.off("comm:ai_paused");
         socket.off("email:ai_paused");
         socket.off("email:message:new");
+        socket.off("comm:call:incoming");
+        socket.off("comm:call:update");
+        socket.off("lead:review");
       }
     };
   }, [getToken, currentPage, refetch]);
@@ -1119,6 +1183,64 @@ export function LeadsTab({
           [lead._id]: fallbackMessages,
         };
       });
+
+      setThreadLoadState((previous) =>
+        previous[lead._id] === "ready" ? previous : { ...previous, [lead._id]: "loading" },
+      );
+      try {
+        const data = await fetchLeadConversation(lead._id);
+        if (data?.items) {
+          const mapped = conversationItemsToThread(data.items, lead._id);
+          loadedThreadIdsRef.current.add(lead._id);
+          setThreads((previous) => ({
+            ...previous,
+            [lead._id]: mergeThreadStatuses(previous[lead._id], mapped),
+          }));
+          setConversationMeta((previous) => ({
+            ...previous,
+            [lead._id]: {
+              composer: data.composer,
+              earlier: data.earlier,
+              unavailableSources: data.unavailableSources || [],
+              unverified: Boolean(data.lead?.unverified),
+              nextCursor: data.nextCursor,
+              status: data.lead?.status,
+            },
+          }));
+          const channelState = data.channelState;
+          if (channelState) {
+            setSmsOptOutByLead((previous) =>
+              previous[lead._id] === channelState.sms.optedOut
+                ? previous
+                : { ...previous, [lead._id]: channelState.sms.optedOut },
+            );
+            const pause = isWebchatLead(lead)
+              ? channelState.webchat
+              : isSmsLead(lead)
+                ? channelState.sms
+                : channelState.email;
+            setAiAgentStatus((previous) => ({
+              ...previous,
+              [lead._id]: {
+                paused: Boolean(pause?.aiPausedAt),
+                pausedBy: pause?.aiPausedBy?.name,
+                autoPausedUntil: pause?.aiAutoPausedUntil || undefined,
+              },
+            }));
+            if (isWebchatLead(lead)) {
+              setWebchatContactPolicy((previous) => ({
+                ...previous,
+                [lead._id]: (channelState.webchat?.contactPolicy as WebchatContactPolicy | null) || null,
+              }));
+            }
+          }
+          setThreadLoadState((previous) => ({ ...previous, [lead._id]: "ready" }));
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to load the full conversation; using the channel thread:", error);
+        setThreadLoadState((previous) => ({ ...previous, [lead._id]: "error" }));
+      }
 
       if (isWebchatLead(lead)) {
         try {
@@ -1419,6 +1541,12 @@ export function LeadsTab({
         console.error("Failed to mark lead as read:", error);
       });
     }
+  };
+
+  const openLeadById = (leadId: string) => {
+    const found = leads.find((lead) => lead._id === leadId);
+    if (found) setSelectedLead(found);
+    else setPendingLeadId(leadId);
   };
 
   const handleSend = async (
@@ -2092,6 +2220,22 @@ export function LeadsTab({
               <span className="hidden sm:inline">Add Lead</span>
             </button>
 
+            {((reviewSummary?.pending || 0) > 0 || reviewSummary?.canResolve) && (
+              <button
+                onClick={() => setReviewOpen(true)}
+                className="ss4-pill-btn relative flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+                title="Needs review"
+              >
+                <ListChecks className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                <span className="hidden sm:inline">Needs review</span>
+                {(reviewSummary?.pending || 0) > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white sm:static sm:h-4">
+                    {reviewSummary!.pending > 99 ? "99+" : reviewSummary!.pending}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => router.push("/crm/campaigns")}
               className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
@@ -2446,8 +2590,22 @@ export function LeadsTab({
                         : null
                     }
                     onToggleAiAgent={() => toggleAiAgent(selectedLead)}
+                    conversationMeta={conversationMeta[selectedLead._id] || null}
+                    loadState={threadLoadState[selectedLead._id] || "ready"}
+                    onRetryLoad={() => void fetchThread(selectedLead)}
+                    onLinkUnverified={reviewSummary?.canResolve ? () => setLinkLeadOpen(true) : undefined}
                   />
 
+                  {conversationMeta[selectedLead._id]?.composer?.blocked &&
+                  conversationMeta[selectedLead._id]?.status === selectedLead.status ? (
+                    <ClosedLeadComposer
+                      leadId={selectedLead._id}
+                      status={selectedLead.status}
+                      onOpenLead={openLeadById}
+                      onReopen={(reason) => handleStatus("Pending", reason)}
+                      onNotice={addToast}
+                    />
+                  ) : (
                   <ReplySection
                     isClosed={isClosed}
                     replyMessage={replyMessage}
@@ -2517,6 +2675,7 @@ export function LeadsTab({
                     }}
                     isSavingNote={isAddingNote}
                   />
+                  )}
                 </>
               ) : (
                 <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
@@ -2665,6 +2824,27 @@ export function LeadsTab({
       )}
 
       <AddLeadModal isOpen={addLeadOpen} onOpenChange={setAddLeadOpen} />
+      <LeadReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        onOpenLead={openLeadById}
+        onChanged={() => {
+          refreshReviewSummary();
+          refetch();
+        }}
+      />
+      {selectedLead && (
+        <LinkLeadDialog
+          open={linkLeadOpen}
+          onOpenChange={setLinkLeadOpen}
+          leadId={selectedLead._id}
+          onLinked={(targetLeadId) => {
+            addToast("success", "Chat linked to the lead.");
+            refetch();
+            openLeadById(targetLeadId);
+          }}
+        />
+      )}
 
       <StatusReasonModal
         open={Boolean(contactReasonRequest)}
