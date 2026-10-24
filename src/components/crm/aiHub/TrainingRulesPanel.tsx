@@ -61,7 +61,7 @@ function LegacyCoaching({ getToken }: { getToken: () => Promise<string | null> }
   return (
     <HubCard
       title="Legacy coaching"
-      description="Coaching saved before training proposals. Alex still uses the active ones. Read-only here; managers can disable them from the conversation Coach button."
+      description="Coaching saved before training proposals. The AI Agent still uses the active ones. Read-only here; managers can disable them from the conversation Coach button."
       icon={<BookOpen className="h-4 w-4 text-primary" />}
     >
       <HubState loading={!rules && !error} error={error} empty={rules && !rules.length ? "No legacy coaching." : false}>
@@ -73,7 +73,7 @@ function LegacyCoaching({ getToken }: { getToken: () => Promise<string | null> }
                   ? "rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-300"
                   : "rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 font-semibold text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"}
                 >
-                  {rule.status === "active" ? "Active · used by Alex" : "Disabled"}
+                  {rule.status === "active" ? "Active · used by the AI Agent" : "Disabled"}
                 </span>
                 <span>{rule.createdByName || "Team member"}</span>
                 <span className="ml-auto">{formatHubDate(rule.updatedAt)}</span>
@@ -138,8 +138,8 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
       <HubCard
         title="Training rules"
         description={info.canReview
-          ? "Training rules and coaching ideas from your team wait here for review. Nothing changes Alex until it is approved and published."
-          : "Propose how Alex should handle common customer questions. A manager reviews them, and nothing changes Alex until it is approved and published."}
+          ? "Training rules and coaching ideas from your team wait here for review. Nothing changes the AI Agent until it is approved and published."
+          : "Propose how the AI Agent should handle common customer questions. A manager reviews them, and nothing changes the AI Agent until it is approved and published."}
         icon={<GraduationCap className="h-4 w-4 text-primary" />}
         action={(
           <div className="flex items-center gap-3">
@@ -169,7 +169,7 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
               </span>
             </div>
             {info.canReview && Boolean(info.pendingReviewCount) && (
-              <p>{info.pendingReviewCount} coaching idea{info.pendingReviewCount === 1 ? " is" : "s are"} waiting for review and will appear here once training is on. They are not changing Alex.</p>
+              <p>{info.pendingReviewCount} coaching idea{info.pendingReviewCount === 1 ? " is" : "s are"} waiting for review and will appear here once training is on. They are not changing the AI Agent.</p>
             )}
           </div>
         ) : (
@@ -210,7 +210,7 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
               error={proposals.error}
               onRetry={proposals.reload}
               empty={proposals.data && !proposals.data.proposals.length
-                ? (info.canReview ? "No proposals yet. Use New rule, or coaching from reps will show up here." : "You have not proposed any rules yet. Use New rule, or Coach your AI on an Alex reply.")
+                ? (info.canReview ? "No proposals yet. Use New rule, or coaching from reps will show up here." : "You have not proposed any rules yet. Use New rule, or Coach your AI on an AI Agent reply.")
                 : false}
             >
               {proposals.data && (

@@ -4,10 +4,13 @@ import * as React from "react"
 import Link from "next/link"
 import { ChevronRight, Loader2, Settings2 } from "lucide-react"
 import { toast } from "sonner"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { apiClient } from "@/lib/api-client"
 import type { CrmLeadGroup } from "@/hooks/useCrmLeadGroups"
+import { refreshAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
+import { AI_AGENT_NAME_MAX_LENGTH, cleanAiAgentName, isValidAiAgentName } from "@/lib/aiAgentIdentity"
 import { HubCard } from "./ShadowStatusBadge"
 
 export interface AgentSettingsValues {
@@ -38,6 +41,7 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
   const [fallbackGroupId, setFallbackGroupId] = React.useState(initial.fallbackGroupId)
   const [followUpIntervalHours, setFollowUpIntervalHours] = React.useState(initial.followUpIntervalHours)
   const [saving, setSaving] = React.useState(false)
+  const queryClient = useQueryClient()
 
   React.useEffect(() => {
     setAgentName(initial.agentName)
@@ -47,18 +51,24 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
 
   const activeGroups = groups.filter((group) => group.isActive)
   const unknownGroup = Boolean(fallbackGroupId) && !activeGroups.some((group) => group._id === fallbackGroupId)
-  const dirty = agentName.trim() !== initial.agentName
+  const cleanedName = cleanAiAgentName(agentName)
+  const nameInvalid = Boolean(cleanedName) && !isValidAiAgentName(cleanedName)
+  const dirty = cleanedName !== initial.agentName
     || fallbackGroupId !== initial.fallbackGroupId
     || followUpIntervalHours !== initial.followUpIntervalHours
   const disabled = !isAdmin || !ready || saving
-  const displayName = agentName.trim() || "the agent"
+  const displayName = cleanedName && !nameInvalid ? cleanedName : "the AI Agent"
 
   const save = async () => {
     if (!isAdmin || !ready) return
+    if (nameInvalid) {
+      toast.error("Save failed", { description: "The AI Agent name needs at least one letter." })
+      return
+    }
     setSaving(true)
     try {
       const token = await getToken()
-      const name = agentName.trim() || "Alex"
+      const name = cleanedName
       const intervalHours = normalizeFollowUpHours(followUpIntervalHours)
       await apiClient.patch(
         "/api/crm/org-settings",
@@ -68,6 +78,7 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
       setAgentName(name)
       setFollowUpIntervalHours(intervalHours)
       onSaved({ agentName: name, fallbackGroupId, followUpIntervalHours: intervalHours })
+      void refreshAiAgentIdentity(queryClient)
       toast.success("AI agent settings saved")
     } catch (error) {
       const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -93,16 +104,27 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
 
         <div className="max-w-xl space-y-1.5">
           <label htmlFor="agent-settings-name" className="text-xs font-semibold">Agent name</label>
-          <p className="text-[11px] text-muted-foreground/70">The name customers see on every reply it sends.</p>
+          <p className="text-[11px] text-muted-foreground/70">Required for every AI feature. Customers see this name on AI replies, and your team sees it on drafts and labels.</p>
           <Input
             id="agent-settings-name"
             disabled={disabled}
             value={agentName}
             onChange={(event) => setAgentName(event.target.value)}
-            maxLength={40}
-            placeholder="AI Agent Name"
+            maxLength={AI_AGENT_NAME_MAX_LENGTH}
+            placeholder="Enter a name"
+            aria-invalid={nameInvalid || undefined}
+            aria-describedby="agent-settings-name-hint"
             className="max-w-xs"
           />
+          {nameInvalid ? (
+            <p id="agent-settings-name-hint" role="alert" className="text-[11px] text-red-600 dark:text-red-400">Use at least one letter in the name.</p>
+          ) : !cleanedName ? (
+            <p id="agent-settings-name-hint" role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+              No name set. AI replies, introductions, follow-ups, and drafts stay off until you save a name. Manual sending still works.
+            </p>
+          ) : (
+            <p id="agent-settings-name-hint" className="text-[11px] text-muted-foreground/70">Saving a name does not turn AI on. Each channel still follows its operating mode above.</p>
+          )}
         </div>
 
         <div className="max-w-xl space-y-1.5">
@@ -141,7 +163,7 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
         </div>
 
         {isAdmin && (
-          <Button onClick={save} disabled={disabled || !dirty} className="h-9">
+          <Button onClick={save} disabled={disabled || !dirty || nameInvalid} className="h-9">
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save agent settings"}
           </Button>
         )}

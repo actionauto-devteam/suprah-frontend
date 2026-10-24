@@ -33,9 +33,9 @@ export const KNOWLEDGE_TOPIC_OPTIONS = [
 
 export const IMPORT_HANDLING_OPTIONS = [
   { value: "", label: "Decide during review" },
-  { value: "ai_handles", label: "Alex answers" },
-  { value: "ask_clarifying", label: "Alex asks clarifying questions first" },
-  { value: "escalate", label: "Alex hands off to a person" },
+  { value: "ai_handles", label: "AI Agent answers" },
+  { value: "ask_clarifying", label: "AI Agent asks clarifying questions first" },
+  { value: "escalate", label: "AI Agent hands off to a person" },
 ] as const
 
 export const SOURCE_STATUS_NOTE = "Podium's On/Off is kept as a note only. Nothing imported turns on in Suprah."
@@ -80,7 +80,7 @@ export type ImportGroup = "proposal" | "knowledge" | "reference" | "skipped" | "
 export const IMPORT_GROUPS: Array<{ value: ImportGroup; label: string; description: string; statuses: ImportStatus[] }> = [
   { value: "location", label: "Needs a location", description: "Choose a location or confirm All locations before saving.", statuses: ["needs_location"] },
   { value: "proposal", label: "Draft proposals", description: "Saved as draft training rules. A manager reviews them; nothing is active.", statuses: ["ready", "ready_with_warnings", "changed"] },
-  { value: "knowledge", label: "Knowledge Base items", description: "FAQ and business information. They become Knowledge Base drafts for a manager to review. Not used by Alex.", statuses: ["parked_knowledge"] },
+  { value: "knowledge", label: "Knowledge Base items", description: "FAQ and business information. They become Knowledge Base drafts for a manager to review. Not used by the AI Agent.", statuses: ["parked_knowledge"] },
   { value: "reference", label: "Inactive references", description: "Templates, automations and other items kept for reference only.", statuses: ["reference_only", "unsupported"] },
   { value: "skipped", label: "Skipped", description: "Already imported with the same content, or repeated in this file.", statuses: ["unchanged", "duplicate_in_file"] },
   { value: "held", label: "Held back", description: "Not converted. Fix the issues and import these rows again.", statuses: ["blocked_privacy", "blocked_guardrail", "blocked_safety_bypass", "invalid"] },
@@ -203,7 +203,7 @@ export const KNOWLEDGE_IMPORT_TONES: Record<KnowledgeImportState, string> = {
 
 export function knowledgeGroupDescription(enabled: boolean): string {
   return enabled
-    ? "FAQ and business information. Saving turns them into Knowledge Base drafts for a manager to review. Not used by Alex."
+    ? "FAQ and business information. Saving turns them into Knowledge Base drafts for a manager to review. Not used by the AI Agent."
     : "FAQ and business information. The Knowledge Base is off, so they are kept here until an admin turns it on."
 }
 
@@ -396,7 +396,7 @@ export const PASTE_FORMAT_HELP = [
   "Entries with a Q: and no Type: are imported as FAQs.",
 ]
 
-export const PASTE_PLACEHOLDER = "Type: faq\nLocation: (Podium location)\nStatus: On\nQ: (question from Podium)\nA: (answer from Podium)\n---\nType: rule\nTitle: (short title)\nQ: (what the customer asks)\nA: (how Alex should respond)"
+export const PASTE_PLACEHOLDER = "Type: faq\nLocation: (Podium location)\nStatus: On\nQ: (question from Podium)\nA: (answer from Podium)\n---\nType: rule\nTitle: (short title)\nQ: (what the customer asks)\nA: (how the AI Agent should respond)"
 
 export function downloadText(fileName: string, content: string, type: string): void {
   const url = URL.createObjectURL(new Blob([content], { type }))

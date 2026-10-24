@@ -5,6 +5,7 @@ import { Bot, Check, Loader2, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { fmtLongDateTimeMDT } from "@/lib/timezone";
+import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity";
 
 interface AiAgentTask {
   id: string;
@@ -17,22 +18,7 @@ export function AiAgentTasksSection({ leadId }: { leadId?: string }) {
   const { getToken } = useAuth();
   const [tasks, setTasks] = React.useState<AiAgentTask[]>([]);
   const [busyId, setBusyId] = React.useState("");
-  const [agentName, setAgentName] = React.useState("Alex");
-
-  React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const t = await getToken();
-        const res = await apiClient.get("/api/crm/org-settings", { headers: { Authorization: `Bearer ${t}` } });
-        const data = res.data?.data || res.data;
-        if (!cancelled && data?.aiAgentName) setAgentName(data.aiAgentName);
-      } catch {
-        // Keep the "Alex" fallback if settings can't be loaded.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [getToken]);
+  const agentName = useAiAgentIdentity().displayName;
 
   const loadTasks = React.useCallback(async () => {
     if (!leadId) return;

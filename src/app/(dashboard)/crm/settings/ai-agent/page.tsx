@@ -26,6 +26,7 @@ import { useTrainingStatus } from "@/hooks/useAiTraining"
 import { canViewAiHub, SHADOW_DRAFT_STATUSES } from "@/lib/aiShadowDrafts"
 import { AI_CHANNELS } from "@/lib/aiOperatingModes"
 import type { ShadowDraftFilters } from "@/hooks/useAiShadowDrafts"
+import { AI_AGENT_NAME_REQUIRED_MESSAGE, aiAgentDisplayName, configuredAiAgentName } from "@/lib/aiAgentIdentity"
 
 const HUB_TABS = [
   { value: "overview", label: "Overview" },
@@ -68,7 +69,7 @@ function AiAgentHubContent() {
   const { getToken } = useAuth()
   const [user, setUser] = React.useState<CrmUserData | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
-  const [settings, setSettings] = React.useState<AiAgentSettingsSummary>({ agentName: "Alex" })
+  const [settings, setSettings] = React.useState<AiAgentSettingsSummary>({ agentName: "" })
   const [fallbackGroupId, setFallbackGroupId] = React.useState("")
   const [settingsReady, setSettingsReady] = React.useState(false)
   const { groups } = useCrmLeadGroups()
@@ -94,7 +95,7 @@ function AiAgentHubContent() {
           const data = settingsRes ? (settingsRes.data?.data || settingsRes.data) : null
           if (data) {
             setSettings({
-              agentName: String(data.aiAgentName || "").trim() || "Alex",
+              agentName: configuredAiAgentName(data.aiAgentName) || "",
               followUpIntervalHours: typeof data.aiFollowUpIntervalHours === "number" ? data.aiFollowUpIntervalHours : undefined,
             })
             setFallbackGroupId(data.aiHandoffFallbackGroupId || "")
@@ -123,6 +124,7 @@ function AiAgentHubContent() {
   const draftId = searchParams.get("draft")
   const filters = React.useMemo(() => readFilters(new URLSearchParams(searchParams.toString())), [searchParams])
   const fallbackGroupName = groups.find((group) => group._id === fallbackGroupId)?.name
+  const agentLabel = aiAgentDisplayName(settings.agentName || null)
 
   const updateParams = React.useCallback((patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams(searchParams.toString())
@@ -165,7 +167,7 @@ function AiAgentHubContent() {
           </Button>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">AI Agent &amp; Automation</h1>
-            <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">Status, operating modes, and Shadow Training for {settings.agentName}</p>
+            <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">Status, operating modes, and Shadow Training for {agentLabel}</p>
           </div>
           <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full capitalize font-semibold ml-auto hidden sm:inline-flex shrink-0">
             {user.role}
@@ -178,6 +180,16 @@ function AiAgentHubContent() {
           </div>
 
           <div className="lg:col-span-9 min-w-0 space-y-4">
+            {allowed && settingsReady && !settings.agentName && (
+              <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-200">
+                <span className="min-w-0 flex-1">{AI_AGENT_NAME_REQUIRED_MESSAGE} AI replies, follow-ups, and drafts stay off until a name is saved. Manual sending still works.</span>
+                {tab !== "modes" && (
+                  <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" onClick={() => setTab("modes")}>
+                    Set the name
+                  </Button>
+                )}
+              </div>
+            )}
             <Tabs value={tab} onValueChange={setTab} className="gap-4">
               <div className="-mx-1 overflow-x-auto px-1 pb-1">
                 <TabsList className="w-max">
@@ -224,7 +236,7 @@ function AiAgentHubContent() {
                 <TabsContent value="modes" className="space-y-4">
                   <HubCard title="Operating modes" description="Choose, per channel, whether the AI agent is off, in training, or replying live." icon={<Bot className="h-4 w-4 text-primary" />}>
                     {!isAdmin && <p className="mb-3 text-[11px] text-muted-foreground/70">You can view the modes. Only admins can change them.</p>}
-                    <AiOperatingModesPanel getToken={getHubToken} isAdmin={isAdmin} agentName={settings.agentName} />
+                    <AiOperatingModesPanel getToken={getHubToken} isAdmin={isAdmin} agentName={agentLabel} />
                   </HubCard>
                   <AgentSettingsPanel
                     getToken={getHubToken}

@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  ArrowLeft,
   ArrowRight,
   ArrowUpDown,
   CheckSquare,
@@ -17,7 +16,6 @@ import {
   Moon,
   Plus,
   Loader2,
-  PanelRightOpen,
   RefreshCw,
   Search,
   Sun,
@@ -27,6 +25,7 @@ import { useRouter } from "next/navigation"
 import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
+import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal"
@@ -219,34 +218,6 @@ const isEmailLead = (lead: Lead | null | undefined): boolean => {
   return Boolean(lead.email);
 };
 
-const buildDraftThreadContext = (
-  messages: Array<Record<string, unknown>>,
-): Array<{ direction: "inbound" | "outbound"; text: string }> =>
-  messages
-    .filter((message) => message.isLeadFallback !== true)
-    .slice(-8)
-    .map((message) => {
-      const text = [
-        message.body,
-        message.text,
-        message.message,
-        message.content,
-        message.snippet,
-      ].find(
-        (value): value is string =>
-          typeof value === "string" && value.trim().length > 0,
-      );
-
-      return {
-        direction:
-          message.direction === "outbound" || message.isOwn === true
-            ? ("outbound" as const)
-            : ("inbound" as const),
-        text: (text || "").trim(),
-      };
-    })
-    .filter((message) => message.text.length > 0);
-
 type LeadSortOption = "newest" | "oldest" | "waiting_longest";
 type LeadsViewportMode = "narrow" | "compact" | "wide";
 
@@ -321,6 +292,7 @@ export function LeadsTab({
   onNavConsumed?: () => void;
 } = {}) {
   const { getToken, userId: currentUserId } = useAuth();
+  const aiAgentIdentity = useAiAgentIdentity();
   const { theme, toggleTheme } = useTheme();
 
   // Load the base styles first, then the Leads workspace overrides.
@@ -2669,47 +2641,16 @@ export function LeadsTab({
               onMouseEnter={() => setIsChatHovered(true)}
               onMouseLeave={() => setIsChatHovered(false)}
             >
-              {selectedLead && viewportMode !== "wide" && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedLead(null)}
-                  className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    borderColor: "var(--border-2)",
-                    color: "var(--text-secondary)",
-                  }}
-                  title="Back to leads"
-                  aria-label="Back to leads"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-              )}
-
-              {selectedLead && !showLeadDetails && (
-                <button
-                  type="button"
-                  onClick={() => setShowLeadDetails(true)}
-                  className="absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    borderColor: "var(--border-2)",
-                    color: "var(--text-secondary)",
-                  }}
-                  title="Show lead details"
-                  aria-label="Show lead details"
-                >
-                  <PanelRightOpen className="h-4 w-4" />
-                </button>
-              )}
-
               {selectedLead ? (
                 <>
                   <ConversationView
                     lead={selectedLead}
                     threads={threads[selectedLead._id] || []}
-                    hideConversationChrome={isChatHovered}
+                    hideConversationChrome={viewportMode === "wide" && isChatHovered}
                     onClose={() => setSelectedLead(null)}
+                    onBack={viewportMode !== "wide" ? () => setSelectedLead(null) : undefined}
+                    onShowDetails={!showLeadDetails ? () => setShowLeadDetails(true) : undefined}
+                    aiAgentName={aiAgentIdentity.displayName}
                     sourceEmail={LEADS_SOURCE_EMAIL}
                     siblingCount={
                       (selectedLead.vehicle as any)?.stock
@@ -2775,7 +2716,12 @@ export function LeadsTab({
                     replyUnavailableReason={replyUnavailableReason}
                     replyNoticeAction={null}
                     replyRecipientNote={webchatWindow.note ? { text: webchatWindow.note } : null}
-                    replyChannel={replyState.route === "email" ? "email" : "sms"}
+                    draftChannel={activeChannel}
+                    aiAgent={{
+                      name: aiAgentIdentity.name,
+                      loading: aiAgentIdentity.loading,
+                      failed: aiAgentIdentity.failed,
+                    }}
                     channelSelector={
                       directLeadSelected
                         ? {
@@ -2822,9 +2768,6 @@ export function LeadsTab({
                           }
                         : null
                     }
-                    threadContext={buildDraftThreadContext(
-                      threads[selectedLead._id] || [],
-                    )}
                     leadContext={{
                       firstName: selectedLead.firstName,
                       lastName: selectedLead.lastName,

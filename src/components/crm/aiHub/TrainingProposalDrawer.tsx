@@ -120,7 +120,7 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
       <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto p-0">
         <SheetHeader className="border-b border-border/40 px-4 py-4 sm:px-6">
           <SheetTitle className="pr-10 text-base">Training proposal</SheetTitle>
-          <SheetDescription className="text-xs">Proposals never change Alex until they are approved and published.</SheetDescription>
+          <SheetDescription className="text-xs">Proposals never change the AI Agent until they are approved and published.</SheetDescription>
         </SheetHeader>
         <div className="space-y-5 px-4 pb-8 sm:px-6">
           <HubState loading={loading} error={error} onRetry={reload}>
@@ -161,7 +161,7 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
                     {data.evaluation.preview.examples.map((example, index) => (
                       <div key={index} className="space-y-1 rounded-lg border border-border/50 bg-background p-2 text-xs">
                         <p className="break-words"><span className="font-semibold">Customer:</span> {example.customerMessage}</p>
-                        <p className="break-words"><span className="font-semibold">Alex:</span> {example.idealReply}</p>
+                        <p className="break-words"><span className="font-semibold">AI Agent:</span> {example.idealReply}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {example.checks.map((check) => (
                             <span key={check.channel} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]",
@@ -188,11 +188,11 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
                   </section>
                 ) : (
                 <section aria-labelledby="proposal-instruction" className="space-y-2">
-                  <h3 id="proposal-instruction" className="text-xs font-bold">Instruction for Alex</h3>
+                  <h3 id="proposal-instruction" className="text-xs font-bold">Instruction for the AI Agent</h3>
                   <p className="whitespace-pre-wrap break-words rounded-xl border border-border/50 bg-muted/20 p-3 text-sm">{current?.spec?.instruction}</p>
                   {current?.originalAiMessageSnapshot && (
                     <div className="rounded-xl border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide">Alex reply this was about</p>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide">AI Agent reply this was about</p>
                       <p className="whitespace-pre-wrap break-words">{current.originalAiMessageSnapshot}</p>
                     </div>
                   )}

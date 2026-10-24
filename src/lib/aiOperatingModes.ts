@@ -62,14 +62,14 @@ export const AI_MODE_LABELS: Record<AiMode, string> = {
   live: "Live",
 }
 
-export function describeAiMode(mode: AiMode, agentName = "Alex"): string {
+export function describeAiMode(mode: AiMode, agentName = "AI Agent"): string {
   if (mode === "live") return `${agentName} replies to customers automatically.`
   if (mode === "training" || mode === "testing") return `${agentName} does not send anything to customers. Your team handles every reply.`
   return `${agentName} is turned off for this channel.`
 }
 
-export function aiModeIndicatorLabel(mode: AiMode): string {
-  if (mode === "training" || mode === "testing") return "AI: Training — not sending"
-  if (mode === "off") return "AI: Off — not sending"
-  return "AI live"
+export function aiModeIndicatorLabel(mode: AiMode, agentName = "AI"): string {
+  if (mode === "training" || mode === "testing") return `${agentName}: Training — not sending`
+  if (mode === "off") return `${agentName}: Off — not sending`
+  return `${agentName} live`
 }

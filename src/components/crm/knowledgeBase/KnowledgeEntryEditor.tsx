@@ -109,7 +109,7 @@ export function KnowledgeEntryEditor({ target, locations, getToken, onClose, onS
         <SheetHeader className="border-b border-border/40 px-4 py-4 sm:px-6">
           <SheetTitle className="pr-10 text-base">{editing ? "Edit entry" : "New Knowledge Base entry"}</SheetTitle>
           <SheetDescription className="text-xs">
-            Saved as a draft. A manager or admin reviews it before it is approved. Approved entries are not used by Alex yet.
+            Saved as a draft. A manager or admin reviews it before it is approved. Approved entries are not used by the AI Agent yet.
           </SheetDescription>
         </SheetHeader>
 

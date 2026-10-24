@@ -21,13 +21,40 @@ import {
   AlertTriangle,
   Mail,
   MessageSquare,
+  MoreHorizontal,
 } from "lucide-react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
 import { REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
 import { StatusReasonModal } from "./StatusReasonModal";
 import { CannedReplyPicker } from "./CannedReplyPicker";
 import { LeadNoteComposer } from "./LeadNoteComposer";
-import { apiClient } from "@/lib/api-client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  describeAiDraftFailure,
+  requestAiAgentDraft,
+  type AiDraftChannel,
+} from "@/lib/api/aiAgentDraft";
+import {
+  insertIntoOpenComposer,
+  readAiDraft,
+  registerAiComposer,
+  updateAiDraft,
+  useAiDraftSlot,
+} from "@/lib/aiDraftStore";
+import {
+  AI_AGENT_NAME_REQUIRED_MESSAGE,
+  AI_AGENT_SETTINGS_HREF,
+  aiAgentDisplayName,
+} from "@/lib/aiAgentIdentity";
+import { refreshAiAgentIdentity } from "@/hooks/useAiAgentIdentity";
 
 interface ReplySectionProps {
   isClosed: boolean;
@@ -46,8 +73,8 @@ interface ReplySectionProps {
   replyUnavailableReason?: string | null;
   replyNoticeAction?: { label: string; onClick: () => void } | null;
   replyRecipientNote?: { text: string; actionLabel?: string; onAction?: () => void } | null;
-  replyChannel?: "email" | "sms";
-  threadContext?: Array<{ direction: "inbound" | "outbound"; text: string }>;
+  draftChannel?: AiDraftChannel | null;
+  aiAgent?: { name: string | null; loading?: boolean; failed?: boolean } | null;
   onAddNote?: (payload: { text: string; mentionedUserIds: string[]; mentionedGroupIds: string[] }) => Promise<void>;
   isSavingNote?: boolean;
   channelSelector?: ReplyChannelSelector | null;
@@ -131,19 +158,6 @@ const isImageFile = (file: File) =>
     getFileExtension(file.name),
   );
 
-const getDraftErrorMessage = (error: unknown) => {
-  const apiError = error as {
-    response?: { data?: { message?: string } };
-    message?: string;
-  };
-
-  return (
-    apiError?.response?.data?.message ||
-    apiError?.message ||
-    "Autrix could not write a draft. Please try again."
-  );
-};
-
 export const ReplySection = React.memo(
   ({
     isClosed,
@@ -162,15 +176,15 @@ export const ReplySection = React.memo(
     replyUnavailableReason = null,
     replyNoticeAction = null,
     replyRecipientNote = null,
-    replyChannel = "email",
-    threadContext,
+    draftChannel = null,
+    aiAgent = null,
     onAddNote,
     isSavingNote,
     channelSelector = null,
     emailSubject = null,
     sendNotice = null,
   }: ReplySectionProps) => {
-    const draftScope = channelSelector && leadId ? `${leadId}:${channelSelector.value}` : leadId;
+    const draftKey = leadId && draftChannel ? `${leadId}:${draftChannel}` : null;
     const smsSelected = channelSelector?.value === "sms";
     const subjectInputId = React.useId();
     const [reasonModal, setReasonModal] = React.useState<
@@ -213,69 +227,70 @@ export const ReplySection = React.memo(
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
     const emojiMenuRef = React.useRef<HTMLDivElement | null>(null);
 
-    const [drafting, setDrafting] = React.useState(false);
-    const [draftFailure, setDraftFailure] = React.useState<{
-      leadId?: string;
-      message: string;
-    } | null>(null);
-    const [draftedLeadId, setDraftedLeadId] = React.useState<string | null>(null);
-    const latestRef = React.useRef({ leadId: draftScope, replyMessage });
+    const queryClient = useQueryClient();
+    const draftSlot = useAiDraftSlot(draftKey);
+    const latestRef = React.useRef({ key: draftKey, replyMessage });
+    const setReplyRef = React.useRef(setReplyMessage);
 
     React.useEffect(() => {
-      latestRef.current = { leadId: draftScope, replyMessage };
-    }, [draftScope, replyMessage]);
+      latestRef.current = { key: draftKey, replyMessage };
+      setReplyRef.current = setReplyMessage;
+    }, [draftKey, replyMessage, setReplyMessage]);
 
-    const draftError =
-      draftFailure && draftFailure.leadId === draftScope ? draftFailure.message : "";
-    const aiDrafted =
-      Boolean(draftScope) && draftedLeadId === draftScope && replyMessage.trim().length > 0;
+    React.useEffect(
+      () =>
+        registerAiComposer({
+          key: draftKey,
+          text: () => latestRef.current.replyMessage,
+          insert: (draft) => setReplyRef.current(draft),
+        }),
+      [draftKey],
+    );
+
+    const agentLabel = aiAgentDisplayName(aiAgent?.name);
+    const identityPending = Boolean(aiAgent?.loading);
+    const nameMissing = Boolean(aiAgent) && !identityPending && !aiAgent?.failed && !aiAgent?.name;
+    const drafting = Boolean(draftSlot.inFlight);
+    const currentFailure = draftSlot.failure || null;
+    const currentPending = draftSlot.pending || null;
+    const currentNote = draftSlot.note || null;
+    const aiDrafted = Boolean(draftSlot.drafted) && replyMessage.trim().length > 0;
     const replyBlocked = Boolean(replyUnavailableReason);
+    const draftAvailable = Boolean(leadId && draftChannel && aiAgent);
     const showDraftChip =
-      Boolean(leadId) && !isSending && !replyBlocked && (drafting || !replyMessage.trim());
+      draftAvailable && !isSending && !replyBlocked && !currentPending && (drafting || !replyMessage.trim());
+    const showNameNotice =
+      draftAvailable && !replyBlocked && (nameMissing ? showDraftChip : Boolean(currentFailure?.nameRequired));
 
-    const handleAutrixDraft = async () => {
-      const requestedLeadId = draftScope;
-      if (!requestedLeadId || !leadId || drafting || isSending) return;
+    const handleAiDraft = async () => {
+      const key = draftKey;
+      if (!key || !leadId || !draftChannel || isSending || replyBlocked || identityPending || nameMissing) return;
+      if (readAiDraft(key).inFlight) return;
 
-      setDrafting(true);
-      setDraftFailure(null);
+      const baseline = latestRef.current.key === key ? latestRef.current.replyMessage : "";
+      updateAiDraft(key, { inFlight: true, failure: undefined, note: undefined });
 
       try {
-        const response = await apiClient.post("/api/supraleo/draft-lead-reply", {
-          leadId,
-          channel: replyChannel,
-          recentMessages: threadContext,
+        const result = await requestAiAgentDraft(leadId, draftChannel);
+        const inserted = insertIntoOpenComposer(key, baseline, result.draft);
+        updateAiDraft(key, {
+          inFlight: false,
+          note: result.note || undefined,
+          pending: inserted ? undefined : result.draft,
+          drafted: inserted || readAiDraft(key).drafted,
         });
-        const payload = response.data?.data || response.data;
-        const draft = String(payload?.draft || "").trim();
-        const latest = latestRef.current;
-
-        if (latest.leadId !== requestedLeadId) return;
-
-        if (!draft) {
-          setDraftFailure({
-            leadId: requestedLeadId,
-            message: "Autrix could not write a draft. Please try again.",
-          });
-          return;
-        }
-
-        setReplyMessage(
-          latest.replyMessage.trim()
-            ? `${latest.replyMessage.trimEnd()}\n\n${draft}`
-            : draft,
-        );
-        setDraftedLeadId(requestedLeadId);
       } catch (error) {
-        if (latestRef.current.leadId === requestedLeadId) {
-          setDraftFailure({
-            leadId: requestedLeadId,
-            message: getDraftErrorMessage(error),
-          });
-        }
-      } finally {
-        setDrafting(false);
+        const failure = describeAiDraftFailure(error);
+        updateAiDraft(key, { inFlight: false, failure });
+        if (failure.nameRequired) void refreshAiAgentIdentity(queryClient);
       }
+    };
+
+    const insertPendingDraft = () => {
+      if (!currentPending || !draftKey) return;
+      const current = latestRef.current.replyMessage;
+      setReplyMessage(current.trim() ? `${current.trimEnd()}\n\n${currentPending}` : currentPending);
+      updateAiDraft(draftKey, { pending: undefined, drafted: true });
     };
 
     const resizeTextarea = React.useCallback(() => {
@@ -286,10 +301,9 @@ export const ReplySection = React.memo(
       const lineHeight =
         Number.parseFloat(computedStyle.lineHeight) || 20;
       const minHeight = lineHeight * 2 + 20;
-      const maxHeight = Math.min(
-        Math.max(window.innerHeight * 0.34, 160),
-        320,
-      );
+      const maxHeight = window.innerWidth < 640
+        ? Math.min(Math.max(window.innerHeight * 0.24, 96), 200)
+        : Math.min(Math.max(window.innerHeight * 0.34, 160), 320);
 
       textarea.style.height = "auto";
 
@@ -319,6 +333,19 @@ export const ReplySection = React.memo(
         window.removeEventListener("resize", handleResize);
       };
     }, [resizeTextarea]);
+
+    React.useEffect(() => {
+      const textarea = textareaRef.current;
+      if (!textarea || typeof ResizeObserver === "undefined") return;
+      let lastWidth = textarea.clientWidth;
+      const observer = new ResizeObserver(() => {
+        if (textarea.clientWidth === lastWidth) return;
+        lastWidth = textarea.clientWidth;
+        window.requestAnimationFrame(resizeTextarea);
+      });
+      observer.observe(textarea);
+      return () => observer.disconnect();
+    }, [resizeTextarea, composerMode, isClosed]);
 
     const handleReasonConfirm = (reason: string) => {
       if (reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status") {
@@ -450,8 +477,9 @@ export const ReplySection = React.memo(
       }
 
       try {
+        const sentKey = draftKey;
         await onSend(attachments);
-        setDraftedLeadId(null);
+        if (sentKey) updateAiDraft(sentKey, { drafted: false, note: undefined });
         setAttachments([]);
         setAttachmentError("");
         setEmojiOpen(false);
@@ -494,7 +522,7 @@ export const ReplySection = React.memo(
     }
 
     return (
-      <div className="suprah-reply-section shrink-0 border-t border-slate-200 bg-slate-50 px-2 py-2.5 dark:border-emerald-400/15 dark:bg-[#0a1410] sm:px-4">
+      <div className="suprah-reply-section shrink-0 border-t border-slate-200 bg-slate-50 px-2 py-2 dark:border-emerald-400/15 dark:bg-[#0a1410] sm:px-4 sm:py-2.5">
         <div
           className={
             composerMode === "note"
@@ -503,7 +531,7 @@ export const ReplySection = React.memo(
           }
         >
           {composerMode === "reply" && channelSelector && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-slate-100 px-3 py-2 dark:border-emerald-400/10 sm:px-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-100 px-3 py-1.5 dark:border-emerald-400/10 sm:px-4 sm:py-2">
               <div
                 role="radiogroup"
                 aria-label="Send as"
@@ -565,21 +593,75 @@ export const ReplySection = React.memo(
           )}
 
           {composerMode === "reply" && showDraftChip && (
-            <div className="flex items-center border-b border-slate-100 px-3 pb-2 pt-2.5 dark:border-emerald-400/10">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-100 px-3 py-1.5 dark:border-emerald-400/10 sm:px-4">
               <button
                 type="button"
-                onClick={() => void handleAutrixDraft()}
-                disabled={drafting}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3.5 text-[12px] font-medium text-emerald-700 transition hover:bg-emerald-500/10 disabled:cursor-wait disabled:opacity-70 dark:text-emerald-300 sm:h-7"
-                title="Let Autrix write a first draft of your reply"
+                onClick={() => void handleAiDraft()}
+                disabled={drafting || identityPending || nameMissing}
+                className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3 text-[12px] font-medium text-emerald-700 transition hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300 sm:h-7"
+                title={
+                  nameMissing
+                    ? AI_AGENT_NAME_REQUIRED_MESSAGE
+                    : `Ask ${agentLabel} to suggest a reply. Nothing is sent until you press Send.`
+                }
                 aria-busy={drafting}
               >
                 {drafting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
                 ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
                 )}
-                {drafting ? "Writing a draft…" : "Draft with Autrix"}
+                <span className="truncate">{drafting ? `${agentLabel} is writing…` : `Draft with ${agentLabel}`}</span>
+              </button>
+              {drafting && (
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Nothing is sent. You can keep typing.
+                </span>
+              )}
+            </div>
+          )}
+
+          {composerMode === "reply" && showNameNotice && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-100 px-3 py-1.5 text-[11px] leading-snug text-slate-600 dark:border-emerald-400/10 dark:text-slate-300 sm:px-4"
+            >
+              <span className="min-w-0 flex-1">{AI_AGENT_NAME_REQUIRED_MESSAGE}</span>
+              <Link
+                href={AI_AGENT_SETTINGS_HREF}
+                className="shrink-0 font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300"
+              >
+                Open CRM Settings
+              </Link>
+            </div>
+          )}
+
+          {composerMode === "reply" && currentPending && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-2 border-b border-emerald-200/70 bg-emerald-50/60 px-3 py-1.5 text-[12px] leading-snug text-emerald-800 dark:border-emerald-400/15 dark:bg-emerald-400/[0.06] dark:text-emerald-200 sm:px-4"
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                {replyMessage.trim()
+                  ? `${agentLabel}'s suggestion is ready. Your text was kept.`
+                  : `${agentLabel}'s suggestion is ready.`}
+              </span>
+              <button
+                type="button"
+                onClick={insertPendingDraft}
+                className="shrink-0 rounded-md border border-emerald-500/40 bg-white px-2 py-0.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-50 dark:bg-transparent dark:text-emerald-300 dark:hover:bg-emerald-400/10"
+              >
+                Add suggestion
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (draftKey) updateAiDraft(draftKey, { pending: undefined });
+                }}
+                className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium text-slate-500 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Dismiss
               </button>
             </div>
           )}
@@ -694,7 +776,7 @@ export const ReplySection = React.memo(
               disabled={replyBlocked}
               onChange={(event) => {
                 setReplyMessage(event.target.value);
-                if (!event.target.value.trim()) setDraftedLeadId(null);
+                if (!event.target.value.trim() && draftKey && draftSlot.drafted) updateAiDraft(draftKey, { drafted: false });
                 window.requestAnimationFrame(resizeTextarea);
               }}
               placeholder="Write a reply…"
@@ -766,25 +848,45 @@ export const ReplySection = React.memo(
             </p>
           )}
 
-          {composerMode === "reply" && draftError && (
-            <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-500 dark:border-emerald-400/10">
-              {draftError}
-            </p>
+          {composerMode === "reply" && currentFailure && !currentFailure.nameRequired && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-2 text-xs text-red-600 dark:border-emerald-400/10 dark:text-red-400"
+            >
+              <span className="min-w-0 flex-1">{currentFailure.message}</span>
+              {currentFailure.retryable && (
+                <button
+                  type="button"
+                  onClick={() => void handleAiDraft()}
+                  disabled={drafting || isSending || replyBlocked}
+                  className="shrink-0 rounded-md border border-red-300 px-2 py-0.5 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10"
+                >
+                  {drafting ? "Retrying…" : "Retry"}
+                </button>
+              )}
+            </div>
           )}
 
-          {composerMode === "reply" && aiDrafted && !draftError && (
+          {composerMode === "reply" && aiDrafted && !currentFailure && (
             <p className="flex items-center gap-1.5 border-t border-slate-100 px-3 py-1.5 text-[11px] text-emerald-700 dark:border-emerald-400/10 dark:text-emerald-300">
               <Sparkles className="h-3 w-3 shrink-0" />
-              Drafted by Autrix — review and edit before sending.
+              Drafted by {agentLabel} — review and edit before sending.
             </p>
           )}
 
-          <div className="grid select-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-slate-100 px-2.5 py-2 dark:border-emerald-400/10 sm:flex sm:flex-wrap sm:items-center">
-            <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:flex sm:flex-1 sm:flex-wrap sm:items-center">
+          {composerMode === "reply" && currentNote && (
+            <p className="flex items-start gap-1.5 border-t border-slate-100 px-3 py-1.5 text-[11px] leading-snug text-slate-600 dark:border-emerald-400/10 dark:text-slate-300">
+              <StickyNote className="mt-px h-3 w-3 shrink-0 text-amber-500" />
+              <span className="min-w-0 [overflow-wrap:anywhere]">Staff only: {currentNote}</span>
+            </p>
+          )}
+
+          <div className="flex select-none items-center gap-2 border-t border-slate-100 px-2 py-1.5 dark:border-emerald-400/10 sm:flex-wrap sm:px-2.5 sm:py-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-wrap">
               <LeadStatusSelect
                 value={selectedLeadStatus}
                 excludeCurrent
-                triggerLabel="Status"
+                triggerLabel={<span className="max-[359px]:sr-only">Status</span>}
                 triggerIcon={<Circle className="h-3 w-3" />}
                 onChange={(status) =>
                   REASON_REQUIRED_STATUSES.includes(status)
@@ -796,7 +898,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={onApptOpen}
-                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <Calendar className="h-3 w-3" />
                 Schedule
@@ -806,7 +908,7 @@ export const ReplySection = React.memo(
                 <button
                   type="button"
                   onClick={onReschedule}
-                  className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                  className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
                 >
                   <CalendarClock className="h-3 w-3" />
                   Reschedule
@@ -824,14 +926,14 @@ export const ReplySection = React.memo(
                   }
                 >
                   <StickyNote className="h-3 w-3" />
-                  Note
+                  <span className="max-[359px]:sr-only">Note</span>
                 </button>
               )}
 
               <button
                 type="button"
                 onClick={onQuoteShipping}
-                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <Truck className="h-3 w-3" />
                 Quote
@@ -840,11 +942,57 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={() => setReasonModal({ kind: "status", status: "Closed" })}
-                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] font-medium text-red-500/80 transition hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] font-medium text-red-500/80 transition hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <XCircle className="h-3 w-3" />
                 Close
               </button>
+
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:hidden"
+                    title="More actions"
+                    aria-label="More actions"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-52">
+                  <DropdownMenuItem onSelect={onApptOpen}>
+                    <Calendar />
+                    Schedule
+                  </DropdownMenuItem>
+                  {onReschedule && (
+                    <DropdownMenuItem onSelect={onReschedule}>
+                      <CalendarClock />
+                      Reschedule
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onSelect={onQuoteShipping}>
+                    <Truck />
+                    Quote shipping
+                  </DropdownMenuItem>
+                  {composerMode === "reply" && (
+                    <DropdownMenuItem
+                      disabled={isSending || replyBlocked || smsSelected}
+                      onSelect={() => fileInputRef.current?.click()}
+                    >
+                      <Paperclip />
+                      {smsSelected ? "Attach file (email only)" : "Attach file"}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setReasonModal({ kind: "status", status: "Closed" })}
+                  >
+                    <XCircle />
+                    Close lead
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-1 self-stretch sm:ml-auto sm:self-auto">
@@ -856,7 +1004,7 @@ export const ReplySection = React.memo(
                     disabled={isSending}
                   />
 
-                  <div ref={emojiMenuRef} className="relative">
+                  <div ref={emojiMenuRef} className="relative hidden sm:block">
                     <button
                       type="button"
                       onClick={() => setEmojiOpen((previous) => !previous)}
@@ -900,7 +1048,7 @@ export const ReplySection = React.memo(
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSending || replyBlocked || smsSelected}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
+                    className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:inline-flex sm:h-7 sm:w-7"
                     title={smsSelected ? "Attachments can only be sent by email" : "Attach file (maximum 5 MB per file)"}
                     aria-label="Attach file"
                   >

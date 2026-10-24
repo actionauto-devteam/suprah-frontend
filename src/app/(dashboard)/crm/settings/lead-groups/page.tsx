@@ -163,7 +163,7 @@ export default function LeadGroupsSettingsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Named teams (like &quot;Online Team&quot; or &quot;Sales Team&quot;) that can be @mentioned on internal lead notes — by
-          reps, or by Alex when a lead has no assigned rep and a fallback group is configured.
+          reps, or by the AI Agent when a lead has no assigned rep and a fallback group is configured.
         </p>
       </div>
 

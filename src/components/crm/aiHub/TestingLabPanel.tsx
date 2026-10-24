@@ -68,8 +68,8 @@ export function TestingLabPanel({ getToken }: { getToken: GetToken }) {
       <HubCard
         title="Testing Lab"
         description={status?.canTestAllProposals
-          ? "Try any training proposal in your organization against made-up customer scenarios. Checks run on this server without AI. Nothing is sent, and Alex does not change."
-          : "Try your own training proposals against made-up customer scenarios. Checks run on this server without AI. Nothing is sent, and Alex does not change."}
+          ? "Try any training proposal in your organization against made-up customer scenarios. Checks run on this server without AI. Nothing is sent, and the AI Agent does not change."
+          : "Try your own training proposals against made-up customer scenarios. Checks run on this server without AI. Nothing is sent, and the AI Agent does not change."}
         icon={<FlaskConical className="h-4 w-4 text-primary" />}
         action={(
           <div className="flex flex-wrap items-center gap-2">
@@ -94,7 +94,7 @@ export function TestingLabPanel({ getToken }: { getToken: GetToken }) {
               <li>Results are advisory. They never approve, block or publish a rule, and they are not required for approval.</li>
               <li>A rules-only test is always incomplete, because no reply was checked. Incomplete is never a pass.</li>
               {usedMethods.map((method) => <li key={method.label}><span className="font-semibold text-foreground">{method.label}:</span> {method.description}</li>)}
-              <li>AI simulation is not available yet, so no result shows what Alex would actually write.</li>
+              <li>AI simulation is not available yet, so no result shows what the AI Agent would actually write.</li>
               {status && <li>Each result is saved exactly as it ran, can&apos;t be edited, and is deleted automatically after {status.retentionDays} days. Engine {status.engineVersion}.</li>}
             </ul>
           </details>

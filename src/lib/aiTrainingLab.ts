@@ -20,16 +20,16 @@ export const LAB_SCENARIO_LIMITS = {
 } as const
 
 export const LAB_EXPECTED_HANDLING = [
-  { value: "ai_handles", label: "Alex answers", description: "Alex should reply normally." },
-  { value: "ask_clarifying", label: "Alex asks clarifying questions first", description: "Alex should ask before answering." },
-  { value: "escalate", label: "Alex hands off to a person", description: "Alex should not answer; staff take over." },
-  { value: "safety_stop", label: "Safety stop", description: "Alex should stay quiet, for example after STOP." },
+  { value: "ai_handles", label: "AI Agent answers", description: "The AI Agent should reply normally." },
+  { value: "ask_clarifying", label: "AI Agent asks clarifying questions first", description: "The AI Agent should ask before answering." },
+  { value: "escalate", label: "AI Agent hands off to a person", description: "The AI Agent should not answer; staff take over." },
+  { value: "safety_stop", label: "Safety stop", description: "The AI Agent should stay quiet, for example after STOP." },
 ] as const
 export type LabExpectedHandling = (typeof LAB_EXPECTED_HANDLING)[number]["value"]
 
 export const LAB_TURN_AUTHORS = [
   { value: "customer", label: "Customer" },
-  { value: "alex", label: "Alex" },
+  { value: "alex", label: "AI Agent" },
   { value: "staff", label: "Staff" },
 ] as const
 export type LabTurnAuthor = (typeof LAB_TURN_AUTHORS)[number]["value"]
@@ -77,7 +77,7 @@ export const LAB_METHODS: Record<LabCheckMethod, { label: string; description: s
   },
   approximate: {
     label: "Approximate",
-    description: "Word matching only. It is not proof of what Alex would say.",
+    description: "Word matching only. It is not proof of what the AI Agent would say.",
     style: "border-amber-300 text-amber-700 dark:border-amber-400/40 dark:text-amber-300",
   },
   local_mock_screening: {
@@ -105,7 +105,7 @@ export const LAB_VERDICTS: Record<LabVerdict, { label: string; description: stri
   },
   checks_passed: {
     label: "Checks passed",
-    description: "Every check that ran passed. This does not prove what Alex will say to a real customer.",
+    description: "Every check that ran passed. This does not prove what the AI Agent will say to a real customer.",
     style: LAB_CHECK_STATUS_STYLES.pass,
   },
 }

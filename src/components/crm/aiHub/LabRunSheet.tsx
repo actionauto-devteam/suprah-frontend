@@ -193,7 +193,7 @@ export function LabRunSheet({ target, getToken, onClose, onRan }: {
         <SheetHeader className="border-b border-border/40 px-4 py-4 sm:px-6">
           <SheetTitle className="pr-10 text-base">Run a test</SheetTitle>
           <SheetDescription className="text-xs">
-            Checks a training proposal against made-up scenarios on this server. No AI is used, nothing is sent and Alex does not change.
+            Checks a training proposal against made-up scenarios on this server. No AI is used, nothing is sent and the AI Agent does not change.
           </SheetDescription>
         </SheetHeader>
 

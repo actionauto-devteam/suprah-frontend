@@ -79,10 +79,10 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
       const created = response.data?.data || response.data;
       setInstruction("");
       if (created?.pending) {
-        setMessage("Sent to a manager for review. It won't change Alex's replies unless it's approved.");
+        setMessage("Sent to a manager for review. It won't change the AI Agent's replies unless it's approved.");
       } else {
         setRules((current) => [created, ...current].filter(Boolean));
-        setMessage("Saved for future Alex replies.");
+        setMessage("Saved for future AI Agent replies.");
       }
     } catch (error: unknown) {
       setMessage(errorMessageOf(error, "Could not save coaching."));
@@ -128,8 +128,8 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
               <p className="text-[13px] font-bold">Coach your AI</p>
               <p className="text-[11px] text-amber-700 dark:text-amber-200/80">
                 {canManage
-                  ? "Applies to future Alex replies for this dealership."
-                  : "Your suggestion goes to a manager for review before it can change Alex."}
+                  ? "Applies to future AI Agent replies for this dealership."
+                  : "Your suggestion goes to a manager for review before it can change the AI Agent."}
               </p>
             </div>
           </div>

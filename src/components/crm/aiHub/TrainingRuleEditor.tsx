@@ -192,14 +192,14 @@ export function TrainingRuleEditor({ target, getToken, onClose, onSaved }: {
         <SheetHeader className="border-b border-border/40 px-4 py-4 sm:px-6">
           <SheetTitle className="pr-10 text-base">{title}</SheetTitle>
           <SheetDescription className="text-xs">
-            Describe how Alex should handle a common customer inquiry. Rules are proposals; Alex does not use them until a later release publishes approved rules.
+            Describe how the AI Agent should handle a common customer inquiry. Rules are proposals; the AI Agent does not use them until a later release publishes approved rules.
           </SheetDescription>
         </SheetHeader>
 
         <form className="space-y-5 px-4 py-5 sm:px-6" onSubmit={(event) => event.preventDefault()} aria-label="Training rule">
           <div className="flex items-start gap-2 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-[11px] text-sky-800 dark:text-sky-200">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>Mandatory checks always run first. Requests for a person, questions about talking to AI, opt-outs, compliance limits and technical failures pause Alex no matter what a rule says.</span>
+            <span>Mandatory checks always run first. Requests for a person, questions about talking to AI, opt-outs, compliance limits and technical failures pause the AI Agent no matter what a rule says.</span>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -240,7 +240,7 @@ export function TrainingRuleEditor({ target, getToken, onClose, onSaved }: {
             <FieldIssues errors={errors} warnings={warnings} field="handling" />
           </fieldset>
 
-          <Field id="rule-instruction" label="Response guidance" hint="How Alex should respond in this situation.">
+          <Field id="rule-instruction" label="Response guidance" hint="How the AI Agent should respond in this situation.">
             <Textarea id="rule-instruction" rows={4} maxLength={L.instruction} value={form.instruction} onChange={(event) => set("instruction", event.target.value)} className="resize-y" />
             <p className="text-right text-[10px] text-muted-foreground">{form.instruction.length}/{L.instruction}</p>
             <FieldIssues errors={errors} warnings={warnings} field="instruction" />
@@ -263,7 +263,7 @@ export function TrainingRuleEditor({ target, getToken, onClose, onSaved }: {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="rule-escalation-when" label="Escalation conditions" hint="When Alex should hand off.">
+            <Field id="rule-escalation-when" label="Escalation conditions" hint="When the AI Agent should hand off.">
               <Textarea id="rule-escalation-when" rows={2} maxLength={L.escalationWhen} value={form.escalation.when} onChange={(event) => set("escalation", { ...form.escalation, when: event.target.value })} className="resize-y" />
               <FieldIssues errors={errors} warnings={warnings} field="escalation.when" />
             </Field>
@@ -343,7 +343,7 @@ export function TrainingRuleEditor({ target, getToken, onClose, onSaved }: {
                 {evaluation.preview.examples.map((example, index) => (
                   <div key={index} className="space-y-1 rounded-lg border border-border/50 bg-background p-2 text-xs">
                     <p className="break-words"><span className="font-semibold">Customer:</span> {example.customerMessage}</p>
-                    <p className="break-words"><span className="font-semibold">Alex:</span> {example.idealReply}</p>
+                    <p className="break-words"><span className="font-semibold">AI Agent:</span> {example.idealReply}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {example.checks.map((check) => (
                         <span key={check.channel} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]",

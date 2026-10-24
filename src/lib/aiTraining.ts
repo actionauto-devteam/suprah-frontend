@@ -39,7 +39,7 @@ export const TRAINING_SOURCE_LABELS: Record<string, string> = {
   coaching_submission: "From Coach your AI",
   manual: "Written in Settings",
   draft_evaluation: "From a draft rating",
-  train_alex: "From Train Alex",
+  train_alex: "From Coach your AI",
   podium_import: "Imported from Podium",
 }
 
@@ -92,9 +92,9 @@ export const TRAINING_RULE_CATEGORIES = [
 ] as const
 
 export const TRAINING_RULE_HANDLING = [
-  { value: "ai_handles", label: "Alex answers", description: "Only after the mandatory safety checks pass." },
-  { value: "ask_clarifying", label: "Alex asks clarifying questions first", description: "Alex asks the follow-up questions before answering." },
-  { value: "escalate", label: "Alex hands off to a person", description: "Alex does not answer; staff take over." },
+  { value: "ai_handles", label: "AI Agent answers", description: "Only after the mandatory safety checks pass." },
+  { value: "ask_clarifying", label: "AI Agent asks clarifying questions first", description: "The AI Agent asks the follow-up questions before answering." },
+  { value: "escalate", label: "AI Agent hands off to a person", description: "The AI Agent does not answer; staff take over." },
 ] as const
 export type TrainingRuleHandling = (typeof TRAINING_RULE_HANDLING)[number]["value"]
 

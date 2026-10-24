@@ -85,11 +85,11 @@ export function DraftEvaluationSection({ draftId, getToken }: { draftId: string;
             onChange={(event) => setCorrectedReply(event.target.value)}
             maxLength={1000}
             rows={3}
-            placeholder="Optional: how Alex should have replied"
+            placeholder="Optional: how the AI Agent should have replied"
             className="resize-none text-sm"
           />
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] text-muted-foreground">Ratings are private to managers and admins and kept for one year. They do not change Alex.</p>
+            <p className="text-[10px] text-muted-foreground">Ratings are private to managers and admins and kept for one year. They do not change the AI Agent.</p>
             <Button size="sm" onClick={save} disabled={!rating || saving}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : mine ? "Update rating" : "Save rating"}
             </Button>

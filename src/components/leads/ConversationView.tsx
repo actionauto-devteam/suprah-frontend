@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import {
+  ArrowLeft,
   Mail,
   MessageSquare,
+  PanelRightOpen,
   Users,
   Phone,
   X,
@@ -45,6 +47,9 @@ interface ConversationViewProps {
   loadState?: "loading" | "ready" | "error";
   onRetryLoad?: () => void;
   onLinkUnverified?: () => void;
+  onBack?: () => void;
+  onShowDetails?: () => void;
+  aiAgentName?: string;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -586,6 +591,9 @@ export function ConversationView({
   loadState = "ready",
   onRetryLoad,
   onLinkUnverified,
+  onBack,
+  onShowDetails,
+  aiAgentName = "AI Agent",
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -670,11 +678,11 @@ export function ConversationView({
   const aiToggleButton = aiAgentStatus && (aiNotSending ? (
     <span
       role="status"
-      title={aiModeIndicatorLabel(aiAgentStatus.mode as AiMode)}
-      className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 shadow-sm dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
+      title={aiModeIndicatorLabel(aiAgentStatus.mode as AiMode, aiAgentName)}
+      className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 shadow-sm dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
     >
       <Bot className="h-3.5 w-3.5 shrink-0" />
-      <span className="hidden sm:inline">{aiModeIndicatorLabel(aiAgentStatus.mode as AiMode)}</span>
+      <span className="hidden max-w-[14rem] truncate sm:inline">{aiModeIndicatorLabel(aiAgentStatus.mode as AiMode, aiAgentName)}</span>
       <span className="sm:hidden">{aiAgentStatus.mode === "off" ? "AI off" : "Training"}</span>
     </span>
   ) : (
@@ -683,25 +691,30 @@ export function ConversationView({
       onClick={onToggleAiAgent}
       title={
         isPausedForDisplay
-          ? "AI agent is paused — click to resume"
-          : "AI agent is replying live — click to pause"
+          ? `${aiAgentName} is paused — click to resume`
+          : `${aiAgentName} is replying live — click to pause`
+      }
+      aria-label={
+        isPausedForDisplay
+          ? `${aiAgentName} is paused — resume`
+          : `${aiAgentName} is replying live — pause`
       }
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition",
+        "flex min-w-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition",
         isPausedForDisplay
           ? "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
           : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-600 hover:bg-fuchsia-100 dark:border-fuchsia-400/20 dark:bg-fuchsia-400/10 dark:text-fuchsia-300",
       )}
     >
       <Bot className="h-3.5 w-3.5 shrink-0" />
-      <span className="hidden sm:inline">
+      <span className="hidden max-w-[12rem] truncate sm:inline">
         {aiAgentStatus.paused
           ? aiAgentStatus.pausedBy
             ? `Paused by ${aiAgentStatus.pausedBy}`
-            : "AI paused"
+            : `${aiAgentName} paused`
           : isAutoPaused
             ? "Auto-paused"
-            : "AI live"}
+            : `${aiAgentName} live`}
       </span>
       {isPausedForDisplay ? (
         <Play className="h-3 w-3 shrink-0" />
@@ -711,15 +724,42 @@ export function ConversationView({
     </button>
   ));
 
+  const backButton = onBack && (
+    <button
+      type="button"
+      onClick={onBack}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-700 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300 dark:hover:bg-emerald-400/10"
+      title="Back to leads"
+      aria-label="Back to leads"
+    >
+      <ArrowLeft className="h-4 w-4" />
+    </button>
+  );
+
+  const detailsButton = onShowDetails && (
+    <button
+      type="button"
+      onClick={onShowDetails}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-700 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300 dark:hover:bg-emerald-400/10"
+      title="Show lead details"
+      aria-label="Show lead details"
+    >
+      <PanelRightOpen className="h-4 w-4" />
+    </button>
+  );
+
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
-      {hideConversationChrome && aiAgentStatus && (
-        <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2">
-          {aiToggleButton}
+      {hideConversationChrome && (aiAgentStatus || backButton || detailsButton) && (
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-40 flex items-start justify-between gap-2">
+          <div className="pointer-events-auto shrink-0">{backButton}</div>
+          <div className="pointer-events-auto min-w-0">{aiAgentStatus ? aiToggleButton : null}</div>
+          <div className="pointer-events-auto shrink-0">{detailsButton}</div>
         </div>
       )}
       {!hideConversationChrome && (
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
+        <header className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 dark:border-emerald-400/15 dark:bg-[#0f1f19] sm:gap-3 sm:px-4 sm:py-3">
+          {backButton}
           <Avatar first={lead?.firstName} last={lead?.lastName} size="sm" />
 
           <div className="min-w-0 flex-1">
@@ -728,7 +768,7 @@ export function ConversationView({
                 {getLeadName(lead)}
               </h2>
               {lead?.status && (
-                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 max-[359px]:hidden dark:text-emerald-400">
                   {lead.status}
                 </span>
               )}
@@ -770,14 +810,18 @@ export function ConversationView({
 
           {aiToggleButton}
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300"
-            aria-label="Close conversation"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {detailsButton}
+
+          {!onBack && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300"
+              aria-label="Close conversation"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </header>
       )}
 

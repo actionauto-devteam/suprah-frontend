@@ -171,7 +171,7 @@ function ManualItemForm({ item, onChange, locations, locationsLoading }: {
   const isRule = item.type === "rule" || item.type === "escalation" || item.type === "tone"
   const isKnowledge = item.type === "faq" || item.type === "business_info"
   const questionLabel = isKnowledge ? "Question" : item.type === "automation" ? "Trigger" : "What the customer says or asks"
-  const answerLabel = isKnowledge ? "Answer" : item.type === "template" ? "Template text" : item.type === "automation" ? "What the automation does" : "How Alex should respond"
+  const answerLabel = isKnowledge ? "Answer" : item.type === "template" ? "Template text" : item.type === "automation" ? "What the automation does" : "How the AI Agent should respond"
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-1">
@@ -218,7 +218,7 @@ function ManualItemForm({ item, onChange, locations, locationsLoading }: {
       )}
       {isRule && (
         <div className="space-y-1">
-          <label htmlFor="manual-handling" className={FIELD_LABEL}>How Alex handles it</label>
+          <label htmlFor="manual-handling" className={FIELD_LABEL}>How the AI Agent handles it</label>
           <select id="manual-handling" className={SELECT_CLASS} value={item.handling} onChange={(event) => set("handling", event.target.value)}>
             {IMPORT_HANDLING_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
