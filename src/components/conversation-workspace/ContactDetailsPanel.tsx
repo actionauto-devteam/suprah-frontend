@@ -62,6 +62,7 @@ export interface ContactDetailsPanelProps {
   summaryLoading?: boolean;
   onRegenerateSummary?: () => void;
   belowSummary?: React.ReactNode;
+  detailsTop?: React.ReactNode;
   quickActions?: WorkspaceQuickAction[];
   detailSections: WorkspaceDetailSection[];
   activities: WorkspaceActivityItem[];
@@ -87,6 +88,7 @@ export function ContactDetailsPanel({
   summaryLoading = false,
   onRegenerateSummary,
   belowSummary,
+  detailsTop,
   quickActions = [],
   detailSections,
   activities,
@@ -319,6 +321,7 @@ export function ContactDetailsPanel({
       <div className="cw-details-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
         {tab === "details" ? (
           <div className="min-w-0 space-y-3">
+            {detailsTop}
             {detailSections.map((section) => {
               const isOpen = openSections[section.id] ?? section.defaultOpen !== false;
               const isEditableContactSection = section.id === "contact" && Boolean(contactEditor);

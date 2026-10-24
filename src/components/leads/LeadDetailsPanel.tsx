@@ -16,6 +16,7 @@ import { LEAD_STATUS_SELECT_OPTIONS } from "@/lib/leadStatus";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { AiAgentTasksSection } from "./AiAgentTasksSection";
+import { VehicleOfInterestCard } from "./VehicleOfInterestCard";
 
 function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
   if (item.id.endsWith(":created") && item.id.startsWith("lead:")) return "inquiry";
@@ -288,6 +289,7 @@ export function LeadDetailsPanel({
       summaryLoading={summaryLoading}
       onRegenerateSummary={handleRegenerateSummary}
       belowSummary={<AiAgentTasksSection leadId={lead?._id} />}
+      detailsTop={lead?._id ? <VehicleOfInterestCard key={lead._id} lead={lead} /> : null}
       quickActions={actions}
       detailSections={details}
       activities={activities}
