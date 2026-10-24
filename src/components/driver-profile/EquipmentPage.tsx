@@ -789,13 +789,17 @@ export const EquipmentPage: React.FC = () => {
                             </div>
                             <p className="text-[11px] text-muted-foreground">From the ground to the tallest point, with the top deck loaded.</p>
                           </fieldset>
-                          <div className="min-w-0 space-y-2">
-                            <Label htmlFor="rig-length-feet" className="text-xs font-bold text-muted-foreground">Overall Length (feet)</Label>
-                            <Input id="rig-length-feet" type="number" inputMode="numeric" min={RIG_LENGTH_FEET.min} max={RIG_LENGTH_FEET.max} step={1} value={form.rigLengthFeet ?? ''}
-                              onChange={e => patch({ rigLengthFeet: numberOrUndefined(e.target.value) })} placeholder="75"
-                              className="h-11 font-bold bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                          {/* Same rows as Overall Height (title, unit label, box, hint) so both sides line up. */}
+                          <fieldset className="min-w-0 space-y-2">
+                            <legend className="text-xs font-bold text-muted-foreground">Overall Length</legend>
+                            <div className="space-y-1">
+                              <Label htmlFor="rig-length-feet" className="text-[11px] text-muted-foreground">Feet</Label>
+                              <Input id="rig-length-feet" type="number" inputMode="numeric" min={RIG_LENGTH_FEET.min} max={RIG_LENGTH_FEET.max} step={1} value={form.rigLengthFeet ?? ''}
+                                onChange={e => patch({ rigLengthFeet: numberOrUndefined(e.target.value) })} placeholder="75"
+                                className="h-11 font-bold bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            </div>
                             <p className="text-[11px] text-muted-foreground">From the front bumper to the end of the trailer.</p>
-                          </div>
+                          </fieldset>
                         </div>
                         {rigSizeProblem(form) ? (
                           <p role="alert" className="text-xs font-semibold text-rose-700 dark:text-rose-300">{rigSizeProblem(form)}</p>
