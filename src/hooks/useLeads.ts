@@ -49,6 +49,8 @@ export interface Lead {
   aiSummary?: string;
   aiSummaryGeneratedAt?: string;
   aiPausedAt?: string;
+  intakeIdentity?: "unverified";
+  inquiryCount?: number;
   aiPausedBy?: { userId?: string; name?: string };
   aiAutoPausedUntil?: string;
   opportunityValue?: number;

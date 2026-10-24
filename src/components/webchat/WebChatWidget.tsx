@@ -261,7 +261,16 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
 
     try {
       const sent = await sendWebChatMessage(session.sessionId, session.token, text)
-      setMessages((previous) => mergeMessages(previous, [sent]))
+      if (sent.session?.sessionId && sent.session?.token) {
+        const next: StoredSession = {
+          sessionId: sent.session.sessionId,
+          token: sent.session.token,
+          savedAt: Date.now(),
+        }
+        writeSession(storageKey, next)
+        setSession(next)
+      }
+      setMessages((previous) => mergeMessages(previous, [sent.message]))
       setDraft("")
     } catch (err) {
       if (getStatus(err) === 404) {

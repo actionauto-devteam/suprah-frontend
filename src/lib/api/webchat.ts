@@ -32,16 +32,21 @@ export const startWebChat = async (
   return res.data.data;
 };
 
+export interface SendWebChatResult {
+  message: WebChatVisitorMessage;
+  session?: { sessionId: string; token: string };
+}
+
 export const sendWebChatMessage = async (
   sessionId: string,
   token: string,
   message: string,
-): Promise<WebChatVisitorMessage> => {
+): Promise<SendWebChatResult> => {
   const res = await apiClient.post(`/api/webchat/public/sessions/${sessionId}/messages`, {
     token,
     message,
   });
-  return res.data.data.message;
+  return res.data.data;
 };
 
 export interface SyncResult {
