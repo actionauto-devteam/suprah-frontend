@@ -225,11 +225,7 @@ assert.equal(
 );
 
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: true, shiftKey: false }),
-  true,
-);
-assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'V', ctrlKey: false, metaKey: true, altKey: true, shiftKey: false }),
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'Insert', ctrlKey: false, metaKey: false, altKey: false, shiftKey: true }),
   true,
 );
 assert.equal(
@@ -237,7 +233,11 @@ assert.equal(
   false,
 );
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: true, shiftKey: true }),
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
+  false,
+);
+assert.equal(
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'Insert', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
   false,
 );
 
@@ -293,6 +293,9 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   const source = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
   assert.match(source, /richTextSerializationDropsVisibleText\(visibleText, serialized\)/, `${path}: serializer must retain its visible-text guard`);
   assert.doesNotMatch(source, /preserveVisibleVinLines|preserveVisiblePayloadLines|restoreMissingSerialsFromSources/, `${path}: do not revive VIN-specific restoration`);
+  assert.match(source, /softBreak\.setAttribute\('data-ss4-soft-break', 'true'\)/, `${path}: pasted line breaks must remain authored editor breaks`);
+  assert.equal((source.match(/isSupraSpaceKeepFormattingPasteShortcut/g) || []).length, 3, `${path}: rich paste shortcut must cover compose and edit`);
+  assert.match(source, /PasteUndoRef/, `${path}: pasted content must have focused Ctrl\/Cmd\+Z support`);
   const start = source.indexOf('function htmlToMarkdown(');
   const end = source.indexOf('\nfunction ', start + 1);
   const compiled = typescript.transpileModule(source.slice(start, end), {

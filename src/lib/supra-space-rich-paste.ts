@@ -42,14 +42,17 @@ export function supraSpaceClipboardTextLosesPlainText(
 }
 
 /**
- * Normal paste remains text-only by default. This one-shot shortcut requests
- * the existing sanitized rich-paste pipeline without changing that default.
+ * Windows browsers reserve Ctrl+Shift+V for a plain-text paste and remove the
+ * HTML clipboard representation before the paste event. Shift+Insert remains
+ * a native rich paste command, so it can select the existing sanitized rich
+ * pipeline without changing the normal text-only Ctrl/⌘+V default.
  */
 export function isSupraSpaceKeepFormattingPasteShortcut(event: SupraSpacePasteShortcutEvent): boolean {
-  return (event.ctrlKey || event.metaKey)
-    && event.altKey
-    && !event.shiftKey
-    && event.key.toLowerCase() === 'v';
+  return event.shiftKey
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && event.key === 'Insert';
 }
 
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
