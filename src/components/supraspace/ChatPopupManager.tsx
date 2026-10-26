@@ -954,6 +954,11 @@ function isEmojiOnlyText(text?: string | null): boolean {
   return value.length <= 16 && /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D\s]+$/u.test(value);
 }
 const clampPreviewZoom = (value: number) => Math.min(4, Math.max(1, Number(value.toFixed(2))));
+const previewTouchDistance = (touches: React.TouchList | TouchList) => {
+  const [first, second] = [touches[0], touches[1]];
+  if (!first || !second) return 0;
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+};
 const MEDIA_LABELS: Record<string, string> = {
   image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
   file: '📎 File', poll: '📊 Poll', event: '📅 Event',
@@ -4289,6 +4294,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
   const [mediaPreviewOffset, setMediaPreviewOffset] = React.useState({ x: 0, y: 0 });
   const previewDragRef = React.useRef<{ pointerId: number; x: number; y: number; ox: number; oy: number } | null>(null);
+  const previewTouchRef = React.useRef<
+    | { kind: 'pinch'; distance: number; zoom: number }
+    | { kind: 'pan'; x: number; y: number; ox: number; oy: number }
+    | null
+  >(null);
+  const mediaPreviewOffsetRef = React.useRef({ x: 0, y: 0 });
   const [retryingPopupImages, setRetryingPopupImages] = React.useState<Set<string>>(() => new Set());
   const [failedPopupImages, setFailedPopupImages] = React.useState<Set<string>>(() => new Set());
 
@@ -4298,7 +4309,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   React.useEffect(() => {
     setMediaPreviewZoom(1);
     setMediaPreviewOffset({ x: 0, y: 0 });
+    mediaPreviewOffsetRef.current = { x: 0, y: 0 };
     previewDragRef.current = null;
+    previewTouchRef.current = null;
   }, [mediaPreview?.src]);
 
   React.useEffect(() => {
@@ -4310,11 +4323,16 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     return () => document.removeEventListener('keydown', handlePreviewKeydown);
   }, [mediaPreview]);
 
+  const updateMediaPreviewOffset = React.useCallback((next: { x: number; y: number }) => {
+    mediaPreviewOffsetRef.current = next;
+    setMediaPreviewOffset(next);
+  }, []);
+
   const applyMediaPreviewZoom = React.useCallback((nextZoom: number) => {
     const next = clampPreviewZoom(nextZoom);
     setMediaPreviewZoom(next);
-    if (next === 1) setMediaPreviewOffset({ x: 0, y: 0 });
-  }, []);
+    if (next === 1) updateMediaPreviewOffset({ x: 0, y: 0 });
+  }, [updateMediaPreviewOffset]);
 
   // ── Hover handlers ──
   const pendingMsgRef = React.useRef<{ id: string; top: number; left: number; isOwn: boolean } | null>(null);
@@ -8561,15 +8579,16 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               draggable={false}
               className="max-h-[86vh] max-w-[92vw] touch-none select-none rounded-xl object-contain shadow-2xl active:cursor-grabbing"
               onPointerDown={e => {
-                if (mediaPreviewZoom <= 1 || !e.isPrimary || e.button !== 0) return;
+                if (e.pointerType === 'touch' || mediaPreviewZoom <= 1 || !e.isPrimary || e.button !== 0) return;
                 e.preventDefault();
                 e.currentTarget.setPointerCapture(e.pointerId);
-                previewDragRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, ox: mediaPreviewOffset.x, oy: mediaPreviewOffset.y };
+                previewDragRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, ox: mediaPreviewOffsetRef.current.x, oy: mediaPreviewOffsetRef.current.y };
               }}
               onPointerMove={e => {
+                if (e.pointerType === 'touch') return;
                 const drag = previewDragRef.current;
                 if (!drag || drag.pointerId !== e.pointerId) return;
-                setMediaPreviewOffset({ x: drag.ox + e.clientX - drag.x, y: drag.oy + e.clientY - drag.y });
+                updateMediaPreviewOffset({ x: drag.ox + e.clientX - drag.x, y: drag.oy + e.clientY - drag.y });
               }}
               onPointerUp={e => {
                 if (previewDragRef.current?.pointerId !== e.pointerId) return;
@@ -8578,6 +8597,35 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               }}
               onPointerCancel={() => { previewDragRef.current = null; }}
               onLostPointerCapture={() => { previewDragRef.current = null; }}
+              onTouchStart={e => {
+                if (e.touches.length === 2) {
+                  const distance = previewTouchDistance(e.touches);
+                  if (distance) previewTouchRef.current = { kind: 'pinch', distance, zoom: mediaPreviewZoom };
+                } else if (e.touches.length === 1 && mediaPreviewZoom > 1) {
+                  const touch = e.touches[0];
+                  previewTouchRef.current = { kind: 'pan', x: touch.clientX, y: touch.clientY, ox: mediaPreviewOffsetRef.current.x, oy: mediaPreviewOffsetRef.current.y };
+                }
+              }}
+              onTouchMove={e => {
+                e.preventDefault();
+                const gesture = previewTouchRef.current;
+                if (e.touches.length === 2 && gesture?.kind === 'pinch') {
+                  const distance = previewTouchDistance(e.touches);
+                  if (distance && gesture.distance) applyMediaPreviewZoom(gesture.zoom * (distance / gesture.distance));
+                } else if (e.touches.length === 1 && gesture?.kind === 'pan') {
+                  const touch = e.touches[0];
+                  updateMediaPreviewOffset({ x: gesture.ox + touch.clientX - gesture.x, y: gesture.oy + touch.clientY - gesture.y });
+                }
+              }}
+              onTouchEnd={e => {
+                if (e.touches.length === 1 && mediaPreviewZoom > 1) {
+                  const touch = e.touches[0];
+                  previewTouchRef.current = { kind: 'pan', x: touch.clientX, y: touch.clientY, ox: mediaPreviewOffsetRef.current.x, oy: mediaPreviewOffsetRef.current.y };
+                } else {
+                  previewTouchRef.current = null;
+                }
+              }}
+              onTouchCancel={() => { previewTouchRef.current = null; }}
               style={{
                 transform: `translate(${mediaPreviewOffset.x}px, ${mediaPreviewOffset.y}px) scale(${mediaPreviewZoom})`,
                 cursor: mediaPreviewZoom > 1 ? 'grab' : 'default',

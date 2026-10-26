@@ -7177,8 +7177,15 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
   const [failedImageSrc, setFailedImageSrc] = React.useState<string | null>(null);
   const dragRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
+  const touchPanRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const offsetRef = React.useRef({ x: 0, y: 0 });
   const hasDraggedRef = React.useRef(false);
   const isIOSLightbox = isIOSLikeDevice();
+
+  const updateOffset = React.useCallback((next: { x: number; y: number }) => {
+    offsetRef.current = next;
+    setOffset(next);
+  }, []);
 
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -7192,19 +7199,20 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
 
   React.useEffect(() => {
     setZoom(1);
-    setOffset({ x: 0, y: 0 });
+    updateOffset({ x: 0, y: 0 });
     setVideoLoadFailed(false);
     setIsDragging(false);
     hasDraggedRef.current = false;
     dragRef.current = null;
     pinchRef.current = null;
-  }, [src]);
+    touchPanRef.current = null;
+  }, [src, updateOffset]);
 
-  const applyZoom = (next: number) => {
+  const applyZoom = React.useCallback((next: number) => {
     const clamped = clampLightboxZoom(next);
-    if (clamped <= 1) setOffset({ x: 0, y: 0 });
+    if (clamped <= 1) updateOffset({ x: 0, y: 0 });
     setZoom(clamped);
-  };
+  }, [updateOffset]);
   const zoomBy = (delta: number) => applyZoom(zoom + delta);
   const imageLoading = type === 'image' && loadedImageSrc !== src && failedImageSrc !== src;
   const imageLoadFailed = type === 'image' && failedImageSrc === src;
@@ -7233,14 +7241,14 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
     e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
     hasDraggedRef.current = false;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offsetRef.current.x, oy: offsetRef.current.y };
     setIsDragging(true);
   };
   const handleMouseMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return;
     if (!dragRef.current) return;
     hasDraggedRef.current = true;
-    setOffset({
+    updateOffset({
       x: dragRef.current.ox + (e.clientX - dragRef.current.startX),
       y: dragRef.current.oy + (e.clientY - dragRef.current.startY),
     });
@@ -7253,9 +7261,12 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (type !== 'image') return;
     if (e.touches.length === 2) {
-      pinchRef.current = { distance: touchDistance(e.touches), zoom };
+      const distance = touchDistance(e.touches);
+      if (distance) pinchRef.current = { distance, zoom };
+      touchPanRef.current = null;
     } else if (e.touches.length === 1 && zoom > 1) {
-      dragRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, ox: offset.x, oy: offset.y };
+      const touch = e.touches[0];
+      touchPanRef.current = { startX: touch.clientX, startY: touch.clientY, ox: offsetRef.current.x, oy: offsetRef.current.y, moved: false };
     }
   };
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -7265,16 +7276,27 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
       const d = touchDistance(e.touches);
       if (!d || !pinchRef.current.distance) return;
       applyZoom(pinchRef.current.zoom * (d / pinchRef.current.distance));
-    } else if (e.touches.length === 1 && dragRef.current) {
-      setOffset({
-        x: dragRef.current.ox + (e.touches[0].clientX - dragRef.current.startX),
-        y: dragRef.current.oy + (e.touches[0].clientY - dragRef.current.startY),
+    } else if (e.touches.length === 1 && touchPanRef.current) {
+      const touch = e.touches[0];
+      const pan = touchPanRef.current;
+      const dx = touch.clientX - pan.startX;
+      const dy = touch.clientY - pan.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) pan.moved = true;
+      updateOffset({
+        x: pan.ox + dx,
+        y: pan.oy + dy,
       });
     }
   };
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
     pinchRef.current = null;
-    dragRef.current = null;
+    if (e.touches.length === 1 && zoom > 1) {
+      const touch = e.touches[0];
+      touchPanRef.current = { startX: touch.clientX, startY: touch.clientY, ox: offsetRef.current.x, oy: offsetRef.current.y, moved: false };
+    } else {
+      hasDraggedRef.current = touchPanRef.current?.moved ?? false;
+      touchPanRef.current = null;
+    }
   };
 
   return (
@@ -7436,9 +7458,25 @@ function LightboxModal({ src, type, name, poster, onClose, onPrev, onNext, galle
         )}
       </div>
 
+      {type === 'image' && (
+        <div
+          className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/15 bg-black/60 p-1 shadow-lg backdrop-blur sm:hidden"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button type="button" onClick={() => zoomBy(-0.25)} disabled={zoom <= 1} className="ss4-pill-btn h-9 w-9 flex items-center justify-center disabled:opacity-40" aria-label="Zoom out">
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <span className="min-w-11 text-center tabular-nums" style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)' }}>{Math.round(zoom * 100)}%</span>
+          <button type="button" onClick={() => zoomBy(0.25)} disabled={zoom >= 4} className="ss4-pill-btn h-9 w-9 flex items-center justify-center disabled:opacity-40" aria-label="Zoom in">
+            <ZoomIn className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       { }
       {type === 'image' && zoom > 1 && (
-        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+        <div className="hidden sm:block" style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: '3px 12px' }}>
             Drag to pan · Scroll to zoom · Esc to close
           </span>

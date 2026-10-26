@@ -26,20 +26,32 @@ export function AttachmentLightbox({
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const suppressClickRef = React.useRef(false);
   const dragRef = React.useRef<{ startX: number; startY: number; originX: number; originY: number; dragged: boolean } | null>(null);
+  const touchRef = React.useRef<
+    | { kind: "pinch"; distance: number; zoom: number }
+    | { kind: "pan"; startX: number; startY: number; originX: number; originY: number; dragged: boolean }
+    | null
+  >(null);
+  const panRef = React.useRef({ x: 0, y: 0 });
   const rootRef = React.useRef<HTMLDivElement>(null);
   // A capability flag, not tied to whether rootRef is attached yet — iOS
   // Safari is the notable browser where this is false (no arbitrary-element
   // Fullscreen API), so the button simply doesn't render there.
   const fullscreenSupported = typeof document !== "undefined" && document.fullscreenEnabled;
 
+  const updatePan = React.useCallback((next: { x: number; y: number }) => {
+    panRef.current = next;
+    setPan(next);
+  }, []);
+
   // Every new attachment (or closing) starts fresh — a leftover zoom/pan from
   // the last image would otherwise carry over and look like a broken view.
   React.useEffect(() => {
     setZoom(1);
-    setPan({ x: 0, y: 0 });
+    updatePan({ x: 0, y: 0 });
     dragRef.current = null;
+    touchRef.current = null;
     suppressClickRef.current = false;
-  }, [attachment?.src]);
+  }, [attachment?.src, updatePan]);
 
   // Reflect the real fullscreen state (also changes when the user exits via
   // the browser's own UI/Esc, not just our button) and always leave native
@@ -67,8 +79,8 @@ export function AttachmentLightbox({
   const zoomTo = React.useCallback((next: number) => {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
     setZoom(clamped);
-    if (clamped === MIN_ZOOM) setPan({ x: 0, y: 0 });
-  }, []);
+    if (clamped === MIN_ZOOM) updatePan({ x: 0, y: 0 });
+  }, [updatePan]);
 
   React.useEffect(() => {
     if (!attachment) return;
@@ -99,24 +111,61 @@ export function AttachmentLightbox({
 
   const beginPan = (e: React.PointerEvent) => {
     suppressClickRef.current = false;
-    if (!e.isPrimary || e.button !== 0) return;
+    if (e.pointerType === "touch" || !e.isPrimary || e.button !== 0) return;
     if (zoom <= 1) return;
     e.preventDefault();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pan.x, originY: pan.y, dragged: false };
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: panRef.current.x, originY: panRef.current.y, dragged: false };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
   const onPanMove = (e: React.PointerEvent) => {
+    if (e.pointerType === "touch") return;
     const drag = dragRef.current;
     if (!drag) return;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.dragged = true;
-    setPan({ x: drag.originX + dx, y: drag.originY + dy });
+    updatePan({ x: drag.originX + dx, y: drag.originY + dy });
   };
   const endPan = (e: React.PointerEvent) => {
     suppressClickRef.current = dragRef.current?.dragged ?? false;
     dragRef.current = null;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+  const touchDistance = (touches: React.TouchList) => {
+    const [first, second] = [touches[0], touches[1]];
+    return first && second ? Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) : 0;
+  };
+  const onTouchStart = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (e.touches.length === 2) {
+      const distance = touchDistance(e.touches);
+      if (distance) touchRef.current = { kind: "pinch", distance, zoom };
+    } else if (e.touches.length === 1 && zoom > 1) {
+      const touch = e.touches[0];
+      touchRef.current = { kind: "pan", startX: touch.clientX, startY: touch.clientY, originX: panRef.current.x, originY: panRef.current.y, dragged: false };
+    }
+  };
+  const onTouchMove = (e: React.TouchEvent<HTMLImageElement>) => {
+    e.preventDefault();
+    const gesture = touchRef.current;
+    if (e.touches.length === 2 && gesture?.kind === "pinch") {
+      const distance = touchDistance(e.touches);
+      if (distance && gesture.distance) zoomTo(gesture.zoom * (distance / gesture.distance));
+    } else if (e.touches.length === 1 && gesture?.kind === "pan") {
+      const touch = e.touches[0];
+      const dx = touch.clientX - gesture.startX;
+      const dy = touch.clientY - gesture.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) gesture.dragged = true;
+      updatePan({ x: gesture.originX + dx, y: gesture.originY + dy });
+    }
+  };
+  const onTouchEnd = (e: React.TouchEvent<HTMLImageElement>) => {
+    if (e.touches.length === 1 && zoom > 1) {
+      const touch = e.touches[0];
+      touchRef.current = { kind: "pan", startX: touch.clientX, startY: touch.clientY, originX: panRef.current.x, originY: panRef.current.y, dragged: false };
+    } else {
+      suppressClickRef.current = touchRef.current?.kind === "pan" && touchRef.current.dragged;
+      touchRef.current = null;
+    }
   };
 
   if (!attachment) return null;
@@ -204,6 +253,10 @@ export function AttachmentLightbox({
             onPointerMove={onPanMove}
             onPointerUp={endPan}
             onPointerCancel={endPan}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={() => { touchRef.current = null; }}
             style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
             className={cn(
               "h-full max-h-full w-full max-w-full touch-none object-contain transition-transform duration-150 ease-out select-none",
@@ -220,6 +273,16 @@ export function AttachmentLightbox({
           />
         )}
       </div>
+      {attachment.type === "image" && (
+        <div
+          className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/15 bg-black/60 p-1 shadow-lg backdrop-blur sm:hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button onClick={() => zoomTo(zoom - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} className="flex h-9 w-9 items-center justify-center rounded-full text-white disabled:opacity-30" aria-label="Zoom out"><ZoomOut className="h-4 w-4" /></button>
+          <span className="w-11 select-none text-center text-xs font-semibold text-white/80">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => zoomTo(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} className="flex h-9 w-9 items-center justify-center rounded-full text-white disabled:opacity-30" aria-label="Zoom in"><ZoomIn className="h-4 w-4" /></button>
+        </div>
+      )}
       {attachment.type === "image" && (
         <p className="hidden shrink-0 pb-3 text-center text-[11px] font-medium text-white/40 sm:block">
           Click or scroll to zoom · drag to pan · Esc to close
