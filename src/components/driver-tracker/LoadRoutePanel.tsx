@@ -72,7 +72,7 @@ function listOf(items: string[]) {
 
 const DRIVER_MESSAGES: Record<string, string> = {
   no_driver_position: "Share your location to see your route and arrival time.",
-  no_destination: "This stop couldn't be found on the map, so no route yet.",
+  no_destination: "This stop's exact location couldn't be found, so there's no route yet.",
   unavailable: "Your route couldn't be worked out right now. It will try again shortly.",
 };
 
@@ -295,7 +295,14 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
 
       {shown.truck && <RigSizeNote truck={shown.truck} audience={audience} />}
 
+      {/* Map data can miss a restriction, so the route is never the last word. */}
       <p className="mt-2 text-[11px] text-muted-foreground">
+        {audience === "driver"
+          ? "Routes are a planning guide. Always follow road signs and your truck navigation app."
+          : "Routes are a planning guide. Drivers should always follow road signs and their truck navigation app."}
+      </p>
+
+      <p className="mt-1 text-[11px] text-muted-foreground">
         {route.available
           ? `${shown.optimizedFor === "shortest" ? "Shortest" : "Fastest"} truck route with live traffic · updated ${formatClock(shown.computedAt)}`
           : `Couldn't refresh · showing the route from ${formatClock(shown.computedAt)}`}
