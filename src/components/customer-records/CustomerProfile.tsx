@@ -16,7 +16,9 @@ import {
   MapPin,
   MessageSquare,
   Phone,
+  Receipt,
   RefreshCw,
+  RotateCcw,
   Save,
   StickyNote,
   Users,
@@ -39,6 +41,7 @@ import {
   type CustomerRelatedLead,
 } from "@/lib/api/customerRecords";
 import { CUSTOMER_LIST_FLAG, displayPhone, relativeTime } from "./CustomerRecordsList";
+import { CustomerLifecycleTimeline } from "./CustomerLifecycleTimeline";
 import { cn } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -54,6 +57,23 @@ const fieldClass =
   "h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base outline-none transition focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/15 sm:h-10 sm:text-sm";
 
 const dateOrDash = (value: string | null | undefined) => (value ? fmtDateMDT(value) : "—");
+
+const INVENTORY_LABELS: Record<string, { label: string; tone: string }> = {
+  "Ready for Sale": { label: "In stock", tone: "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" },
+  "In Recon": { label: "Being prepared for sale", tone: "border-sky-500/30 text-sky-700 dark:text-sky-400" },
+  "In Transit": { label: "In transit", tone: "border-sky-500/30 text-sky-700 dark:text-sky-400" },
+  Sold: { label: "Sold — buyer not recorded here", tone: "border-amber-500/30 text-amber-700 dark:text-amber-400" },
+  Removed: { label: "No longer in inventory", tone: "" },
+};
+
+function InventoryStatus({ status }: { status: string | null }) {
+  const known = status ? INVENTORY_LABELS[status] : null;
+  return (
+    <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground", known?.tone)}>
+      {known ? `Inventory: ${known.label}` : status ? `Inventory: ${status}` : "Not linked to inventory"}
+    </span>
+  );
+}
 
 function SectionCard({ title, icon, children, action }: { title: string; icon?: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -430,6 +450,12 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
               <Badge variant="outline" className={cn("text-[11px]", customer.isActive ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : "")}>
                 {customer.isActive ? "Active" : "Inactive"}
               </Badge>
+              {summary.returning && (
+                <Badge variant="outline" className="gap-1 border-emerald-600/40 bg-emerald-500/10 text-[11px] text-emerald-800 dark:text-emerald-300" data-testid="returning-badge">
+                  <RotateCcw className="h-3 w-3" />
+                  Returning customer
+                </Badge>
+              )}
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {SOURCE_LABELS[customer.source] || "Customer record"} · Since {dateOrDash(customer.createdAt)}
@@ -452,16 +478,35 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
             <p className="mt-2 text-xs text-muted-foreground" data-testid="customer-relationship">
               {relationship}
             </p>
+            {summary.returning && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-emerald-800 dark:text-emerald-300" data-testid="returning-note">
+                <span>
+                  Came back with a new inquiry on {dateOrDash(summary.returning.latest.at)} after an earlier lead was closed ({summary.returning.latest.previousStatus}).
+                </span>
+                <Link href={`/crm/leads?leadId=${summary.returning.latest.leadId}`} className="inline-flex min-h-8 items-center font-medium underline-offset-2 hover:underline">
+                  Open the new lead
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4" data-testid="customer-metrics">
-        <Metric label="Leads" value={summary.leads.total} hint={`${summary.leads.open} open · ${summary.leads.closed} closed`} />
+        <Metric
+          label="Leads"
+          value={summary.leads.total}
+          hint={`${summary.leads.open} open · ${summary.leads.closed} closed${summary.additionalInquiries ? ` · ${summary.additionalInquiries} more ${summary.additionalInquiries === 1 ? "inquiry" : "inquiries"}` : ""}`}
+        />
         <Metric label="Appointments" value={summary.appointments.total} hint={`${summary.appointments.upcoming} upcoming · ${summary.appointments.completed} completed`} />
-        <Metric label="Vehicles asked about" value={summary.vehiclesOfInterest} hint="Owned vehicles: not available" />
+        <Metric label="Vehicles asked about" value={summary.vehiclesOfInterest} hint="From the customer's inquiries" />
         <Metric label="Last activity" value={lastActivity || "None yet"} hint={summary.firstContact ? `First contact ${dateOrDash(summary.firstContact)}` : undefined} />
       </div>
+
+      <p className="flex items-start gap-2 text-[11px] text-muted-foreground" data-testid="customer-unlinked-note">
+        <Info className="mt-px h-3.5 w-3.5 shrink-0" />
+        Purchases, owned vehicles and service visits aren&apos;t linked to Customer Records yet, so they aren&apos;t counted here.
+      </p>
 
       {Boolean(summary.leadsNeedingReview) && (
         <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2 text-xs">
@@ -474,10 +519,11 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
       <Tabs value={tab} onValueChange={setTab} className="gap-3">
         <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto whitespace-nowrap p-1">
           <TabsTrigger value="overview" className="h-9 flex-none px-3">Overview</TabsTrigger>
+          <TabsTrigger value="timeline" className="h-9 flex-none px-3">Timeline</TabsTrigger>
           <TabsTrigger value="leads" className="h-9 flex-none px-3">Leads ({summary.leads.total})</TabsTrigger>
           <TabsTrigger value="vehicles" className="h-9 flex-none px-3">Vehicles</TabsTrigger>
+          <TabsTrigger value="purchases" className="h-9 flex-none px-3">Purchases</TabsTrigger>
           <TabsTrigger value="appointments" className="h-9 flex-none px-3">Appointments</TabsTrigger>
-          <TabsTrigger value="activity" className="h-9 flex-none px-3">Activity</TabsTrigger>
           <TabsTrigger value="details" className="h-9 flex-none px-3">Customer info</TabsTrigger>
         </TabsList>
 
@@ -536,17 +582,23 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
               <ul className="space-y-2">
                 {profile.vehicles.interest.map((vehicle, index) => (
                   <li key={`${vehicle.vin || vehicle.make}-${index}`} className="rounded-lg border p-3">
-                    <p className="text-sm font-medium">{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"}</p>
+                    <p className="wrap-break-word text-sm font-medium">
+                      {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"}
+                      {vehicle.trim && <span className="font-normal text-muted-foreground"> {vehicle.trim}</span>}
+                    </p>
                     <p className="mt-0.5 break-words text-xs text-muted-foreground">
                       {[vehicle.vin ? `VIN ${vehicle.vin}` : "", vehicle.stock ? `Stock ${vehicle.stock}` : "", vehicle.askedAt ? `Asked ${dateOrDash(vehicle.askedAt)}` : "From the customer record"]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
-                    {vehicle.leadId && (
-                      <Link href={`/crm/leads?leadId=${vehicle.leadId}`} className="mt-1 inline-block text-xs text-emerald-700 hover:underline dark:text-emerald-400">
-                        Open the inquiry
-                      </Link>
-                    )}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {vehicle.leadId && <InventoryStatus status={vehicle.inventoryStatus} />}
+                      {vehicle.leadId && (
+                        <Link href={`/crm/leads?leadId=${vehicle.leadId}`} className="inline-flex min-h-8 items-center text-xs text-emerald-700 hover:underline dark:text-emerald-400">
+                          Open the inquiry
+                        </Link>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -556,7 +608,43 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
             <p className="mt-2 text-[11px] text-muted-foreground">Taken from the customer&apos;s inquiries. Asking about a vehicle doesn&apos;t mean they own it.</p>
           </SectionCard>
           <SectionCard title="Owned vehicles" icon={<Car className="h-4 w-4 text-muted-foreground" />}>
-            <EmptyNote>Ownership and purchase records aren&apos;t connected to Customer Records yet, so no owned vehicles are shown.</EmptyNote>
+            <EmptyNote>
+              Owned vehicles are kept on customer app accounts (My Garage), and those accounts aren&apos;t linked to Customer Records yet. No vehicle is
+              shown as owned until that link is verified.
+            </EmptyNote>
+          </SectionCard>
+        </TabsContent>
+
+        <TabsContent value="purchases" className="space-y-3">
+          <SectionCard title="Verified purchases" icon={<Receipt className="h-4 w-4 text-muted-foreground" />}>
+            <EmptyNote>
+              Sales recorded in Garage Review are tied to customer app accounts, not to Customer Records, so no verified purchases can be shown here yet.
+            </EmptyNote>
+          </SectionCard>
+          <SectionCard title={`Leads marked Sold (${profile.purchases.leadsMarkedSold.length})`} icon={<Info className="h-4 w-4 text-muted-foreground" />}>
+            {profile.purchases.leadsMarkedSold.length ? (
+              <ul className="space-y-2">
+                {profile.purchases.leadsMarkedSold.map((lead) => (
+                  <li key={lead.leadId} className="flex flex-col gap-1.5 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <LeadStatusPill status={lead.status} />
+                      <p className="wrap-break-word text-sm font-medium">{lead.vehicle || "No vehicle listed"}</p>
+                      <p className="text-xs text-muted-foreground">{lead.markedAt ? `Marked ${dateOrDash(lead.markedAt)}` : "Date not recorded"}</p>
+                    </div>
+                    <Link
+                      href={`/crm/leads?leadId=${lead.leadId}`}
+                      className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium hover:bg-muted sm:h-9"
+                    >
+                      Open lead
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyNote>No leads for this customer are marked Sold.</EmptyNote>
+            )}
+            <p className="mt-2 text-[11px] text-muted-foreground">A lead status of Sold is set by staff on the lead. It isn&apos;t proof of a completed sale.</p>
           </SectionCard>
         </TabsContent>
 
@@ -584,24 +672,19 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
             )}
           </SectionCard>
           <SectionCard title="Service history" icon={<Wrench className="h-4 w-4 text-muted-foreground" />}>
-            <EmptyNote>Service records aren&apos;t connected to Customer Records yet.</EmptyNote>
+            <EmptyNote>Service records are kept on customer app accounts, which aren&apos;t linked to Customer Records yet, so no service visits are shown.</EmptyNote>
           </SectionCard>
         </TabsContent>
 
-        <TabsContent value="activity" className="space-y-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <TabsContent value="timeline" className="space-y-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="customer-activity-counts">
             <Metric label="Texts received" value={summary.texts.received} />
             <Metric label="Texts sent" value={summary.texts.sent} />
             <Metric label="Calls" value={summary.calls ?? "Unavailable"} />
             <Metric label="Notes" value={summary.notes} />
-            <Metric label="Appointments" value={summary.appointments.total} />
-            <Metric label="Leads" value={summary.leads.total} />
           </div>
-          <SectionCard title="Timeline" icon={<CalendarDays className="h-4 w-4 text-muted-foreground" />}>
-            <InfoRow icon={<CalendarDays className="h-3.5 w-3.5" />} label="First contact" value={summary.firstContact ? fmtShortDateTimeMDT(summary.firstContact) : "—"} />
-            <InfoRow icon={<CalendarDays className="h-3.5 w-3.5" />} label="Last activity" value={summary.lastActivity ? fmtShortDateTimeMDT(summary.lastActivity) : "—"} />
-            <p className="mt-2 text-[11px] text-muted-foreground">Counts come from this customer&apos;s linked leads. Open a lead to read the full conversation.</p>
-          </SectionCard>
+          <CustomerLifecycleTimeline customerId={customerId} />
+          <p className="text-[11px] text-muted-foreground">Open a lead to read the full conversation.</p>
         </TabsContent>
 
         <TabsContent value="details">

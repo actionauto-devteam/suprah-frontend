@@ -64,11 +64,28 @@ export interface CustomerVehicleInterest {
   year: string;
   make: string;
   model: string;
+  trim: string;
   vin: string;
   stock: string;
   leadId: string | null;
   askedAt: string | null;
   leadStatus: string | null;
+  inventoryStatus: string | null;
+}
+
+export interface CustomerLeadMarkedSold {
+  leadId: string;
+  status: string;
+  vehicle: string;
+  markedAt: string | null;
+}
+
+export interface CustomerReturningVisit {
+  leadId: string;
+  at: string;
+  previousLeadId: string;
+  previousStatus: string;
+  previousClosedAt: string;
 }
 
 export interface CustomerAppointment {
@@ -104,6 +121,7 @@ export interface CustomerProfileData {
   };
   relatedLeads: CustomerRelatedLead[];
   vehicles: { interest: CustomerVehicleInterest[]; owned: unknown[]; ownedAvailable: boolean };
+  purchases: { available: boolean; verified: unknown[]; leadsMarkedSold: CustomerLeadMarkedSold[] };
   appointments: CustomerAppointment[];
   service: { available: boolean; records: unknown[] };
   summary: {
@@ -117,7 +135,42 @@ export interface CustomerProfileData {
     firstContact: string | null;
     lastActivity: string | null;
     leadsNeedingReview: number | null;
+    additionalInquiries: number | null;
+    returning: { count: number; latest: CustomerReturningVisit } | null;
+    verifiedPurchases: number | null;
+    ownedVehicles: number | null;
+    serviceVisits: number | null;
   };
+}
+
+export type CustomerTimelineFilter = "all" | "inquiry" | "appointment" | "status" | "assignment";
+
+export interface CustomerTimelineEvent {
+  id: string;
+  at: string;
+  category: "record" | "inquiry" | "appointment" | "status" | "assignment";
+  type: string;
+  title: string;
+  detail: string;
+  leadId: string | null;
+  appointmentId: string | null;
+  meta: {
+    notPurchase?: boolean;
+    newLead?: boolean;
+    previousStatus?: string;
+    previousClosedAt?: string;
+    startTime?: string | null;
+    from?: string;
+    to?: string;
+  };
+}
+
+export interface CustomerTimelinePage {
+  items: CustomerTimelineEvent[];
+  nextCursor: string | null;
+  filter: CustomerTimelineFilter;
+  counts: Record<CustomerTimelineFilter, number>;
+  truncated: boolean;
 }
 
 export interface CustomerRecordUpdate {
@@ -147,6 +200,18 @@ export async function fetchCustomerRecords(
 export async function fetchCustomerProfile(token: string | null, id: string): Promise<CustomerProfileData> {
   const response = await apiClient.get(`/api/crm/customer-records/${encodeURIComponent(id)}`, { headers: authHeaders(token) });
   return response.data?.data as CustomerProfileData;
+}
+
+export async function fetchCustomerTimeline(
+  token: string | null,
+  id: string,
+  params: { filter: CustomerTimelineFilter; before?: string | null; limit?: number },
+): Promise<CustomerTimelinePage> {
+  const response = await apiClient.get(`/api/crm/customer-records/${encodeURIComponent(id)}/timeline`, {
+    headers: authHeaders(token),
+    params: { filter: params.filter, before: params.before || undefined, limit: params.limit ?? 25 },
+  });
+  return response.data?.data as CustomerTimelinePage;
 }
 
 export async function updateCustomerRecord(token: string | null, id: string, changes: CustomerRecordUpdate): Promise<CustomerProfileData> {
