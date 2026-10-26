@@ -18,6 +18,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { AiAgentTasksSection } from "./AiAgentTasksSection";
 import { VehicleOfInterestCard } from "./VehicleOfInterestCard";
 import { DriverLicenseScanDialog, type LicenseAppliedValues } from "./DriverLicenseScanDialog";
+import { CustomerRecordLink } from "./CustomerRecordLink";
 
 function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
   if (item.id.endsWith(":created") && item.id.startsWith("lead:")) return "inquiry";
@@ -310,7 +311,14 @@ export function LeadDetailsPanel({
       summaryLoading={summaryLoading}
       onRegenerateSummary={handleRegenerateSummary}
       belowSummary={<AiAgentTasksSection leadId={lead?._id} />}
-      detailsTop={lead?._id ? <VehicleOfInterestCard key={lead._id} lead={lead} /> : null}
+      detailsTop={
+        lead?._id ? (
+          <div className="space-y-2">
+            <CustomerRecordLink lead={lead} />
+            <VehicleOfInterestCard key={lead._id} lead={lead} />
+          </div>
+        ) : null
+      }
       quickActions={actions}
       detailSections={details}
       activities={activities}
