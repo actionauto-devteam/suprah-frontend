@@ -253,6 +253,18 @@ function editorNode(tag, children = [], attributes = {}) {
         return found;
       },
     };
+  if (node.nodeType === 1) {
+    Object.defineProperty(node, 'innerText', {
+      get() {
+        const collect = current => {
+          if (current.nodeType === 3) return current.textContent || '';
+          if (current.tagName?.toLowerCase() === 'br') return '\n';
+          return (current.childNodes || []).map(collect).join('');
+        };
+        return collect(node);
+      },
+    });
+  }
   if (Array.isArray(children)) children.forEach((child, index) => {
     child.parentElement = node;
     child.nextSibling = children[index + 1] || null;
@@ -262,6 +274,8 @@ function editorNode(tag, children = [], attributes = {}) {
 const textNode = value => editorNode('#text', value);
 for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/supraspace/ChatPopupManager.tsx']) {
   const source = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+  assert.match(source, /richTextSerializationDropsVisibleText\(visibleText, serialized\)/, `${path}: serializer must retain its visible-text guard`);
+  assert.doesNotMatch(source, /preserveVisibleVinLines|preserveVisiblePayloadLines|restoreMissingSerialsFromSources/, `${path}: do not revive VIN-specific restoration`);
   const start = source.indexOf('function htmlToMarkdown(');
   const end = source.indexOf('\nfunction ', start + 1);
   const compiled = typescript.transpileModule(source.slice(start, end), {
@@ -271,7 +285,7 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     Node: { TEXT_NODE: 3, ELEMENT_NODE: 1 },
     stripCopiedTextArtifacts: value => value,
     clipboardElementIsHidden: () => false,
-    clipboardElementIsDecorativeMarker: () => false,
+    clipboardElementIsDecorativeMarker: element => element.getAttribute?.('data-test-dropped-text') === 'true',
     clipboardElementIsMetadata: () => false,
     ss4FontFamilyIdFromCss: () => null,
     ss4FontSizeFromCss: () => null,
@@ -282,7 +296,17 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     normalizeListExitLineSpacing: value => value,
     normalizeSupraSpaceLegacyMarkup: formatting.normalizeSupraSpaceLegacyMarkup,
     canonicalizeColorMarkup: value => value,
-    richTextSerializationDropsVisibleText: () => false,
+    richTextSerializationDropsVisibleText: (visible, serialized) => richPaste.supraSpaceClipboardTextLosesPlainText(
+      visible,
+      serialized
+        .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+        .replace(/__([^_\n]+)__/g, '$1')
+        .replace(/~~([^~\n]+)~~/g, '$1')
+        .replace(/`([^`\n]+)`/g, '$1')
+        .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
+        .replace(/^\s*>\s?/gm, '')
+        .replace(/^\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+[.)])\s+/gm, ''),
+    ),
   };
   vm.createContext(context);
   vm.runInContext(compiled, context);
@@ -328,6 +352,21 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     editorNode('div', [editorNode('br')]),
     editorNode('div', [textNode('second')]),
   ]), 'first\n\nsecond', path);
+  assert.equal(serialize([
+    editorNode('div', [
+      textNode('Vehicle: 2023 Lexus ES\nVIN: '),
+      editorNode('span', [textNode('58ADA1C11PU035677')], { 'data-test-dropped-text': 'true' }),
+    ]),
+  ]), 'Vehicle: 2023 Lexus ES\nVIN: 58ADA1C11PU035677', `${path}: visible content is never silently dropped`);
+  assert.equal(serialize([
+    editorNode('div', [
+      textNode('@Mia Rodriguez please retrieve these vehicles.\nVehicle: 2023 Lexus ES\nVIN: '),
+      editorNode('span', [textNode('58ADA1C11PU035677')], { 'data-test-dropped-text': 'true' }),
+      textNode('\nVehicle: 2024 Honda Odyssey\nVIN: '),
+      editorNode('span', [textNode('5FNRL6H78PB012345')], { 'data-test-dropped-text': 'true' }),
+      textNode('\nNotes: caf\u00e9 \u2713 \ud83d\ude97'),
+    ]),
+  ]), '@Mia Rodriguez please retrieve these vehicles.\nVehicle: 2023 Lexus ES\nVIN: 58ADA1C11PU035677\nVehicle: 2024 Honda Odyssey\nVIN: 5FNRL6H78PB012345\nNotes: caf\u00e9 \u2713 \ud83d\ude97', `${path}: multiple visible VINs and surrounding content survive`);
   assert.equal(serialize([
     editorNode('div', [textNode('first')], { 'data-ss4-paste-paragraph': 'true' }),
     editorNode('div', [textNode('second')], { 'data-ss4-paste-paragraph': 'true' }),
