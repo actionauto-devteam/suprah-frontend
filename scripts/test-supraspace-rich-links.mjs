@@ -224,6 +224,23 @@ assert.equal(
   true,
 );
 
+assert.equal(
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: true, shiftKey: false }),
+  true,
+);
+assert.equal(
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'V', ctrlKey: false, metaKey: true, altKey: true, shiftKey: false }),
+  true,
+);
+assert.equal(
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }),
+  false,
+);
+assert.equal(
+  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: true, shiftKey: true }),
+  false,
+);
+
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('1. Open the widget.', true), 'Open the widget.');
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('2.Select a message.', true), 'Select a message.');
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('7)Confirm the action.', true), 'Confirm the action.');

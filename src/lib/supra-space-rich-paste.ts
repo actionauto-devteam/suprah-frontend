@@ -2,6 +2,8 @@ import { isSafeSupraSpaceLinkHref } from './supra-space-links';
 
 type CssColorNormalizer = (value: string | null | undefined) => string | null;
 
+type SupraSpacePasteShortcutEvent = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>;
+
 type SupraSpaceClipboardStyleOptions = {
   normalizeColor?: CssColorNormalizer;
   /**
@@ -37,6 +39,17 @@ export function supraSpaceClipboardTextLosesPlainText(
     normalizedPlainText
     && !normalizedHtmlText.includes(normalizedPlainText),
   );
+}
+
+/**
+ * Normal paste remains text-only by default. This one-shot shortcut requests
+ * the existing sanitized rich-paste pipeline without changing that default.
+ */
+export function isSupraSpaceKeepFormattingPasteShortcut(event: SupraSpacePasteShortcutEvent): boolean {
+  return (event.ctrlKey || event.metaKey)
+    && event.altKey
+    && !event.shiftKey
+    && event.key.toLowerCase() === 'v';
 }
 
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
