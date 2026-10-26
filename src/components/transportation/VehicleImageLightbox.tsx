@@ -137,11 +137,11 @@ export function VehicleImageLightbox({
 
       {items.length > 1 ? (
         <div
-          className="z-10 flex min-h-8 shrink-0 items-center justify-center overflow-x-auto px-4 py-2"
+          className="z-10 flex min-h-8 shrink-0 items-center justify-center px-4 py-2"
           onClick={(event) => event.stopPropagation()}
           aria-label="Vehicle image position"
         >
-          <div className="flex min-w-max items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center justify-center gap-2">
             {items.map((item, index) => (
               <button
                 key={`${item.id}-${index}`}

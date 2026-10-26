@@ -639,7 +639,7 @@ export default function LoadDetailsPage() {
     try {
       return fmtDateMDT(dateStr) + ' at ' + fmtTimeMDT(dateStr)
     } catch {
-      return "Invalid date"
+      return "Date unavailable"
     }
   }
 
@@ -651,7 +651,7 @@ export default function LoadDetailsPage() {
       // can display one day earlier.
       return formatScheduleDate(dateStr)
     } catch {
-      return "Invalid date"
+      return "Date unavailable"
     }
   }
 

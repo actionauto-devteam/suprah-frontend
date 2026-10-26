@@ -922,7 +922,8 @@ export const EquipmentPage: React.FC = () => {
         </AnimatePresence>
 
         <Dialog open={typeDialogOpen} onOpenChange={setTypeDialogOpen}>
-          <DialogContent className="w-[calc(100vw-1rem)] max-w-5xl h-[85dvh] max-h-[calc(100dvh-1rem)] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl border border-border/60 flex flex-col bg-background">
+          {/* The header has its own close button, so the dialog's default one is off. */}
+          <DialogContent showCloseButton={false} className="w-[calc(100vw-1rem)] max-w-5xl sm:max-w-5xl h-[85dvh] max-h-[calc(100dvh-1rem)] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl border border-border/60 flex flex-col bg-background">
             {/* Header - Fixed */}
             <div className="shrink-0 bg-background border-b border-border/50 p-3 sm:p-5">
               <div className="flex items-center justify-between gap-4">
@@ -939,15 +940,15 @@ export const EquipmentPage: React.FC = () => {
                     </DialogDescription>
                   </DialogHeader>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setTypeDialogOpen(false)} className="rounded-xl size-11">
+                <Button variant="ghost" size="icon" onClick={() => setTypeDialogOpen(false)} aria-label="Close" className="rounded-xl size-11 shrink-0">
                   <X className="size-5" />
                 </Button>
               </div>
             </div>
 
-            {/* Category Tabs - Fixed, Horizontal Scroll */}
-            <div className="shrink-0 border-b border-border/50 bg-muted/5 px-6 py-4 overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
-              <div className="flex gap-3 min-w-max">
+            {/* Category Tabs - Fixed. They wrap into rows (2 on phones, 3 on tablets, 6 on computers), never a sideways scroll. */}
+            <div className="shrink-0 border-b border-border/50 bg-muted/5 px-3 py-3 sm:px-6 sm:py-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
                 {TRAILER_CATEGORIES.map((c) => {
                   const a = dialogCategory === c.id;
                   const count = trailerTypeOptions.filter(t => t.category === c.id).length;
@@ -955,15 +956,16 @@ export const EquipmentPage: React.FC = () => {
                     <button
                       key={c.id}
                       type="button"
+                      aria-pressed={a}
                       onClick={() => setDialogCategory(c.id)}
                       className={cn(
-                        'px-5 py-2 rounded-lg border-2 whitespace-nowrap transition-all font-semibold text-sm flex items-center gap-2',
+                        'min-h-11 min-w-0 px-3 py-2 rounded-lg border-2 whitespace-nowrap transition-all font-semibold text-sm flex items-center justify-center gap-2',
                         a
                           ? `border-foreground text-foreground bg-foreground/5`
                           : 'border-border/70 text-muted-foreground hover:border-primary/60 hover:bg-muted/10'
                       )}>
-                      <span>{c.label}</span>
-                      <span className={cn('text-xs px-2 py-0.5 rounded-md font-bold', a ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
+                      <span className="truncate">{c.label}</span>
+                      <span className={cn('shrink-0 text-xs px-2 py-0.5 rounded-md font-bold', a ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
                         {count}
                       </span>
                     </button>
@@ -973,7 +975,7 @@ export const EquipmentPage: React.FC = () => {
             </div>
 
             {/* Content Grid - Scrollable */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-5 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-5 sm:py-5 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={dialogCategory}
@@ -993,25 +995,25 @@ export const EquipmentPage: React.FC = () => {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.08, duration: 0.3 }}
-                        whileHover={{ scale: 1.02, x: 8 }}
+                        whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.98 }}
                         className={cn(
-                          'relative flex flex-row rounded-2xl border-2 transition-all overflow-hidden group cursor-pointer h-44',
+                          'relative flex flex-row rounded-2xl border-2 transition-all overflow-hidden group cursor-pointer h-36 sm:h-44',
                           s
                             ? cn('shadow-sm ring-2 border-current', ct.ring, ct.glow, 'bg-muted/50')
                             : 'border-border/70 hover:border-border/70 hover:shadow-lg hover:bg-muted/20 bg-muted/5'
                         )}>
                         {/* Image Area - Left Side */}
-                        <div className={cn('shrink-0 w-44 h-full flex items-center justify-center relative overflow-hidden bg-linear-to-br', ct.bg)}>
+                        <div className={cn('shrink-0 w-28 sm:w-44 h-full flex items-center justify-center relative overflow-hidden bg-linear-to-br', ct.bg)}>
                           <div className={cn('absolute inset-0 opacity-10 bg-linear-to-r', ct.grad)} />
                           <TSvg cat={opt.category} className="w-2/3 h-2/3 relative drop-shadow-sm" />
                           {s && <motion.div className={cn('absolute inset-0 rounded-2xl pointer-events-none border-2', ct.ring)} />}
                         </div>
 
                         {/* Text Content - Right Side */}
-                        <div className="flex-1 p-5 flex flex-col justify-between">
+                        <div className="flex-1 min-w-0 p-3 sm:p-5 flex flex-col justify-between">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <h3 className="font-bold text-base leading-tight">{opt.label}</h3>
                               <p className="text-xs text-muted-foreground mt-1">{opt.description}</p>
                             </div>

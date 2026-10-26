@@ -379,7 +379,7 @@ function DriverDispatchChatView() {
                 </button>
               )}
             </div>
-            <div className="flex gap-1.5 overflow-x-auto" role="group" aria-label="Show chats">
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show chats">
               {FILTERS.map((option) => {
                 const active = filter === option.key;
                 return (

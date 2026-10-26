@@ -680,8 +680,9 @@ export function DriverComplianceDocumentsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
+        {/* A fixed height, so switching sections never resizes the window or moves the tab bar; only the section below scrolls. */}
         <DialogContent
-          className="z-[90] flex max-h-[94dvh] max-w-none flex-col gap-0 overflow-hidden p-0"
+          className="z-[90] flex h-[min(94dvh,64rem)] max-h-[94dvh] max-w-none flex-col gap-0 overflow-hidden p-0"
           overlayClassName="z-[80] bg-black/70 backdrop-blur-[3px]"
           style={{ width: "min(96vw, 78rem)", maxWidth: "min(96vw, 78rem)" }}
         >
@@ -769,7 +770,7 @@ export function DriverComplianceDocumentsDialog({
                 </Select>
               </div>
 
-              <div className="hidden gap-1 overflow-x-auto pb-1 sm:flex">
+              <div className="hidden flex-wrap gap-1 pb-1 sm:flex">
                 {TABS.map((tab) => {
                   const Icon = tab.icon;
                   const active = activeTab === tab.id;
@@ -1248,7 +1249,7 @@ export function DriverComplianceDocumentsDialog({
       <Dialog open={!!previewDocument} onOpenChange={(next) => {
         if (!next) closePreview();
       }}>
-        <DialogContent className="z-[110] flex h-[88dvh] max-w-5xl flex-col overflow-hidden p-0" overlayClassName="z-[100] bg-black/70 backdrop-blur-[2px]">
+        <DialogContent className="z-[110] flex h-[88dvh] max-w-5xl flex-col overflow-hidden p-0 sm:max-w-[min(64rem,calc(100%-2rem))]" overlayClassName="z-[100] bg-black/70 backdrop-blur-[2px]">
           <DialogHeader className="shrink-0 border-b border-border/60 px-5 py-4 text-left">
             <DialogTitle>{previewDocument?.label || previewDocument?.fileName || "Driver Document"}</DialogTitle>
             <DialogDescription>
