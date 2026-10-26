@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { fmtDateMDT, MDT_TZ } from "@/lib/timezone";
 import {
@@ -41,6 +43,7 @@ import { useAuth } from "@/providers/AuthProvider"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { usePaneContentMetrics } from "@/components/MultiPaneLayout"
+import { fetchCustomerProfile } from "@/lib/api/customerRecords"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -681,6 +684,13 @@ function CustomerDetail({
   const [vehicleForModal, setVehicleForModal] = React.useState<Vehicle | null>(null)
   const [vehicleSearching, setVehicleSearching] = React.useState(false)
   const { getToken } = useAuth()
+  const liveRecord = useQuery({
+    queryKey: ["customer-record", customer._id],
+    queryFn: async () => fetchCustomerProfile(await getToken(), customer._id),
+    staleTime: 30_000,
+    retry: 1,
+  })
+  const live = liveRecord.data?.summary
 
   const handleTransactionClick = (tx: CustomerTransaction) => {
     if (!onLeadNavigate) return
@@ -775,11 +785,11 @@ function CustomerDetail({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 divide-x divide-border/50 border-b border-border/60 bg-muted/15">
+        <div className="grid grid-cols-3 divide-x divide-border/50 border-b border-border/60 bg-muted/15" data-testid="credentials-live-counts">
           {[
-            { icon: <Receipt className="h-3.5 w-3.5" />, label: "Transactions", value: customer.stats?.totalTransactions ?? 0 },
-            { icon: <MessageSquare className="h-3.5 w-3.5" />, label: "Conversations", value: customer.stats?.totalConversations ?? 0 },
-            { icon: <Calendar className="h-3.5 w-3.5" />, label: "Appointments", value: customer.stats?.totalAppointments ?? 0 },
+            { icon: <Users className="h-3.5 w-3.5" />, label: "Leads", value: live ? live.leads.total : "–" },
+            { icon: <Inbox className="h-3.5 w-3.5" />, label: "Open leads", value: live ? live.leads.open : "–" },
+            { icon: <Calendar className="h-3.5 w-3.5" />, label: "Appointments", value: live ? live.appointments.total : "–" },
           ].map(s => (
             <div key={s.label} className="flex flex-col items-center py-3 gap-1">
               <p className="text-xl font-bold text-foreground font-mono tabular-nums">{s.value}</p>
@@ -790,6 +800,15 @@ function CustomerDetail({
             </div>
           ))}
         </div>
+
+        <Link
+          href={`/crm/customers/${customer._id}`}
+          className="flex min-h-10 items-center justify-between gap-2 border-b border-border/60 px-4 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-muted/40 dark:text-emerald-400 sm:px-5"
+          data-testid="open-customer-profile"
+        >
+          <span>Open full customer profile — timeline, leads, vehicles and appointments</span>
+          <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+        </Link>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
           <TabsList className="mx-4 sm:mx-5 mt-3 mb-0 justify-start h-9 bg-muted w-auto shrink-0 gap-0.5 rounded-md p-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
