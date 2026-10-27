@@ -4,6 +4,7 @@ import * as React from "react";
 import { OpenInGoogleMapsButton } from "@/components/driver/OpenInGoogleMapsButton";
 import { DriverArrivalButton } from "@/components/driver/DriverArrivalButton";
 import { VehicleConditionButton } from "@/components/driver/VehicleConditionButton";
+import { geolocation } from "@/lib/geolocation";
 import {
   isNoConnectionError,
   useSendWhenBackOnline,

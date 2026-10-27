@@ -7,6 +7,7 @@ import { initializeSocket } from "@/lib/socket.client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import type { DriverStatus } from "@/types/driver-tracking";
 import { ACTIVE_LOAD_STATUSES as SHARED_ACTIVE_LOAD_STATUSES, GPS_TRACKING_LOAD_STATUSES } from "@/lib/load-status";
+import { geolocation } from "@/lib/geolocation";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 // Another open tab sent a GPS update this recently: skip this tab's duplicate.

@@ -20,6 +20,7 @@ import { useLoadRoute } from "@/hooks/useLoadRoute";
 import { mapRouteOf } from "@/lib/load-route-lines";
 import { placeAddressText, placePin, type LoadPlace } from "@/lib/load-navigation";
 import type { FollowMode } from "@/components/driver-tracker/DriverTrackerSelectedDriver";
+import { geolocation } from "@/lib/geolocation";
 import {
   createGoogleMap,
   GOOGLE_MAPS_KEY_REJECTED,

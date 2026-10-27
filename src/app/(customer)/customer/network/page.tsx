@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, List, Map as MapIcon } from "lucide-react"
 import mapboxgl from "mapbox-gl"
+import { geolocation } from "@/lib/geolocation";
 
 import { useAuth } from "@/providers/AuthProvider"
 import { useOrg } from "@/hooks/useOrg"

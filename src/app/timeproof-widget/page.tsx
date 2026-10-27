@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client"
 import { isMobileMonitoringDept } from "@/lib/departments"
 import { cn } from "@/lib/utils"
 import { useAlert } from "@/components/AlertDialog"
+import { geolocation } from "@/lib/geolocation";
 
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000 // company timezone, matches backend COMPANY_TZ_OFFSET_MINUTES

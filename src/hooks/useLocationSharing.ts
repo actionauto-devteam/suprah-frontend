@@ -6,6 +6,7 @@ import { withMinDuration } from "@/lib/utils";
 import type { SharingState } from "./useLocator";
 import { geolocation } from "@/lib/geolocation";
 
+
 const PING_INTERVAL_MS = 30_000;
 const MPS_TO_MPH = 2.23694;
 
