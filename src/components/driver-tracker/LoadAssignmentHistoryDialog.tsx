@@ -27,7 +27,7 @@ interface AssignmentHistoryEntry {
   dispatcherName: string | null;
   endedByName: string | null;
   replacementDriverName: string | null;
-  endReason: "reassigned" | "removed";
+  endReason: "reassigned" | "removed" | "cancelled";
   statusAtEnd: string;
   endedAt: string | null;
   assignedAt: string | null;
@@ -44,6 +44,12 @@ interface LoadAssignmentHistoryDialogProps {
   onOpenChange: (open: boolean) => void;
   loadId: string | null;
 }
+
+const END_REASON_LABELS: Record<AssignmentHistoryEntry["endReason"], string> = {
+  reassigned: "Reassigned",
+  removed: "Removed",
+  cancelled: "Load cancelled",
+};
 
 function formatWhen(value: string | null) {
   if (!value) return null;
@@ -155,7 +161,7 @@ export function LoadAssignmentHistoryDialog({ open, onOpenChange, loadId }: Load
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-bold">{entry.driverName ?? "Former driver"}</p>
                   <Badge variant="outline">
-                    {entry.endReason === "reassigned" ? "Reassigned" : "Removed"} while {entry.statusAtEnd}
+                    {END_REASON_LABELS[entry.endReason] ?? "Removed"} while {entry.statusAtEnd}
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">

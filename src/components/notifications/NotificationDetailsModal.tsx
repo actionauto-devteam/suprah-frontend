@@ -107,6 +107,8 @@ function getAlertMapTarget(notification: Notification) {
   const metadata = notification.metadata ?? {};
   const load = metadata.loadContext as DriverDispatchAlertLoadContext | undefined;
   const alertType = String(metadata.alertType ?? '');
+  // The driver must stop work on a cancelled load, so there's nowhere to go.
+  if (alertType === 'load_cancelled') return '';
   const location =
     alertType === 'proceed_to_pickup' || alertType === 'pickup_instructions_updated'
       ? load?.pickup

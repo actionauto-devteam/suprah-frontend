@@ -7,11 +7,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy, Ban } from "lucide-react"
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
+import { CancelLoadDialog } from "@/components/transportation/CancelLoadDialog"
+import { isCancellableLoadStatus } from "@/lib/load-status"
+import { cancellationReasonLabel } from "@/lib/load-cancellation"
 import { useAuth, useUser } from "@/providers/AuthProvider"
 import { initializeSocket } from "@/lib/socket.client"
 import { Button } from "@/components/ui/button"
@@ -476,6 +479,7 @@ export default function LoadDetailsPage() {
   const [historyOpen, setHistoryOpen] = React.useState(false)
   const [tripHistoryOpen, setTripHistoryOpen] = React.useState(false)
   const [markDeliveredOpen, setMarkDeliveredOpen] = React.useState(false)
+  const [cancelOpen, setCancelOpen] = React.useState(false)
   const queryClient = useQueryClient()
   const { userId, orgRole, getToken } = useAuth()
   const { user: currentUser } = useUser()
@@ -674,6 +678,16 @@ export default function LoadDetailsPage() {
     ["Accepted", "Picked Up", "In-Transit"].includes(load.status) &&
     Boolean(load.assignedDriverId) &&
     (isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+  // Cancel load: any staff member before a driver has it, like Delete; once a
+  // driver is assigned, the responsible dispatcher and admins (the server checks too).
+  const assignedDriver = load.assignedDriverId
+  const assignedDriverName = !assignedDriver
+    ? null
+    : (typeof assignedDriver === "object" && assignedDriver.name) || "The assigned driver"
+  const canCancel =
+    isCancellableLoadStatus(load.status) &&
+    (!load.assignedDriverId || isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+  const cancellation = load.status === "Cancelled" ? load.cancellation : undefined
 
   return (
     <div
@@ -716,16 +730,48 @@ export default function LoadDetailsPage() {
               <CheckCircle2 className="size-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Mark as delivered
             </Button>
           )}
-          <Button
-            variant="default"
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial"
-            onClick={() => router.push(`/transportation/load/${load._id}/edit`)}
-          >
-            {load.status === "Draft" ? "Review & Post" : "Edit Load"}
-          </Button>
+          {canCancel && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-background flex-1 sm:flex-initial text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+              onClick={() => setCancelOpen(true)}
+            >
+              <Ban className="size-4 mr-2" aria-hidden="true" /> Cancel load
+            </Button>
+          )}
+          {load.status !== "Cancelled" && (
+            <Button
+              variant="default"
+              size="sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial"
+              onClick={() => router.push(`/transportation/load/${load._id}/edit`)}
+            >
+              {load.status === "Draft" ? "Review & Post" : "Edit Load"}
+            </Button>
+          )}
         </div>
       </div>
+
+      {cancellation && (
+        <div className="flex gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-900 dark:text-red-200">
+          <Ban className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 space-y-0.5 break-words [overflow-wrap:anywhere]">
+            <p>
+              <span className="font-semibold">This load was cancelled</span>
+              {cancellation.byName ? ` · ${cancellation.byName}` : ""}
+              {cancellation.at ? ` · ${formatDate(cancellation.at)}` : ""}
+              {cancellation.previousStatus ? ` · was ${cancellation.previousStatus}` : ""}
+            </p>
+            <p>Reason: {cancellationReasonLabel(cancellation.reason)}</p>
+            {cancellation.note ? <p>Note: {cancellation.note}</p> : null}
+            {cancellation.driverName ? <p>Driver who had it: {cancellation.driverName}</p> : null}
+            <p className="text-xs text-red-900/80 dark:text-red-200/80">
+              It&apos;s kept as a record and can&apos;t be edited. Use Duplicate if the shipment is back on.
+            </p>
+          </div>
+        </div>
+      )}
 
       {load.status === "Draft" && (
         <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
@@ -1303,6 +1349,16 @@ export default function LoadDetailsPage() {
         status={load.status}
         hasDriverPhoto={Boolean(load.proofOfDelivery?.imageUrl)}
         onDelivered={() => void queryClient.invalidateQueries({ queryKey: ["transportation-load-detail", id] })}
+      />
+      <CancelLoadDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        loadId={load._id}
+        loadNumber={load.loadNumber}
+        status={load.status}
+        driverName={assignedDriverName}
+        fromQuote={Boolean(load.quoteId)}
+        onCancelled={() => void queryClient.invalidateQueries({ queryKey: ["transportation-load-detail", id] })}
       />
       <LoadTripHistoryDialog
         open={tripHistoryOpen}
