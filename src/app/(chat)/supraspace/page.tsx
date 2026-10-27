@@ -2549,12 +2549,18 @@ function canonicalizeColorMarkup(value: string): string {
 }
 
 function richPasteDropsVisibleText(plainText: string, html: string): boolean {
-  return Boolean(
-    html
-    && supraSpaceClipboardTextLosesPlainText(
-      plainText,
-      clipboardHtmlToPlainText(html),
-    ),
+  if (!html) return false;
+  const htmlText = clipboardHtmlToPlainText(html);
+  if (!supraSpaceClipboardTextLosesPlainText(plainText, htmlText)) return false;
+
+  // Clipboard producers such as ChatGPT provide Markdown in text/plain and
+  // rendered markup in text/html. Compare their visible text only after
+  // removing syntax from the comparison copy; never alter the original text
+  // used for the actual paste or the generic visible-content safeguard.
+  if (!hasRichMarkdownClipboardSyntax(plainText)) return true;
+  return supraSpaceClipboardTextLosesPlainText(
+    richPasteComparablePlainText(plainText),
+    htmlText,
   );
 }
 
@@ -3147,11 +3153,40 @@ function clipboardHtmlToEditorHtml(html: string): string {
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
   return stripSupraSpaceMarkdownLinksToLabels(stripSupraSpaceControlMarkup(value))
+    .replace(/\*\*\*([^*\n]+)\*\*\*/g, '$1')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g, '$1$2')
     .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2');
+}
+
+function hasRichMarkdownClipboardSyntax(value: string): boolean {
+  return hasMarkdownSyntax(value)
+    || /^\s{0,3}#{1,6}\s+\S/m.test(value)
+    || /^```[^\n]*$/m.test(value)
+    || /(?<!\\)\\\r?\n/.test(value)
+    || /^\s*(?:---+|\*\*\*+|___+)\s*$/m.test(value);
+}
+
+function richPasteComparablePlainText(value: string): string {
+  const withoutInlineSyntax = stripRichTextMarkupForPlainPaste(value)
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*(?:[-+*]|\d+[.)])\s+/gm, '')
+    .replace(/^```[^\n]*$/gm, '')
+    .replace(/^\s*(?:---+|\*\*\*+|___+)\s*$/gm, '')
+    .replace(/^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/gm, '')
+    .replace(/(?<!\\)\\(?=\r?\n)/g, '')
+    .replace(/\\([\\`*_[\]{}()#+\-.!~|>])/g, '$1');
+
+  return withoutInlineSyntax
+    .split('\n')
+    .map(line => /^\s*\|.*\|\s*$/.test(line)
+      ? line.replace(/(?<!\\)\|/g, ' ')
+      : line)
+    .join('\n');
 }
 
 function richTextSerializationDropsVisibleText(visibleText: string, serializedText: string): boolean {
@@ -3273,7 +3308,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
   return Boolean(findSupraSpaceMarkdownLink(compatibleText))
-    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s{0,3}#{1,6}\s+\S|^```[^\n]*$|(?<!\\)\\\r?\n|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
 }
 
 function markdownTextToEditorHtml(text: string): string {
