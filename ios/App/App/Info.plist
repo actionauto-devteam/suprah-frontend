@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Suprah meet uses the microphone for meetings and voice features.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Suprah Meet uses the camera for video meetings.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Suprah uses your location for Driver Tracker live tracking and Timeproof shift verification, including while the app is in the background.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Driver Tracker shares your live location with dispatch, including while the app is in the backgroud.</string>
 	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
@@ -43,6 +51,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
