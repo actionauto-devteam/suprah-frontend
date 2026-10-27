@@ -1,4 +1,5 @@
-﻿"use client";
+
+"use client";
 
 import * as React from "react";
 
@@ -53,6 +54,10 @@ import { usePresence } from "@/hooks/usePresence";
 import { usePresenceSocket } from "@/hooks/usePresenceSocket";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { dealershipNav, dealershipMobileModules } from "@/components/layout/mobile-nav-config";
+// Native iOS app (Capacitor shell) — inside the app the bottom nav is
+// filtered to the v1 feature scope and browser web-push UI is suppressed.
+import { filterNavForNativeApp } from "@/lib/native-app";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import { CrmHeader } from "@/components/layout/CrmHeader";
@@ -103,6 +108,20 @@ function DashboardLayoutContent({
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { avatarUrl } = useProfileContext();
+  // Native iOS app: gate the bottom nav to the v1 features. False on the
+  // website and during SSR/first paint, so web behavior is unchanged.
+  const isNativeApp = useIsNativeApp();
+  const bottomNavItems = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(dealershipNav) : dealershipNav),
+    [isNativeApp],
+  );
+  const bottomNavModules = React.useMemo(
+    () =>
+      isNativeApp
+        ? filterNavForNativeApp(dealershipMobileModules)
+        : dealershipMobileModules,
+    [isNativeApp],
+  );
   useCrmWebPush();
   usePresence();
   usePresenceSocket();
@@ -471,7 +490,7 @@ function DashboardLayoutContent({
           )}
           {children}
         </main>
-        <MobileBottomNav items={dealershipNav} allItems={dealershipMobileModules} />
+        <MobileBottomNav items={bottomNavItems} allItems={bottomNavModules} />
       </SidebarInset>
 
       { }
@@ -492,7 +511,11 @@ function DashboardLayoutContent({
 
       {isCrmRoute && <IncomingCallCenter />}
 
-      {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
+      {/* Browser web-push prompt — meaningless inside the native iOS app
+          (WKWebView has no web push; native push will come via APNs). */}
+      {showCrmPushPrompt && !isNativeApp && (
+        <CrmPushPrompt role={userRole || "employee"} />
+      )}
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent size="sm">
@@ -606,3 +629,4 @@ export default function DashboardLayout({
     </ProfileProvider>
   );
 }
+
