@@ -41,18 +41,42 @@ export function supraSpaceClipboardTextLosesPlainText(
   );
 }
 
-/**
- * Windows browsers reserve Ctrl+Shift+V for a plain-text paste and remove the
- * HTML clipboard representation before the paste event. Shift+Insert remains
- * a native rich paste command, so it can select the existing sanitized rich
- * pipeline without changing the normal text-only Ctrl/⌘+V default.
- */
-export function isSupraSpaceKeepFormattingPasteShortcut(event: SupraSpacePasteShortcutEvent): boolean {
-  return event.shiftKey
-    && !event.ctrlKey
-    && !event.metaKey
+/** Ctrl/⌘+Shift+V is the explicit one-paste text-only override. */
+export function isSupraSpacePlainTextPasteShortcut(event: SupraSpacePasteShortcutEvent): boolean {
+  return (event.ctrlKey || event.metaKey)
+    && event.shiftKey
     && !event.altKey
-    && event.key === 'Insert';
+    && event.key.toLowerCase() === 'v';
+}
+
+export type SupraSpaceClipboardSemanticClassFormatting = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+};
+
+/**
+ * Browser clipboard HTML commonly retains class names but not the source
+ * stylesheet. Preserve only well-known, portable text semantics from those
+ * names. This deliberately does not copy arbitrary classes, layout, theme,
+ * backgrounds, or source CSS into a message.
+ */
+export function getSupraSpaceClipboardSemanticClassFormatting(
+  className: string | null | undefined,
+): SupraSpaceClipboardSemanticClassFormatting {
+  const tokens = String(className || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const has = (pattern: RegExp): boolean => tokens.some(token => pattern.test(token));
+
+  return {
+    bold: has(/^(?:bold|font-(?:bold|semibold|extrabold|black)|fw-(?:bold|semibold|[6-9]00)|(?:text|has-text|is)-(?:bold|semibold)|font-weight-(?:bold|[6-9]00))$/),
+    italic: has(/^(?:italic|font-italic|fst-italic|(?:text|has-text|is)-italic)$/),
+    underline: has(/^(?:underline|text-underline|text-decoration-underline|(?:has-text|is)-underlined)$/),
+    strike: has(/^(?:line-through|strikethrough|strike|text-(?:strike|strikethrough)|text-decoration-line-through)$/),
+  };
 }
 
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {

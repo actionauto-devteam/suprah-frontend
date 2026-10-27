@@ -53,6 +53,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
 import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
+import { getSupraSpaceLatestReadReceiptMessageIds } from '@/lib/supraspace-read-receipts';
 import { isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -69,7 +70,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpaceKeepFormattingPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -91,6 +92,7 @@ const SS4_MESSAGE_LIMIT_ERROR = 'Messages can be up to 10,000 characters. Send t
 const SS4_MESSAGE_PAGE_SIZE = 40;
 const SS4_CONVERSATION_PAGE_SIZE = 80;
 const SS4_MESSAGE_HIGHLIGHT_DURATION_MS = 2300;
+const SS4_OPEN_BOTTOM_STABILIZATION_MS = 1200;
 const ss4MessageHighlightTimers = new WeakMap<HTMLElement, number>();
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
 type PasteMode = 'formatted' | 'plain';
@@ -2460,6 +2462,36 @@ function insertPlainTextWithSoftBreaksAtRichEditorSelection(
   return range.cloneRange();
 }
 
+function insertRichHtmlAtRichEditorSelection(root: HTMLElement, html: string): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const template = root.ownerDocument.createElement('template');
+  template.innerHTML = html;
+  const fragment = template.content;
+  const lastInserted = fragment.lastChild;
+  if (!lastInserted) return range.cloneRange();
+
+  range.deleteContents();
+  range.insertNode(fragment);
+  range.setStartAfter(lastInserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
+}
+
 function restoreRichEditorHtmlSnapshot(root: HTMLElement, html: string): void {
   root.innerHTML = html;
   root.focus();
@@ -2517,12 +2549,18 @@ function canonicalizeColorMarkup(value: string): string {
 }
 
 function richPasteDropsVisibleText(plainText: string, html: string): boolean {
-  return Boolean(
-    html
-    && supraSpaceClipboardTextLosesPlainText(
-      plainText,
-      clipboardHtmlToPlainText(html),
-    ),
+  if (!html) return false;
+  const htmlText = clipboardHtmlToPlainText(html);
+  if (!supraSpaceClipboardTextLosesPlainText(plainText, htmlText)) return false;
+
+  // Clipboard producers such as ChatGPT provide Markdown in text/plain and
+  // rendered markup in text/html. Compare their visible text only after
+  // removing syntax from the comparison copy; never alter the original text
+  // used for the actual paste or the generic visible-content safeguard.
+  if (!hasRichMarkdownClipboardSyntax(plainText)) return true;
+  return supraSpaceClipboardTextLosesPlainText(
+    richPasteComparablePlainText(plainText),
+    htmlText,
   );
 }
 
@@ -2716,7 +2754,12 @@ function escapeHtmlText(s: string): string {
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|table|tr|t[dh]|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html)
+    || Array.from(html.matchAll(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi))
+      .some(match => {
+        const semantic = getSupraSpaceClipboardSemanticClassFormatting(match[1] || match[2] || match[3]);
+        return semantic.bold || semantic.italic || semantic.underline || semantic.strike;
+      });
 }
 
 function htmlAppearsToContainLists(html: string): boolean {
@@ -3060,6 +3103,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
     const inner = Array.from(element.childNodes).map(walk).join('');
     const fontWeight = element.style.fontWeight;
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
+    const semanticClassFormatting = getSupraSpaceClipboardSemanticClassFormatting(element.getAttribute('class'));
     let formatted = inner;
 
     if (
@@ -3068,16 +3112,18 @@ function clipboardHtmlToEditorHtml(html: string): string {
       || fontWeight === 'bold'
       || fontWeight === 'bolder'
       || Number.parseInt(fontWeight || '0', 10) >= 600
+      || semanticClassFormatting.bold
     ) formatted = `<strong>${formatted}</strong>`;
-    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') {
+    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic' || semanticClassFormatting.italic) {
       formatted = `<em>${formatted}</em>`;
     }
-    if (tag === 'u' || decoration.includes('underline')) formatted = `<u>${formatted}</u>`;
+    if (tag === 'u' || decoration.includes('underline') || semanticClassFormatting.underline) formatted = `<u>${formatted}</u>`;
     if (
       tag === 's'
       || tag === 'strike'
       || tag === 'del'
       || decoration.includes('line-through')
+      || semanticClassFormatting.strike
     ) formatted = `<s>${formatted}</s>`;
 
     if (tag === 'code') return `<code>${wrapStyles(element, formatted)}</code>`;
@@ -3107,11 +3153,40 @@ function clipboardHtmlToEditorHtml(html: string): string {
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
   return stripSupraSpaceMarkdownLinksToLabels(stripSupraSpaceControlMarkup(value))
+    .replace(/\*\*\*([^*\n]+)\*\*\*/g, '$1')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g, '$1$2')
     .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2');
+}
+
+function hasRichMarkdownClipboardSyntax(value: string): boolean {
+  return hasMarkdownSyntax(value)
+    || /^\s{0,3}#{1,6}\s+\S/m.test(value)
+    || /^```[^\n]*$/m.test(value)
+    || /(?<!\\)\\\r?\n/.test(value)
+    || /^\s*(?:---+|\*\*\*+|___+)\s*$/m.test(value);
+}
+
+function richPasteComparablePlainText(value: string): string {
+  const withoutInlineSyntax = stripRichTextMarkupForPlainPaste(value)
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*(?:[-+*]|\d+[.)])\s+/gm, '')
+    .replace(/^```[^\n]*$/gm, '')
+    .replace(/^\s*(?:---+|\*\*\*+|___+)\s*$/gm, '')
+    .replace(/^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/gm, '')
+    .replace(/(?<!\\)\\(?=\r?\n)/g, '')
+    .replace(/\\([\\`*_[\]{}()#+\-.!~|>])/g, '$1');
+
+  return withoutInlineSyntax
+    .split('\n')
+    .map(line => /^\s*\|.*\|\s*$/.test(line)
+      ? line.replace(/(?<!\\)\|/g, ' ')
+      : line)
+    .join('\n');
 }
 
 function richTextSerializationDropsVisibleText(visibleText: string, serializedText: string): boolean {
@@ -3233,7 +3308,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
   return Boolean(findSupraSpaceMarkdownLink(compatibleText))
-    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s{0,3}#{1,6}\s+\S|^```[^\n]*$|(?<!\\)\\\r?\n|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -5060,8 +5135,8 @@ const Bubble = React.memo(function Bubble({
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
-  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('plain');
-  const editPasteKeepFormattingShortcutRef = React.useRef(false);
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const editPastePlainTextShortcutRef = React.useRef(false);
   const editPasteUndoRef = React.useRef<{ beforeHtml: string; afterHtml: string } | null>(null);
   const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
@@ -6191,9 +6266,9 @@ const Bubble = React.memo(function Bubble({
                   type="button"
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => setEditPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
-                  className={cn('h-9 px-2 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-white/10', editPasteMode === 'plain' && 'bg-white/10')}
-                  title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only. Shift+Insert pastes with formatting once.'}
-                  aria-pressed={editPasteMode === 'plain'}
+                  className={cn('h-9 px-2 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-white/10', editPasteMode === 'formatted' && 'bg-white/10')}
+                  title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting. Ctrl/⌘+Shift+V pastes text only once.' : 'Paste mode: Text only. Click to keep formatting by default.'}
+                  aria-pressed={editPasteMode === 'formatted'}
                 >
                   <Copy className="h-3.5 w-3.5" />
                   <span style={{ fontSize: 10 }}>{editPasteMode === 'formatted' ? 'Format' : 'Text'}</span>
@@ -6313,9 +6388,9 @@ const Bubble = React.memo(function Bubble({
                 onKeyUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                  if (isSupraSpaceKeepFormattingPasteShortcut(e)) {
-                    editPasteKeepFormattingShortcutRef.current = true;
-                    window.setTimeout(() => { editPasteKeepFormattingShortcutRef.current = false; }, 750);
+                  if (isSupraSpacePlainTextPasteShortcut(e)) {
+                    editPastePlainTextShortcutRef.current = true;
+                    window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
                   }
                   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
                     const snapshot = editPasteUndoRef.current;
@@ -6460,22 +6535,23 @@ const Bubble = React.memo(function Bubble({
                 onPaste={e => {
                   const text = e.clipboardData?.getData('text/plain') || '';
                   const html = e.clipboardData?.getData('text/html') || '';
-                  const shortcutKeepFormatting = editPasteKeepFormattingShortcutRef.current;
-                  editPasteKeepFormattingShortcutRef.current = false;
+                  const shortcutPlainText = editPastePlainTextShortcutRef.current;
+                  editPastePlainTextShortcutRef.current = false;
                   const plainText = clipboardPayloadToPlainText(text, html);
                   if (!plainText && !html) return;
 
                   e.preventDefault();
                   const beforePasteHtml = editAreaRef.current?.innerHTML || '';
-                  const preferFormattedPaste = editPasteMode === 'formatted' || shortcutKeepFormatting;
+                  const preferFormattedPaste = editPasteMode === 'formatted' && !shortcutPlainText;
                   const richEditorHtml = preferFormattedPaste
                     ? clipboardPayloadToRichEditorHtml(text, html)
                     : '';
                   const usePlainText = !preferFormattedPaste
+                    || !richEditorHtml.trim()
                     || richPasteDropsVisibleText(text, html)
                     || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                   if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(editAreaRef.current!, plainText);
-                  else document.execCommand('insertHTML', false, richEditorHtml);
+                  else insertRichHtmlAtRichEditorSelection(editAreaRef.current!, richEditorHtml);
                   requestAnimationFrame(() => {
                     normalizeContentEditableListArtifacts(editAreaRef.current);
                     normalizeRichEditorListExitArtifacts(editAreaRef.current);
@@ -9523,6 +9599,18 @@ export default function SupraSpacePage() {
     return () => window.removeEventListener('supraspace:pwa-update-available', onUpdateAvailable);
   }, []);
   React.useEffect(() => {
+    if (!pwaUpdateAvailable) return;
+    // Installed PWAs can otherwise keep an old worker indefinitely. Apply a
+    // waiting update without asking the user only when no composer work can
+    // be interrupted; the existing notice remains as the fallback for drafts.
+    const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || sharedTargetFiles.length > 0 || sending || uploading;
+    if (hasUnsentComposerWork) return;
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new Event('supraspace:pwa-apply-update'));
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [composerHasText, pendingFiles.length, pendingGif, pwaUpdateAvailable, sending, sharedTargetFiles.length, uploading]);
+  React.useEffect(() => {
     const restored = new Map<HTMLStyleElement, string | null>();
     const syncStyles = () => {
       const legacy = document.getElementById('ss4-styles') as HTMLStyleElement | null;
@@ -9735,8 +9823,8 @@ export default function SupraSpacePage() {
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
-  const [pasteMode, setPasteMode] = React.useState<PasteMode>('plain');
-  const pasteKeepFormattingShortcutRef = React.useRef(false);
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const pastePlainTextShortcutRef = React.useRef(false);
   const pasteUndoRef = React.useRef<{ beforeHtml: string; afterHtml: string } | null>(null);
   const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
@@ -9922,7 +10010,6 @@ export default function SupraSpacePage() {
   const pendingScrollRestoreRef = React.useRef<{ convId: string; scrollHeight: number; scrollTop: number } | null>(null);
   const forceScrollToBottomRef = React.useRef<string | null>(null);
   const openBottomLockUntilRef = React.useRef(0);
-  const openScrollTimersRef = React.useRef<number[]>([]);
   const openBottomReleaseTimerRef = React.useRef<number | null>(null);
   const suppressAutoScrollOnceRef = React.useRef(false);
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
@@ -10084,21 +10171,19 @@ export default function SupraSpacePage() {
   }, []);
 
   const lockConversationOpenToBottom = React.useCallback((conversationId: string) => {
-    openScrollTimersRef.current.forEach(clearTimeout);
-    openScrollTimersRef.current = [];
     if (openBottomReleaseTimerRef.current) window.clearTimeout(openBottomReleaseTimerRef.current);
     openBottomReleaseTimerRef.current = null;
     pendingScrollRestoreRef.current = null;
     suppressAutoScrollOnceRef.current = false;
     forceScrollToBottomRef.current = conversationId;
-    openBottomLockUntilRef.current = Date.now() + 6500;
+    openBottomLockUntilRef.current = Date.now() + SS4_OPEN_BOTTOM_STABILIZATION_MS;
 
-    [0, 50, 120, 240, 420, 720, 1200, 2000, 3200, 4800, 6500].forEach(delay => {
-      const timer = window.setTimeout(() => {
-        if (activeIdRef.current !== conversationId) return;
-        scrollToLatest('auto', conversationId);
-      }, delay);
-      openScrollTimersRef.current.push(timer);
+    // Let React commit the selected timeline, then align it once. Subsequent
+    // real geometry changes are batched by the ResizeObserver below.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (activeIdRef.current === conversationId) pinMessageViewportToBottom(conversationId);
+      });
     });
 
     openBottomReleaseTimerRef.current = window.setTimeout(() => {
@@ -10109,12 +10194,10 @@ export default function SupraSpacePage() {
         forceScrollToBottomRef.current = null;
       }
       openBottomReleaseTimerRef.current = null;
-    }, 6700);
-  }, [scrollToLatest]);
+    }, SS4_OPEN_BOTTOM_STABILIZATION_MS + 100);
+  }, [pinMessageViewportToBottom]);
 
   const cancelOpenBottomLock = React.useCallback(() => {
-    openScrollTimersRef.current.forEach(clearTimeout);
-    openScrollTimersRef.current = [];
     if (openBottomReleaseTimerRef.current) { window.clearTimeout(openBottomReleaseTimerRef.current); openBottomReleaseTimerRef.current = null; }
     forceScrollToBottomRef.current = null;
     openBottomLockUntilRef.current = 0;
@@ -10122,8 +10205,6 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     return () => {
-      openScrollTimersRef.current.forEach(clearTimeout);
-      openScrollTimersRef.current = [];
       if (openBottomReleaseTimerRef.current) window.clearTimeout(openBottomReleaseTimerRef.current);
       openBottomReleaseTimerRef.current = null;
     };
@@ -10188,15 +10269,7 @@ export default function SupraSpacePage() {
         freshName[m.sender._id] = m.sender.fullName;
       }
     });
-    const lastSeen: Record<string, string> = {};
-    activeMsgs.forEach(m => {
-      // Move each reader's marker to their newest visible read message,
-      // regardless of who sent it.
-      (m.readBy || []).forEach((id: string) => {
-        const readerId = String(id);
-        if (readerId !== uid) lastSeen[readerId] = m._id;
-      });
-    });
+    const lastSeen = getSupraSpaceLatestReadReceiptMessageIds(activeMsgs, uid);
     const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
     (activeConv ? safeMembers(activeConv) : []).forEach(member => {
       if (member._id === uid) return;
@@ -11279,12 +11352,17 @@ export default function SupraSpacePage() {
       Date.now() <= openBottomLockUntilRef.current;
 
     let animationFrame: number | null = null;
+    let lastScrollHeight = scrollEl.scrollHeight;
     const pinIfOpening = () => {
       if (!shouldKeepPinned()) return;
       if (animationFrame !== null) return;
       animationFrame = requestAnimationFrame(() => {
         animationFrame = null;
-        if (shouldKeepPinned()) pinMessageViewportToBottom(activeId);
+        if (!shouldKeepPinned()) return;
+        const nextScrollHeight = scrollEl.scrollHeight;
+        if (nextScrollHeight === lastScrollHeight) return;
+        lastScrollHeight = nextScrollHeight;
+        pinMessageViewportToBottom(activeId);
       });
     };
 
@@ -11304,7 +11382,7 @@ export default function SupraSpacePage() {
     };
 
     observeChildren();
-    pinIfOpening();
+    pinMessageViewportToBottom(activeId);
 
     return () => {
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
@@ -15522,9 +15600,9 @@ export default function SupraSpacePage() {
                               type="button"
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => setPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
-                              className={cn('h-9 px-2.5 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-(--bg-hover)', pasteMode === 'plain' && 'ss4-video-btn')}
-                              title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only. Shift+Insert pastes with formatting once.'}
-                              aria-pressed={pasteMode === 'plain'}
+                              className={cn('h-9 px-2.5 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-(--bg-hover)', pasteMode === 'formatted' && 'ss4-video-btn')}
+                              title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting. Ctrl/⌘+Shift+V pastes text only once.' : 'Paste mode: Text only. Click to keep formatting by default.'}
+                              aria-pressed={pasteMode === 'formatted'}
                             >
                               <Copy className="h-3.5 w-3.5" />
                               <span className="font-semibold" style={{ fontSize: 10 }}>{pasteMode === 'formatted' ? 'Keep format' : 'Text only'}</span>
@@ -15678,10 +15756,10 @@ export default function SupraSpacePage() {
                               }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                                if (isSupraSpaceKeepFormattingPasteShortcut(e)) {
-                                  pasteKeepFormattingShortcutRef.current = true;
+                                if (isSupraSpacePlainTextPasteShortcut(e)) {
+                                  pastePlainTextShortcutRef.current = true;
                                   window.setTimeout(() => {
-                                    pasteKeepFormattingShortcutRef.current = false;
+                                    pastePlainTextShortcutRef.current = false;
                                   }, 750);
                                 }
                                 if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
@@ -15883,8 +15961,8 @@ export default function SupraSpacePage() {
                                   void handlePastedMediaReference(pastedMediaReference);
                                   return;
                                 }
-                                const shortcutKeepFormatting = pasteKeepFormattingShortcutRef.current;
-                                pasteKeepFormattingShortcutRef.current = false;
+                                const shortcutPlainText = pastePlainTextShortcutRef.current;
+                                pastePlainTextShortcutRef.current = false;
 
                                 const plainText = clipboardPayloadToPlainText(text, html);
                                 if (plainText || html) {
@@ -15892,7 +15970,7 @@ export default function SupraSpacePage() {
                                   setMentionQuery(null);
                                   setMentionAnchor(-1);
                                   const beforePasteHtml = textareaRef.current?.innerHTML || '';
-                                  const preferFormattedPaste = pasteMode === 'formatted' || shortcutKeepFormatting;
+                                  const preferFormattedPaste = pasteMode === 'formatted' && !shortcutPlainText;
                                   const richEditorHtml = preferFormattedPaste
                                     ? clipboardPayloadToRichEditorHtml(text, html)
                                     : '';
@@ -15909,11 +15987,12 @@ export default function SupraSpacePage() {
                                     pastedPlainTextRef.current = [pastedPlainTextRef.current, limitedPlainText].filter(Boolean).join('\n');
                                   }
                                   const usePlainText = !preferFormattedPaste
+                                    || !richEditorHtml.trim()
                                     || richPasteDropsVisibleText(text, html)
                                     || pasteExceededLimit
                                     || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                                   if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(textareaRef.current!, limitedPlainText);
-                                  else document.execCommand('insertHTML', false, richEditorHtml);
+                                  else insertRichHtmlAtRichEditorSelection(textareaRef.current!, richEditorHtml);
                                   if (pasteExceededLimit) showMessageLimitNotice();
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;

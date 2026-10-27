@@ -28,6 +28,8 @@ export interface RosterEntry {
   muted: boolean;
   handRaised: boolean;
   isGuest?: boolean;
+  /** Local first-seen time, used only for stable client-side tile ordering. */
+  joinedAt?: number;
 }
 export interface TileInfo { tileId: number; attendeeId: string; isLocal: boolean; isContent: boolean; }
 export interface ReactionEvent { id: string; emoji: string; name: string; }
@@ -40,6 +42,14 @@ export interface MeetingInfo {
   recording: { status: string };
   captionsEnabled?: boolean;
   captionLanguage?: string;
+}
+
+export interface MeetJoinOptions {
+  /** Guest passes use the public meeting endpoints. */
+  token?: string;
+  /** Choices made in the pre-join device check. Both default to off. */
+  startMic?: boolean;
+  startCam?: boolean;
 }
 
 type Phase = "idle" | "joining" | "in" | "ended" | "error";
@@ -233,7 +243,7 @@ export function useSuprahMeet() {
     } catch { /* best-effort */ }
   }, []);
 
-  const join = useCallback(async (code: string, guest?: { token: string }) => {
+  const join = useCallback(async (code: string, options?: MeetJoinOptions) => {
     setPhase("joining");
     setMicOn(false);
     setCanEndForAll(false);
@@ -246,7 +256,7 @@ export function useSuprahMeet() {
     setError(null);
     setEndedReason(null);
     codeRef.current = code.trim().toUpperCase();
-    guestTokenRef.current = guest?.token ?? null;
+    guestTokenRef.current = options?.token ?? null;
     try {
       const res = guestTokenRef.current
         ? await apiClient.post(`/api/crm/meet/guest/${codeRef.current}/join`, {},
@@ -314,6 +324,7 @@ export function useSuprahMeet() {
               avatar: known?.avatar ?? null,
               muted: isSelf ? audioVideo.realtimeIsLocalAudioMuted() : false, handRaised: false,
               isGuest: isGuestAtt,
+              joinedAt: Date.now(),
             },
           }));
           if (!known && !isSelf) void refreshNames();
@@ -418,8 +429,44 @@ export function useSuprahMeet() {
       }
 
       audioVideo.start();
+      // The preview stream has already been released by the pre-join screen.
+      // Start only the devices the person explicitly chose there; a failed
+      // device must never block a listen-only meeting join.
+      if (options?.startMic) {
+        try {
+          const audioInputs = await audioVideo.listAudioInputDevices();
+          if (audioInputs[0]) {
+            await audioVideo.startAudioInput(audioInputs[0].deviceId);
+            micStartedRef.current = true;
+            setMicOn(audioVideo.realtimeUnmuteLocalAudio());
+          } else {
+            setNotice("No microphone was found. You joined with your microphone off.");
+          }
+        } catch {
+          setNotice("The microphone couldn't be started. You joined with your microphone off.");
+        }
+      }
+      if (options?.startCam) {
+        try {
+          const inputs = await audioVideo.listVideoInputDevices();
+          videoDevicesRef.current = inputs.map((device) => ({ deviceId: device.deviceId, label: device.label || "" }));
+          const frontIdx = videoDevicesRef.current.findIndex((device) => /front|user/i.test(device.label));
+          camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
+          setVideoDeviceCount(videoDevicesRef.current.length);
+          if (videoDevicesRef.current.length) {
+            // No background transform is selected before a meeting starts.
+            await audioVideo.startVideoInput(videoDevicesRef.current[camIndexRef.current].deviceId);
+            audioVideo.startLocalVideoTile();
+            setCamOn(true);
+          } else {
+            setNotice("No camera was found. You joined with your camera off.");
+          }
+        } catch {
+          setNotice("The camera couldn't be started. You joined with your camera off.");
+        }
+      }
       joinedAtRef.current = Date.now();
-      setMicOn(false);
+      if (!options?.startMic) setMicOn(false);
       setPhase("in");
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");

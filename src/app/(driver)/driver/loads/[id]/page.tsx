@@ -27,6 +27,8 @@ import { DriverContractModal, DriverSignedContract } from '@/components/create-l
 import { DriverReleaseLoadDialog } from '@/components/driver/DriverReleaseLoadDialog';
 import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDialog';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
+import type { DriverLoadCompatibility } from '@/types/driver-tracking';
+import { EQUIPMENT_PAGE_PATH, trailerFitProblem } from '@/lib/trailer-setup';
 import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
 import { initializeSocket } from '@/lib/socket.client';
 import { userErrorMessage } from "@/lib/user-error";
@@ -350,7 +352,14 @@ export default function LoadDetailPage() {
   const canMarkPickedUp = status === 'Accepted' && !hasPendingRelease;
   const canStartRoute = status === 'Picked Up' && !hasPendingRelease;
   const canDrop = isAccepted && !hasPendingRelease && (status === 'Accepted' || status === 'Picked Up' || status === 'In-Transit');
-  const canRequest = !isAssigned && !isMyRequest && status === 'Posted' && workEligibility.canTakeNewWork;
+  // Same trailer check as Available Loads, so a load that doesn't fit explains
+  // why up front instead of failing after the driver taps Request.
+  const compatibility = (data as Load & { compatibility?: DriverLoadCompatibility }).compatibility;
+  const requestableLoad = !isAssigned && !isMyRequest && status === 'Posted';
+  const trailerProblem = requestableLoad && compatibility && !compatibility.driverRequestAllowed
+    ? trailerFitProblem(compatibility)
+    : null;
+  const canRequest = requestableLoad && !trailerProblem && workEligibility.canTakeNewWork;
 
   const getStepIdx = () => {
     if (status === 'Delivered') return 4;
@@ -395,21 +404,25 @@ export default function LoadDetailPage() {
             </div>
 
             {isAssigned && status !== 'Cancelled' && (
-              <div className="flex items-center gap-0 w-full mt-5 overflow-x-auto pb-2 scrollbar-hide">
+              // Five equal columns with the connecting line drawn behind the circles,
+              // so every step fits any screen width without scrolling sideways.
+              <ol className="grid grid-cols-5 w-full mt-5 pb-2" aria-label="Load progress">
                 {STEPS.map((step, i) => (
-                  <React.Fragment key={step.key}>
-                    <div className="flex flex-col items-center gap-0.5 min-w-17.5 shrink-0">
-                      <div className={cn('size-6 rounded-full flex items-center justify-center border-2 transition-colors',
+                  <li key={step.key} className="relative flex min-w-0 flex-col items-center gap-0.5 text-center">
+                    {i < STEPS.length - 1 && (
+                      <span aria-hidden="true" className={cn('absolute left-1/2 top-[11px] h-0.5 w-full', i < stepIdx ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-border')} />
+                    )}
+                    <span className="relative z-10 rounded-full bg-background">
+                      <span className={cn('size-6 rounded-full flex items-center justify-center border-2 transition-colors',
                         i <= stepIdx ? (i === stepIdx ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-300')
                           : 'bg-muted/50 border-border text-muted-foreground/40')}>
-                        {i < stepIdx ? <CheckCircle2 className="size-3.5" /> : i === stepIdx ? <CircleDot className="size-3.5" /> : <div className="size-1.5 rounded-full bg-current" />}
-                      </div>
-                      <span className={cn('text-[10px] font-semibold whitespace-nowrap', i <= stepIdx ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40')}>{step.label}</span>
-                    </div>
-                    {i < STEPS.length - 1 && <div className={cn('flex-1 h-0.5 -mt-2.5 mx-1 rounded-full min-w-5', i < stepIdx ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-border')} />}
-                  </React.Fragment>
+                        {i < stepIdx ? <CheckCircle2 className="size-3.5" /> : i === stepIdx ? <CircleDot className="size-3.5" /> : <span className="size-1.5 rounded-full bg-current" />}
+                      </span>
+                    </span>
+                    <span className={cn('text-[10px] font-semibold leading-tight', i <= stepIdx ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40')}>{step.label}</span>
+                  </li>
                 ))}
-              </div>
+              </ol>
             )}
           </div>
         </div>
@@ -418,6 +431,19 @@ export default function LoadDetailPage() {
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 flex items-start gap-2">
             <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground">{workEligibility.blockReason}</p>
+          </div>
+        )}
+
+        {trailerProblem && (
+          <div role="status" className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground">{trailerProblem.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">{trailerProblem.detail}</p>
+              <Link href={EQUIPMENT_PAGE_PATH} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">
+                Open Equipment page
+              </Link>
+            </div>
           </div>
         )}
 

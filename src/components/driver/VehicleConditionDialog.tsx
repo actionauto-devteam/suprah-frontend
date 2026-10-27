@@ -137,7 +137,7 @@ export function VehicleConditionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-xl">
+      <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[min(calc(100dvh-2rem),48rem)] sm:max-h-[calc(100dvh-2rem)] sm:max-w-xl">
         <DialogHeader className="shrink-0 border-b border-border/60 bg-muted/20 px-4 py-4 text-left sm:px-6">
           <DialogTitle className="flex items-center gap-2 text-lg font-extrabold">
             <Camera className="size-5 text-primary" />
@@ -199,7 +199,7 @@ export function VehicleConditionDialog({
               )}
 
               {data.vehicles.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Vehicle">
+                <div className="flex flex-wrap gap-2" role="tablist" aria-label="Vehicle">
                   {data.vehicles.map((vehicle) => (
                     <button
                       key={vehicle.index}

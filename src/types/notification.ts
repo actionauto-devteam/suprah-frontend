@@ -109,6 +109,7 @@ export type NotificationType =
   | 'calendar_event_today'
   | 'suprah_meet_invited'
   | 'suprah_meet_reminder'
+  | 'suprah_meet_live'
   | 'driver_tracker_geofence_alert'
   | 'driver_tracker_offline_alert'
   | 'driver_tracker_place_visit'

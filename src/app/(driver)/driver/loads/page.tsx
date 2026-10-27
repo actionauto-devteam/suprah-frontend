@@ -782,11 +782,22 @@ function StatusTimeline({ load }: { load: Load }) {
   ];
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 w-full mt-2 sm:overflow-x-auto pb-2">
+    // A list on phones; from tablet size up, five equal columns with the line
+    // drawn behind the circles, so the steps never scroll sideways.
+    <ol className="flex flex-col gap-2 w-full mt-2 pb-2 sm:grid sm:grid-cols-5 sm:gap-0" aria-label="Load progress">
       {STEPS.map((step, i) => (
-        <React.Fragment key={step.key}>
-          <div className="flex sm:flex-col items-center gap-2 sm:gap-1 sm:min-w-17.5 shrink-0">
-            <div
+        <li key={step.key} className="relative flex min-w-0 items-center gap-2 sm:flex-col sm:gap-1 sm:text-center">
+          {i < STEPS.length - 1 && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute left-1/2 top-[11px] hidden h-0.5 w-full sm:block",
+                i < cur ? "bg-emerald-500" : "bg-border",
+              )}
+            />
+          )}
+          <span className="relative z-10 shrink-0 rounded-full bg-background">
+            <span
               className={cn(
                 "size-5.5 sm:size-6 rounded-full flex items-center justify-center border-2 transition-colors",
                 i <= cur
@@ -801,37 +812,29 @@ function StatusTimeline({ load }: { load: Load }) {
               ) : i === cur ? (
                 <CircleDot className="size-3.5" />
               ) : (
-                <div className="size-1.5 rounded-full bg-current" />
+                <span className="size-1.5 rounded-full bg-current" />
               )}
-            </div>
-            <span
-              className={cn(
-                "text-xs sm:text-xs font-semibold whitespace-nowrap leading-none",
-                i <= cur ? "text-emerald-600" : "text-muted-foreground",
-              )}
-            >
-              {step.label}
             </span>
-            <span
-              className={cn(
-                "text-xs whitespace-nowrap leading-none mt-0.5",
-                i <= cur && timelineDates[i] ? "text-emerald-500/80" : "text-muted-foreground",
-              )}
-            >
-              {i <= cur && timelineDates[i] ? fmtDate(timelineDates[i]) : "N/A"}
-            </span>
-          </div>
-          {i < STEPS.length - 1 && (
-            <div
-              className={cn(
-                "hidden sm:block flex-1 h-0.5 -mt-6 mx-0.5 rounded-full min-w-5",
-                i < cur ? "bg-emerald-500" : "bg-border",
-              )}
-            />
-          )}
-        </React.Fragment>
+          </span>
+          <span
+            className={cn(
+              "text-xs font-semibold whitespace-nowrap leading-none sm:whitespace-normal sm:leading-tight",
+              i <= cur ? "text-emerald-600" : "text-muted-foreground",
+            )}
+          >
+            {step.label}
+          </span>
+          <span
+            className={cn(
+              "text-xs whitespace-nowrap leading-none mt-0.5 sm:whitespace-normal sm:leading-tight",
+              i <= cur && timelineDates[i] ? "text-emerald-500/80" : "text-muted-foreground",
+            )}
+          >
+            {i > cur ? "Not yet" : timelineDates[i] ? fmtDate(timelineDates[i]) : "No date"}
+          </span>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 

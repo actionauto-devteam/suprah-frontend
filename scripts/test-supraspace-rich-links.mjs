@@ -69,6 +69,20 @@ const pastedMedia = loadSupraSpacePastedMediaHelpers();
 
 assert.equal(richPaste.hasSupraSpaceTextSelection(), false);
 assert.equal(richPaste.getSupraSpaceSelectionClipboardData({}), null);
+const externalClassFormatting = richPaste.getSupraSpaceClipboardSemanticClassFormatting(
+  'font-semibold fst-italic text-underline line-through',
+);
+assert.equal(externalClassFormatting.bold, true);
+assert.equal(externalClassFormatting.italic, true);
+assert.equal(externalClassFormatting.underline, true);
+assert.equal(externalClassFormatting.strike, true);
+const unrelatedExternalClassFormatting = richPaste.getSupraSpaceClipboardSemanticClassFormatting(
+  'layout-card theme-dark text-blue-500',
+);
+assert.equal(unrelatedExternalClassFormatting.bold, false, 'unrelated external classes must not become persisted formatting');
+assert.equal(unrelatedExternalClassFormatting.italic, false, 'unrelated external classes must not become persisted formatting');
+assert.equal(unrelatedExternalClassFormatting.underline, false, 'unrelated external classes must not become persisted formatting');
+assert.equal(unrelatedExternalClassFormatting.strike, false, 'unrelated external classes must not become persisted formatting');
 
 const attachmentUrl = 'https://example.test/attachment.png';
 assert.equal(
@@ -225,19 +239,15 @@ assert.equal(
 );
 
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'Insert', ctrlKey: false, metaKey: false, altKey: false, shiftKey: true }),
+  richPaste.isSupraSpacePlainTextPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
   true,
 );
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }),
+  richPaste.isSupraSpacePlainTextPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }),
   false,
 );
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
-  false,
-);
-assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'Insert', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
+  richPaste.isSupraSpacePlainTextPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: true, shiftKey: true }),
   false,
 );
 
@@ -294,8 +304,65 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   assert.match(source, /richTextSerializationDropsVisibleText\(visibleText, serialized\)/, `${path}: serializer must retain its visible-text guard`);
   assert.doesNotMatch(source, /preserveVisibleVinLines|preserveVisiblePayloadLines|restoreMissingSerialsFromSources/, `${path}: do not revive VIN-specific restoration`);
   assert.match(source, /softBreak\.setAttribute\('data-ss4-soft-break', 'true'\)/, `${path}: pasted line breaks must remain authored editor breaks`);
-  assert.equal((source.match(/isSupraSpaceKeepFormattingPasteShortcut/g) || []).length, 3, `${path}: rich paste shortcut must cover compose and edit`);
+  assert.equal((source.match(/isSupraSpacePlainTextPasteShortcut/g) || []).length, 3, `${path}: plain-text shortcut must cover compose and edit`);
+  assert.equal((source.match(/useState<PasteMode>\('formatted'\)/g) || []).length, 2, `${path}: compose and edit must keep formatting by default`);
+  assert.equal((source.match(/insertRichHtmlAtRichEditorSelection\(/g) || []).length, 3, `${path}: rich paste must use range insertion in compose and edit`);
+  assert.match(source, /getSupraSpaceClipboardSemanticClassFormatting/, `${path}: semantic external CSS classes must preserve supported text formatting`);
+  assert.match(source, /richPasteComparablePlainText/, `${path}: Markdown clipboard syntax must not trigger a false content-loss fallback`);
+  assert.doesNotMatch(source, /execCommand\('insertHTML', false, richEditorHtml\)/, `${path}: rich paste must not depend on deprecated insertHTML commands`);
   assert.match(source, /PasteUndoRef/, `${path}: pasted content must have focused Ctrl\/Cmd\+Z support`);
+  const richPasteStart = source.indexOf('function richPasteDropsVisibleText(');
+  const richPasteEnd = source.indexOf('function markdownTextToEditorHtml(', richPasteStart);
+  assert.notEqual(richPasteStart, -1, `${path}: rich-paste visible-text guard must exist`);
+  assert.notEqual(richPasteEnd, -1, `${path}: Markdown rich-paste helpers must exist`);
+  let clipboardHtmlPlainText = '';
+  const richPasteContext = {
+    clipboardHtmlToPlainText: () => clipboardHtmlPlainText,
+    supraSpaceClipboardTextLosesPlainText: richPaste.supraSpaceClipboardTextLosesPlainText,
+    stripSupraSpaceMarkdownLinksToLabels: links.stripSupraSpaceMarkdownLinksToLabels,
+    stripSupraSpaceControlMarkup: formatting.stripSupraSpaceControlMarkup,
+    normalizeSupraSpaceLegacyMarkup: formatting.normalizeSupraSpaceLegacyMarkup,
+    findSupraSpaceMarkdownLink: links.findSupraSpaceMarkdownLink,
+  };
+  vm.createContext(richPasteContext);
+  vm.runInContext(typescript.transpileModule(source.slice(richPasteStart, richPasteEnd), {
+    compilerOptions: { target: typescript.ScriptTarget.ES2022 },
+  }).outputText, richPasteContext);
+  const markdownClipboard = [
+    '## SUPRA SPACE — FORMATTING TEST',
+    '**Bold text**',
+    '*Italic text*',
+    '***Bold and italic text***',
+    '~~Strikethrough text~~',
+    '[Google](https://www.google.com/)',
+    '- First bullet',
+    '> **Important:** formatted quote',
+    '| Name | Role |',
+    '| ---- | ---- |',
+    '| John | Developer |',
+    'VIN: 1HGCM82633A004352',
+    'Text before\\',
+    'Text after a single line break.',
+  ].join('\n');
+  clipboardHtmlPlainText = [
+    'SUPRA SPACE — FORMATTING TEST',
+    'Bold text',
+    'Italic text',
+    'Bold and italic text',
+    'Strikethrough text',
+    'Google',
+    'First bullet',
+    'Important: formatted quote',
+    'Name Role',
+    'John Developer',
+    'VIN: 1HGCM82633A004352',
+    'Text before',
+    'Text after a single line break.',
+  ].join('\n');
+  assert.equal(richPasteContext.richPasteDropsVisibleText(markdownClipboard, '<div>rendered clipboard</div>'), false, `${path}: rendered Markdown must stay formatted`);
+  clipboardHtmlPlainText = 'VIN: 1HGCM82633A004352';
+  assert.equal(richPasteContext.richPasteDropsVisibleText('VIN: 1HGCM82633A004352\nInvisible source detail', '<div>incomplete clipboard</div>'), true, `${path}: a real visible-text loss must still fall back safely`);
+  assert.equal(richPasteContext.richPasteDropsVisibleText('Literal **** marker', '<div>missing marker</div>'), true, `${path}: literal marker text must not be treated as formatting syntax`);
   const start = source.indexOf('function htmlToMarkdown(');
   const end = source.indexOf('\nfunction ', start + 1);
   const compiled = typescript.transpileModule(source.slice(start, end), {

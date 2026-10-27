@@ -24,8 +24,11 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useSuprahMeet, type RosterEntry, type TileInfo } from "@/hooks/useSuprahMeet";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
+import { MeetPreJoin } from "@/components/suprah-meet/MeetPreJoin";
+import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
+import { orderMeetPeople } from "@/lib/meet-layout";
 
-type Gate = "form" | "checking" | "waiting" | "notlive" | "denied" | "over" | "in";
+type Gate = "form" | "checking" | "waiting" | "notlive" | "ready" | "denied" | "over" | "in";
 
 export default function SuprahMeetGuestPage() {
   const params = useParams<{ code: string }>();
@@ -36,6 +39,7 @@ export default function SuprahMeetGuestPage() {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [title, setTitle] = React.useState<string | null>(null);
+  const [scheduledAt, setScheduledAt] = React.useState<string | null>(null);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [panel, setPanel] = React.useState<"none" | "chat" | "people">("none");
   const [chatDraft, setChatDraft] = React.useState("");
@@ -59,14 +63,11 @@ export default function SuprahMeetGuestPage() {
       const d = res.data?.data ?? {};
       if (d.guestToken) sessionStorage.setItem(tokenKey, d.guestToken);
       if (d.title) setTitle(d.title);
+      if (d.scheduledAt) setScheduledAt(d.scheduledAt);
       if (d.ended) { setGate("over"); return; }
       if (d.denied) { setGate("denied"); return; }
       if (d.admitted && d.live) {
-        if (!joinedRef.current) {
-          joinedRef.current = true;
-          setGate("in");
-          void meet.join(code, { token: sessionStorage.getItem(tokenKey) || "" });
-        }
+        setGate("ready");
         return;
       }
       // Admitted but not started yet, or still in the waiting room → keep polling.
@@ -109,10 +110,15 @@ export default function SuprahMeetGuestPage() {
 
   const sendChat = () => { meet.sendChat(chatDraft); setChatDraft(""); };
 
-  const people = Object.values(meet.roster);
   const contentTile = meet.tiles.find((t) => t.isContent);
   const cameraTiles = meet.tiles.filter((t) => !t.isContent);
   const tilesByAttendee = new Map(cameraTiles.map((t) => [t.attendeeId, t]));
+  const people = orderMeetPeople({
+    people: Object.values(meet.roster), selfId: meet.selfAttendeeId || null,
+    activeSpeakerId: meet.activeSpeakerId || null,
+    hasVideo: (person) => tilesByAttendee.has(person.attendeeId),
+  });
+  const latestChat = meet.chatMessages.at(-1) ?? null;
   const gridCls = (n: number) =>
     n <= 1 ? "grid-cols-1" : n === 2 ? "grid-cols-1 sm:grid-cols-2"
     : n <= 4 ? "grid-cols-2" : n <= 9 ? "grid-cols-2 md:grid-cols-3"
@@ -159,6 +165,12 @@ export default function SuprahMeetGuestPage() {
   }
 
   if (gate === "waiting" || gate === "notlive") {
+    const when = scheduledAt
+      ? new Date(scheduledAt).toLocaleString("en-US", {
+          timeZone: "America/Denver", weekday: "long", month: "short", day: "numeric",
+          hour: "numeric", minute: "2-digit", timeZoneName: "short",
+        })
+      : null;
     return (
       <Shell>
         <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
@@ -170,7 +182,7 @@ export default function SuprahMeetGuestPage() {
         <p className="max-w-md text-sm text-emerald-200/60">
           {gate === "waiting"
             ? "The host has been notified. You'll join automatically the moment they admit you — keep this page open."
-            : "You're in! The meeting hasn't started yet; you'll join automatically the moment the host starts it."}
+            : `You're in! The meeting hasn't started yet. The host can open it early${when ? `, otherwise it opens at ${when}` : ""}.`}
         </p>
         <p className="text-xs text-emerald-200/40">{title ?? code}</p>
       </Shell>
@@ -186,6 +198,26 @@ export default function SuprahMeetGuestPage() {
           Your request to join was declined. If you think this is a mistake, contact the person who invited you.
         </p>
       </Shell>
+    );
+  }
+
+  if (gate === "ready") {
+    return (
+      <MeetPreJoin
+        title={title ?? "Suprah Meet"}
+        code={code}
+        onJoin={({ mic, camera }) => {
+          if (joinedRef.current) return;
+          joinedRef.current = true;
+          setGate("in");
+          void meet.join(code, {
+            token: sessionStorage.getItem(tokenKey) || "",
+            startMic: mic,
+            startCam: camera,
+          });
+        }}
+        joinLabel="Join meeting"
+      />
     );
   }
 
@@ -219,9 +251,8 @@ export default function SuprahMeetGuestPage() {
 
       <header className="flex items-center gap-2 border-b border-emerald-400/15 bg-[#0a1410]/80 px-3 py-2.5 backdrop-blur">
         <SuprahMeetLogo className="size-7 shrink-0" />
-        <span className="truncate text-sm font-medium">{meet.meeting?.title ?? title ?? "Suprah Meet"}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{meet.meeting?.title ?? title ?? "Suprah Meet"}</span>
         <span className="shrink-0 rounded bg-sky-400/15 px-1.5 py-px text-[10px] font-medium text-sky-300">GUEST</span>
-        <div className="flex-1" />
         <span className="shrink-0 text-xs text-emerald-200/50">{code}</span>
       </header>
 
@@ -254,7 +285,8 @@ export default function SuprahMeetGuestPage() {
         )}
 
         <MeetCaptionsPanel meet={meet} />
-        <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur">
+        <MeetChatPeek message={latestChat} onOpen={() => { setPanel("chat"); meet.markChatRead(); }} />
+        <footer className="flex shrink-0 flex-nowrap items-center justify-start gap-1.5 overflow-x-auto rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:flex-wrap md:justify-center md:overflow-visible">
           <GuestCtl on={meet.micOn} onClick={() => void meet.toggleMic()}
             label={meet.micOn ? "Mute" : "Unmute"}
             iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
@@ -277,7 +309,7 @@ export default function SuprahMeetGuestPage() {
           <GuestCtl on={panel !== "people"} accent onClick={() => setPanel(panel === "people" ? "none" : "people")}
             label="People" badge={people.length}
             iconOn={<Users className="size-5" />} iconOff={<Users className="size-5" />} />
-          <Button variant="destructive" className="ml-1 h-11 rounded-xl px-4"
+          <Button variant="destructive" className="ml-1 h-11 shrink-0 rounded-xl px-4"
             onClick={() => void meet.leave()}>
             <PhoneOff className="mr-1.5 size-4" /> End call
           </Button>
@@ -424,7 +456,7 @@ function GuestCtl({ on, onClick, label, iconOn, iconOff, accent, badge }: {
 }) {
   return (
     <button onClick={onClick} title={label} aria-pressed={on}
-      className={cn("relative grid h-11 w-12 place-items-center rounded-xl border transition-all hover:scale-105",
+      className={cn("relative grid h-11 w-12 shrink-0 place-items-center rounded-xl border transition-all hover:scale-105",
         on ? "border-emerald-400/15 bg-[#142a21] hover:bg-[#1a3529]"
            : accent ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
                     : "border-rose-400/40 bg-rose-500/15 text-rose-300")}>

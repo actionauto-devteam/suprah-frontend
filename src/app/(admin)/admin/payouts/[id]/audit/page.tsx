@@ -254,16 +254,16 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                                                         <p className="text-[10px] f8ont-black uppercase tracking-widest text-blue-600 flex items-center gap-1.5">
                                                             <Truck className="w-3 h-3" /> Shipment Proof
                                                         </p>
-                                                        {entry.shipmentInfo && (
+                                                        {entry.loadInfo && (
                                                             <Badge variant="outline" className="text-[10px] h-5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/50 capitalize">
-                                                                {entry.shipmentInfo.status.replace('-', ' ')}
+                                                                {entry.loadInfo.status.replace('-', ' ')}
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    {entry.shipmentInfo ? (
+                                                    {entry.loadInfo ? (
                                                         <div className="space-y-2">
                                                             <div>
-                                                                <p className="text-sm font-bold text-foreground">#{entry.shipmentInfo.trackingNumber || entry.shipmentInfo._id.slice(-8)}</p>
+                                                                <p className="text-sm font-bold text-foreground">#{entry.loadInfo.trackingNumber || entry.loadInfo._id.slice(-8)}</p>
                                                                 <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                                                     <div className="flex flex-col items-center gap-1 group/route">
                                                                         <div className="w-2 h-2 rounded-full border border-blue-400 bg-white" />
@@ -271,8 +271,8 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                                                                         <div className="w-2 h-2 rounded-full bg-blue-400" />
                                                                     </div>
                                                                     <div className="space-y-1.5 flex-1">
-                                                                        <p className="font-medium truncate underline decoration-dotted decoration-zinc-300 underline-offset-4">{entry.shipmentInfo.origin}</p>
-                                                                        <p className="font-medium truncate text-foreground">{entry.shipmentInfo.destination}</p>
+                                                                        <p className="font-medium truncate underline decoration-dotted decoration-zinc-300 underline-offset-4">{entry.loadInfo.origin}</p>
+                                                                        <p className="font-medium truncate text-foreground">{entry.loadInfo.destination}</p>
                                                                     </div>
                                                                 </div>
                                                             </div>

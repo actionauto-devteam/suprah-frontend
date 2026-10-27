@@ -21,6 +21,7 @@ import {
   PerPageOption,
 } from "@/hooks/useTransportationData";
 import { useLoadsData } from "@/hooks/useLoadsData";
+import { userErrorMessage } from "@/lib/user-error";
 import { useAlert, AlertDialog } from "@/components/AlertDialog";
 import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadCard } from "@/components/LoadCard";
@@ -460,11 +461,8 @@ function TransportationPageInner() {
     } catch (error) {
       showAlert({
         type: "error",
-        title: "Error Creating Quote",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to create quote. Please try again.",
+        title: "Quote Not Created",
+        message: userErrorMessage(error, "create this quote"),
       });
     }
   };
@@ -488,11 +486,8 @@ function TransportationPageInner() {
     } catch (error) {
       showAlert({
         type: "error",
-        title: "Error Converting Quote",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to convert quote to load. Please try again.",
+        title: "Quote Not Converted",
+        message: userErrorMessage(error, "convert this quote into a load"),
       });
       throw error;
     }
