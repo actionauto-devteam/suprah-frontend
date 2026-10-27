@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -48,6 +49,9 @@ import {
   zonedNow,
 } from "@/utils/calendar.utils";
 import { useTeamMembers } from "@/hooks/useTeamPulse";
+// Native iOS app — quick-nav pills are filtered to the v1 feature scope.
+import { filterNavForNativeApp } from "@/lib/native-app";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 
 import { LogisticsMonitor } from "./components/LogisticsMonitor";
 import { RevenueIntelligence } from "./components/RevenueIntelligence";
@@ -779,6 +783,12 @@ const TWO_CARD_GRID =
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
+  // Native iOS app: show only the v1 features in the quick-nav pill row.
+  const isNativeApp = useIsNativeApp();
+  const quickNav = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(QUICK_NAV) : QUICK_NAV),
+    [isNativeApp],
+  );
   const { user: rawUser } = useAuthActions();
   const firstName = ((rawUser as any)?.fullName || "").split(" ")[0] || "there";
   const isLotTech = isMobileMonitoringDept(
@@ -966,7 +976,7 @@ export default function Dashboard() {
 
       {/* ── Mobile quick nav ── */}
       <div className="flex md:hidden gap-1.5 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0">
-        {QUICK_NAV.map((item) => {
+        {quickNav.map((item) => {
           const active =
             item.href === "/"
               ? pathname === "/"
@@ -1097,3 +1107,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

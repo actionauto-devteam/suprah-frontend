@@ -63,6 +63,11 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { HideOnEmbed } from "@/components/layout/HideOnEmbed";
 import { AppMain } from "@/components/layout/AppMain";
 
+// ── iOS app (Capacitor) support ─────────────────────────────────
+import { NativeAppGate } from "@/components/mobile/NativeAppGate";
+import { HideInNativeApp } from "@/components/mobile/HideInNativeApp";
+// ────────────────────────────────────────────────────────────────
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -89,6 +94,9 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ThemeProvider>
+            {/* Keeps native-app (iOS) users inside the v1 routes; no-op on the website */}
+            <NativeAppGate />
+
             <HideOnEmbed>
               <SplashScreen />
             </HideOnEmbed>
@@ -107,9 +115,13 @@ export default function RootLayout({
               {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && <DevRoleSwitcher />}
               <ServiceWorkerRegistration />
               <TrayAutoConnect />
-              <InstallPrompt />
-              <PushPrompt />
-              <IOSInstallHint />
+              {/* PWA install/push prompts make no sense inside the native
+                  iOS app — hide them there, keep them on the website */}
+              <HideInNativeApp>
+                <InstallPrompt />
+                <PushPrompt />
+                <IOSInstallHint />
+              </HideInNativeApp>
             </HideOnEmbed>
           </ThemeProvider>
         </AuthProvider>
