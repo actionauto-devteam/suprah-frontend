@@ -14,7 +14,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpaceKeepFormattingPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
@@ -4063,8 +4063,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const inputTextRef = React.useRef('');
   const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
-  const [pasteMode, setPasteMode] = React.useState<PasteMode>('plain');
-  const pasteKeepFormattingShortcutRef = React.useRef(false);
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const pastePlainTextShortcutRef = React.useRef(false);
   const pasteUndoRef = React.useRef<{ beforeHtml: string; afterHtml: string } | null>(null);
   const [sending, setSending] = React.useState(false);
   const sendInFlightRef = React.useRef(false);
@@ -5051,8 +5051,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [editFontFamilyChosen, setEditFontFamilyChosen] = React.useState(false);
   const [editFontSize, setEditFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
-  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('plain');
-  const editPasteKeepFormattingShortcutRef = React.useRef(false);
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const editPastePlainTextShortcutRef = React.useRef(false);
   const editPasteUndoRef = React.useRef<{ beforeHtml: string; afterHtml: string } | null>(null);
   const [editPalette, setEditPalette] = React.useState(TEXT_COLORS);
   const [editActiveFormats, setEditActiveFormats] = React.useState<PopupEditFormatState>({
@@ -6693,10 +6693,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 
-    if (isSupraSpaceKeepFormattingPasteShortcut(e)) {
-      pasteKeepFormattingShortcutRef.current = true;
+    if (isSupraSpacePlainTextPasteShortcut(e)) {
+      pastePlainTextShortcutRef.current = true;
       window.setTimeout(() => {
-        pasteKeepFormattingShortcutRef.current = false;
+        pastePlainTextShortcutRef.current = false;
       }, 750);
     }
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
@@ -7107,9 +7107,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 type="button"
                                 onMouseDown={e => e.preventDefault()}
                                 onClick={() => setEditPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
-                                className={cn('h-7 px-2 rounded-md flex items-center gap-1 hover:bg-white/10', editPasteMode === 'plain' && 'bg-white/10')}
-                                title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only. Shift+Insert pastes with formatting once.'}
-                                aria-pressed={editPasteMode === 'plain'}
+                                className={cn('h-7 px-2 rounded-md flex items-center gap-1 hover:bg-white/10', editPasteMode === 'formatted' && 'bg-white/10')}
+                                title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting. Ctrl/⌘+Shift+V pastes text only once.' : 'Paste mode: Text only. Click to keep formatting by default.'}
+                                aria-pressed={editPasteMode === 'formatted'}
                               >
                                 <Copy className="h-3.5 w-3.5" />
                                 <span className="text-[9px] font-bold">{editPasteMode === 'formatted' ? 'FMT' : 'TXT'}</span>
@@ -7186,9 +7186,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               onKeyUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                                if (isSupraSpaceKeepFormattingPasteShortcut(e)) {
-                                  editPasteKeepFormattingShortcutRef.current = true;
-                                  window.setTimeout(() => { editPasteKeepFormattingShortcutRef.current = false; }, 750);
+                                if (isSupraSpacePlainTextPasteShortcut(e)) {
+                                  editPastePlainTextShortcutRef.current = true;
+                                  window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
                                 }
                                 if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
                                   const snapshot = editPasteUndoRef.current;
@@ -7330,14 +7330,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               onPaste={e => {
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
-                                const shortcutKeepFormatting = editPasteKeepFormattingShortcutRef.current;
-                                editPasteKeepFormattingShortcutRef.current = false;
+                                const shortcutPlainText = editPastePlainTextShortcutRef.current;
+                                editPastePlainTextShortcutRef.current = false;
                                 const plainText = clipboardPayloadToPlainText(text, html);
                                 if (!plainText && !html) return;
 
                                 e.preventDefault();
                                 const beforePasteHtml = editAreaRef.current?.innerHTML || '';
-                                const preferFormattedPaste = editPasteMode === 'formatted' || shortcutKeepFormatting;
+                                const preferFormattedPaste = editPasteMode === 'formatted' && !shortcutPlainText;
                                 const richEditorHtml = preferFormattedPaste
                                   ? clipboardPayloadToRichEditorHtml(text, html)
                                   : '';
@@ -7959,10 +7959,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   onClick={() => setPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
                   className={cn(
                     'h-7 shrink-0 rounded-md px-2 text-[9px] font-bold transition-colors hover:bg-muted',
-                    pasteMode === 'plain' && 'bg-primary/15 text-primary',
+                    pasteMode === 'formatted' && 'bg-primary/15 text-primary',
                   )}
-                  title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only. Shift+Insert pastes with formatting once.'}
-                  aria-pressed={pasteMode === 'plain'}
+                  title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting. Ctrl/⌘+Shift+V pastes text only once.' : 'Paste mode: Text only. Tap to keep formatting by default.'}
+                  aria-pressed={pasteMode === 'formatted'}
                 >
                   {pasteMode === 'formatted' ? 'FMT' : 'TXT'}
                 </button>
@@ -8148,8 +8148,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       }
                       const text = e.clipboardData?.getData('text/plain') || '';
                       const html = e.clipboardData?.getData('text/html') || '';
-                      const shortcutKeepFormatting = pasteKeepFormattingShortcutRef.current;
-                      pasteKeepFormattingShortcutRef.current = false;
+                      const shortcutPlainText = pastePlainTextShortcutRef.current;
+                      pastePlainTextShortcutRef.current = false;
                       if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
                       const plainText = clipboardPayloadToPlainText(text, html);
                       if (!plainText && !html) return;
@@ -8158,7 +8158,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       setMentionQuery(null);
                       setMentionAnchor(-1);
                       const beforePasteHtml = inputRef.current?.innerHTML || '';
-                      const preferFormattedPaste = pasteMode === 'formatted' || shortcutKeepFormatting;
+                      const preferFormattedPaste = pasteMode === 'formatted' && !shortcutPlainText;
                       const richEditorHtml = preferFormattedPaste
                         ? clipboardPayloadToRichEditorHtml(text, html)
                         : '';

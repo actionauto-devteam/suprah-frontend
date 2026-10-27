@@ -225,19 +225,15 @@ assert.equal(
 );
 
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'Insert', ctrlKey: false, metaKey: false, altKey: false, shiftKey: true }),
+  richPaste.isSupraSpacePlainTextPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
   true,
 );
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }),
+  richPaste.isSupraSpacePlainTextPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }),
   false,
 );
 assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
-  false,
-);
-assert.equal(
-  richPaste.isSupraSpaceKeepFormattingPasteShortcut({ key: 'Insert', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }),
+  richPaste.isSupraSpacePlainTextPasteShortcut({ key: 'v', ctrlKey: true, metaKey: false, altKey: true, shiftKey: true }),
   false,
 );
 
@@ -294,7 +290,8 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   assert.match(source, /richTextSerializationDropsVisibleText\(visibleText, serialized\)/, `${path}: serializer must retain its visible-text guard`);
   assert.doesNotMatch(source, /preserveVisibleVinLines|preserveVisiblePayloadLines|restoreMissingSerialsFromSources/, `${path}: do not revive VIN-specific restoration`);
   assert.match(source, /softBreak\.setAttribute\('data-ss4-soft-break', 'true'\)/, `${path}: pasted line breaks must remain authored editor breaks`);
-  assert.equal((source.match(/isSupraSpaceKeepFormattingPasteShortcut/g) || []).length, 3, `${path}: rich paste shortcut must cover compose and edit`);
+  assert.equal((source.match(/isSupraSpacePlainTextPasteShortcut/g) || []).length, 3, `${path}: plain-text shortcut must cover compose and edit`);
+  assert.equal((source.match(/useState<PasteMode>\('formatted'\)/g) || []).length, 2, `${path}: compose and edit must keep formatting by default`);
   assert.match(source, /PasteUndoRef/, `${path}: pasted content must have focused Ctrl\/Cmd\+Z support`);
   const start = source.indexOf('function htmlToMarkdown(');
   const end = source.indexOf('\nfunction ', start + 1);

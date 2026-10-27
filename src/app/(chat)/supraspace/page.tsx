@@ -69,7 +69,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpaceKeepFormattingPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -5060,8 +5060,8 @@ const Bubble = React.memo(function Bubble({
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
-  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('plain');
-  const editPasteKeepFormattingShortcutRef = React.useRef(false);
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const editPastePlainTextShortcutRef = React.useRef(false);
   const editPasteUndoRef = React.useRef<{ beforeHtml: string; afterHtml: string } | null>(null);
   const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
@@ -6191,9 +6191,9 @@ const Bubble = React.memo(function Bubble({
                   type="button"
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => setEditPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
-                  className={cn('h-9 px-2 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-white/10', editPasteMode === 'plain' && 'bg-white/10')}
-                  title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only. Shift+Insert pastes with formatting once.'}
-                  aria-pressed={editPasteMode === 'plain'}
+                  className={cn('h-9 px-2 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-white/10', editPasteMode === 'formatted' && 'bg-white/10')}
+                  title={editPasteMode === 'formatted' ? 'Paste mode: Keep formatting. Ctrl/⌘+Shift+V pastes text only once.' : 'Paste mode: Text only. Click to keep formatting by default.'}
+                  aria-pressed={editPasteMode === 'formatted'}
                 >
                   <Copy className="h-3.5 w-3.5" />
                   <span style={{ fontSize: 10 }}>{editPasteMode === 'formatted' ? 'Format' : 'Text'}</span>
@@ -6313,9 +6313,9 @@ const Bubble = React.memo(function Bubble({
                 onKeyUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                  if (isSupraSpaceKeepFormattingPasteShortcut(e)) {
-                    editPasteKeepFormattingShortcutRef.current = true;
-                    window.setTimeout(() => { editPasteKeepFormattingShortcutRef.current = false; }, 750);
+                  if (isSupraSpacePlainTextPasteShortcut(e)) {
+                    editPastePlainTextShortcutRef.current = true;
+                    window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
                   }
                   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
                     const snapshot = editPasteUndoRef.current;
@@ -6460,14 +6460,14 @@ const Bubble = React.memo(function Bubble({
                 onPaste={e => {
                   const text = e.clipboardData?.getData('text/plain') || '';
                   const html = e.clipboardData?.getData('text/html') || '';
-                  const shortcutKeepFormatting = editPasteKeepFormattingShortcutRef.current;
-                  editPasteKeepFormattingShortcutRef.current = false;
+                  const shortcutPlainText = editPastePlainTextShortcutRef.current;
+                  editPastePlainTextShortcutRef.current = false;
                   const plainText = clipboardPayloadToPlainText(text, html);
                   if (!plainText && !html) return;
 
                   e.preventDefault();
                   const beforePasteHtml = editAreaRef.current?.innerHTML || '';
-                  const preferFormattedPaste = editPasteMode === 'formatted' || shortcutKeepFormatting;
+                  const preferFormattedPaste = editPasteMode === 'formatted' && !shortcutPlainText;
                   const richEditorHtml = preferFormattedPaste
                     ? clipboardPayloadToRichEditorHtml(text, html)
                     : '';
@@ -9735,8 +9735,8 @@ export default function SupraSpacePage() {
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
-  const [pasteMode, setPasteMode] = React.useState<PasteMode>('plain');
-  const pasteKeepFormattingShortcutRef = React.useRef(false);
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const pastePlainTextShortcutRef = React.useRef(false);
   const pasteUndoRef = React.useRef<{ beforeHtml: string; afterHtml: string } | null>(null);
   const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
@@ -15522,9 +15522,9 @@ export default function SupraSpacePage() {
                               type="button"
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => setPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
-                              className={cn('h-9 px-2.5 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-(--bg-hover)', pasteMode === 'plain' && 'ss4-video-btn')}
-                              title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only. Shift+Insert pastes with formatting once.'}
-                              aria-pressed={pasteMode === 'plain'}
+                              className={cn('h-9 px-2.5 flex items-center gap-1.5 rounded-lg transition-colors hover:bg-(--bg-hover)', pasteMode === 'formatted' && 'ss4-video-btn')}
+                              title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting. Ctrl/⌘+Shift+V pastes text only once.' : 'Paste mode: Text only. Click to keep formatting by default.'}
+                              aria-pressed={pasteMode === 'formatted'}
                             >
                               <Copy className="h-3.5 w-3.5" />
                               <span className="font-semibold" style={{ fontSize: 10 }}>{pasteMode === 'formatted' ? 'Keep format' : 'Text only'}</span>
@@ -15678,10 +15678,10 @@ export default function SupraSpacePage() {
                               }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                                if (isSupraSpaceKeepFormattingPasteShortcut(e)) {
-                                  pasteKeepFormattingShortcutRef.current = true;
+                                if (isSupraSpacePlainTextPasteShortcut(e)) {
+                                  pastePlainTextShortcutRef.current = true;
                                   window.setTimeout(() => {
-                                    pasteKeepFormattingShortcutRef.current = false;
+                                    pastePlainTextShortcutRef.current = false;
                                   }, 750);
                                 }
                                 if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
@@ -15883,8 +15883,8 @@ export default function SupraSpacePage() {
                                   void handlePastedMediaReference(pastedMediaReference);
                                   return;
                                 }
-                                const shortcutKeepFormatting = pasteKeepFormattingShortcutRef.current;
-                                pasteKeepFormattingShortcutRef.current = false;
+                                const shortcutPlainText = pastePlainTextShortcutRef.current;
+                                pastePlainTextShortcutRef.current = false;
 
                                 const plainText = clipboardPayloadToPlainText(text, html);
                                 if (plainText || html) {
@@ -15892,7 +15892,7 @@ export default function SupraSpacePage() {
                                   setMentionQuery(null);
                                   setMentionAnchor(-1);
                                   const beforePasteHtml = textareaRef.current?.innerHTML || '';
-                                  const preferFormattedPaste = pasteMode === 'formatted' || shortcutKeepFormatting;
+                                  const preferFormattedPaste = pasteMode === 'formatted' && !shortcutPlainText;
                                   const richEditorHtml = preferFormattedPaste
                                     ? clipboardPayloadToRichEditorHtml(text, html)
                                     : '';
