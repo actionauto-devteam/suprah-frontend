@@ -60,6 +60,7 @@ import {
   generateIdleLogHtml, type IdlePeriod, computeExactPayout, PAYROLL_DE_MINIMIS_SECONDS,
 } from "@/components/crm/timeproof/shared"
 import { PulseHealthCard } from "@/components/crm/timeproof/PulseHealthCard"
+import { geolocation } from "@/lib/geolocation";
 
 type RequestConfigWithSkipRefresh = AxiosRequestConfig & { _skipAuthRefresh?: boolean }
 
