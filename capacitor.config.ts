@@ -5,10 +5,13 @@ const config: CapacitorConfig = {
   appName: 'Suprah',
   webDir: 'dist',
   appendUserAgent: 'SuprahiOSApp',
+  ios: {
+    appendUserAgent: 'SuprahiOSApp',
+  },
   server: {
-    url: 'https://suprah-app.com',
-    cleartext: false
-  }
+    url: 'https://www.suprah-app.com',
+    cleartext: false,
+  },
 };
 
 export default config;
