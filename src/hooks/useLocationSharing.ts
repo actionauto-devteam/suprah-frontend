@@ -4,6 +4,8 @@ import { apiClient } from "@/lib/api-client";
 import { getDeviceType } from "@/lib/device";
 import { withMinDuration } from "@/lib/utils";
 import type { SharingState } from "./useLocator";
+import { geolocation } from "@/lib/geolocation";
+
 
 const PING_INTERVAL_MS = 30_000;
 const MPS_TO_MPH = 2.23694;
@@ -66,7 +68,7 @@ function readConnectionInfo(): { connectionType?: string; effectiveType?: string
 
 function clearWatch() {
   if (runtime.watchId !== null) {
-    navigator.geolocation.clearWatch(runtime.watchId);
+    geolocation.clearWatch(runtime.watchId);
     runtime.watchId = null;
   }
 }
@@ -153,7 +155,7 @@ export function useLocationSharing({
     runtime.awaitingFirstFix = true;
     notifyListeners();
 
-    const id = navigator.geolocation.watchPosition(
+    const id = geolocation.watchPosition(
       (position) => {
         const now = Date.now();
         if (now - runtime.lastSentAt >= PING_INTERVAL_MS) {

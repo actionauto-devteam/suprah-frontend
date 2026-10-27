@@ -7,6 +7,7 @@ import { initializeSocket } from "@/lib/socket.client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import type { DriverStatus } from "@/types/driver-tracking";
 import { ACTIVE_LOAD_STATUSES as SHARED_ACTIVE_LOAD_STATUSES, GPS_TRACKING_LOAD_STATUSES } from "@/lib/load-status";
+import { geolocation } from "@/lib/geolocation";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 // Another open tab sent a GPS update this recently: skip this tab's duplicate.
@@ -707,7 +708,7 @@ export function DriverLocationSharingProvider({
     setIsStarting(true);
 
     // First try to recover WITHOUT reloading the page.
-    navigator.geolocation.getCurrentPosition(
+    geolocation.getCurrentPosition(
       (position) => {
         const coords = {
           lat: position.coords.latitude,
@@ -919,7 +920,7 @@ export function DriverLocationSharingProvider({
     const refreshWhenVisible = () => {
       if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
 
-      navigator.geolocation.getCurrentPosition(
+      geolocation.getCurrentPosition(
         (position) => reportPosition(position, true),
         handleGeoError,
         {
@@ -930,7 +931,7 @@ export function DriverLocationSharingProvider({
       );
     };
 
-    navigator.geolocation.getCurrentPosition(
+    geolocation.getCurrentPosition(
       (position) => reportPosition(position, true),
       handleGeoError,
       {
@@ -941,7 +942,7 @@ export function DriverLocationSharingProvider({
     );
 
     watchIdRef.current =
-      navigator.geolocation.watchPosition(
+      geolocation.watchPosition(
         (position) => reportPosition(position),
         handleGeoError,
         {
@@ -1032,7 +1033,7 @@ export function DriverLocationSharingProvider({
       );
 
       if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
+        geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
 

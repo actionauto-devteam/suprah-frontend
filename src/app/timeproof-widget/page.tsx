@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client"
 import { isMobileMonitoringDept } from "@/lib/departments"
 import { cn } from "@/lib/utils"
 import { useAlert } from "@/components/AlertDialog"
+import { geolocation } from "@/lib/geolocation";
 
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000 // company timezone, matches backend COMPANY_TZ_OFFSET_MINUTES
@@ -153,7 +154,7 @@ export default function TimeproofWidgetPage() {
     // app; this widget deliberately doesn't replicate the full consent-setup
     // flow from the main TimeProof page to stay a quick, minimal glance tool.
     if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 5000 })
+      geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 5000 })
     }
     const cfg = authHeaders()
     if (!cfg) return

@@ -1414,7 +1414,7 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
   return Boolean(findSupraSpaceMarkdownLink(compatibleText))
-    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s{0,3}#{1,6}\s+\S|^```[^\n]*$|(?<!\\)\\\r?\n|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|(^|[^\w*])\*[^*\n]+\*(?!\*)|(^|[^\w_])_[^_\n]+_(?!\w)|^\s{0,3}#{1,6}\s+\S|^```[^\n]*$|(?<!\\)\\\r?\n|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
     || compatibleText.replace(/\r\n?/g, '\n').split('\n').some(line =>
       POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
     );
@@ -2900,6 +2900,24 @@ function markdownTextToEditorHtml(text: string): string {
       continue;
     }
     const line = lines[lineIndex];
+    const codeFence = line.match(/^```[^\n]*$/);
+    if (codeFence) {
+      flushListsToDepth(0);
+      const codeLines: string[] = [];
+      lineIndex += 1;
+      while (lineIndex < lines.length && !/^```\s*$/.test(lines[lineIndex])) {
+        codeLines.push(lines[lineIndex]);
+        lineIndex += 1;
+      }
+      output.push(`<pre><code>${escapeHtmlText(codeLines.join('\n'))}</code></pre>`);
+      continue;
+    }
+    const headingMatch = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+    if (headingMatch) {
+      flushListsToDepth(0);
+      output.push(`<div data-ss4-paste-paragraph="true"><strong>${renderStyledInline(headingMatch[1]) || '<br>'}</strong></div>`);
+      continue;
+    }
     const bulletMatch = line.match(POPUP_SOURCE_BULLET_RE);
     const numberedMatch = bulletMatch
       ? null

@@ -20,6 +20,7 @@ import { useLoadRoute } from "@/hooks/useLoadRoute";
 import { mapRouteOf } from "@/lib/load-route-lines";
 import { placeAddressText, placePin, type LoadPlace } from "@/lib/load-navigation";
 import type { FollowMode } from "@/components/driver-tracker/DriverTrackerSelectedDriver";
+import { geolocation } from "@/lib/geolocation";
 import {
   createGoogleMap,
   GOOGLE_MAPS_KEY_REJECTED,
@@ -2592,7 +2593,7 @@ export default function DriverTrackerPage() {
   const centerOnMe = () => {
     const cameraAction = ++cameraActionRef.current;
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((position) => {
+    geolocation.getCurrentPosition((position) => {
       if (cameraAction !== cameraActionRef.current) return;
       const map = mapInstanceRef.current;
       if (!map) return;

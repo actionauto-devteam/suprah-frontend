@@ -158,7 +158,9 @@ function escapeHtml(value: string): string {
 
 function formatSimpleMarkdown(value: string): string {
   return escapeHtml(value)
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*([^*\n]*(?:\*[^*\n]+\*[^*\n]*)*)\*\*/g, (_match, inner: string) =>
+      `<strong>${inner.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')}</strong>`)
     .replace(/__([^_\n]+)__/g, '<u>$1</u>')
     .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')

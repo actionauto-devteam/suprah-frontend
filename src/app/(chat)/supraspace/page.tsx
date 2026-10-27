@@ -3308,7 +3308,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
   return Boolean(findSupraSpaceMarkdownLink(compatibleText))
-    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s{0,3}#{1,6}\s+\S|^```[^\n]*$|(?<!\\)\\\r?\n|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|(^|[^\w*])\*[^*\n]+\*(?!\*)|(^|[^\w_])_[^_\n]+_(?!\w)|^\s{0,3}#{1,6}\s+\S|^```[^\n]*$|(?<!\\)\\\r?\n|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -3405,6 +3405,24 @@ function markdownTextToEditorHtml(text: string): string {
       continue;
     }
     const line = lines[lineIndex];
+    const codeFence = line.match(/^```[^\n]*$/);
+    if (codeFence) {
+      flushListsToDepth(0);
+      const codeLines: string[] = [];
+      lineIndex += 1;
+      while (lineIndex < lines.length && !/^```\s*$/.test(lines[lineIndex])) {
+        codeLines.push(lines[lineIndex]);
+        lineIndex += 1;
+      }
+      output.push(`<pre><code>${escapeHtmlText(codeLines.join('\n'))}</code></pre>`);
+      continue;
+    }
+    const headingMatch = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+    if (headingMatch) {
+      flushListsToDepth(0);
+      output.push(`<div data-ss4-paste-paragraph="true"><strong>${renderStyledInline(headingMatch[1]) || '<br>'}</strong></div>`);
+      continue;
+    }
     const bulletMatch = line.match(SS4_SOURCE_BULLET_RE);
     const numberedMatch = bulletMatch
       ? null
