@@ -74,6 +74,7 @@ import { apiClient } from "@/lib/api-client";
 // Suprah Meet — the meeting session lives at this shell level so navigating
 // anywhere keeps the call alive (minimize + floating mini window).
 import { MeetSessionProvider } from "@/components/suprah-meet/MeetSessionProvider"; // ← ADDED
+import { MeetAlerts } from "@/components/suprah-meet/MeetAlerts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -608,6 +609,9 @@ export default function DashboardLayout({
       {/* Suprah Meet — session + mini window survive navigation anywhere in
           the dashboard shell (same pattern as YapLine, but context-based). */}
       <MeetSessionProvider>
+        {/* Invitation/reminder records are durable; this adds the immediate
+            in-app live/starting-soon prompt wherever the user is working. */}
+        <MeetAlerts />
         <DashboardLayoutContent>{children}</DashboardLayoutContent>
       </MeetSessionProvider>
     </SupraSpaceMessengerProvider>

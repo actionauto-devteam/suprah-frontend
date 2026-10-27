@@ -13,15 +13,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import {
-  MEET_SCENES, type MeetSceneKey, type RosterEntry, type TileInfo,
+  MEET_SCENES, type RosterEntry, type TileInfo,
 } from "@/hooks/useSuprahMeet";
 import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
 import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPanel";
 import { RecordingDistributionPanel } from "@/components/suprah-meet/RecordingDistributionPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
-import { pickMeetStage, splitMeetPeople } from "@/lib/meet-layout";
+import { orderMeetPeople, pickMeetStage, splitMeetPeople } from "@/lib/meet-layout";
 import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/MeetCaptions';
+import { MeetPreJoin } from "@/components/suprah-meet/MeetPreJoin";
+import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
 
@@ -95,7 +97,11 @@ export default function SuprahMeetRoomPage() {
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const [toast, setToast] = React.useState<string | null>(null);
   // Waiting room: "checking" until the backend says we may join.
-  const [gate, setGate] = React.useState<"checking" | "admitted" | "waiting" | "denied" | "over">("checking");
+  const [gate, setGate] = React.useState<"checking" | "scheduled" | "admitted" | "waiting" | "denied" | "over">("checking");
+  const [readyToJoin, setReadyToJoin] = React.useState(false);
+  const [meetingTitle, setMeetingTitle] = React.useState<string | null>(null);
+  const [scheduledAt, setScheduledAt] = React.useState<string | null>(null);
+  const [hostCanStart, setHostCanStart] = React.useState(false);
   const [waitingList, setWaitingList] = React.useState<{ crmUserId: string; fullName: string; avatar: string | null }[]>([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -112,7 +118,15 @@ export default function SuprahMeetRoomPage() {
         const res = await apiClient.post(`/api/crm/meet/meetings/${code}/request-join`);
         const d = res.data?.data ?? {};
         if (cancelled) return;
-        if (d.admitted) { setGate("admitted"); open(code); return; }
+        if (d.title) setMeetingTitle(d.title);
+        if (d.scheduledAt) setScheduledAt(d.scheduledAt);
+        setHostCanStart(Boolean(d.canStart));
+        if (d.notStarted) {
+          setGate("scheduled");
+          timer = setTimeout(() => { void check(); }, 3000);
+          return;
+        }
+        if (d.admitted) { setGate("admitted"); return; }
         if (d.denied) { setGate("denied"); return; }
         if (d.ended) { setGate("over"); return; }
         setGate("waiting");
@@ -120,7 +134,7 @@ export default function SuprahMeetRoomPage() {
       } catch {
         // Older backend or transient error → let the normal join path decide
         // (its error screen reports the real problem).
-        if (!cancelled) { setGate("admitted"); open(code); }
+        if (!cancelled) setGate("admitted");
       }
     };
     void check();
@@ -183,12 +197,23 @@ export default function SuprahMeetRoomPage() {
   const contentTile = meet.tiles.find((t) => t.isContent);
   const cameraTiles = meet.tiles.filter((t) => !t.isContent);
   const tilesByAttendee = new Map(cameraTiles.map((t) => [t.attendeeId, t]));
-  const people = Object.values(meet.roster);
+  const people = orderMeetPeople({
+    people: Object.values(meet.roster), selfId: meet.selfAttendeeId || null,
+    activeSpeakerId: meet.activeSpeakerId || null,
+    hasVideo: (person) => tilesByAttendee.has(person.attendeeId),
+  });
+  const latestChat = meet.chatMessages.at(-1) ?? null;
   const raised = people.filter((p) => p.handRaised);
 
   // Adjust view: optionally hide camera-off tiles (like Meet's toggle).
   const stagePeople = view.hideNoVideo
-    ? people.filter((p) => tilesByAttendee.has(p.attendeeId))
+    // A current speaker still belongs on stage even when camera-off tiles are
+    // hidden; otherwise the active-speaker focus appears to fail for audio-only
+    // attendees.
+    ? people.filter((p) =>
+        tilesByAttendee.has(p.attendeeId) ||
+        p.attendeeId === meet.activeSpeakerId ||
+        p.attendeeId === meet.selfAttendeeId)
     : people;
 
   // A pin auto-clears if that person leaves.
@@ -213,9 +238,18 @@ export default function SuprahMeetRoomPage() {
   const spotPerson = stageMode === "sidebar" ? heroPerson : null;
 
   const pageSize = view.layout === "tiled" ? view.maxTiles : Math.min(autoMax, view.maxTiles);
-  const pageCount = Math.max(1, Math.ceil(stagePeople.length / pageSize));
+  // Keep the local tile in the last slot of every grid page. It means a
+  // person can always verify their camera/mic state while paging through a
+  // large call instead of finding themselves only on the final page.
+  const selfForPages = stagePeople.find((p) => p.attendeeId === selfId) ?? null;
+  const othersForPages = stagePeople.filter((p) => p.attendeeId !== selfId);
+  const othersPerPage = Math.max(1, pageSize - (selfForPages ? 1 : 0));
+  const pageCount = Math.max(1, Math.ceil(othersForPages.length / othersPerPage));
   const page = Math.min(gridPage, pageCount - 1);
-  const pagePeople = stagePeople.slice(page * pageSize, page * pageSize + pageSize);
+  const pagePeople = [
+    ...othersForPages.slice(page * othersPerPage, page * othersPerPage + othersPerPage),
+    ...(selfForPages ? [selfForPages] : []),
+  ];
   React.useEffect(() => { setGridPage((p) => Math.min(p, pageCount - 1)); }, [pageCount]);
 
   /** Grid columns tuned to how many tiles are on stage. */
@@ -290,6 +324,29 @@ export default function SuprahMeetRoomPage() {
     );
   }
 
+  if (gate === "scheduled") {
+    const when = scheduledAt
+      ? new Date(scheduledAt).toLocaleString("en-US", {
+          timeZone: "America/Denver", weekday: "long", month: "short", day: "numeric",
+          hour: "numeric", minute: "2-digit", timeZoneName: "short",
+        })
+      : "the scheduled time";
+    return (
+      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
+          <Hourglass className="size-8 animate-pulse text-emerald-500" />
+        </div>
+        <p className="text-lg font-medium">This meeting has not opened yet</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{meetingTitle ?? code}</span> is scheduled for {when}.
+          You&apos;ll be taken to the device check when the host starts it or the scheduled time arrives.
+        </p>
+        <p className="text-xs text-muted-foreground">Keep this page open — refreshing is safe.</p>
+        <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
+      </div>
+    );
+  }
+
   if (gate === "denied") {
     return (
       <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
@@ -314,6 +371,24 @@ export default function SuprahMeetRoomPage() {
         </p>
         <Button onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
       </div>
+    );
+  }
+
+  // Admission and joining are intentionally separate. This gives every
+  // internal attendee the same private device check before Chime receives
+  // their attendee connection; the mini-meet only appears after this step.
+  if (gate === "admitted" && !readyToJoin && meet.phase === "idle") {
+    return (
+      <MeetPreJoin
+        title={meet.meeting?.title ?? meetingTitle ?? "Suprah Meet"}
+        code={code}
+        onJoin={({ mic, camera }) => {
+          setReadyToJoin(true);
+          open(code, { startMic: mic, startCam: camera });
+        }}
+        onCancel={() => router.push("/crm/suprah-meet")}
+        joinLabel={hostCanStart ? "Start meeting" : "Join meeting"}
+      />
     );
   }
 
@@ -362,7 +437,7 @@ export default function SuprahMeetRoomPage() {
       {/* Top bar */}
       <header className="relative z-10 flex items-center gap-2 border-b border-emerald-400/15 bg-[#0a1410]/80 px-3 py-2.5 backdrop-blur md:gap-3 md:px-4">
         <SuprahMeetLogo className="size-7 shrink-0 md:size-8" />
-        <span className="truncate text-sm font-medium">{meet.meeting?.title ?? "Suprah Meet"}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{meet.meeting?.title ?? "Suprah Meet"}</span>
         <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-0.5 text-xs text-emerald-300">
           <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> {fmt(elapsed)}
         </span>
@@ -371,7 +446,6 @@ export default function SuprahMeetRoomPage() {
             <Circle className="size-2 fill-current" /> REC
           </span>
         )}
-        <div className="flex-1" />
         <button onClick={() => setShowViewDialog(true)} title="Adjust view"
           className="grid size-8 shrink-0 place-items-center rounded-md border border-emerald-400/20 text-emerald-200/70 hover:border-emerald-400/50 hover:text-emerald-200">
           <LayoutGrid className="size-4" />
@@ -531,7 +605,11 @@ export default function SuprahMeetRoomPage() {
                     className="grid size-7 place-items-center rounded-full border border-emerald-400/20 hover:border-emerald-400/50 disabled:opacity-30">
                     <ChevronLeft className="size-4" />
                   </button>
-                  <span>{page * pageSize + 1}–{Math.min(stagePeople.length, (page + 1) * pageSize)} of {stagePeople.length}</span>
+                  <span>
+                    {othersForPages.length === 0
+                      ? "You"
+                      : `${page * othersPerPage + 1}–${Math.min(othersForPages.length, (page + 1) * othersPerPage)}${selfForPages ? " + you" : ""}`} of {stagePeople.length}
+                  </span>
                   <button disabled={page === pageCount - 1} onClick={() => setGridPage(page + 1)}
                     className="grid size-7 place-items-center rounded-full border border-emerald-400/20 hover:border-emerald-400/50 disabled:opacity-30">
                     <ChevronRight className="size-4" />
@@ -555,9 +633,11 @@ export default function SuprahMeetRoomPage() {
             </div>
           </div>
 
+          <MeetChatPeek message={latestChat} onOpen={() => { setPanel("chat"); meet.markChatRead(); }} />
+
           {/* Control dock */}
           <MeetCaptionsPanel meet={meet} />
-          <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur md:gap-2">
+          <footer className="flex shrink-0 flex-nowrap items-center justify-start gap-1.5 overflow-x-auto rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:flex-wrap md:justify-center md:overflow-visible md:gap-2">
             <Ctl on={meet.micOn} onClick={() => void meet.toggleMic()} label={meet.micOn ? "Mute" : "Unmute"}
               iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
             <Ctl on={meet.camOn} onClick={() => void meet.toggleCam()} label="Camera"
@@ -669,13 +749,13 @@ export default function SuprahMeetRoomPage() {
                 iconOn={<Circle className="size-5" />} iconOff={<Circle className="size-5 fill-current" />} />
             )}
 
-            <Button variant="destructive" className="ml-1 h-11 rounded-xl px-4 md:px-5" onClick={() => void meet.leave()}>
+            <Button variant="destructive" className="ml-1 h-11 shrink-0 rounded-xl px-4 md:px-5" onClick={() => void meet.leave()}>
               <PhoneOff className="mr-1.5 size-4" /> End call
             </Button>
             {meet.canEndForAll && (
               <Button variant="outline"
                 title="End the meeting for everyone"
-                className="h-11 rounded-xl border-rose-400/40 px-3 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:px-4"
+                className="h-11 shrink-0 rounded-xl border-rose-400/40 px-3 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:px-4"
                 onClick={() => void meet.endMeeting()}>
                 <span className="sm:hidden">End all</span>
                 <span className="hidden sm:inline">End for all</span>
@@ -972,7 +1052,7 @@ function Ctl({ on, onClick, label, iconOn, iconOff, accent, rec, badge }: {
 }) {
   return (
     <button onClick={onClick} title={label} aria-pressed={on}
-      className={cn("relative grid h-11 w-12 place-items-center rounded-xl border transition-all hover:scale-105 md:w-13",
+      className={cn("relative grid h-11 w-12 shrink-0 place-items-center rounded-xl border transition-all hover:scale-105 md:w-13",
         on
           ? "border-emerald-400/15 bg-[#142a21] hover:bg-[#1a3529]"
           : rec
@@ -1094,8 +1174,7 @@ function PeoplePanel({ people, selfId, directory, pinnedId, onTogglePin, onAddPe
         {directory && notInTotal === 0 && <PeopleNote text="Everyone who was invited is here." />}
         {directory && notInTotal > 0 && notInMeeting.length === 0 && <PeopleNote text="No one here matches your search." />}
         {notInMeeting.map((d) => {
-          const status = d.joinedBefore ? "Left the meeting" : "Hasn't joined yet";
-          const sub = d.isHost ? `Meeting host · ${status}` : d.isGuest ? `Guest · ${status}` : status;
+          const sub = d.isHost ? "Meeting host · Not in the meeting" : d.isGuest ? "Guest · Not in the meeting" : "Not in the meeting";
           return (
             <div key={d.crmUserId} className="flex items-center gap-2.5 rounded-lg px-2 py-2 opacity-80 hover:bg-emerald-400/5">
               <ProfileBubble name={d.fullName} avatar={d.avatar} />

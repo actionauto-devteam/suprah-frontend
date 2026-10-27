@@ -13,19 +13,24 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { GripHorizontal, Maximize2, Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
+import { GripHorizontal, Maximize2, MessageSquare, Mic, MicOff, PhoneOff, PictureInPicture2, Video, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSuprahMeet } from "@/hooks/useSuprahMeet";
+import { useSuprahMeet, type MeetJoinOptions } from "@/hooks/useSuprahMeet";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 
 type MeetApi = ReturnType<typeof useSuprahMeet>;
+
+type PictureInPictureVideo = HTMLVideoElement & {
+  webkitSupportsPresentationMode?: (mode: "picture-in-picture") => boolean;
+  webkitSetPresentationMode?: (mode: "picture-in-picture") => void;
+};
 
 interface MeetSessionCtx {
   meet: MeetApi;
   /** Code of the session this provider is running, or null when idle. */
   activeCode: string | null;
   /** Join a meeting (no-op if it's already the active session). */
-  open: (code: string) => void;
+  open: (code: string, options?: MeetJoinOptions) => void;
   /** Forget the session (after leave/end). */
   close: () => void;
 }
@@ -50,7 +55,7 @@ export function MeetSessionProvider({ children }: { children: React.ReactNode })
   activeRef.current = activeCode;
   const usedRef = React.useRef(false); // a session has run on this hook instance
 
-  const open = React.useCallback((code: string) => {
+  const open = React.useCallback((code: string, options?: MeetJoinOptions) => {
     const clean = code.trim().toUpperCase();
     if (!clean) return;
     if (activeRef.current === clean) return;           // already this session
@@ -59,7 +64,7 @@ export function MeetSessionProvider({ children }: { children: React.ReactNode })
     usedRef.current = true;
     activeRef.current = clean;
     setActiveCode(clean);
-    void meetRef.current.join(clean);
+    void meetRef.current.join(clean, options);
   }, []);
 
   const close = React.useCallback(() => {
@@ -107,6 +112,24 @@ function MiniMeetWindow() {
     !!activeCode && !onAnyRoomPage && (meet.phase === "in" || meet.phase === "joining");
 
   const { ref: dragRef, style: dragStyle, dragging, grabbing, handlers: dragHandlers } = useMiniWindowDrag(visible);
+  const miniVideoRef = React.useRef<HTMLVideoElement | null>(null);
+  const openPictureInPicture = React.useCallback(async () => {
+    const video = miniVideoRef.current as PictureInPictureVideo | null;
+    if (!video) return;
+
+    try {
+      if (document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+        await video.requestPictureInPicture();
+        return;
+      }
+      if (video.webkitSupportsPresentationMode?.("picture-in-picture")) {
+        video.webkitSetPresentationMode?.("picture-in-picture");
+      }
+    } catch {
+      // Picture-in-Picture is permission and platform dependent. The in-app
+      // Mini Meet remains available when the browser declines the request.
+    }
+  }, []);
 
   // 1s tick for the elapsed chip (from the server's startedAt — a UTC instant).
   const [nowMs, setNowMs] = React.useState(() => Date.now());
@@ -147,7 +170,10 @@ function MiniMeetWindow() {
       <button onClick={back} className="relative block h-36 w-full cursor-grab bg-[#0f1f19] text-left"
         title="Drag to move · click to return to the meeting">
         {tile ? (
-          <video ref={(el) => meet.bindVideoTile(tile.tileId, el)} autoPlay playsInline
+          <video ref={(el) => {
+            miniVideoRef.current = el;
+            meet.bindVideoTile(tile.tileId, el);
+          }} autoPlay playsInline
             muted={tile === selfTile}
             className={cn("absolute inset-0 h-full w-full",
               contentTile ? "object-contain" : "object-cover", mirror && "-scale-x-100")} />
@@ -178,9 +204,14 @@ function MiniMeetWindow() {
           iconOn={<Mic className="size-4" />} iconOff={<MicOff className="size-4" />} />
         <MiniBtn on={meet.camOn} onClick={() => void meet.toggleCam()} label="Camera"
           iconOn={<Video className="size-4" />} iconOff={<VideoOff className="size-4" />} />
+        {tile ? <button onClick={() => void openPictureInPicture()} title="Pop out video when your browser supports Picture-in-Picture" aria-label="Pop out video" data-mini-control
+          className="grid h-9 w-10 shrink-0 cursor-pointer place-items-center rounded-lg border border-emerald-400/25 bg-[#142a21] text-emerald-100 transition-colors hover:bg-[#1a3529]">
+          <PictureInPicture2 className="size-4" />
+        </button> : null}
         <button onClick={back} data-mini-control
-          className="h-9 flex-1 cursor-pointer rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20">
-          Return
+          className="relative h-9 flex-1 cursor-pointer rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20">
+          {meet.chatUnread > 0 ? <MessageSquare className="mr-1 inline size-3.5" /> : null} Return
+          {meet.chatUnread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-[#071410]">{meet.chatUnread > 99 ? "99+" : meet.chatUnread}</span>}
         </button>
         <button onClick={() => void meet.leave()} title="End call" aria-label="End call" data-mini-control
           className="grid h-9 w-10 cursor-pointer place-items-center rounded-lg border border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">

@@ -122,7 +122,7 @@ export default function SuprahMeetLobbyPage() {
   const router = useRouter();
   const crmNotifications = useOptionalCrmNotificationContext();
   const meetingNoticeKey = (crmNotifications?.notifications ?? [])
-    .filter((notice) => notice.type === 'suprah_meet_invited' || notice.type === 'suprah_meet_reminder')
+    .filter((notice) => notice.type === 'suprah_meet_invited' || notice.type === 'suprah_meet_reminder' || notice.type === 'suprah_meet_live')
     .map((notice) => notice._id).join(',');
   const [meetings, setMeetings] = React.useState<MeetingRow[]>([]);
   const [selfId, setSelfId] = React.useState("");

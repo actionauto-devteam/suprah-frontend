@@ -68,8 +68,35 @@ export function splitMeetPeople<R extends MeetRosterPerson, D extends MeetDirect
   const notInMeeting = allOut
     .filter((d) => matches(d.fullName, d.department))
     .sort((a, b) => Number(b.isHost) - Number(a.isHost)
-      || Number(b.joinedBefore) - Number(a.joinedBefore)
       || a.fullName.localeCompare(b.fullName));
 
   return { inMeeting, notInMeeting, notInTotal: allOut.length, byCrmId };
+}
+
+/**
+ * Keep the call readable without losing a person's place unexpectedly:
+ * current speaker first, then people with video, then first-seen join order.
+ * The local attendee is always last so their mic/camera state remains easy to
+ * find, even when they are the active speaker.
+ */
+export function orderMeetPeople<T extends { attendeeId: string; joinedAt?: number }>(input: {
+  people: T[];
+  selfId: string | null;
+  activeSpeakerId: string | null;
+  hasVideo: (person: T) => boolean;
+}): T[] {
+  const { people, selfId, activeSpeakerId, hasVideo } = input;
+  return [...people].sort((a, b) => {
+    const aSelf = a.attendeeId === selfId;
+    const bSelf = b.attendeeId === selfId;
+    if (aSelf !== bSelf) return aSelf ? 1 : -1;
+    const aSpeaking = a.attendeeId === activeSpeakerId;
+    const bSpeaking = b.attendeeId === activeSpeakerId;
+    if (aSpeaking !== bSpeaking) return aSpeaking ? -1 : 1;
+    const aVideo = hasVideo(a);
+    const bVideo = hasVideo(b);
+    if (aVideo !== bVideo) return aVideo ? -1 : 1;
+    return (a.joinedAt ?? Number.MAX_SAFE_INTEGER) - (b.joinedAt ?? Number.MAX_SAFE_INTEGER)
+      || a.attendeeId.localeCompare(b.attendeeId);
+  });
 }
