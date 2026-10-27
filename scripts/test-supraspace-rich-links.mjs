@@ -69,6 +69,9 @@ const pastedMedia = loadSupraSpacePastedMediaHelpers();
 
 assert.equal(richPaste.hasSupraSpaceTextSelection(), false);
 assert.equal(richPaste.getSupraSpaceSelectionClipboardData({}), null);
+assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('*Italic text*'), '<em>Italic text</em>');
+assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('***Bold and italic text***'), '<strong><em>Bold and italic text</em></strong>');
+assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('**Bold with *italic* inside**'), '<strong>Bold with <em>italic</em> inside</strong>');
 const externalClassFormatting = richPaste.getSupraSpaceClipboardSemanticClassFormatting(
   'font-semibold fst-italic text-underline line-through',
 );
@@ -309,6 +312,8 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   assert.equal((source.match(/insertRichHtmlAtRichEditorSelection\(/g) || []).length, 3, `${path}: rich paste must use range insertion in compose and edit`);
   assert.match(source, /getSupraSpaceClipboardSemanticClassFormatting/, `${path}: semantic external CSS classes must preserve supported text formatting`);
   assert.match(source, /richPasteComparablePlainText/, `${path}: Markdown clipboard syntax must not trigger a false content-loss fallback`);
+  assert.match(source, /const codeFence = line\.match\(\/\^```/, `${path}: text-only Markdown code fences must become rich editor blocks`);
+  assert.match(source, /const headingMatch = line\.match\(\/\^\\s\{0,3\}#\{1,6\}/, `${path}: text-only Markdown headings must retain their semantic emphasis`);
   assert.doesNotMatch(source, /execCommand\('insertHTML', false, richEditorHtml\)/, `${path}: rich paste must not depend on deprecated insertHTML commands`);
   assert.match(source, /PasteUndoRef/, `${path}: pasted content must have focused Ctrl\/Cmd\+Z support`);
   const richPasteStart = source.indexOf('function richPasteDropsVisibleText(');
