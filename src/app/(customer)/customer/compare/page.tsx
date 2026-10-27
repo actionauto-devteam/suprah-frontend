@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
+import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
+import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
+import { userErrorMessage } from "@/lib/user-error";
+import { toast } from "sonner";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import {
   ArrowLeft,
@@ -55,6 +59,7 @@ function CompareContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { getToken } = useAuth();
+  const customerContact = useCustomerQuoteContact();
 
   const rawIds = searchParams.get("ids") || "";
   const ids = Array.from(new Set(rawIds.split(",").filter(Boolean))).slice(0, 3);
@@ -93,18 +98,16 @@ function CompareContent() {
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {
     try {
       const token = await getToken();
-      const response = await apiClient.post(
-        "/api/quotes",
-        { ...formData, toZip: formData.zipCode, toAddress: formData.fullAddress },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const data = response.data?.data || response.data;
+      const { request, message } = await requestShippingQuote(formData, token);
       if (formData.vehicleId) {
-        setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: data.rate }));
+        setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: request.rate }));
       }
+      toast.success(shippingRequestSentMessage(message, request.rate));
       setShippingOpen(false);
-    } catch (err) {
-      console.error("Error creating quote:", err);
+    } catch (error) {
+      toast.error(userErrorMessage(error, "send your shipping quote request"));
+      // Keeps the form open with what the customer typed.
+      throw error;
     }
   };
 
@@ -304,6 +307,7 @@ function CompareContent() {
         onOpenChange={setShippingOpen}
         vehicles={vehicles}
         defaultVehicle={selectedVehicle}
+        initialData={customerContact}
         onCalculate={handleCalculateQuote}
       />
     </div>

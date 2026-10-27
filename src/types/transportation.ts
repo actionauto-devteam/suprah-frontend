@@ -37,6 +37,8 @@ export interface Quote {
     email?: string;
     avatar?: string | null;
   };
+  /** Set when a customer sent the request from the customer portal. */
+  source?: "customer_portal";
   organization?: {
     name: string;
     logoUrl?: string;
