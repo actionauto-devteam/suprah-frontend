@@ -292,6 +292,8 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   assert.match(source, /softBreak\.setAttribute\('data-ss4-soft-break', 'true'\)/, `${path}: pasted line breaks must remain authored editor breaks`);
   assert.equal((source.match(/isSupraSpacePlainTextPasteShortcut/g) || []).length, 3, `${path}: plain-text shortcut must cover compose and edit`);
   assert.equal((source.match(/useState<PasteMode>\('formatted'\)/g) || []).length, 2, `${path}: compose and edit must keep formatting by default`);
+  assert.equal((source.match(/insertRichHtmlAtRichEditorSelection\(/g) || []).length, 3, `${path}: rich paste must use range insertion in compose and edit`);
+  assert.doesNotMatch(source, /execCommand\('insertHTML', false, richEditorHtml\)/, `${path}: rich paste must not depend on deprecated insertHTML commands`);
   assert.match(source, /PasteUndoRef/, `${path}: pasted content must have focused Ctrl\/Cmd\+Z support`);
   const start = source.indexOf('function htmlToMarkdown(');
   const end = source.indexOf('\nfunction ', start + 1);

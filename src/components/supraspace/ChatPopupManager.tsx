@@ -2150,6 +2150,36 @@ function insertPlainTextWithSoftBreaksAtRichEditorSelection(
   return range.cloneRange();
 }
 
+function insertRichHtmlAtRichEditorSelection(root: HTMLElement, html: string): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const template = root.ownerDocument.createElement('template');
+  template.innerHTML = html;
+  const fragment = template.content;
+  const lastInserted = fragment.lastChild;
+  if (!lastInserted) return range.cloneRange();
+
+  range.deleteContents();
+  range.insertNode(fragment);
+  range.setStartAfter(lastInserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
+}
+
 function restoreRichEditorHtmlSnapshot(root: HTMLElement, html: string): void {
   root.innerHTML = html;
   root.focus();
@@ -7335,10 +7365,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   ? clipboardPayloadToRichEditorHtml(text, html)
                                   : '';
                                 const usePlainText = !preferFormattedPaste
+                                  || !richEditorHtml.trim()
                                   || richPasteDropsVisibleText(text, html)
                                   || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                                 if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(editAreaRef.current!, plainText);
-                                else document.execCommand('insertHTML', false, richEditorHtml);
+                                else insertRichHtmlAtRichEditorSelection(editAreaRef.current!, richEditorHtml);
                                 requestAnimationFrame(() => {
                                   normalizeRichEditorListExitArtifacts(editAreaRef.current);
                                   if (editAreaRef.current) {
@@ -8156,10 +8187,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         ? clipboardPayloadToRichEditorHtml(text, html)
                         : '';
                       const usePlainText = !preferFormattedPaste
+                        || !richEditorHtml.trim()
                         || richPasteDropsVisibleText(text, html)
                         || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                       if (usePlainText) insertPlainTextWithSoftBreaksAtRichEditorSelection(inputRef.current!, plainText);
-                      else document.execCommand('insertHTML', false, richEditorHtml);
+                      else insertRichHtmlAtRichEditorSelection(inputRef.current!, richEditorHtml);
                       requestAnimationFrame(() => {
                         const el = inputRef.current;
                         if (el) {
