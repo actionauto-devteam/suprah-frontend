@@ -10,6 +10,9 @@ import { AxiosError } from "axios";
 import { ShopInventoryFilters } from "@/components/shop-inventory-filters";
 import { InventoryPagination } from "@/components/inventory-pagination";
 import { useAuth } from "@/providers/AuthProvider";
+import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
+import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
+import { userErrorMessage } from "@/lib/user-error";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
 import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
@@ -202,6 +205,7 @@ function ShopVehiclesContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { getToken } = useAuth();
+  const customerContact = useCustomerQuoteContact();
 
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -425,20 +429,16 @@ function ShopVehiclesContent() {
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {
     try {
       const token = await getToken();
-      const response = await apiClient.post(
-        "/api/quotes",
-        { ...formData, toZip: formData.zipCode, toAddress: formData.fullAddress },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const data = response.data?.data || response.data;
+      const { request, message } = await requestShippingQuote(formData, token);
       if (formData.vehicleId) {
-        setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: data.rate }));
+        setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: request.rate }));
       }
-      toast.success(`Quote created! Rate: $${data.rate}`);
+      toast.success(shippingRequestSentMessage(message, request.rate));
       setShippingOpen(false);
     } catch (error) {
-      console.error("Error creating quote:", error);
-      toast.error("Could not create shipping quote. Please try again.");
+      toast.error(userErrorMessage(error, "send your shipping quote request"));
+      // Keeps the form open with what the customer typed.
+      throw error;
     }
   };
 
@@ -719,6 +719,7 @@ function ShopVehiclesContent() {
         onOpenChange={setShippingOpen}
         vehicles={vehicles}
         defaultVehicle={selectedVehicle}
+        initialData={customerContact}
         onCalculate={handleCalculateQuote}
       />
       <VehicleDetailsModal

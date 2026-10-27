@@ -20,8 +20,11 @@ import { FinanceApplicationModal } from "@/components/finance-application-modal"
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
 import { fetchSavedVehicles, removeSavedVehicle } from "@/lib/api/savedVehicles";
-import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
+import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
+import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
+import { userErrorMessage } from "@/lib/user-error";
+import { toast } from "sonner";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,6 +40,7 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ComponentType<{ c
 
 function WishlistContent() {
   const { getToken } = useAuth();
+  const customerContact = useCustomerQuoteContact();
   const queryClient = useQueryClient();
   const [sortBy, setSortBy] = React.useState<SortKey>("default");
 
@@ -68,18 +72,16 @@ function WishlistContent() {
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {
     try {
       const token = await getToken();
-      const response = await apiClient.post(
-        "/api/quotes",
-        { ...formData, toZip: formData.zipCode, toAddress: formData.fullAddress },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const data = response.data?.data || response.data;
+      const { request, message } = await requestShippingQuote(formData, token);
       if (formData.vehicleId) {
-        setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: data.rate }));
+        setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: request.rate }));
       }
+      toast.success(shippingRequestSentMessage(message, request.rate));
       setShippingOpen(false);
-    } catch (err) {
-      console.error("Error creating quote:", err);
+    } catch (error) {
+      toast.error(userErrorMessage(error, "send your shipping quote request"));
+      // Keeps the form open with what the customer typed.
+      throw error;
     }
   };
 
@@ -304,6 +306,7 @@ function WishlistContent() {
         onOpenChange={setShippingOpen}
         vehicles={savedVehicles}
         defaultVehicle={selectedVehicle}
+        initialData={customerContact}
         onCalculate={handleCalculateQuote}
       />
       <VehicleDetailsModal

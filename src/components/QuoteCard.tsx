@@ -460,6 +460,16 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                                     </span>
                                                 </div>
                                             )}
+                                            {quote.source === "customer_portal" && (
+                                                <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-border/40 min-w-0">
+                                                    <div className="size-4 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                                                        <User className="size-2.5 text-primary" />
+                                                    </div>
+                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                        Sent by the customer from the <span className="font-bold text-foreground">customer portal</span>
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

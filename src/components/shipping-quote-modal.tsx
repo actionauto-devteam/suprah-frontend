@@ -141,14 +141,17 @@ export function ShippingQuoteModal({
 
     let inferredCity = "";
     let inferredState = "";
+    let inferredZip = "";
 
+    // "City, ST", or "City, ST, 84101" as customer listings show it.
     const cityStateMatch = locationText.match(
-      /(?:^|,\s*)([^,]+),\s*([A-Za-z]{2})\s*$/,
+      /(?:^|,\s*)([^,]+),\s*([A-Za-z]{2})(?:,\s*(\d{5}(?:-\d{4})?))?\s*$/,
     );
 
     if (cityStateMatch) {
       inferredCity = cityStateMatch[1].trim();
       inferredState = cityStateMatch[2].toUpperCase();
+      inferredZip = cityStateMatch[3] ?? "";
     }
 
     setFormData((prev) => ({
@@ -158,7 +161,7 @@ export function ShippingQuoteModal({
       fromCity: prev.fromCity || (isOrem ? "Orem" : inferredCity),
       fromState: prev.fromState || (isOrem ? "UT" : inferredState),
       fromZip:
-        prev.fromZip || (isOrem ? "84058" : prev.fromZip),
+        prev.fromZip || (isOrem ? "84058" : inferredZip),
     }));
 
     setErrors((prev) => ({

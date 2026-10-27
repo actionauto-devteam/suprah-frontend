@@ -270,7 +270,7 @@ export function TransportationMobileQuoteCard({
                 <div className="flex items-center gap-1.5">
                   <span className={cn("size-1.5 rounded-full", statusMeta.dot)} />
                   <span className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
-                    Transport Quote
+                    {quote.source === "customer_portal" ? "From Customer Portal" : "Transport Quote"}
                   </span>
                   <span className="hidden text-[11px] text-muted-foreground/70 sm:inline">
                     · {formatDate(quote.createdAt)}
