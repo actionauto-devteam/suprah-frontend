@@ -274,9 +274,9 @@ export default function SuprahMeetLobbyPage() {
           </div>
         </header>
 
-        <div className="grid gap-10 xl:grid-cols-[1.05fr_0.95fr] xl:gap-14">
+        <div className="grid min-w-0 gap-10 xl:grid-cols-[1.05fr_0.95fr] xl:gap-14">
           {/* Hero */}
-          <section>
+          <section className="min-w-0">
             <h2 className="max-w-xl text-3xl font-semibold leading-[1.1] tracking-tight md:text-5xl">
               Where your dealership team
               <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent"> meets, decides, and moves</span>
@@ -320,7 +320,7 @@ export default function SuprahMeetLobbyPage() {
           </section>
 
           {/* Meetings column */}
-          <section className="space-y-7">
+          <section className="min-w-0 space-y-7">
             {live.length > 0 && (
               <Group title="Happening now" live>
                 {live.map((m) => (
@@ -569,12 +569,14 @@ function Pager({ total, page, totalPages, onPage }: {
 
 function MeetingCard({ m, sub, action, plain }: { m: MeetingRow; sub?: React.ReactNode; action: React.ReactNode; plain?: boolean }) {
   const copy = () => void navigator.clipboard?.writeText(m.code).catch(() => {});
+  // flex-wrap + the ml-auto action cluster: on narrow phones the buttons
+  // drop to their own line instead of clipping off the right edge.
   return (
-    <div className={cn("flex items-center gap-3 p-3", !plain && "rounded-2xl border bg-card/70 backdrop-blur")}>
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 p-3", !plain && "rounded-2xl border bg-card/70 backdrop-blur")}>
       <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-500">
         {m.status === "scheduled" ? <CalendarClock className="size-5" /> : <Video className="size-5" />}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-40">
         <p className="flex items-center gap-1.5 truncate text-sm font-medium">
           {m.title}
           {m.seriesId && (
@@ -589,7 +591,7 @@ function MeetingCard({ m, sub, action, plain }: { m: MeetingRow; sub?: React.Rea
         </button>
       </div>
       {m.status === "live" && <Badge className="animate-pulse border-emerald-500/30 bg-emerald-500/15 text-emerald-500">Live</Badge>}
-      {action}
+      <div className="ml-auto flex shrink-0 items-center">{action}</div>
     </div>
   );
 }

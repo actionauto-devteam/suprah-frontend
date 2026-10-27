@@ -280,7 +280,7 @@ export default function SuprahMeetRoomPage() {
   // Already in a different meeting → don't hijack the running session.
   if (activeCode && activeCode !== code) {
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">You&apos;re already in a meeting</p>
         <p className="max-w-md text-sm text-muted-foreground">
@@ -300,7 +300,7 @@ export default function SuprahMeetRoomPage() {
 
   if (gate === "checking" && meet.phase !== "in" && meet.phase !== "joining") {
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-6 text-center">
         <SuprahMeetLogo className="size-12 animate-pulse" />
         <p className="text-sm text-muted-foreground">Checking access…</p>
       </div>
@@ -309,7 +309,7 @@ export default function SuprahMeetRoomPage() {
 
   if (gate === "waiting") {
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
         <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
           <Hourglass className="size-8 animate-pulse text-emerald-500" />
         </div>
@@ -332,7 +332,7 @@ export default function SuprahMeetRoomPage() {
         })
       : "the scheduled time";
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
         <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
           <Hourglass className="size-8 animate-pulse text-emerald-500" />
         </div>
@@ -349,7 +349,7 @@ export default function SuprahMeetRoomPage() {
 
   if (gate === "denied") {
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">The host didn&apos;t admit you</p>
         <p className="max-w-md text-sm text-muted-foreground">
@@ -363,7 +363,7 @@ export default function SuprahMeetRoomPage() {
 
   if (gate === "over") {
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">This meeting has ended</p>
         <p className="max-w-md text-sm text-muted-foreground">
@@ -394,7 +394,7 @@ export default function SuprahMeetRoomPage() {
 
   if (meet.phase === "error") {
     return (
-      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">Couldn&apos;t join this meeting</p>
         <p className="max-w-md text-sm text-muted-foreground">{meet.error}</p>
@@ -426,8 +426,12 @@ export default function SuprahMeetRoomPage() {
     );
   }
 
+  // Native iOS app / mobile: h-full fills the dashboard's <main> exactly
+  // (the old 100dvh-4rem overshot once the bottom nav and safe areas were in
+  // play); min-w-0 + max-w-full keep the call UI from blowing out the
+  // viewport width on phones.
   return (
-    <div className="relative flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-[#071410] text-emerald-50">
+    <div className="relative flex h-full min-h-0 w-full max-w-full min-w-0 flex-col overflow-hidden bg-[#071410] text-emerald-50">
       {/* Digital backdrop */}
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-50">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(16,185,129,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
@@ -508,7 +512,7 @@ export default function SuprahMeetRoomPage() {
       )}
 
       {/* Stage */}
-      <div className="relative z-10 flex min-h-0 flex-1">
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1">
         {/* Together Mode: one shared scene behind the whole grid — every
             camera is background-replaced with the SAME image, so tiles blend
             into a single room. */}
@@ -521,9 +525,9 @@ export default function SuprahMeetRoomPage() {
             TOGETHER MODE · {MEET_SCENES.find((sc) => sc.key === meet.togetherScene)?.label.toUpperCase()}
           </div>
         )}
-        <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:gap-3 md:p-3">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden p-2 md:gap-3 md:p-3">
           {contentTile ? (
-            <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
+            <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
               <TileVideo tile={contentTile} bind={meet.bindVideoTile} contain
                 className="min-h-0 border-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.1)]" />
               <div className="flex gap-2 overflow-x-auto md:flex-col md:gap-3 md:overflow-y-auto">
@@ -563,7 +567,7 @@ export default function SuprahMeetRoomPage() {
                 className="absolute bottom-3 right-3 z-10 h-24 w-36 shadow-2xl shadow-black/50 sm:h-32 sm:w-52" />
             </div>
           ) : spotPerson ? (
-            <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
+            <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
               <PersonTile person={spotPerson} tile={tilesByAttendee.get(spotPerson.attendeeId)}
                 bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === spotPerson.attendeeId}
                 isSelf={spotPerson.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
@@ -581,7 +585,7 @@ export default function SuprahMeetRoomPage() {
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-              <div className={cn("grid min-h-0 flex-1 auto-rows-fr gap-2 overflow-y-auto md:gap-3", gridCls(pagePeople.length))}>
+              <div className={cn("grid min-h-0 min-w-0 w-full flex-1 auto-rows-fr gap-2 overflow-y-auto md:gap-3", gridCls(pagePeople.length))}>
                 {pagePeople.map((p) => (
                   <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
                     bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
