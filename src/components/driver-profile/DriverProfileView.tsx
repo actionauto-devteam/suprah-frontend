@@ -84,9 +84,6 @@ export const DriverProfileView: React.FC = () => {
     null,
   );
 
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
@@ -412,21 +409,6 @@ export const DriverProfileView: React.FC = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== "DELETE") return;
-    try {
-      const token = await getToken();
-      await apiClient.delete("/api/profile/delete-account", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.success("Account deleted");
-      signOut();
-      router.push("/");
-    } catch {
-      toast.error("We couldn't delete your account. Please contact support for help.");
-    }
-  };
-
   const handleLogout = () => {
     signOut();
     router.push("/");
@@ -546,13 +528,15 @@ export const DriverProfileView: React.FC = () => {
       </Tabs>
 
       <ProfileDialogs
-        showDeleteDialog={showDeleteDialog}
-        setShowDeleteDialog={setShowDeleteDialog}
-        showDeleteConfirmDialog={showDeleteConfirmDialog}
-        setShowDeleteConfirmDialog={setShowDeleteConfirmDialog}
-        deleteConfirmText={deleteConfirmText}
-        setDeleteConfirmText={setDeleteConfirmText}
-        handleDeleteAccount={handleDeleteAccount}
+        // Drivers can't delete their own account (there is no such endpoint),
+        // so the delete dialogs never open here.
+        showDeleteDialog={false}
+        setShowDeleteDialog={() => {}}
+        showDeleteConfirmDialog={false}
+        setShowDeleteConfirmDialog={() => {}}
+        deleteConfirmText=""
+        setDeleteConfirmText={() => {}}
+        handleDeleteAccount={() => {}}
         showLogoutDialog={showLogoutDialog}
         setShowLogoutDialog={setShowLogoutDialog}
         handleLogout={handleLogout}
