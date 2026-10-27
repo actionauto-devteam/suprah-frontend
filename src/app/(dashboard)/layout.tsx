@@ -342,7 +342,7 @@ function DashboardLayoutContent({
   }
 
   return (
-    <SidebarProvider className="h-dvh overflow-hidden print:h-auto print:overflow-visible">
+    <SidebarProvider className="h-dvh overflow-hidden pt-[env(safe-area-inset-top)] print:h-auto print:overflow-visible">
       <AppSidebar />
       {/* min-w-0 + w-full: lets this flex child shrink below its content's
           intrinsic width instead of forcing the whole page wider than the
