@@ -69,6 +69,20 @@ const pastedMedia = loadSupraSpacePastedMediaHelpers();
 
 assert.equal(richPaste.hasSupraSpaceTextSelection(), false);
 assert.equal(richPaste.getSupraSpaceSelectionClipboardData({}), null);
+const externalClassFormatting = richPaste.getSupraSpaceClipboardSemanticClassFormatting(
+  'font-semibold fst-italic text-underline line-through',
+);
+assert.equal(externalClassFormatting.bold, true);
+assert.equal(externalClassFormatting.italic, true);
+assert.equal(externalClassFormatting.underline, true);
+assert.equal(externalClassFormatting.strike, true);
+const unrelatedExternalClassFormatting = richPaste.getSupraSpaceClipboardSemanticClassFormatting(
+  'layout-card theme-dark text-blue-500',
+);
+assert.equal(unrelatedExternalClassFormatting.bold, false, 'unrelated external classes must not become persisted formatting');
+assert.equal(unrelatedExternalClassFormatting.italic, false, 'unrelated external classes must not become persisted formatting');
+assert.equal(unrelatedExternalClassFormatting.underline, false, 'unrelated external classes must not become persisted formatting');
+assert.equal(unrelatedExternalClassFormatting.strike, false, 'unrelated external classes must not become persisted formatting');
 
 const attachmentUrl = 'https://example.test/attachment.png';
 assert.equal(
@@ -293,6 +307,7 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   assert.equal((source.match(/isSupraSpacePlainTextPasteShortcut/g) || []).length, 3, `${path}: plain-text shortcut must cover compose and edit`);
   assert.equal((source.match(/useState<PasteMode>\('formatted'\)/g) || []).length, 2, `${path}: compose and edit must keep formatting by default`);
   assert.equal((source.match(/insertRichHtmlAtRichEditorSelection\(/g) || []).length, 3, `${path}: rich paste must use range insertion in compose and edit`);
+  assert.match(source, /getSupraSpaceClipboardSemanticClassFormatting/, `${path}: semantic external CSS classes must preserve supported text formatting`);
   assert.doesNotMatch(source, /execCommand\('insertHTML', false, richEditorHtml\)/, `${path}: rich paste must not depend on deprecated insertHTML commands`);
   assert.match(source, /PasteUndoRef/, `${path}: pasted content must have focused Ctrl\/Cmd\+Z support`);
   const start = source.indexOf('function htmlToMarkdown(');

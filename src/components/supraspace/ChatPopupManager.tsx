@@ -14,7 +14,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
@@ -1268,7 +1268,12 @@ function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly 
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|table|tr|t[dh]|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html)
+    || Array.from(html.matchAll(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi))
+      .some(match => {
+        const semantic = getSupraSpaceClipboardSemanticClassFormatting(match[1] || match[2] || match[3]);
+        return semantic.bold || semantic.italic || semantic.underline || semantic.strike;
+      });
 }
 
 function getCopiedElementVisibleText(element: HTMLElement): string {
@@ -2610,6 +2615,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
     const inner = Array.from(element.childNodes).map(walk).join('');
     const fontWeight = element.style.fontWeight;
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
+    const semanticClassFormatting = getSupraSpaceClipboardSemanticClassFormatting(element.getAttribute('class'));
     let formatted = inner;
 
     if (
@@ -2618,16 +2624,18 @@ function clipboardHtmlToEditorHtml(html: string): string {
       || fontWeight === 'bold'
       || fontWeight === 'bolder'
       || Number.parseInt(fontWeight || '0', 10) >= 600
+      || semanticClassFormatting.bold
     ) formatted = `<strong>${formatted}</strong>`;
-    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') {
+    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic' || semanticClassFormatting.italic) {
       formatted = `<em>${formatted}</em>`;
     }
-    if (tag === 'u' || decoration.includes('underline')) formatted = `<u>${formatted}</u>`;
+    if (tag === 'u' || decoration.includes('underline') || semanticClassFormatting.underline) formatted = `<u>${formatted}</u>`;
     if (
       tag === 's'
       || tag === 'strike'
       || tag === 'del'
       || decoration.includes('line-through')
+      || semanticClassFormatting.strike
     ) formatted = `<s>${formatted}</s>`;
 
     if (tag === 'code') return `<code>${wrapStyles(element, formatted)}</code>`;

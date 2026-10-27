@@ -49,6 +49,36 @@ export function isSupraSpacePlainTextPasteShortcut(event: SupraSpacePasteShortcu
     && event.key.toLowerCase() === 'v';
 }
 
+export type SupraSpaceClipboardSemanticClassFormatting = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+};
+
+/**
+ * Browser clipboard HTML commonly retains class names but not the source
+ * stylesheet. Preserve only well-known, portable text semantics from those
+ * names. This deliberately does not copy arbitrary classes, layout, theme,
+ * backgrounds, or source CSS into a message.
+ */
+export function getSupraSpaceClipboardSemanticClassFormatting(
+  className: string | null | undefined,
+): SupraSpaceClipboardSemanticClassFormatting {
+  const tokens = String(className || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const has = (pattern: RegExp): boolean => tokens.some(token => pattern.test(token));
+
+  return {
+    bold: has(/^(?:bold|font-(?:bold|semibold|extrabold|black)|fw-(?:bold|semibold|[6-9]00)|(?:text|has-text|is)-(?:bold|semibold)|font-weight-(?:bold|[6-9]00))$/),
+    italic: has(/^(?:italic|font-italic|fst-italic|(?:text|has-text|is)-italic)$/),
+    underline: has(/^(?:underline|text-underline|text-decoration-underline|(?:has-text|is)-underlined)$/),
+    strike: has(/^(?:line-through|strikethrough|strike|text-(?:strike|strikethrough)|text-decoration-line-through)$/),
+  };
+}
+
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
   if (ordered) {
     return value.replace(/^\s*\d+[.)](?:\s+|(?=\S)|\s*$)/u, '');
