@@ -9523,6 +9523,18 @@ export default function SupraSpacePage() {
     return () => window.removeEventListener('supraspace:pwa-update-available', onUpdateAvailable);
   }, []);
   React.useEffect(() => {
+    if (!pwaUpdateAvailable) return;
+    // Installed PWAs can otherwise keep an old worker indefinitely. Apply a
+    // waiting update without asking the user only when no composer work can
+    // be interrupted; the existing notice remains as the fallback for drafts.
+    const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || sharedTargetFiles.length > 0 || sending || uploading;
+    if (hasUnsentComposerWork) return;
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new Event('supraspace:pwa-apply-update'));
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [composerHasText, pendingFiles.length, pendingGif, pwaUpdateAvailable, sending, sharedTargetFiles.length, uploading]);
+  React.useEffect(() => {
     const restored = new Map<HTMLStyleElement, string | null>();
     const syncStyles = () => {
       const legacy = document.getElementById('ss4-styles') as HTMLStyleElement | null;
