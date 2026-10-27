@@ -52,6 +52,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProfileContext } from "@/context/ProfileContext";
 import { resolveImageUrl, cn } from "@/lib/utils";
 import { isSupraSpaceInstalled } from "@/lib/supraspace-install";
+// Native iOS app — sidebar sections are filtered to the v1 feature scope.
+import { filterNavForNativeApp } from "@/lib/native-app";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -350,6 +353,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     ? customerData.navMain
     : data.navMain;
 
+  // Native iOS app: only the v1-scoped items appear in the sidebar/drawer.
+  // isNativeApp is false on the website and during SSR, so web is unchanged.
+  const isNativeApp = useIsNativeApp();
+  const navMainItems = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(activeNavMain) : activeNavMain),
+    [isNativeApp, activeNavMain],
+  );
+  const appsItems = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(data.apps) : data.apps),
+    [isNativeApp],
+  );
+  const servicesItems = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(data.services) : data.services),
+    [isNativeApp],
+  );
+  const platformItems = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(data.platform) : data.platform),
+    [isNativeApp],
+  );
+  const premiumItems = React.useMemo(
+    () => (isNativeApp ? filterNavForNativeApp(data.premium) : data.premium),
+    [isNativeApp],
+  );
+
   const closeMobileSidebar = React.useCallback(() => {
     // Mobile Sidebar is rendered as a controlled Radix Sheet. Closing its
     // openMobile state also removes the backdrop/focus trap/scroll lock.
@@ -473,7 +500,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent className="relative z-10 p-2 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/50 [&::-webkit-scrollbar-thumb:hover]:bg-border">
         {/* ── Main ── */}
         <SidebarMenu>
-          {activeNavMain.map((item) => {
+          {navMainItems.map((item) => {
             const isActive =
               pathname === item.url || pathname.startsWith(item.url + "/");
             return (
@@ -510,15 +537,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
 
         {/* ── Apps ── */}
-        {!isCustomer && (
+        {!isCustomer && appsItems.length > 0 && (
           <>
             <SectionLabel>Apps</SectionLabel>
 
             <SidebarMenu>
-              {data.apps.map((item) => {
+              {appsItems.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
-                const handoffToInstalledApp = item.url === SUPRASPACE_EMBEDDED_HREF && handoffSupraSpaceToPwa;
+                const handoffToInstalledApp =
+                  item.url === SUPRASPACE_EMBEDDED_HREF &&
+                  handoffSupraSpaceToPwa &&
+                  // Never hand off to the PWA from inside the native app —
+                  // Suprah Space opens embedded like everything else.
+                  !isNativeApp;
                 const href = handoffToInstalledApp ? SUPRASPACE_SUBDOMAIN_URL : item.url;
                 const linkTargetProps = handoffToInstalledApp ? { target: "_blank" as const, rel: "noopener" } : {};
                 return (
@@ -642,12 +674,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
 
         {/* ── Services ── */}
-        {!isCustomer && (
+        {!isCustomer && servicesItems.length > 0 && (
           <>
             <SectionLabel>Services</SectionLabel>
 
             <SidebarMenu>
-              {data.services.map((item) => {
+              {servicesItems.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
                 return (
@@ -697,12 +729,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
 
         {/* ── Platform (What's New — global release notes) ── */}
-        {!isCustomer && (
+        {!isCustomer && platformItems.length > 0 && (
           <>
             <SectionLabel>Platform</SectionLabel>
 
             <SidebarMenu>
-              {data.platform.map((item) => {
+              {platformItems.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
                 return (
@@ -744,11 +776,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
 
         {/* ── Premium ── */}
-        {!isCustomer && (
+        {!isCustomer && premiumItems.length > 0 && (
           <>
             <SectionLabel>Premium</SectionLabel>
             <SidebarMenu>
-              {data.premium.map((item) => {
+              {premiumItems.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
                 return (
