@@ -22,6 +22,7 @@ import {
   MapPin,
   MessageCircle,
   Bot,
+  Puzzle,
 } from "lucide-react"
 import { CrmSettingsNav } from "@/components/crm/settings/CrmSettingsNav";
 import { Badge } from "@/components/ui/badge"
@@ -91,6 +92,10 @@ export default function IntegrationsSettingsPage() {
   const [physicalMailingAddress, setPhysicalMailingAddress] = React.useState("");
   const [savedPhysicalMailingAddress, setSavedPhysicalMailingAddress] = React.useState("");
   const [isSavingMailingAddress, setIsSavingMailingAddress] = React.useState(false);
+  const [extensionMessagingEnabled, setExtensionMessagingEnabled] = React.useState(false);
+  const [savedExtensionMessagingEnabled, setSavedExtensionMessagingEnabled] = React.useState(false);
+  const [extensionMessagingServerEnabled, setExtensionMessagingServerEnabled] = React.useState(true);
+  const [isSavingExtensionMessaging, setIsSavingExtensionMessaging] = React.useState(false);
   const aiModes = useAiOperatingModes(getToken);
   const { confirm, AlertComponent } = useAlert();
 
@@ -140,6 +145,10 @@ export default function IntegrationsSettingsPage() {
           const mailingAddress = settingsData?.physicalMailingAddress || "";
           setPhysicalMailingAddress(mailingAddress);
           setSavedPhysicalMailingAddress(mailingAddress);
+          const extensionMessaging = settingsData?.extensionMessagingEnabled === true;
+          setExtensionMessagingEnabled(extensionMessaging);
+          setSavedExtensionMessagingEnabled(extensionMessaging);
+          setExtensionMessagingServerEnabled(settingsData?.extensionMessagingServerEnabled !== false);
         } catch (settingsError) {
           console.error("Failed to fetch organization settings:", settingsError);
         }
@@ -355,6 +364,33 @@ export default function IntegrationsSettingsPage() {
             })
         } finally {
             setIsSavingWebchat(false)
+        }
+    }
+
+    const handleSaveExtensionMessaging = async () => {
+        if (!isAdmin) return
+        setIsSavingExtensionMessaging(true)
+        try {
+            const t = await getToken()
+            await apiClient.patch(
+                "/api/crm/org-settings",
+                { extensionMessagingEnabled },
+                { headers: { Authorization: `Bearer ${t}` } },
+            )
+            setSavedExtensionMessagingEnabled(extensionMessagingEnabled)
+            toast.success("Extension setting saved", {
+                description: extensionMessagingEnabled
+                    ? "Employees can now send texts and emails from the Suprah CRM Chrome extension."
+                    : "Employees can no longer send texts or emails from the Chrome extension."
+            })
+        } catch (error) {
+            console.error("Failed to save extension messaging setting:", error)
+            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+            toast.error("Save failed", {
+                description: message || "Could not save the extension setting. Please try again."
+            })
+        } finally {
+            setIsSavingExtensionMessaging(false)
         }
     }
 
@@ -853,6 +889,63 @@ export default function IntegrationsSettingsPage() {
                                             className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
                                         >
                                             {isSavingWebchat ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save webchat settings"}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-border/40 bg-card overflow-hidden mt-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
+                                        <Puzzle className="h-5 w-5 text-indigo-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold truncate">Chrome Extension Messaging</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Texts and emails sent from the Suprah CRM Chrome extension.</p>
+                                    </div>
+                                </div>
+                                <Badge className={savedExtensionMessagingEnabled && extensionMessagingServerEnabled ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
+                                    {savedExtensionMessagingEnabled && extensionMessagingServerEnabled ? "On" : "Off"}
+                                </Badge>
+                            </div>
+
+                            <div className="p-4 sm:p-6 space-y-4">
+                                {!isAdmin && (
+                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                                        <p className="text-sm text-amber-500/90 leading-relaxed">Only workspace admins can change this setting.</p>
+                                    </div>
+                                )}
+
+                                {!extensionMessagingServerEnabled && (
+                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 max-w-xl">
+                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                                        <p className="text-sm text-amber-500/90 leading-relaxed">Sending from the extension is turned off on this server, so employees can&apos;t send from it even if this setting is on.</p>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between gap-3 max-w-xl">
+                                    <div className="min-w-0">
+                                        <label className="text-sm font-semibold text-foreground">Allow texts and emails from the extension</label>
+                                        <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md mt-0.5">Off by default. Replies follow the same rules as Suprah CRM, including Do Not Contact, STOP replies, closed leads and AI Agent pauses.</p>
+                                    </div>
+                                    <Switch
+                                        checked={extensionMessagingEnabled}
+                                        onCheckedChange={setExtensionMessagingEnabled}
+                                        disabled={!isAdmin || isSavingExtensionMessaging}
+                                    />
+                                </div>
+
+                                {isAdmin && (
+                                    <div className="pt-2">
+                                        <Button
+                                            onClick={handleSaveExtensionMessaging}
+                                            disabled={isSavingExtensionMessaging || extensionMessagingEnabled === savedExtensionMessagingEnabled}
+                                            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                                        >
+                                            {isSavingExtensionMessaging ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save extension setting"}
                                         </Button>
                                     </div>
                                 )}
