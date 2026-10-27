@@ -19,11 +19,11 @@ export interface CreditLineageEntry {
         email: string;
         dateJoined: string;
     };
-    shipmentInfo?: {
+    loadInfo?: {
         _id: string;
         status: string;
-        origin: string;
-        destination: string;
+        origin?: string;
+        destination?: string;
         trackingNumber?: string;
     };
     paymentInfo?: {

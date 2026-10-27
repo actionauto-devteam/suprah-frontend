@@ -932,12 +932,8 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           void refreshVehicles();
         }
       } catch (err) {
-        const axiosError = err as AxiosError;
-        const msg =
-          (axiosError.response?.data as any)?.message ||
-          axiosError.message ||
-          "Failed to load data";
-        setError(msg);
+        // Server text when there is one, never raw text like "Network Error".
+        setError(userErrorMessage(err, "open your loads and quotes"));
       } finally {
         isInitializedRef.current = true;
         if (silent) setIsSilentRefreshing(false);
@@ -1222,7 +1218,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setQuotesPage(page);
       } catch (err: any) {
         setError(
-          userErrorMessage(err, "load that page of drafts"),
+          userErrorMessage(err, "load that page of quotes"),
         );
       }
     },
@@ -1244,7 +1240,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setQuotesPage(1);
       } catch (err: any) {
         setError(
-          userErrorMessage(err, "change how many drafts are shown"),
+          userErrorMessage(err, "change how many quotes are shown"),
         );
       }
     },
@@ -1309,7 +1305,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          userErrorMessage(axiosError, "create this draft"),
+          userErrorMessage(axiosError, "create this quote"),
         );
       }
     },
@@ -1362,7 +1358,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          userErrorMessage(axiosError, "convert this draft into a load"),
+          userErrorMessage(axiosError, "convert this quote into a load"),
         );
       }
     },
@@ -1372,13 +1368,13 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   const handleDeleteQuote = React.useCallback(
     async (quoteId: string) => {
       if (!quoteId) {
-        throw new Error("Failed to delete quote: Quote ID is missing");
+        throw new Error("This quote couldn't be deleted because the page didn't finish loading it. Refresh the page and try again.");
       }
 
       const config = await getAuthConfig();
 
       if (!config) {
-        throw new Error("Failed to delete quote: Authentication required");
+        throw new Error("Your session has ended. Please sign in again, then delete the quote.");
       }
 
       /*
@@ -1443,7 +1439,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           });
 
           throw new Error(
-            userErrorMessage(axiosError, "delete this draft"),
+            userErrorMessage(axiosError, "delete this quote"),
           );
         }
 
@@ -1525,11 +1521,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           return;
         }
 
-        toast.error(
-          (axiosError.response?.data as any)?.message ||
-          axiosError.message ||
-          "Failed to delete load. Please try again.",
-        );
+        toast.error(userErrorMessage(axiosError, "delete this load"));
       } finally {
         setDeletingLoadId(null);
       }
@@ -1563,7 +1555,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          userErrorMessage(axiosError, "update this draft"),
+          userErrorMessage(axiosError, "update this quote"),
         );
       }
     },

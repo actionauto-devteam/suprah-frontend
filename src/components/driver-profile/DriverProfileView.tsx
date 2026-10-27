@@ -84,9 +84,6 @@ export const DriverProfileView: React.FC = () => {
     null,
   );
 
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
@@ -412,21 +409,6 @@ export const DriverProfileView: React.FC = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== "DELETE") return;
-    try {
-      const token = await getToken();
-      await apiClient.delete("/api/profile/delete-account", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.success("Account deleted");
-      signOut();
-      router.push("/");
-    } catch {
-      toast.error("We couldn't delete your account. Please contact support for help.");
-    }
-  };
-
   const handleLogout = () => {
     signOut();
     router.push("/");
@@ -480,18 +462,18 @@ export const DriverProfileView: React.FC = () => {
         className="w-full"
       >
         <div className="mb-3 sm:mb-4 bg-white/80 dark:bg-gray-900/70 p-1 sm:p-2 rounded-lg sm:rounded-2xl border border-gray-200 dark:border-gray-800 backdrop-blur-sm sticky top-0 z-30 shadow-sm">
-          <TabsList className="bg-transparent h-auto gap-0.5 sm:gap-1.5 p-0 w-full flex justify-start flex-nowrap overflow-x-auto scrollbar-hide">
+          <TabsList className="bg-transparent h-auto gap-0.5 sm:gap-1.5 p-0 w-full grid grid-cols-4">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
                 aria-label={tab.label}
                 title={tab.label}
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl min-h-11 h-auto w-auto px-2 py-2 sm:px-3 transition-all inline-flex items-center justify-center sm:justify-start gap-1.5 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
+                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl min-h-11 h-auto w-full min-w-0 px-2 py-2 sm:px-3 transition-all inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
               >
                 <tab.icon className="size-3.5 sm:size-4" />
                 
-                <span className="inline font-semibold text-xs">
+                <span className="inline max-w-full truncate font-semibold text-xs">
                   {tab.label}
                 </span>
               </TabsTrigger>
@@ -546,13 +528,15 @@ export const DriverProfileView: React.FC = () => {
       </Tabs>
 
       <ProfileDialogs
-        showDeleteDialog={showDeleteDialog}
-        setShowDeleteDialog={setShowDeleteDialog}
-        showDeleteConfirmDialog={showDeleteConfirmDialog}
-        setShowDeleteConfirmDialog={setShowDeleteConfirmDialog}
-        deleteConfirmText={deleteConfirmText}
-        setDeleteConfirmText={setDeleteConfirmText}
-        handleDeleteAccount={handleDeleteAccount}
+        // Drivers can't delete their own account (there is no such endpoint),
+        // so the delete dialogs never open here.
+        showDeleteDialog={false}
+        setShowDeleteDialog={() => {}}
+        showDeleteConfirmDialog={false}
+        setShowDeleteConfirmDialog={() => {}}
+        deleteConfirmText=""
+        setDeleteConfirmText={() => {}}
+        handleDeleteAccount={() => {}}
         showLogoutDialog={showLogoutDialog}
         setShowLogoutDialog={setShowLogoutDialog}
         handleLogout={handleLogout}

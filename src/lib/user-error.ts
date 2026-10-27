@@ -1,3 +1,8 @@
+import { SUPPORT_EMAIL } from "@/lib/support-contact";
+
+// Drivers have no organization admin, so every fallback names Suprah AI support.
+const CONTACT_SUPPORT = `contact Suprah AI support at ${SUPPORT_EMAIL}`;
+
 /**
  * Plain-English error text for toasts and inline errors.
  *
@@ -31,15 +36,15 @@ export function userErrorMessage(error: unknown, action: string): string {
     if (typeof err?.message === "string" && err.message.trim() && !technical(err.message)) {
       return err.message.trim();
     }
-    return `We couldn't ${action}. Please try again. If it keeps happening, contact support.`;
+    return `We couldn't ${action}. Please try again. If it keeps happening, ${CONTACT_SUPPORT}.`;
   }
 
   if (status === 401) return "Your session has ended. Please sign in again.";
-  if (status === 403) return `You don't have permission to ${action}. If you think you should, contact your administrator or Suprah support.`;
+  if (status === 403) return `You don't have permission to ${action}. If you think you should, ask your organization admin or ${CONTACT_SUPPORT}.`;
   if (status === 404) return `We couldn't ${action} because it's no longer available. Refresh the page and try again.`;
   if (status === 409) return `We couldn't ${action} because something changed in the meantime. Refresh the page and try again.`;
   if (status === 413) return `We couldn't ${action} because the file is too large. Choose a smaller file and try again.`;
   if (status === 429) return "You're doing that too quickly. Wait a moment, then try again.";
-  if (status >= 500) return `We couldn't ${action} because of a problem on our side. Please try again in a moment. If it keeps happening, contact support.`;
+  if (status >= 500) return `We couldn't ${action} because of a problem on our side. Please try again in a moment. If it keeps happening, ${CONTACT_SUPPORT}.`;
   return `We couldn't ${action}. Please check the details and try again.`;
 }

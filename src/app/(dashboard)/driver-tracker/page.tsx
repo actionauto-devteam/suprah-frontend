@@ -2709,7 +2709,7 @@ export default function DriverTrackerPage() {
         <div className="relative px-5 py-5 lg:px-6">
       <div className="flex min-w-0 flex-col justify-between gap-4 xl:flex-row xl:items-start xl:gap-6">
         <div className="min-w-0">
-          <nav className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2 overflow-x-auto no-scrollbar whitespace-nowrap">
+          <nav className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium text-muted-foreground mb-2">
             <Link href="/" className="hover:text-foreground transition-colors">
               Dashboard
             </Link>

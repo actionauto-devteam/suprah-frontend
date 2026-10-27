@@ -281,10 +281,11 @@ function Lightbox({
       </div>
 
       <div
-        className="shrink-0 overflow-x-auto p-3 no-scrollbar"
+        className="shrink-0 max-h-36 overflow-y-auto p-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex gap-2">
+        {/* Thumbnails wrap into rows (about two show; more scroll down), never sideways. */}
+        <div className="flex flex-wrap justify-center gap-2">
           {images.map((img, i) => (
             <button
               key={i}
@@ -547,7 +548,7 @@ function Gallery({
 
       {/* Thumbnail strip — desktop */}
       {images.length > 1 && !compact && (
-        <div className="hidden overflow-x-auto border-b border-zinc-800 bg-zinc-900 px-3 py-2.5 sm:flex gap-1.5 no-scrollbar">
+        <div className="hidden max-h-[8.75rem] overflow-y-auto border-b border-zinc-800 bg-zinc-900 px-3 py-2.5 sm:flex sm:flex-wrap gap-1.5">
           {images.map((img, i) => (
             <button
               key={i}
@@ -1035,8 +1036,8 @@ export function VehicleDetailView({
             </div>
           </section>
 
-          {/* Tab bar — horizontal scroll prevents truncation in a narrow inspector. */}
-          <div className="flex max-w-full gap-0.5 overflow-x-auto border-b bg-background px-3 pt-2 no-scrollbar sm:px-4">
+          {/* Tab bar — wraps onto a second row in a narrow inspector instead of scrolling sideways. */}
+          <div className="flex max-w-full flex-wrap gap-0.5 border-b bg-background px-3 pt-2 sm:px-4">
             {TABS.map((t) => (
               <button
                 key={t.id}

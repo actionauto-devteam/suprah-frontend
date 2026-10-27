@@ -12,6 +12,7 @@ import { Search, ShieldCheck, ChevronRight, RefreshCw } from 'lucide-react';
 import { EmptyState } from '@/components/admin/primitives';
 import { AdminErrorState } from '@/components/admin/AdminErrorState';
 import { cn } from '@/lib/utils';
+import { userErrorMessage } from '@/lib/user-error';
 import { formatExpirationDay } from '@/lib/mountain-time';
 
 interface ExpiringItem {
@@ -52,7 +53,7 @@ export function CompliancePanel() {
   if (isError) {
     return (
       <AdminErrorState
-        message={error instanceof Error ? error.message : 'Failed to load compliance data.'}
+        message={userErrorMessage(error, 'load the expiring driver documents')}
         onRetry={() => refetch()}
       />
     );
