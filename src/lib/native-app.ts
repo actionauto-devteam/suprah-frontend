@@ -2,13 +2,18 @@ import { Capacitor } from "@capacitor/core";
 
 /** True when running inside the Capacitor iOS (or Android) app shell. */
 export function isNativeApp(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
+    // 1) User-agent marker appended by capacitor.config.ts (appendUserAgent)
+    if (navigator.userAgent.includes("SuprahiOSApp")) return true;
+  } catch {}
+  try {
+    // 2) Capacitor runtime, when the bridge injects it
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) return true;
+  } catch {}
+  return false;
 }
-
 /** Routes reachable inside the native app. "/" is matched exactly. */
 export const NATIVE_ROUTE_PREFIXES: string[] = [
   // ── The seven v1 features ──
