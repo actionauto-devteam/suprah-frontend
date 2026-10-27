@@ -707,7 +707,7 @@ export function DriverLocationSharingProvider({
     setIsStarting(true);
 
     // First try to recover WITHOUT reloading the page.
-    navigator.geolocation.getCurrentPosition(
+    geolocation.getCurrentPosition(
       (position) => {
         const coords = {
           lat: position.coords.latitude,
@@ -919,7 +919,7 @@ export function DriverLocationSharingProvider({
     const refreshWhenVisible = () => {
       if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
 
-      navigator.geolocation.getCurrentPosition(
+      geolocation.getCurrentPosition(
         (position) => reportPosition(position, true),
         handleGeoError,
         {
@@ -930,7 +930,7 @@ export function DriverLocationSharingProvider({
       );
     };
 
-    navigator.geolocation.getCurrentPosition(
+    geolocation.getCurrentPosition(
       (position) => reportPosition(position, true),
       handleGeoError,
       {
@@ -941,7 +941,7 @@ export function DriverLocationSharingProvider({
     );
 
     watchIdRef.current =
-      navigator.geolocation.watchPosition(
+      geolocation.watchPosition(
         (position) => reportPosition(position),
         handleGeoError,
         {
@@ -1032,7 +1032,7 @@ export function DriverLocationSharingProvider({
       );
 
       if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
+        geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
 

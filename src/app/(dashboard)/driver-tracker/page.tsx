@@ -2592,7 +2592,7 @@ export default function DriverTrackerPage() {
   const centerOnMe = () => {
     const cameraAction = ++cameraActionRef.current;
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((position) => {
+    geolocation.getCurrentPosition((position) => {
       if (cameraAction !== cameraActionRef.current) return;
       const map = mapInstanceRef.current;
       if (!map) return;

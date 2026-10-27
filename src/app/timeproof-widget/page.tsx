@@ -153,7 +153,7 @@ export default function TimeproofWidgetPage() {
     // app; this widget deliberately doesn't replicate the full consent-setup
     // flow from the main TimeProof page to stay a quick, minimal glance tool.
     if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 5000 })
+      geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 5000 })
     }
     const cfg = authHeaders()
     if (!cfg) return

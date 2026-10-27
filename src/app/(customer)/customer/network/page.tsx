@@ -353,7 +353,7 @@ export default function ServiceNetworkPage() {
     setIsLocating(true)
     setMapNotice("Locating…")
 
-    navigator.geolocation.getCurrentPosition(
+    geolocation.getCurrentPosition(
       pos => {
         setIsLocating(false)
         const { latitude, longitude } = pos.coords

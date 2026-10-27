@@ -469,7 +469,7 @@ export default function TimeprofClockPage() {
     }
     try {
       await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 })
+        geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 })
       )
       const headers = await getCrmLocatorHeaders()
       await apiClient.setLocationConsent({ granted: true, deviceHint: getDeviceHint() }, headers)
@@ -963,7 +963,7 @@ export default function TimeprofClockPage() {
       if (to === "mobile") {
         if (typeof navigator === "undefined" || !navigator.geolocation) throw new Error("This device can't share location.")
         const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 })
+          geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 })
         )
         const headers = await getCrmLocatorHeaders()
         await apiClient.pingLocation(

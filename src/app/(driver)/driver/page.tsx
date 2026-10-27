@@ -1254,7 +1254,7 @@ export default function DriverDashboardPage() {
       return;
     }
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      geolocation.getCurrentPosition(
         (pos) => {
           map.flyTo({
             center: [pos.coords.longitude, pos.coords.latitude],
