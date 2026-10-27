@@ -1,5 +1,4 @@
-
-"use client";
+﻿"use client";
 
 import * as React from "react";
 
@@ -53,10 +52,14 @@ import { adminStore } from "@/store/admin-store";
 import { usePresence } from "@/hooks/usePresence";
 import { usePresenceSocket } from "@/hooks/usePresenceSocket";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { dealershipNav, dealershipMobileModules } from "@/components/layout/mobile-nav-config";
-// Native iOS app (Capacitor shell) — inside the app the bottom nav is
-// filtered to the v1 feature scope and browser web-push UI is suppressed.
-import { filterNavForNativeApp } from "@/lib/native-app";
+import {
+  dealershipNav,
+  dealershipMobileModules,
+  nativeAppNav,
+  nativeAppModules,
+} from "@/components/layout/mobile-nav-config";
+// Native iOS app (Capacitor shell) — inside the app the bottom nav swaps to
+// the dedicated five-tab v1 nav and browser web-push UI is suppressed.
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
@@ -108,18 +111,18 @@ function DashboardLayoutContent({
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { avatarUrl } = useProfileContext();
-  // Native iOS app: gate the bottom nav to the v1 features. False on the
-  // website and during SSR/first paint, so web behavior is unchanged.
+  // Native iOS app: swap the bottom nav for the dedicated five-tab v1 nav
+  // (Dashboard, Clock, Meet, Rides, Tracker) instead of filtering the web
+  // nav — filtering can only remove items, and most v1 features were never
+  // in dealershipNav. False on the website and during SSR/first paint, so
+  // web behavior is unchanged.
   const isNativeApp = useIsNativeApp();
   const bottomNavItems = React.useMemo(
-    () => (isNativeApp ? filterNavForNativeApp(dealershipNav) : dealershipNav),
+    () => (isNativeApp ? nativeAppNav : dealershipNav),
     [isNativeApp],
   );
   const bottomNavModules = React.useMemo(
-    () =>
-      isNativeApp
-        ? filterNavForNativeApp(dealershipMobileModules)
-        : dealershipMobileModules,
+    () => (isNativeApp ? nativeAppModules : dealershipMobileModules),
     [isNativeApp],
   );
   useCrmWebPush();
@@ -629,4 +632,3 @@ export default function DashboardLayout({
     </ProfileProvider>
   );
 }
-

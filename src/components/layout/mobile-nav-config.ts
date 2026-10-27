@@ -25,6 +25,7 @@ import {
     Truck,
     User,
     Users,
+    Video,
     Wallet,
     Wrench,
 } from "lucide-react";
@@ -78,6 +79,37 @@ export const dealershipMobileModules: BottomNavItem[] = [
     { label: "Profile", href: "/profile", icon: User },
     { label: "Settings", href: "/settings", icon: Settings },
 ];
+
+// ── Native iOS app (Capacitor shell) ────────────────────────────────────────
+/**
+ * Bottom bar inside the native iOS app: exactly the five v1 features, with
+ * Suprah Meet as the center action. The dashboard layout uses this when
+ * isNativeApp — the website keeps dealershipNav untouched.
+ */
+export const nativeAppNav: BottomNavItem[] = [
+    { label: "Dashboard", href: "/", icon: LayoutDashboard },
+    { label: "Clock", href: "/crm/timeproof-clock", icon: Clock },
+    { label: "Meet", href: "/crm/suprah-meet", icon: Video, isCenter: true },
+    { label: "Rides", href: "/transportation", icon: Truck },
+    { label: "Tracker", href: "/driver-tracker", icon: User },
+];
+
+/**
+ * Module registry inside the native app: the seven v1 features plus account
+ * pages — nothing outside the iOS scope.
+ */
+export const nativeAppModules: BottomNavItem[] = [
+    { label: "Dashboard", href: "/", icon: LayoutDashboard },
+    { label: "Timeproof Clock", href: "/crm/timeproof-clock", icon: Clock },
+    { label: "Suprah Meet", href: "/crm/suprah-meet", icon: Video },
+    { label: "Transportation", href: "/transportation", icon: Truck },
+    { label: "Driver Tracker", href: "/driver-tracker", icon: User },
+    { label: "Suprah Space", href: "/crm/supra-space", icon: MessageSquare },
+    { label: "Notifications", href: "/crm/notifications", icon: Bell },
+    { label: "Profile", href: "/profile", icon: User },
+    { label: "Settings", href: "/settings", icon: Settings },
+];
+// ────────────────────────────────────────────────────────────────────────────
 
 export const adminNav: BottomNavItem[] = [
     { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
