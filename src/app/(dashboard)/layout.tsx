@@ -140,6 +140,7 @@ function DashboardLayoutContent({
   // that chrome.
   const isSupraSpaceRoute =
     pathname === "/crm/supra-space" || pathname.startsWith("/crm/supra-space/");
+  const isMeetRoomRoute = pathname.startsWith("/crm/suprah-meet/room/");
   const isStandaloneCrmShell = pathname === "/crm";
   const showCrmHeader = isCrmRoute && !isStandaloneCrmShell && !isSupraSpaceRoute;
   const showCrmMessenger =
@@ -473,7 +474,7 @@ function DashboardLayoutContent({
             // contained to the content column instead of pushing the page
             // horizontally.
             "relative bg-background md:pb-0 min-w-0 overflow-x-hidden print:overflow-visible",
-            (leadConvoActive || mailWorkspaceActive) ? "pb-0" : "pb-24",
+            (leadConvoActive || mailWorkspaceActive || isMeetRoomRoute) ? "pb-0" : "pb-24",
             // Same fixed-viewport-shell + internally-scrolling-main treatment for every
             // route, not just /crm/* — this was previously CRM-only, which left every
             // other page (Team Pulse/Locator, Reports, etc.) with an unbounded page that
@@ -494,7 +495,9 @@ function DashboardLayoutContent({
           )}
           {children}
         </main>
-        <MobileBottomNav items={bottomNavItems} allItems={bottomNavModules} />
+          {!isMeetRoomRoute && (
+          <MobileBottomNav items={bottomNavItems} allItems={bottomNavModules} />
+        )}
       </SidebarInset>
 
       { }
