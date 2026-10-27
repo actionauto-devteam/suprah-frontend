@@ -28,6 +28,7 @@ import type { Load } from "@/types/load"
 import { arrivalAt, formatWait } from "@/lib/load-arrival"
 import { formatMountainDateTime } from "@/lib/mountain-time"
 import { ConditionReportCard } from "@/components/transportation/ConditionReportCard"
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 
 function LoadDetailsLoading() {
   return (
@@ -478,6 +479,7 @@ export default function LoadDetailsPage() {
   const queryClient = useQueryClient()
   const { userId, orgRole, getToken } = useAuth()
   const { user: currentUser } = useUser()
+  const isNativeApp = useIsNativeApp()
 
   // "Driver Changed Mid-Trip" notifications link here with ?history=1.
   React.useEffect(() => {
@@ -1068,11 +1070,18 @@ export default function LoadDetailsPage() {
                 </p>
               </div>
 
-              <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
-                <Link href={`/billing/driver-payouts/${load._id}`}>
-                  <DollarSign className="size-4" /> Review & Approve Payout
-                </Link>
-              </Button>
+              {/* Billing isn't part of the iPhone app, so the link would only bounce back to the dashboard there. */}
+              {isNativeApp ? (
+                <p className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+                  Payouts are reviewed and approved on the Suprah website, under Billing → Driver Payouts. The iPhone app doesn&apos;t include them yet.
+                </p>
+              ) : (
+                <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
+                  <Link href={`/billing/driver-payouts/${load._id}`}>
+                    <DollarSign className="size-4" /> Review & Approve Payout
+                  </Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

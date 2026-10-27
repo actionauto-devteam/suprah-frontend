@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useDriverLocationSharing } from "@/context/DriverLocationSharingContext";
 import { useAuthActions } from "@/providers/AuthProvider";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
+import { SUPPORT_EMAIL } from "@/lib/support-contact";
 
 export function DriverLocationRequiredGate() {
   const {
@@ -27,6 +29,8 @@ export function DriverLocationRequiredGate() {
     startSharing,
   } = useDriverLocationSharing();
   const { signOut } = useAuthActions();
+  // In the iPhone app, location is allowed in iPhone Settings, not in a browser.
+  const inNativeApp = useIsNativeApp();
   const [isSigningOut, setIsSigningOut] = React.useState(false);
 
   const handleSignOut = React.useCallback(async () => {
@@ -191,20 +195,43 @@ export function DriverLocationRequiredGate() {
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                   What to do
                 </p>
-                <ol className="mt-2 space-y-2 text-xs leading-relaxed text-foreground">
-                  <li>
-                    <span className="font-black">1.</span> Open your browser site
-                    permissions or device Location settings.
-                  </li>
-                  <li>
-                    <span className="font-black">2.</span> Allow location access
-                    for SUPRAH.
-                  </li>
-                  <li>
-                    <span className="font-black">3.</span> Return to this page.
-                    Access will restore automatically.
-                  </li>
-                </ol>
+                {inNativeApp ? (
+                  <>
+                    <ol className="mt-2 space-y-2 text-xs leading-relaxed text-foreground">
+                      <li>
+                        <span className="font-black">1.</span> Open iPhone Settings
+                        and tap Suprah.
+                      </li>
+                      <li>
+                        <span className="font-black">2.</span> Tap Location and choose
+                        While Using the App.
+                      </li>
+                      <li>
+                        <span className="font-black">3.</span> Come back to the Suprah
+                        app. Access will restore automatically.
+                      </li>
+                    </ol>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      If Location isn&apos;t listed in Settings, contact Suprah AI
+                      support at {SUPPORT_EMAIL}.
+                    </p>
+                  </>
+                ) : (
+                  <ol className="mt-2 space-y-2 text-xs leading-relaxed text-foreground">
+                    <li>
+                      <span className="font-black">1.</span> Open your browser site
+                      permissions or device Location settings.
+                    </li>
+                    <li>
+                      <span className="font-black">2.</span> Allow location access
+                      for SUPRAH.
+                    </li>
+                    <li>
+                      <span className="font-black">3.</span> Return to this page.
+                      Access will restore automatically.
+                    </li>
+                  </ol>
+                )}
               </div>
             </>
           ) : (
@@ -220,7 +247,7 @@ export function DriverLocationRequiredGate() {
                     Allow location sharing to continue
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Your browser may be waiting for permission. Choose
+                    {inNativeApp ? "Your iPhone may be asking for permission." : "Your browser may be waiting for permission."} Choose
                     <span className="font-black text-foreground"> Allow </span>
                     when prompted. The Driver Portal will unlock automatically
                     after location access is granted.
