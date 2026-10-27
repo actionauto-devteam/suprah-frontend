@@ -53,6 +53,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
 import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
+import { getSupraSpaceLatestReadReceiptMessageIds } from '@/lib/supraspace-read-receipts';
 import { isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -91,6 +92,7 @@ const SS4_MESSAGE_LIMIT_ERROR = 'Messages can be up to 10,000 characters. Send t
 const SS4_MESSAGE_PAGE_SIZE = 40;
 const SS4_CONVERSATION_PAGE_SIZE = 80;
 const SS4_MESSAGE_HIGHLIGHT_DURATION_MS = 2300;
+const SS4_OPEN_BOTTOM_STABILIZATION_MS = 1200;
 const ss4MessageHighlightTimers = new WeakMap<HTMLElement, number>();
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
 type PasteMode = 'formatted' | 'plain';
@@ -9934,7 +9936,6 @@ export default function SupraSpacePage() {
   const pendingScrollRestoreRef = React.useRef<{ convId: string; scrollHeight: number; scrollTop: number } | null>(null);
   const forceScrollToBottomRef = React.useRef<string | null>(null);
   const openBottomLockUntilRef = React.useRef(0);
-  const openScrollTimersRef = React.useRef<number[]>([]);
   const openBottomReleaseTimerRef = React.useRef<number | null>(null);
   const suppressAutoScrollOnceRef = React.useRef(false);
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
@@ -10096,21 +10097,19 @@ export default function SupraSpacePage() {
   }, []);
 
   const lockConversationOpenToBottom = React.useCallback((conversationId: string) => {
-    openScrollTimersRef.current.forEach(clearTimeout);
-    openScrollTimersRef.current = [];
     if (openBottomReleaseTimerRef.current) window.clearTimeout(openBottomReleaseTimerRef.current);
     openBottomReleaseTimerRef.current = null;
     pendingScrollRestoreRef.current = null;
     suppressAutoScrollOnceRef.current = false;
     forceScrollToBottomRef.current = conversationId;
-    openBottomLockUntilRef.current = Date.now() + 6500;
+    openBottomLockUntilRef.current = Date.now() + SS4_OPEN_BOTTOM_STABILIZATION_MS;
 
-    [0, 50, 120, 240, 420, 720, 1200, 2000, 3200, 4800, 6500].forEach(delay => {
-      const timer = window.setTimeout(() => {
-        if (activeIdRef.current !== conversationId) return;
-        scrollToLatest('auto', conversationId);
-      }, delay);
-      openScrollTimersRef.current.push(timer);
+    // Let React commit the selected timeline, then align it once. Subsequent
+    // real geometry changes are batched by the ResizeObserver below.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (activeIdRef.current === conversationId) pinMessageViewportToBottom(conversationId);
+      });
     });
 
     openBottomReleaseTimerRef.current = window.setTimeout(() => {
@@ -10121,12 +10120,10 @@ export default function SupraSpacePage() {
         forceScrollToBottomRef.current = null;
       }
       openBottomReleaseTimerRef.current = null;
-    }, 6700);
-  }, [scrollToLatest]);
+    }, SS4_OPEN_BOTTOM_STABILIZATION_MS + 100);
+  }, [pinMessageViewportToBottom]);
 
   const cancelOpenBottomLock = React.useCallback(() => {
-    openScrollTimersRef.current.forEach(clearTimeout);
-    openScrollTimersRef.current = [];
     if (openBottomReleaseTimerRef.current) { window.clearTimeout(openBottomReleaseTimerRef.current); openBottomReleaseTimerRef.current = null; }
     forceScrollToBottomRef.current = null;
     openBottomLockUntilRef.current = 0;
@@ -10134,8 +10131,6 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     return () => {
-      openScrollTimersRef.current.forEach(clearTimeout);
-      openScrollTimersRef.current = [];
       if (openBottomReleaseTimerRef.current) window.clearTimeout(openBottomReleaseTimerRef.current);
       openBottomReleaseTimerRef.current = null;
     };
@@ -10200,15 +10195,7 @@ export default function SupraSpacePage() {
         freshName[m.sender._id] = m.sender.fullName;
       }
     });
-    const lastSeen: Record<string, string> = {};
-    activeMsgs.forEach(m => {
-      // Move each reader's marker to their newest visible read message,
-      // regardless of who sent it.
-      (m.readBy || []).forEach((id: string) => {
-        const readerId = String(id);
-        if (readerId !== uid) lastSeen[readerId] = m._id;
-      });
-    });
+    const lastSeen = getSupraSpaceLatestReadReceiptMessageIds(activeMsgs, uid);
     const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
     (activeConv ? safeMembers(activeConv) : []).forEach(member => {
       if (member._id === uid) return;
@@ -11291,12 +11278,17 @@ export default function SupraSpacePage() {
       Date.now() <= openBottomLockUntilRef.current;
 
     let animationFrame: number | null = null;
+    let lastScrollHeight = scrollEl.scrollHeight;
     const pinIfOpening = () => {
       if (!shouldKeepPinned()) return;
       if (animationFrame !== null) return;
       animationFrame = requestAnimationFrame(() => {
         animationFrame = null;
-        if (shouldKeepPinned()) pinMessageViewportToBottom(activeId);
+        if (!shouldKeepPinned()) return;
+        const nextScrollHeight = scrollEl.scrollHeight;
+        if (nextScrollHeight === lastScrollHeight) return;
+        lastScrollHeight = nextScrollHeight;
+        pinMessageViewportToBottom(activeId);
       });
     };
 
@@ -11316,7 +11308,7 @@ export default function SupraSpacePage() {
     };
 
     observeChildren();
-    pinIfOpening();
+    pinMessageViewportToBottom(activeId);
 
     return () => {
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);

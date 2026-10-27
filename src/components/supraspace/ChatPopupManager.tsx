@@ -20,6 +20,7 @@ import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpa
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
 import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
+import { getSupraSpaceLatestReadReceiptMessageIds } from '@/lib/supraspace-read-receipts';
 import { createSupraSpaceVoiceRecordingIntent, getSupportedSupraSpaceVoiceMimeType, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
 import { UnreadMessagesDivider } from './messages/UnreadMessagesDivider';
 import {
@@ -5674,15 +5675,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         freshName[m.sender._id] = m.sender.fullName;
       }
     });
-    const lastSeen: Record<string, string> = {};
-    messages.forEach(m => {
-      // Move each reader's marker to their newest visible read message,
-      // regardless of who sent it.
-      (m.readBy || []).forEach((id: string) => {
-        const readerId = String(id);
-        if (readerId !== crmUserId) lastSeen[readerId] = m._id;
-      });
-    });
+    const lastSeen = getSupraSpaceLatestReadReceiptMessageIds(messages, crmUserId);
     const result: Record<string, { _id: string; fullName: string; avatar?: string }[]> = {};
     conv.members.forEach(member => {
       if (member._id === crmUserId) return;
