@@ -214,7 +214,7 @@ export function DriverAssignLoadModal({
             {driver && !driver.assignable && (
               <div className="break-words rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2.5 text-xs leading-relaxed text-amber-700 [overflow-wrap:anywhere] dark:text-amber-400">
                 {driver.accountApproved === false
-                  ? "This driver's account application hasn't been approved yet, so they can't be given loads. You can assign them once the Suprah team approves it."
+                  ? "This driver's account application hasn't been approved yet, so they can't be given loads. You can assign them once the Suprah AI team approves it."
                   : "This driver is not currently eligible for a new assignment. Return the driver to Active and clear any blocking status transition first."}
               </div>
             )}

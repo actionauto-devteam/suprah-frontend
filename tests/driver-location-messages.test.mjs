@@ -52,12 +52,12 @@ test('in the iPhone app the messages point to iPhone Settings and Suprah AI supp
   openInIPhoneApp();
   for (const reason of ['retained', 'accepted', 'optional']) {
     const text = locationBlockedMessage(reason);
-    assert.match(text, /^Location is blocked for the Suprah app\./);
-    assert.match(text, /open iPhone Settings, tap Suprah, then Location, and choose While Using the App\./);
+    assert.match(text, /^Location is blocked for the Suprah AI app\./);
+    assert.match(text, /open iPhone Settings, tap Suprah AI, then Location, and choose While Using the App\./);
     assert.ok(text.endsWith(`contact Suprah AI support at ${SUPPORT_EMAIL}.`), text);
     assert.doesNotMatch(text, /browser/);
   }
   assert.match(locationBlockedMessage('retained'), /Dispatch kept a load with you/);
   assert.match(locationBlockedMessage('accepted'), /You have an accepted load/);
-  assert.equal(locationBlockedChip(true), 'Location blocked. Allow it in iPhone Settings → Suprah.');
+  assert.equal(locationBlockedChip(true), 'Location blocked. Allow it in iPhone Settings → Suprah AI.');
 });

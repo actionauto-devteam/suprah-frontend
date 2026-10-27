@@ -103,7 +103,7 @@ export function KeepSharingAfterDelivery() {
             Want nearby loads?
           </DialogTitle>
           <DialogDescription className="text-left">
-            Keep sharing your location while Suprah is open, so Dispatch can offer you loads close to you.
+            Keep sharing your location while Suprah AI is open, so Dispatch can offer you loads close to you.
             Dispatchers see only about how far you are from a pickup, never your exact location.
             You can turn this off anytime on your Driver Page.
           </DialogDescription>

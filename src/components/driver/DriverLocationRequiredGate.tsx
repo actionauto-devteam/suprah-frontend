@@ -200,14 +200,14 @@ export function DriverLocationRequiredGate() {
                     <ol className="mt-2 space-y-2 text-xs leading-relaxed text-foreground">
                       <li>
                         <span className="font-black">1.</span> Open iPhone Settings
-                        and tap Suprah.
+                        and tap Suprah AI.
                       </li>
                       <li>
                         <span className="font-black">2.</span> Tap Location and choose
                         While Using the App.
                       </li>
                       <li>
-                        <span className="font-black">3.</span> Come back to the Suprah
+                        <span className="font-black">3.</span> Come back to the Suprah AI
                         app. Access will restore automatically.
                       </li>
                     </ol>

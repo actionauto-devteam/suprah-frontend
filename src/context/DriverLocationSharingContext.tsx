@@ -917,7 +917,7 @@ export function DriverLocationSharingProvider({
           ? "Finding your location is taking longer than usual. Check that location (GPS) is on, and move somewhere with a clearer view of the sky. We'll keep trying."
           : error.code === error.POSITION_UNAVAILABLE
             ? "Your phone can't find your location right now. Check that location (GPS) is on in your phone's settings. We'll keep trying."
-            : `We couldn't read your location. Check that location is turned on for ${isNativeApp() ? "the Suprah app" : "this site"}. We'll keep trying.`,
+            : `We couldn't read your location. Check that location is turned on for ${isNativeApp() ? "the Suprah AI app" : "this site"}. We'll keep trying.`,
       );
     };
 

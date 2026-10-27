@@ -81,7 +81,7 @@ export function DriverPhoneTrackingReviewSection({ driverId, canManage }: { driv
         ) : loadError ? (
           <p className="text-destructive">{loadError}</p>
         ) : !state?.available ? (
-          <p className="text-muted-foreground">Phone tracking isn&apos;t switched on for Suprah yet.</p>
+          <p className="text-muted-foreground">Phone tracking isn&apos;t switched on for Suprah AI yet.</p>
         ) : !device ? (
           <p className="text-muted-foreground">No phone linked. The driver starts setup from their Driver Portal settings.</p>
         ) : (
@@ -115,7 +115,7 @@ export function DriverPhoneTrackingReviewSection({ driverId, canManage }: { driv
             )}
             {device.status === "active" && device.traccarSyncStatus === "failed" && (
               <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                Traccar Server hasn&apos;t accepted this phone yet: {device.traccarSyncError ?? "the update failed."} Suprah retries automatically.
+                Traccar Server hasn&apos;t accepted this phone yet: {device.traccarSyncError ?? "the update failed."} Suprah AI retries automatically.
               </p>
             )}
             {canManage && (

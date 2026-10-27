@@ -1073,7 +1073,7 @@ export default function LoadDetailsPage() {
               {/* Billing isn't part of the iPhone app, so the link would only bounce back to the dashboard there. */}
               {isNativeApp ? (
                 <p className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
-                  Payouts are reviewed and approved on the Suprah website, under Billing → Driver Payouts. The iPhone app doesn&apos;t include them yet.
+                  Payouts are reviewed and approved on the Suprah AI website, under Billing → Driver Payouts. The iPhone app doesn&apos;t include them yet.
                 </p>
               ) : (
                 <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
