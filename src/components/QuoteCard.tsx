@@ -4,8 +4,11 @@ import * as React from "react"
 import { useState } from "react"
 import {
     Check, MapPin, Calendar, Clock, Trash2, User, Building2, Truck,
-    Car, Edit3, DollarSign, Gauge, Layers, ShieldCheck, Container, ChevronRight
+    Car, Edit3, DollarSign, Gauge, Layers, ShieldCheck, Container, ChevronRight, Link2
 } from "lucide-react"
+import Link from "next/link"
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
+import { linkedLead, leadPageHref } from "@/lib/quote-lead"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -160,6 +163,9 @@ const QUOTE_STATUS_META: Record<
 }
 
 export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteCardProps) {
+    // The iPhone app has no CRM pages, so there the linked lead is shown as text.
+    const inNativeApp = useIsNativeApp()
+    const lead = linkedLead(quote.leadId)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isConvertingToLoad, setIsConvertingToLoad] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -467,6 +473,27 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                                     </div>
                                                     <span className="text-[11px] text-muted-foreground truncate">
                                                         Sent by the customer from the <span className="font-bold text-foreground">customer portal</span>
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {lead && (
+                                                <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-border/40 min-w-0">
+                                                    <div className="size-4 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                                                        <Link2 className="size-2.5 text-primary" aria-hidden="true" />
+                                                    </div>
+                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                        Linked lead:{" "}
+                                                        {inNativeApp ? (
+                                                            <span className="font-bold text-foreground">{lead.name}</span>
+                                                        ) : (
+                                                            <Link
+                                                                href={leadPageHref(lead.id)}
+                                                                className="font-bold text-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                                                                title="Open this customer's lead in the CRM"
+                                                            >
+                                                                {lead.name}
+                                                            </Link>
+                                                        )}
                                                     </span>
                                                 </div>
                                             )}

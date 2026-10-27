@@ -19,6 +19,7 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 import { useAlert, AlertDialog } from "@/components/AlertDialog";
 import { EditQuoteModal } from "@/components/EditQuoteModal";
 import type { Quote } from "@/types/transportation";
+import { linkedLead } from "@/lib/quote-lead";
 import {
   VehicleImageLightbox,
   type VehicleImageLightboxItem,
@@ -138,6 +139,7 @@ export function TransportationMobileQuoteCard({
     : quote.vehicleName || "Vehicle not linked";
   const normalizedStatus = String(quote.status || "pending").toLowerCase();
   const statusMeta = STATUS_META[normalizedStatus] ?? STATUS_META.pending;
+  const lead = linkedLead(quote.leadId);
   const busy = isDeleting;
   const heroImage = !imageFailed ? resolveImageUrl(quote.vehicleImage) : undefined;
   const imageViewerItems: VehicleImageLightboxItem[] = [
@@ -279,6 +281,11 @@ export function TransportationMobileQuoteCard({
                 <h3 className="mt-1 truncate text-[15px] font-black tracking-tight text-foreground sm:text-base">
                   {vehicleName}
                 </h3>
+                {lead && (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    Linked lead: <span className="font-bold text-foreground">{lead.name}</span>
+                  </p>
+                )}
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5" onClick={stop}>
