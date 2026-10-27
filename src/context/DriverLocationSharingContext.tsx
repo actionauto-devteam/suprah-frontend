@@ -7,6 +7,8 @@ import { initializeSocket } from "@/lib/socket.client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import type { DriverStatus } from "@/types/driver-tracking";
 import { ACTIVE_LOAD_STATUSES as SHARED_ACTIVE_LOAD_STATUSES, GPS_TRACKING_LOAD_STATUSES } from "@/lib/load-status";
+import { isNativeApp } from "@/lib/native-app";
+import { locationBlockedMessage } from "@/lib/driver-location-messages";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 // Another open tab sent a GPS update this recently: skip this tab's duplicate.
@@ -897,12 +899,14 @@ export function DriverLocationSharingProvider({
         signalLocationPermissionOffline();
 
         setShareError(
-          isLocationEnforcementRequired()
-            ? dispatchRetainedGpsRequiredRef.current &&
-                operationalStatusRef.current !== "active"
-              ? "Location is blocked for this site. Dispatch kept a load with you and needs your location. Allow location for this site in your browser settings."
-              : "Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings."
-            : "Location is blocked for this site. Allow it in your browser settings if you want to share your location.",
+          locationBlockedMessage(
+            isLocationEnforcementRequired()
+              ? dispatchRetainedGpsRequiredRef.current &&
+                  operationalStatusRef.current !== "active"
+                ? "retained"
+                : "accepted"
+              : "optional",
+          ),
         );
         return;
       }
@@ -912,7 +916,7 @@ export function DriverLocationSharingProvider({
           ? "Finding your location is taking longer than usual. Check that location (GPS) is on, and move somewhere with a clearer view of the sky. We'll keep trying."
           : error.code === error.POSITION_UNAVAILABLE
             ? "Your phone can't find your location right now. Check that location (GPS) is on in your phone's settings. We'll keep trying."
-            : "We couldn't read your location. Check that location is turned on for this site. We'll keep trying.",
+            : `We couldn't read your location. Check that location is turned on for ${isNativeApp() ? "the Suprah app" : "this site"}. We'll keep trying.`,
       );
     };
 
@@ -985,12 +989,14 @@ export function DriverLocationSharingProvider({
         signalLocationPermissionOffline();
 
         setShareError(
-          isLocationEnforcementRequired()
-            ? dispatchRetainedGpsRequiredRef.current &&
-                operationalStatusRef.current !== "active"
-              ? "Location is blocked for this site. Dispatch kept a load with you and needs your location. Allow location for this site in your browser settings."
-              : "Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings."
-            : "Location is blocked for this site. Allow it in your browser settings if you want to share your location.",
+          locationBlockedMessage(
+            isLocationEnforcementRequired()
+              ? dispatchRetainedGpsRequiredRef.current &&
+                  operationalStatusRef.current !== "active"
+                ? "retained"
+                : "accepted"
+              : "optional",
+          ),
         );
       } else {
         locationPermissionStateRef.current =

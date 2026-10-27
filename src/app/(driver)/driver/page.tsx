@@ -121,6 +121,8 @@ import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/cal
 import { userErrorMessage } from "@/lib/user-error";
 import { EQUIPMENT_PAGE_PATH } from "@/lib/trailer-setup";
 import { hasVehiclesOnBoard, isActiveLoadStatus, isGpsTrackingLoadStatus } from "@/lib/load-status";
+import { locationBlockedChip } from "@/lib/driver-location-messages";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 
 function formatDashboardLoadLocation(
   location: { city?: string; state?: string; address?: string } | null | undefined,
@@ -435,6 +437,7 @@ export default function DriverDashboardPage() {
     locationPermissionState,
   } = useDriverLocationSharing();
   const workEligibility = useDriverWorkEligibility();
+  const inNativeApp = useIsNativeApp();
 
   // Keep a stable "last Active live status" only from the authoritative
   // operational state. The optimistic Dispatch Status switch must never
@@ -1215,7 +1218,7 @@ export default function DriverDashboardPage() {
     : null;
   const gpsChip: { tone: "live" | "stale" | "waiting" | "blocked" | "off"; text: string } =
     locationPermissionState === "denied"
-      ? { tone: "blocked", text: "Location blocked. Allow it in your browser settings." }
+      ? { tone: "blocked", text: locationBlockedChip(inNativeApp) }
       : isStarting
         ? { tone: "waiting", text: "Connecting to GPS…" }
         : isSharing && lastCoords

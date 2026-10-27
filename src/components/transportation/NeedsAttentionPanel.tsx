@@ -13,6 +13,7 @@ import {
   MapPinOff,
 } from "lucide-react"
 import { useAuth } from "@/providers/AuthProvider"
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 import { initializeSocket } from "@/lib/socket.client"
 import {
   getLoadAttention,
@@ -116,9 +117,13 @@ function describe(item: LoadAttentionItem): string {
   }
 }
 
-/** Where a row goes: the delivery review for proofs, otherwise the load. */
-function hrefFor(item: LoadAttentionItem): string {
-  return item.kind === "proof_waiting"
+/**
+ * Where a row goes: the delivery review for proofs, otherwise the load. The
+ * iPhone app has no Billing pages, so there proofs open the load page, which
+ * shows the delivery photo.
+ */
+function hrefFor(item: LoadAttentionItem, inNativeApp: boolean): string {
+  return item.kind === "proof_waiting" && !inNativeApp
     ? `/billing/driver-payouts/${item.loadId}`
     : `/transportation/load/${item.loadId}`
 }
@@ -126,6 +131,7 @@ function hrefFor(item: LoadAttentionItem): string {
 export function NeedsAttentionPanel({ className }: { className?: string }) {
   const { getToken } = useAuth()
   const queryClient = useQueryClient()
+  const inNativeApp = useIsNativeApp()
 
   const { data } = useQuery({
     queryKey: QUERY_KEY,
@@ -223,7 +229,7 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
             return (
               <li key={`${item.kind}:${item.loadId}:${item.credential ?? ""}`}>
                 <Link
-                  href={hrefFor(item)}
+                  href={hrefFor(item, inNativeApp)}
                   className="flex min-h-11 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
                   <Icon className={cn("size-4 shrink-0", meta.tone)} />
