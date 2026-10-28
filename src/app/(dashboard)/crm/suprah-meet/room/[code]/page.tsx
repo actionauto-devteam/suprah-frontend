@@ -150,7 +150,7 @@ export default function SuprahMeetRoomPage() {
   React.useEffect(() => {
     if (gate !== "admitted" || meet.phase !== "idle") return;
     let cancelled = false;
-    void apiClient.get(`/api/crm/meet/meetings/${code}`).then((res) => {
+    const loadRoster = () => void apiClient.get(`/api/crm/meet/meetings/${code}`).then((res) => {
       if (cancelled) return;
       const participants: Array<{ leftAt?: string | null; fullName: string; avatar?: string | null; isGuest?: boolean }> = res.data?.data?.participants ?? [];
       setPreJoinParticipants(participants.filter((person) => !person.leftAt).map((person) => ({
@@ -159,7 +159,9 @@ export default function SuprahMeetRoomPage() {
         isGuest: Boolean(person.isGuest),
       })));
     }).catch(() => { /* roster is an enhancement, not a join prerequisite */ });
-    return () => { cancelled = true; };
+    loadRoster();
+    const timer = window.setInterval(loadRoster, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [code, gate, meet.phase]);
 
   // Host side: poll the waiting queue while in the meeting.

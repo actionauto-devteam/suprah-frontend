@@ -68,6 +68,7 @@ export function splitMeetPeople<R extends MeetRosterPerson, D extends MeetDirect
   const notInMeeting = allOut
     .filter((d) => matches(d.fullName, d.department))
     .sort((a, b) => Number(b.isHost) - Number(a.isHost)
+      || Number(b.joinedBefore) - Number(a.joinedBefore)
       || a.fullName.localeCompare(b.fullName));
 
   return { inMeeting, notInMeeting, notInTotal: allOut.length, byCrmId };

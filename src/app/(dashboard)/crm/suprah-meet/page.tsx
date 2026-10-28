@@ -82,9 +82,13 @@ const countdown = (iso: string, nowMs: number) => {
   return `in ${days} day${days === 1 ? "" : "s"}`;
 };
 
-/** Whole minutes between two ISO instants (min 1). */
-const minutesBetween = (a: string, b: string) =>
-  Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60_000));
+/** Active meeting time only; host-away and waiting segments never inflate it. */
+const meetingMinutes = (meeting: MeetingRow, nowMs: number) => {
+  const activeSinceMs = meeting.timer?.activeSince ? new Date(meeting.timer.activeSince).getTime() : null;
+  const elapsedMs = Math.max(0, meeting.timer?.elapsedMs ?? 0)
+    + (meeting.timer?.running && activeSinceMs ? Math.max(0, nowMs - activeSinceMs) : 0);
+  return Math.max(1, Math.round(elapsedMs / 60_000));
+};
 
 // A scheduled meeting that nobody started within this window counts as missed.
 const MISSED_AFTER_MS = 15 * 60_000;
@@ -339,7 +343,7 @@ export default function SuprahMeetLobbyPage() {
                 {live.map((m) => (
                   <MeetingCard key={m._id} m={m} emphasis
                     sub={m.startedAt
-                      ? <>since {mdtTime(m.startedAt)} MT · {minutesBetween(m.startedAt, new Date(nowMs).toISOString())} min</>
+                      ? <>since {mdtTime(m.startedAt)} MT · {meetingMinutes(m, nowMs)} active min</>
                       : undefined}
                     action={<div className="flex items-center gap-1.5">
                       <button className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-500"
@@ -457,7 +461,7 @@ export default function SuprahMeetLobbyPage() {
                 <div key={m._id} className="overflow-hidden rounded-2xl border bg-card/70 backdrop-blur">
                   <MeetingCard m={m} plain
                     sub={m.endedAt ? (
-                      <>ended {mdt(m.endedAt)}{m.startedAt && <> · {minutesBetween(m.startedAt, m.endedAt)} min</>}</>
+                      <>ended {mdt(m.endedAt)}{m.startedAt && <> · {meetingMinutes(m, new Date(m.endedAt).getTime())} active min</>}</>
                     ) : undefined}
                     action={<Button size="sm" variant="ghost" className="gap-1"
                       onClick={() => setExpanded(expanded === m._id ? null : m._id)}>

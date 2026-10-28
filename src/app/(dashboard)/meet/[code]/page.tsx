@@ -92,7 +92,7 @@ export default function SuprahMeetGuestPage() {
     const token = sessionStorage.getItem(tokenKey);
     if (!token) return;
     let cancelled = false;
-    void apiClient.get(`/api/crm/meet/guest/${code}/roster`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => {
+    const loadRoster = () => void apiClient.get(`/api/crm/meet/guest/${code}/roster`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => {
       if (cancelled) return;
       const participants: Array<{ leftAt?: string | null; fullName: string; avatar?: string | null; isGuest?: boolean }> = res.data?.data?.participants ?? [];
       setPreJoinParticipants(participants.filter((person) => !person.leftAt).map((person) => ({
@@ -101,7 +101,9 @@ export default function SuprahMeetGuestPage() {
         isGuest: Boolean(person.isGuest),
       })));
     }).catch(() => { /* joining remains available without this enhancement */ });
-    return () => { cancelled = true; };
+    loadRoster();
+    const timer = window.setInterval(loadRoster, 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [code, gate, tokenKey]);
 
   React.useEffect(() => {

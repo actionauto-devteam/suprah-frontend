@@ -183,7 +183,9 @@ export function useSuprahMeet() {
   const selfNameRef = useRef("You");
   const selfCrmIdRef = useRef("");
   const codeRef = useRef("");
+  const selfAttendeeIdRef = useRef("");
   const leftIntentionallyRef = useRef(false);
+  const presencePendingRef = useRef<Promise<void> | null>(null);
   const videoDevicesRef = useRef<{ deviceId: string; label: string }[]>([]);
   const camIndexRef = useRef(0);
   const joinedAtRef = useRef(0);
@@ -221,12 +223,20 @@ export function useSuprahMeet() {
   }, []);
 
   const refreshNames = useCallback(async () => {
-    if (!codeRef.current) return;
-    try {
+    if (!codeRef.current || leftIntentionallyRef.current) return;
+    if (presencePendingRef.current) return presencePendingRef.current;
+    const pending = (async () => {
+      try {
+      const attendeeId = selfAttendeeIdRef.current;
       const res = guestTokenRef.current
-        ? await apiClient.get(`/api/crm/meet/guest/${codeRef.current}/roster`,
-            { headers: { Authorization: `Bearer ${guestTokenRef.current}` } })
-        : await apiClient.get(`/api/crm/meet/meetings/${codeRef.current}`);
+        ? attendeeId
+          ? await apiClient.post(`/api/crm/meet/guest/${codeRef.current}/heartbeat`, { attendeeId },
+              { headers: { Authorization: `Bearer ${guestTokenRef.current}` }, timeout: 5000 })
+          : await apiClient.get(`/api/crm/meet/guest/${codeRef.current}/roster`,
+              { headers: { Authorization: `Bearer ${guestTokenRef.current}` }, timeout: 5000 })
+        : attendeeId
+          ? await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/heartbeat`, { attendeeId }, { timeout: 5000 })
+          : await apiClient.get(`/api/crm/meet/meetings/${codeRef.current}`, { timeout: 5000 });
       const info = res.data?.data;
       const list: MeetParticipantInfo[] = info?.participants ?? [];
       if (info?.timer) {
@@ -248,20 +258,25 @@ export function useSuprahMeet() {
         });
         return next;
       });
-    } catch { /* best-effort */ }
+      } catch { /* best-effort */ }
+    })();
+    presencePendingRef.current = pending;
+    try { await pending; } finally {
+      if (presencePendingRef.current === pending) presencePendingRef.current = null;
+    }
   }, []);
 
-  // Presence callbacks arrive before a departing browser finishes its leave
-  // request. A small poll keeps the persisted host/participant timer truthful
-  // across Mini Meet, full Meet, reconnects, and backgrounded tabs.
+  // Refresh the server-side device lease so a closed tab or lost network is
+  // removed automatically without treating another device as disconnected.
   useEffect(() => {
     if (phase !== 'in') return;
     void refreshNames();
-    const timer = window.setInterval(() => { void refreshNames(); }, 5000);
+    const timer = window.setInterval(() => { void refreshNames(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [phase, refreshNames]);
 
   const join = useCallback(async (code: string, options?: MeetJoinOptions) => {
+    leftIntentionallyRef.current = false;
     setPhase("joining");
     setMicOn(false);
     setCanEndForAll(false);
@@ -300,6 +315,7 @@ export function useSuprahMeet() {
       const eventController = new DefaultEventController(configuration, logger, new NoOpEventReporter());
       const session = new DefaultMeetingSession(configuration, logger, deviceController, eventController);
       sessionRef.current = session;
+      selfAttendeeIdRef.current = String(data.chime.Attendee.AttendeeId || "");
       setSelfAttendeeId(data.chime.Attendee.AttendeeId);
 
       const audioVideo = session.audioVideo;
@@ -867,13 +883,17 @@ export function useSuprahMeet() {
 
   const leave = useCallback(async () => {
     leftIntentionallyRef.current = true;
+    const attendeeId = selfAttendeeIdRef.current;
+    await presencePendingRef.current?.catch(() => {});
     await teardown();
     const leaveUrl = guestTokenRef.current
       ? `/api/crm/meet/guest/${codeRef.current}/leave`
       : `/api/crm/meet/meetings/${codeRef.current}/leave`;
-    apiClient.post(leaveUrl, {}, guestTokenRef.current
-      ? { headers: { Authorization: `Bearer ${guestTokenRef.current}` } }
-      : undefined).catch(() => {});
+    await apiClient.post(leaveUrl, { attendeeId }, guestTokenRef.current
+      ? { headers: { Authorization: `Bearer ${guestTokenRef.current}` }, timeout: 5000 }
+      : { timeout: 5000 }).catch(() => {});
+    selfAttendeeIdRef.current = "";
+    setSelfAttendeeId("");
     setPhase("ended");
   }, [teardown]);
 
@@ -891,6 +911,8 @@ export function useSuprahMeet() {
       return;
     }
     await teardown();
+    selfAttendeeIdRef.current = "";
+    setSelfAttendeeId("");
     setEndedReason(null);
     setPhase("ended");
   }, [canEndForAll, teardown]);
