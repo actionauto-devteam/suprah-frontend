@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Armchair, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
   Info, LayoutGrid, MessageSquare, Mic, MicOff, Minimize2, MonitorUp, MoreVertical, PhoneOff,
-  Pin, PinOff, ScreenShareOff, Search, Send, Share2, SmilePlus, SwitchCamera, UserPlus, Users, Video,
+  Pin, PinOff, ScreenShareOff, Search, Send, Share2, SmilePlus, SwitchCamera, UserMinus, UserPlus, Users, Video,
   VideoOff, Wand2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,7 +102,9 @@ export default function SuprahMeetRoomPage() {
   const [meetingTitle, setMeetingTitle] = React.useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = React.useState<string | null>(null);
   const [hostCanStart, setHostCanStart] = React.useState(false);
+  const [hostPresent, setHostPresent] = React.useState(false);
   const [waitingList, setWaitingList] = React.useState<{ crmUserId: string; fullName: string; avatar: string | null }[]>([]);
+  const [preJoinParticipants, setPreJoinParticipants] = React.useState<{ fullName: string; avatar?: string | null; isGuest?: boolean }[]>([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
   // Waiting-room gate: hosts, admins/managers, and tagged attendees go straight
@@ -121,6 +123,7 @@ export default function SuprahMeetRoomPage() {
         if (d.title) setMeetingTitle(d.title);
         if (d.scheduledAt) setScheduledAt(d.scheduledAt);
         setHostCanStart(Boolean(d.canStart));
+        setHostPresent(d.hostPresent === true);
         if (d.notStarted) {
           setGate("scheduled");
           timer = setTimeout(() => { void check(); }, 3000);
@@ -141,6 +144,24 @@ export default function SuprahMeetRoomPage() {
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [code, open, activeCode]);
 
+  // The attendee connection has not started on the device-check screen, so
+  // fetch the persisted roster separately. This is best-effort and never
+  // blocks admission or joining.
+  React.useEffect(() => {
+    if (gate !== "admitted" || meet.phase !== "idle") return;
+    let cancelled = false;
+    void apiClient.get(`/api/crm/meet/meetings/${code}`).then((res) => {
+      if (cancelled) return;
+      const participants: Array<{ leftAt?: string | null; fullName: string; avatar?: string | null; isGuest?: boolean }> = res.data?.data?.participants ?? [];
+      setPreJoinParticipants(participants.filter((person) => !person.leftAt).map((person) => ({
+        fullName: person.fullName,
+        avatar: person.avatar ?? null,
+        isGuest: Boolean(person.isGuest),
+      })));
+    }).catch(() => { /* roster is an enhancement, not a join prerequisite */ });
+    return () => { cancelled = true; };
+  }, [code, gate, meet.phase]);
+
   // Host side: poll the waiting queue while in the meeting.
   const refreshWaiting = React.useCallback(async () => {
     try {
@@ -149,11 +170,11 @@ export default function SuprahMeetRoomPage() {
     } catch { /* non-controllers get 403 — fine */ }
   }, [code]);
   React.useEffect(() => {
-    if (meet.phase !== "in" || !meet.canControl) return;
+    if (meet.phase !== "in" || !meet.canEndForAll) return;
     void refreshWaiting();
     const t = setInterval(() => { void refreshWaiting(); }, 4000);
     return () => clearInterval(t);
-  }, [meet.phase, meet.canControl, refreshWaiting]);
+  }, [meet.phase, meet.canEndForAll, refreshWaiting]);
 
   const respondWaiting = async (userId: string, action: "admit" | "deny") => {
     try {
@@ -162,15 +183,18 @@ export default function SuprahMeetRoomPage() {
     } catch { setToast("Could not update the waiting room."); }
   };
 
-  // Elapsed is derived from the server's startedAt (a UTC instant), so it is
-  // identical on every device and survives minimize/refresh.
+  // The server stores completed clock segments. The active segment ticks only
+  // while the host and someone else are in the room.
   React.useEffect(() => {
     if (meet.phase !== "in") return;
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [meet.phase]);
   const startedMs = meet.meeting?.startedAt ? new Date(meet.meeting.startedAt).getTime() : null;
-  const elapsed = startedMs ? Math.max(0, Math.floor((nowMs - startedMs) / 1000)) : 0;
+  const activeSinceMs = meet.meeting?.timer?.activeSince ? new Date(meet.meeting.timer.activeSince).getTime() : null;
+  const elapsed = Math.floor(Math.max(0, (meet.meeting?.timer?.elapsedMs ?? 0)
+    + (activeSinceMs ? nowMs - activeSinceMs : 0)) / 1000);
+  const timerState = !meet.meeting?.startedAt ? "Waiting" : meet.meeting.timer?.running ? "Live" : "Paused";
 
   React.useEffect(() => {
     if (panel === "chat") { meet.markChatRead(); chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }
@@ -276,6 +300,27 @@ export default function SuprahMeetRoomPage() {
   const sendChat = () => { meet.sendChat(chatDraft); setChatDraft(""); };
   const copyCode = () => { void navigator.clipboard?.writeText(code).catch(() => {}); setToast("Meeting code copied"); };
   const [showShare, setShowShare] = React.useState(false);
+  const setParticipantMuted = async (person: RosterEntry, muted: boolean) => {
+    try {
+      await apiClient.post(`/api/crm/meet/meetings/${code}/participants/${encodeURIComponent(person.crmUserId)}/audio`, {
+        attendeeId: person.attendeeId,
+        muted,
+      });
+      setToast(muted ? `${person.name} was muted.` : `${person.name} can unmute.`);
+    } catch {
+      setToast("Could not update that microphone.");
+    }
+  };
+  const removeParticipant = async (person: RosterEntry) => {
+    if (!window.confirm(`Remove ${person.name} from this meeting? They will not be able to rejoin.`)) return;
+    const attendeeIds = people.filter((entry) => entry.crmUserId === person.crmUserId).map((entry) => entry.attendeeId);
+    try {
+      await apiClient.post(`/api/crm/meet/meetings/${code}/participants/${encodeURIComponent(person.crmUserId)}/remove`, { attendeeIds });
+      setToast(`${person.name} was removed from the meeting.`);
+    } catch {
+      setToast("Could not remove that participant.");
+    }
+  };
 
   // Already in a different meeting → don't hijack the running session.
   if (activeCode && activeCode !== code) {
@@ -336,10 +381,12 @@ export default function SuprahMeetRoomPage() {
         <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
           <Hourglass className="size-8 animate-pulse text-emerald-500" />
         </div>
-        <p className="text-lg font-medium">This meeting has not opened yet</p>
+        <p className="text-lg font-medium">{hostPresent ? "This meeting has not opened yet" : "Waiting for the host"}</p>
         <p className="max-w-md text-sm text-muted-foreground">
           <span className="font-medium text-foreground">{meetingTitle ?? code}</span> is scheduled for {when}.
-          You&apos;ll be taken to the device check when the host starts it or the scheduled time arrives.
+          {hostPresent
+            ? " You’ll be taken to the device check as soon as the host starts it."
+            : " The host must be in the room before anyone can join or the clock can run."}
         </p>
         <p className="text-xs text-muted-foreground">Keep this page open — refreshing is safe.</p>
         <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
@@ -388,6 +435,7 @@ export default function SuprahMeetRoomPage() {
         }}
         onCancel={() => router.push("/crm/suprah-meet")}
         joinLabel={hostCanStart ? "Start meeting" : "Join meeting"}
+        participants={preJoinParticipants}
       />
     );
   }
@@ -443,7 +491,8 @@ export default function SuprahMeetRoomPage() {
         <SuprahMeetLogo className="size-7 shrink-0 md:size-8" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{meet.meeting?.title ?? "Suprah Meet"}</span>
         <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-0.5 text-xs text-emerald-300">
-          <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> {fmt(elapsed)}
+          <span className={cn("size-1.5 rounded-full", meet.meeting?.timer?.running ? "animate-pulse bg-emerald-400" : "bg-amber-400")} />
+          {timerState === "Waiting" ? "Waiting" : `${timerState} · ${fmt(elapsed)}`}
         </span>
         {meet.recording && (
           <span className="flex shrink-0 animate-pulse items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-500/15 px-2.5 py-0.5 text-xs text-rose-300">
@@ -470,6 +519,16 @@ export default function SuprahMeetRoomPage() {
       </header>
 
       {/* Raised-hand queue */}
+      {meet.phase === "in" && !meet.meeting?.timer?.running && (
+        <div className="relative z-10 flex items-center gap-2 border-b border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100 md:px-4">
+          <Hourglass className="size-3.5 shrink-0 text-amber-300" />
+          {meet.meeting?.startedAt
+            ? "Meeting clock paused — waiting for the host and another attendee."
+            : "Meeting clock has not started — it begins when the host and another attendee are here."}
+        </div>
+      )}
+
+      {/* Raised-hand queue */}
       {raised.length > 0 && (
         <div className="relative z-10 flex items-center gap-2 overflow-x-auto border-b border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-xs md:px-4">
           <Hand className="size-3.5 shrink-0 text-amber-400" />
@@ -482,8 +541,8 @@ export default function SuprahMeetRoomPage() {
         </div>
       )}
 
-      {/* Waiting room queue (host / admins only) */}
-      {meet.canControl && waitingList.length > 0 && (
+      {/* Waiting room queue (host only) */}
+      {meet.canEndForAll && waitingList.length > 0 && (
         <div className="relative z-10 flex items-center gap-2 overflow-x-auto border-b border-sky-400/20 bg-sky-500/10 px-3 py-1.5 text-xs md:px-4">
           <Hourglass className="size-3.5 shrink-0 text-sky-300" />
           <span className="shrink-0 text-sky-200/80">Waiting to join:</span>
@@ -708,8 +767,8 @@ export default function SuprahMeetRoomPage() {
               </div>
             )}
 
-            {/* Together Mode — host/admins put everyone in the same room */}
-            {meet.canControl && meet.backgroundsSupported && (
+            {/* Together Mode — host puts everyone in the same room */}
+            {meet.canEndForAll && meet.backgroundsSupported && (
               <div className="relative">
                 <Ctl on={!meet.togetherScene} accent
                   onClick={() => { setShowTogether((v) => !v); setShowBackgrounds(false); setShowReactions(false); }}
@@ -746,7 +805,7 @@ export default function SuprahMeetRoomPage() {
               label="People" badge={people.length}
               iconOn={<Users className="size-5" />} iconOff={<Users className="size-5" />} />
 
-            {meet.canControl && (
+            {meet.canEndForAll && (
               <Ctl on={!meet.recording} rec
                 onClick={() => void (meet.recording ? meet.stopRecording() : meet.startRecording())}
                 label={meet.recording ? "Stop rec" : "Record"}
@@ -754,7 +813,7 @@ export default function SuprahMeetRoomPage() {
             )}
 
             <Button variant="destructive" className="ml-1 h-11 shrink-0 rounded-xl px-4 md:px-5" onClick={() => void meet.leave()}>
-              <PhoneOff className="mr-1.5 size-4" /> End call
+              <PhoneOff className="mr-1.5 size-4" /> Leave meeting
             </Button>
             {meet.canEndForAll && (
               <Button variant="outline"
@@ -853,7 +912,8 @@ export default function SuprahMeetRoomPage() {
                 </div>
               ) : (
                 <PeoplePanel people={people} selfId={selfId} directory={directory}
-                  pinnedId={pinnedId} onTogglePin={togglePin} onAddPeople={() => setShowShare(true)} />
+                  pinnedId={pinnedId} onTogglePin={togglePin} onAddPeople={() => setShowShare(true)}
+                  hostCanManage={meet.canEndForAll} onSetMuted={setParticipantMuted} onRemove={removeParticipant} />
               )}
             </div>
 
@@ -1099,9 +1159,12 @@ function PeopleNote({ text }: { text: string }) {
   return <p className="px-2 py-3 text-center text-xs text-emerald-200/50">{text}</p>;
 }
 
-function PeoplePanel({ people, selfId, directory, pinnedId, onTogglePin, onAddPeople }: {
+function PeoplePanel({ people, selfId, directory, pinnedId, onTogglePin, onAddPeople, hostCanManage, onSetMuted, onRemove }: {
   people: RosterEntry[]; selfId: string | null; directory: MeetDirectory | null;
   pinnedId: string | null; onTogglePin: (attendeeId: string) => void; onAddPeople: () => void;
+  hostCanManage: boolean;
+  onSetMuted: (person: RosterEntry, muted: boolean) => void;
+  onRemove: (person: RosterEntry) => void;
 }) {
   const [search, setSearch] = React.useState("");
   const [openIn, setOpenIn] = React.useState(true);
@@ -1165,6 +1228,19 @@ function PeoplePanel({ people, selfId, directory, pinnedId, onTogglePin, onAddPe
                     {isPinned ? <PinOff className="size-4 text-emerald-300" /> : <Pin className="size-4 text-emerald-300" />}
                     {isPinned ? "Unpin" : "Pin to your screen"}
                   </DropdownMenuItem>
+                  {hostCanManage && !isSelf && (
+                    <>
+                      <DropdownMenuItem onSelect={() => onSetMuted(p, !p.muted)}
+                        className="gap-2 text-emerald-50 focus:bg-emerald-400/15 focus:text-emerald-50">
+                        {p.muted ? <Mic className="size-4 text-emerald-300" /> : <MicOff className="size-4 text-amber-300" />}
+                        {p.muted ? "Allow microphone" : "Mute microphone"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onRemove(p)}
+                        className="gap-2 text-rose-300 focus:bg-rose-500/15 focus:text-rose-200">
+                        <UserMinus className="size-4" /> Remove from meeting
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

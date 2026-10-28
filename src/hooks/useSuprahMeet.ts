@@ -37,7 +37,8 @@ export interface ChatMessage { id: string; name: string; text: string; at: numbe
 export interface MeetingInfo {
   _id: string; code: string; title: string;
   status: "scheduled" | "live" | "ended";
-  startedAt?: string | null;       // set by the backend when the meeting goes live
+  startedAt?: string | null;       // first moment host + another attendee were present
+  timer?: { elapsedMs: number; running: boolean; activeSince?: string | null; hostPresent?: boolean };
   participants: MeetParticipantInfo[];
   recording: { status: string };
   captionsEnabled?: boolean;
@@ -228,6 +229,13 @@ export function useSuprahMeet() {
         : await apiClient.get(`/api/crm/meet/meetings/${codeRef.current}`);
       const info = res.data?.data;
       const list: MeetParticipantInfo[] = info?.participants ?? [];
+      if (info?.timer) {
+        setMeeting((current) => current ? {
+          ...current,
+          startedAt: info.startedAt ?? current.startedAt,
+          timer: info.timer,
+        } : current);
+      }
       list.forEach((p) => namesRef.current.set(p.crmUserId, p));
       setRoster((r) => {
         const next = { ...r };
@@ -242,6 +250,16 @@ export function useSuprahMeet() {
       });
     } catch { /* best-effort */ }
   }, []);
+
+  // Presence callbacks arrive before a departing browser finishes its leave
+  // request. A small poll keeps the persisted host/participant timer truthful
+  // across Mini Meet, full Meet, reconnects, and backgrounded tabs.
+  useEffect(() => {
+    if (phase !== 'in') return;
+    void refreshNames();
+    const timer = window.setInterval(() => { void refreshNames(); }, 5000);
+    return () => window.clearInterval(timer);
+  }, [phase, refreshNames]);
 
   const join = useCallback(async (code: string, options?: MeetJoinOptions) => {
     setPhase("joining");
@@ -327,7 +345,7 @@ export function useSuprahMeet() {
               joinedAt: Date.now(),
             },
           }));
-          if (!known && !isSelf) void refreshNames();
+          void refreshNames();
           if (!isSelf && Date.now() - joinedAtRef.current > 2000) meetSounds.join();
           audioVideo.realtimeSubscribeToVolumeIndicator(attendeeId, (_id, _volume, muted) => {
             if (muted === null) return;
@@ -337,6 +355,7 @@ export function useSuprahMeet() {
           audioVideo.realtimeUnsubscribeFromVolumeIndicator(attendeeId);
           if (Date.now() - joinedAtRef.current > 2000) meetSounds.leave();
           setRoster((r) => { const next = { ...r }; delete next[attendeeId]; return next; });
+          void refreshNames();
         }
       });
 

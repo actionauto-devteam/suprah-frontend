@@ -44,6 +44,7 @@ export default function SuprahMeetGuestPage() {
   const [panel, setPanel] = React.useState<"none" | "chat" | "people">("none");
   const [chatDraft, setChatDraft] = React.useState("");
   const [toast, setToast] = React.useState<string | null>(null);
+  const [preJoinParticipants, setPreJoinParticipants] = React.useState<{ fullName: string; avatar?: string | null; isGuest?: boolean }[]>([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
   const joinedRef = React.useRef(false);
 
@@ -83,6 +84,25 @@ export default function SuprahMeetGuestPage() {
     const t = setInterval(() => { void request(name, email); }, 3500);
     return () => clearInterval(t);
   }, [gate, request, name, email]);
+
+  // Guest passes can read the public roster before the media connection is
+  // created. Keep this optional so a roster failure never delays joining.
+  React.useEffect(() => {
+    if (gate !== "ready") return;
+    const token = sessionStorage.getItem(tokenKey);
+    if (!token) return;
+    let cancelled = false;
+    void apiClient.get(`/api/crm/meet/guest/${code}/roster`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => {
+      if (cancelled) return;
+      const participants: Array<{ leftAt?: string | null; fullName: string; avatar?: string | null; isGuest?: boolean }> = res.data?.data?.participants ?? [];
+      setPreJoinParticipants(participants.filter((person) => !person.leftAt).map((person) => ({
+        fullName: person.fullName,
+        avatar: person.avatar ?? null,
+        isGuest: Boolean(person.isGuest),
+      })));
+    }).catch(() => { /* joining remains available without this enhancement */ });
+    return () => { cancelled = true; };
+  }, [code, gate, tokenKey]);
 
   React.useEffect(() => {
     if (panel === "chat") { meet.markChatRead(); chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }
@@ -182,7 +202,7 @@ export default function SuprahMeetGuestPage() {
         <p className="max-w-md text-sm text-emerald-200/60">
           {gate === "waiting"
             ? "The host has been notified. You'll join automatically the moment they admit you — keep this page open."
-            : `You're in! The meeting hasn't started yet. The host can open it early${when ? `, otherwise it opens at ${when}` : ""}.`}
+            : `You're in! The meeting hasn't started yet. The host will start it when ready${when ? ` (scheduled for ${when})` : ""}.`}
         </p>
         <p className="text-xs text-emerald-200/40">{title ?? code}</p>
       </Shell>
@@ -217,6 +237,7 @@ export default function SuprahMeetGuestPage() {
           });
         }}
         joinLabel="Join meeting"
+        participants={preJoinParticipants}
       />
     );
   }
@@ -311,7 +332,7 @@ export default function SuprahMeetGuestPage() {
             iconOn={<Users className="size-5" />} iconOff={<Users className="size-5" />} />
           <Button variant="destructive" className="ml-1 h-11 shrink-0 rounded-xl px-4"
             onClick={() => void meet.leave()}>
-            <PhoneOff className="mr-1.5 size-4" /> End call
+            <PhoneOff className="mr-1.5 size-4" /> Leave meeting
           </Button>
         </footer>
       </main>

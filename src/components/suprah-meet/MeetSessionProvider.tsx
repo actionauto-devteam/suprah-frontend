@@ -13,7 +13,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { GripHorizontal, Maximize2, MessageSquare, Mic, MicOff, PhoneOff, PictureInPicture2, Video, VideoOff } from "lucide-react";
+import { GripHorizontal, Maximize2, MessageSquare, Mic, MicOff, PhoneOff, PictureInPicture2, Users, Video, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSuprahMeet, type MeetJoinOptions } from "@/hooks/useSuprahMeet";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
@@ -141,8 +141,9 @@ function MiniMeetWindow() {
 
   if (!visible) return null;
 
-  const startedMs = meet.meeting?.startedAt ? new Date(meet.meeting.startedAt).getTime() : null;
-  const elapsed = startedMs ? Math.max(0, Math.floor((nowMs - startedMs) / 1000)) : 0;
+  const activeSinceMs = meet.meeting?.timer?.activeSince ? new Date(meet.meeting.timer.activeSince).getTime() : null;
+  const elapsed = Math.floor(Math.max(0, (meet.meeting?.timer?.elapsedMs ?? 0)
+    + (activeSinceMs ? nowMs - activeSinceMs : 0)) / 1000);
   const h = Math.floor(elapsed / 3600), m = Math.floor((elapsed % 3600) / 60), s = elapsed % 60;
   const clock = `${h > 0 ? `${h}:` : ""}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 
@@ -154,6 +155,7 @@ function MiniMeetWindow() {
   const selfTile = cameraTiles.find((t) => t.attendeeId === meet.selfAttendeeId);
   const tile = contentTile ?? speakerTile ?? selfTile ?? cameraTiles[0];
   const mirror = !!tile && tile === selfTile && !meet.isBackCamera;
+  const participantCount = Object.keys(meet.roster).length;
 
   const back = () => router.push(`/crm/suprah-meet/room/${activeCode}`);
 
@@ -184,12 +186,15 @@ function MiniMeetWindow() {
         )}
         <span className="absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-[#071410]/90 to-transparent px-2.5 py-1.5 text-xs">
           <GripHorizontal className="size-3.5 shrink-0 text-emerald-200/60" aria-hidden />
-          <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+          <span className={cn("size-1.5 shrink-0 rounded-full", meet.meeting?.timer?.running ? "animate-pulse bg-emerald-400" : "bg-amber-400")} />
           <span className="min-w-0 flex-1 truncate font-medium">
             {meet.meeting?.title ?? activeCode}
           </span>
+          <span className="flex shrink-0 items-center gap-0.5 text-emerald-200/70" title={`${participantCount} people currently in the meeting`}>
+            <Users className="size-3" /> {participantCount}
+          </span>
           <span className="shrink-0 text-emerald-300/90">
-            {meet.phase === "joining" ? "Connecting…" : clock}
+            {meet.phase === "joining" ? "Connecting…" : !meet.meeting?.startedAt ? "Waiting" : meet.meeting.timer?.running ? clock : `Paused ${clock}`}
           </span>
         </span>
         <span className="absolute bottom-1.5 right-1.5 grid size-6 place-items-center rounded-md bg-[#071410]/80 text-emerald-200/80">
@@ -213,7 +218,7 @@ function MiniMeetWindow() {
           {meet.chatUnread > 0 ? <MessageSquare className="mr-1 inline size-3.5" /> : null} Return
           {meet.chatUnread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-[#071410]">{meet.chatUnread > 99 ? "99+" : meet.chatUnread}</span>}
         </button>
-        <button onClick={() => void meet.leave()} title="End call" aria-label="End call" data-mini-control
+        <button onClick={() => void meet.leave()} title="Leave meeting" aria-label="Leave meeting" data-mini-control
           className="grid h-9 w-10 cursor-pointer place-items-center rounded-lg border border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
           <PhoneOff className="size-4" />
         </button>

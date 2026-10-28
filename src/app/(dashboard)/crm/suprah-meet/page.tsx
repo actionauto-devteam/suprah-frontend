@@ -28,8 +28,9 @@ interface MeetingRow {
   inviteAll: boolean;
   invitees: string[];
   inviteDepartments: string[];
-  participants: { crmUserId: string; fullName: string }[];
+  participants: { crmUserId: string; fullName: string; avatar?: string | null; isGuest?: boolean; leftAt?: string | null }[];
   recording: { status: string };
+  timer?: { elapsedMs: number; running: boolean; activeSince?: string | null; hostPresent?: boolean };
   startedAt: string | null;
   endedAt: string | null;
   createdAt: string;
@@ -130,6 +131,7 @@ export default function SuprahMeetLobbyPage() {
   const [joinCode, setJoinCode] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const [showNew, setShowNew] = React.useState<false | "now" | "later">(false);
   const [confirmDelete, setConfirmDelete] = React.useState<MeetingRow | null>(null);
   const [editTarget, setEditTarget] = React.useState<MeetingRow | null>(null);
@@ -163,8 +165,8 @@ export default function SuprahMeetLobbyPage() {
     }
   }, []);
   React.useEffect(() => { void load(); }, [load, meetingNoticeKey]);
-  // Background refresh so status changes (live↔ended, auto-end sweep) appear
-  // without a manual reload.
+  // Background refresh keeps host-open, running, paused, and ended room state
+  // current without a manual reload.
   React.useEffect(() => {
     const t = setInterval(() => { void load(); }, 60_000);
     const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
@@ -200,7 +202,8 @@ export default function SuprahMeetLobbyPage() {
 
   const canDelete = (m: MeetingRow) => canManageAll || m.hostCrmUserId === selfId;
 
-  const live = meetings.filter((m) => m.status === "live");
+  const live = meetings.filter((m) => m.status === "live" && m.timer?.running);
+  const openRooms = meetings.filter((m) => m.status === "live" && !m.timer?.running);
   // Scheduled meetings are classified by ABSOLUTE time (UTC epoch), never the
   // viewer's local timezone: still upcoming vs. missed (time passed unjoined).
   const scheduled = meetings.filter((m) => m.status === "scheduled");
@@ -242,7 +245,7 @@ export default function SuprahMeetLobbyPage() {
   };
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem)] w-full overflow-hidden">
+    <div className="relative min-h-[calc(100dvh-4rem)] w-full">
       {/* Digital ambient backdrop */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(16,185,129,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.045)_1px,transparent_1px)] bg-[size:36px_36px]" />
@@ -251,9 +254,9 @@ export default function SuprahMeetLobbyPage() {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
       </div>
 
-      <div className="mx-auto w-full max-w-[1500px] px-4 py-6 md:px-8 md:py-8">
+      <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-8 md:py-7">
         {/* Brand bar */}
-        <header className="mb-8 flex flex-wrap items-center gap-4 md:mb-12">
+        <header className="mb-6 flex flex-wrap items-center gap-4 md:mb-8">
           <div className="flex items-center gap-3">
             <SuprahMeetLogo className="size-11 md:size-12" />
             <div>
@@ -263,7 +266,7 @@ export default function SuprahMeetLobbyPage() {
               <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">CRM Video Platform</p>
             </div>
           </div>
-          <div className="ml-auto hidden items-center gap-2 rounded-xl border bg-card/70 p-1 pl-3 backdrop-blur md:flex">
+          <div className="ml-auto hidden items-center gap-2 rounded-xl border bg-card/85 p-1 pl-3 shadow-sm backdrop-blur md:flex">
             <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && joinByCode()}
               placeholder="Enter a meeting code"
@@ -274,14 +277,24 @@ export default function SuprahMeetLobbyPage() {
           </div>
         </header>
 
-        <div className="grid min-w-0 gap-10 xl:grid-cols-[1.05fr_0.95fr] xl:gap-14">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border bg-card/85 p-1 pl-3 shadow-sm backdrop-blur md:hidden">
+          <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && joinByCode()}
+            placeholder="Enter a meeting code"
+            aria-label="Meeting code"
+            className="h-9 min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />
+          <Button onClick={joinByCode} className="shrink-0 bg-emerald-600 hover:bg-emerald-500">Join</Button>
+        </div>
+
+        <div className="grid min-w-0 gap-7 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)] xl:gap-8">
           {/* Hero */}
-          <section className="min-w-0">
-            <h2 className="max-w-xl text-3xl font-semibold leading-[1.1] tracking-tight md:text-5xl">
-              Where your dealership team
-              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent"> meets, decides, and moves</span>
+          <section className="order-2 min-w-0 rounded-3xl border bg-card/80 p-5 shadow-lg shadow-emerald-950/5 backdrop-blur xl:order-2 xl:self-start">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">Your meeting desk</p>
+            <h2 className="mt-1 max-w-xl text-2xl font-semibold leading-[1.15] tracking-tight md:text-3xl">
+              Join the next conversation.
             </h2>
-            <p className="mt-4 max-w-lg text-sm text-muted-foreground md:text-base">
+            <p className="mt-2 max-w-lg text-sm text-muted-foreground">Live meetings and your next schedule are kept at the top, so you can get in quickly.</p>
+            <p className="hidden">
               Enterprise-grade video built into Suprah AI — schedule single or recurring sessions in MDT,
               tag people or whole departments, record to the cloud, and let AI turn every session into
               decisions and action items.
@@ -299,7 +312,7 @@ export default function SuprahMeetLobbyPage() {
             </div>
 
             {/* Mobile join */}
-            <div className="mt-5 flex items-center gap-2 rounded-xl border bg-card/70 p-1 pl-3 backdrop-blur md:hidden">
+            <div className="hidden">
               <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && joinByCode()}
                 placeholder="Enter a meeting code"
@@ -309,7 +322,7 @@ export default function SuprahMeetLobbyPage() {
             {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
 
             {/* Capability tiles */}
-            <div className="mt-10 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="hidden">
               <Capability icon={<ShieldCheck className="size-5" />} title="CRM-only access"
                 text="Every session is gated by your CRM identity and scoped to your org." />
               <Capability icon={<CircleDot className="size-5" />} title="Cloud recording"
@@ -320,11 +333,11 @@ export default function SuprahMeetLobbyPage() {
           </section>
 
           {/* Meetings column */}
-          <section className="min-w-0 space-y-7">
+          <section className="order-1 min-w-0 space-y-6 xl:order-1">
             {live.length > 0 && (
               <Group title="Happening now" live>
                 {live.map((m) => (
-                  <MeetingCard key={m._id} m={m}
+                  <MeetingCard key={m._id} m={m} emphasis
                     sub={m.startedAt
                       ? <>since {mdtTime(m.startedAt)} MT · {minutesBetween(m.startedAt, new Date(nowMs).toISOString())} min</>
                       : undefined}
@@ -342,7 +355,17 @@ export default function SuprahMeetLobbyPage() {
               </Group>
             )}
 
-            <Group title="Upcoming">
+            {openRooms.length > 0 && (
+              <Group title="Open rooms">
+                {openRooms.map((m) => (
+                  <MeetingCard key={m._id} m={m}
+                    sub={!m.timer?.hostPresent ? "host stepped away — waiting for their return" : m.startedAt ? "paused until another attendee is present" : "host is ready — waiting for another attendee"}
+                    action={<Button size="sm" onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>Join room</Button>} />
+                ))}
+              </Group>
+            )}
+
+            <Group title={live.length > 0 || openRooms.length > 0 ? "Up next" : "Upcoming"}>
               {upcoming.length === 0 && <EmptyRow text="Nothing scheduled yet — plan one with Schedule." />}
               {upcomingVisible.map((m) => (
                 <MeetingCard key={m._id} m={m}
@@ -423,7 +446,12 @@ export default function SuprahMeetLobbyPage() {
               </Group>
             )}
 
-            <Group title="Past meetings">
+            <button type="button" onClick={() => setHistoryOpen((open) => !open)}
+              className="flex w-full items-center justify-between rounded-xl border bg-card/60 px-4 py-3 text-left text-sm font-medium text-muted-foreground transition-colors hover:border-emerald-500/35 hover:text-foreground">
+              <span>Past meetings <span className="text-xs">({past.length})</span></span>
+              <ChevronDown className={cn("size-4 transition-transform", historyOpen && "rotate-180")} />
+            </button>
+            {historyOpen && <Group title="Past meetings">
               {past.length === 0 && <EmptyRow text="Ended meetings appear here with recordings and AI summaries." />}
               {pastVisible.map((m) => (
                 <div key={m._id} className="overflow-hidden rounded-2xl border bg-card/70 backdrop-blur">
@@ -441,7 +469,7 @@ export default function SuprahMeetLobbyPage() {
 
               <Pager total={past.length} page={safePastPage}
                 totalPages={pastTotalPages} onPage={goPastPage} />
-            </Group>
+            </Group>}
           </section>
         </div>
       </div>
@@ -567,12 +595,13 @@ function Pager({ total, page, totalPages, onPage }: {
   );
 }
 
-function MeetingCard({ m, sub, action, plain }: { m: MeetingRow; sub?: React.ReactNode; action: React.ReactNode; plain?: boolean }) {
+function MeetingCard({ m, sub, action, plain, emphasis }: { m: MeetingRow; sub?: React.ReactNode; action: React.ReactNode; plain?: boolean; emphasis?: boolean }) {
   const copy = () => void navigator.clipboard?.writeText(m.code).catch(() => {});
+  const activePeople = m.participants.filter((person) => !person.leftAt);
   // flex-wrap + the ml-auto action cluster: on narrow phones the buttons
   // drop to their own line instead of clipping off the right edge.
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 p-3", !plain && "rounded-2xl border bg-card/70 backdrop-blur")}>
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 p-3", !plain && "rounded-2xl border bg-card/70 backdrop-blur", emphasis && "border-emerald-500/35 bg-emerald-500/[.06] p-4 shadow-md shadow-emerald-950/10")}>
       <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-500">
         {m.status === "scheduled" ? <CalendarClock className="size-5" /> : <Video className="size-5" />}
       </div>
@@ -589,8 +618,23 @@ function MeetingCard({ m, sub, action, plain }: { m: MeetingRow; sub?: React.Rea
           {m.code} <Copy className="size-3" />
           {sub && <span className="ml-1 text-emerald-600 dark:text-emerald-400">· {sub}</span>}
         </button>
+        {m.status === "live" && (
+          <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex -space-x-1.5" aria-label={`${activePeople.length} people currently in the meeting`}>
+              {activePeople.slice(0, 4).map((person) => (
+                <span key={person.crmUserId} title={person.fullName}
+                  className="grid size-5 place-items-center rounded-full border border-card bg-emerald-600 text-[8px] font-semibold text-white">
+                  {person.fullName.slice(0, 1).toUpperCase()}
+                </span>
+              ))}
+            </div>
+            <span>{activePeople.length} in the meeting{activePeople.length > 0 && activePeople.length <= 3 ? `: ${activePeople.map((person) => person.fullName).join(", ")}` : ""}</span>
+          </div>
+        )}
       </div>
-      {m.status === "live" && <Badge className="animate-pulse border-emerald-500/30 bg-emerald-500/15 text-emerald-500">Live</Badge>}
+      {m.status === "live" && <Badge className={cn("border-emerald-500/30 bg-emerald-500/15 text-emerald-500", m.timer?.running && "animate-pulse")}>
+        {m.timer?.running ? "Live" : !m.timer?.hostPresent ? "Host away" : m.startedAt ? "Paused" : "Open"}
+      </Badge>}
       <div className="ml-auto flex shrink-0 items-center">{action}</div>
     </div>
   );

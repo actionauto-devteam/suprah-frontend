@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { Copy, Link2, Mic, MicOff, Users, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 
 export type MeetJoinChoices = { mic: boolean; camera: boolean };
+export type MeetPreJoinParticipant = { fullName: string; avatar?: string | null; isGuest?: boolean };
 
 /**
  * Device check used before an actual Chime attendee is created.  Preview media
@@ -20,17 +21,21 @@ export function MeetPreJoin({
   onJoin,
   onCancel,
   joinLabel = "Join now",
+  participants = [],
 }: {
   title: string;
   code: string;
   onJoin: (choices: MeetJoinChoices) => void;
   onCancel?: () => void;
   joinLabel?: string;
+  /** A best-effort live roster supplied before the attendee connection starts. */
+  participants?: MeetPreJoinParticipant[];
 }) {
   const [choices, setChoices] = React.useState<MeetJoinChoices>({ mic: false, camera: false });
   const [problem, setProblem] = React.useState<string | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
   const previewRef = React.useRef<HTMLVideoElement | null>(null);
+  const [copied, setCopied] = React.useState(false);
 
   const stopPreview = React.useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -74,6 +79,16 @@ export function MeetPreJoin({
     onJoin(choices);
   };
 
+  const copyMeetingLink = async () => {
+    try {
+      await navigator.clipboard?.writeText(`${window.location.origin}/meet/${encodeURIComponent(code)}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard availability is browser-controlled; joining still works.
+    }
+  };
+
   return (
     <div className="min-h-[calc(100dvh-4rem)] bg-[#071410] p-4 text-emerald-50 sm:p-6">
       <main className="mx-auto grid min-h-[calc(100dvh-6rem)] max-w-4xl items-center gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
@@ -90,6 +105,26 @@ export function MeetPreJoin({
               {choices.camera ? "Camera preview" : "Camera is off"}
             </span>
           </div>
+          <div className="border-t border-emerald-400/15 p-4 sm:p-5">
+            <div className="flex items-center gap-2">
+              <Users className="size-4 text-emerald-300" />
+              <p className="text-sm font-medium">In the meeting now</p>
+              <span className="ml-auto rounded-full bg-emerald-400/10 px-2 py-0.5 text-xs font-medium text-emerald-200">{participants.length}</span>
+            </div>
+            {participants.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {participants.slice(0, 8).map((person, index) => (
+                  <span key={`${person.fullName}-${index}`} className="flex max-w-full items-center gap-1.5 rounded-full border border-emerald-400/15 bg-emerald-400/[.06] py-1 pl-1 pr-2.5 text-xs text-emerald-100">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-emerald-600 text-[9px] font-semibold text-white">{person.fullName.slice(0, 1).toUpperCase()}</span>
+                    <span className="truncate">{person.fullName}{person.isGuest ? " (guest)" : ""}</span>
+                  </span>
+                ))}
+                {participants.length > 8 && <span className="self-center text-xs text-emerald-100/55">+{participants.length - 8} more</span>}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-emerald-100/55">No one is connected yet. You can still join when you&apos;re ready.</p>
+            )}
+          </div>
         </section>
 
         <section className="rounded-3xl border border-emerald-400/20 bg-[#0a1410] p-5 shadow-xl shadow-emerald-950/25 sm:p-6">
@@ -100,7 +135,7 @@ export function MeetPreJoin({
               <h1 className="truncate text-lg font-semibold">{title}</h1>
             </div>
           </div>
-          <p className="mb-5 text-sm text-emerald-100/60">Check your camera and microphone before anyone in the meeting can see or hear you.</p>
+          <p className="mb-5 text-sm text-emerald-100/60">You join muted with your camera off unless you turn either on below. Nothing is shared until you press {joinLabel.toLowerCase()}.</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => toggle("mic")} aria-pressed={choices.mic}
               className={cn("grid h-12 flex-1 place-items-center rounded-xl border transition-colors", choices.mic ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-rose-400/35 bg-rose-500/10 text-rose-300")}>
@@ -115,7 +150,12 @@ export function MeetPreJoin({
           </div>
           <div className="mt-2 flex justify-between px-1 text-xs text-emerald-100/55"><span>Microphone</span><span>Camera</span></div>
           {problem && <p role="alert" className="mt-4 text-xs leading-5 text-amber-300">{problem}</p>}
-          <p className="mt-4 text-xs text-emerald-100/45">Meeting code: {code}</p>
+          <div className="mt-4 flex items-center gap-2 text-xs text-emerald-100/55">
+            <span className="min-w-0 flex-1 truncate">Meeting code: {code}</span>
+            <button type="button" onClick={() => void copyMeetingLink()} className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-emerald-200 hover:bg-emerald-400/10" title="Copy meeting link">
+              {copied ? <Copy className="size-3" /> : <Link2 className="size-3" />}{copied ? "Copied" : "Copy link"}
+            </button>
+          </div>
           <Button className="mt-5 h-11 w-full bg-emerald-600 hover:bg-emerald-500" onClick={join}>{joinLabel}</Button>
           {onCancel && <Button variant="ghost" className="mt-2 w-full text-emerald-100/70 hover:bg-emerald-400/10 hover:text-emerald-50" onClick={() => { stopPreview(); onCancel(); }}>Cancel</Button>}
         </section>
