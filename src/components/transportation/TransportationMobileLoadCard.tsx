@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy";
 import { useOrg } from "@/hooks/useOrg";
 import type { Load, LoadStatus } from "@/types/load";
+import { cancellationReasonLabel } from "@/lib/load-cancellation";
 import {
   formatMobileLoadCurrency,
   getMobileLoadSchedulePresentation,
@@ -441,6 +442,11 @@ export function TransportationMobileLoadCard({
                 <h3 className="mt-1 truncate font-mono text-[15px] font-black tracking-tight text-foreground sm:text-base" title={load.loadNumber}>
                   {load.loadNumber}
                 </h3>
+                {load.status === "Cancelled" && load.cancellation?.reason && (
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-red-700 dark:text-red-300">
+                    Cancelled: {cancellationReasonLabel(load.cancellation.reason)}
+                  </p>
+                )}
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5" onClick={stop}>

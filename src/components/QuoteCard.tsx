@@ -27,6 +27,8 @@ import type {
 import { useAlert, AlertDialog } from "@/components/AlertDialog"
 import { EditQuoteModal } from "./EditQuoteModal"
 import { resolveImageUrl, cn } from "@/lib/utils"
+import { quoteWaitingLabel } from "@/lib/quote-age"
+import { quoteVehicleNotice } from "@/lib/quote-vehicle"
 import { QuoteLoadRouteCompletionDialog } from "./QuoteLoadRouteCompletionDialog"
 
 interface QuoteCardProps {
@@ -166,6 +168,8 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     // The iPhone app has no CRM pages, so there the linked lead is shown as text.
     const inNativeApp = useIsNativeApp()
     const lead = linkedLead(quote.leadId)
+    const waitingLabel = quoteWaitingLabel(quote.status, quote.createdAt)
+    const vehicleNotice = quoteVehicleNotice(quote)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isConvertingToLoad, setIsConvertingToLoad] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -400,6 +404,21 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                         <span className="text-[11px] lg:text-xs text-muted-foreground/90 font-bold hidden xs:inline items-center gap-1">
                                             <Calendar className="size-2.5 inline" /> {formatDate(quote.createdAt)}
                                         </span>
+                                        {waitingLabel && (
+                                            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                                                {waitingLabel}
+                                            </span>
+                                        )}
+                                        {vehicleNotice && (
+                                            <span className={cn(
+                                                "rounded-full border px-2 py-0.5 text-[11px] font-bold",
+                                                vehicleNotice.tone === "stopped"
+                                                    ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+                                                    : "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300",
+                                            )}>
+                                                {vehicleNotice.label}
+                                            </span>
+                                        )}
                                         {quote.organization && (
                                             <>
                                                 <span className="text-[11px] text-muted-foreground/60 hidden sm:inline">·</span>

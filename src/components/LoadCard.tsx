@@ -45,6 +45,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
 import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy"
+import { cancellationReasonLabel } from "@/lib/load-cancellation"
 import { formatScheduleDate } from "@/utils/calendar.utils"
 
 interface LoadCardProps {
@@ -515,6 +516,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     </span>
                     <span className="text-[11px] text-muted-foreground/60 hidden xs:inline">·</span>
                     <span className="text-[11px] lg:text-xs text-muted-foreground/90 font-bold hidden xs:inline">{formatDate(load.createdAt)}</span>
+                    {load.status === "Cancelled" && load.cancellation?.reason && (
+                      <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-700 dark:text-red-300">
+                        {cancellationReasonLabel(load.cancellation.reason)}
+                      </span>
+                    )}
                   </div>
 
                   {/* Action cluster — stops propagation at the container so even

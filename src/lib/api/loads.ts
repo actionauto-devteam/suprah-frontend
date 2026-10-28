@@ -162,28 +162,44 @@ export async function getLoadStats(
   return res.data.data
 }
 
+// Mirrors ATTENTION_KINDS in suprah-backend/src/services/loadAttention.service.ts.
 export type LoadAttentionKind =
   | "proof_waiting"
   | "late_delivery"
   | "late_pickup"
+  | "unassigned_pickup"
+  | "not_accepted"
+  | "release_request"
   | "gps_quiet"
+  | "load_request"
+  | "customer_request"
+  | "vehicle_removed"
   | "document_expired"
   | "document_expiring"
 
 export interface LoadAttentionItem {
   kind: LoadAttentionKind
+  /** "" for a customer request, which has no load yet. */
   loadId: string
   loadNumber: string
   status: string
   driverId?: string
   driverName?: string
-  /** When the issue started: proof submitted, or last GPS position (ISO). */
+  /** When the issue started: proof submitted, last GPS position, assignment or request time (ISO). */
   since?: string
-  /** The missed deadline or the credential's expiration day (YYYY-MM-DD). */
+  /** The missed deadline, the pickup day or the credential's expiration day (YYYY-MM-DD). */
   date?: string
   /** "CDL", "medical card" or "insurance". */
   credential?: string
   daysLeft?: number
+  /** Drivers waiting for an answer on this load. */
+  requestCount?: number
+  /** The driver marked their release request as an emergency. */
+  emergency?: boolean
+  /** A customer request or a quote (no load yet): the quote, who it's for and the vehicle. */
+  quoteId?: string
+  customerName?: string
+  vehicleName?: string
 }
 
 export interface LoadAttention {

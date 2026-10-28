@@ -20,6 +20,8 @@ import { useAlert, AlertDialog } from "@/components/AlertDialog";
 import { EditQuoteModal } from "@/components/EditQuoteModal";
 import type { Quote } from "@/types/transportation";
 import { linkedLead } from "@/lib/quote-lead";
+import { quoteWaitingLabel } from "@/lib/quote-age";
+import { quoteVehicleNotice } from "@/lib/quote-vehicle";
 import {
   VehicleImageLightbox,
   type VehicleImageLightboxItem,
@@ -140,6 +142,8 @@ export function TransportationMobileQuoteCard({
   const normalizedStatus = String(quote.status || "pending").toLowerCase();
   const statusMeta = STATUS_META[normalizedStatus] ?? STATUS_META.pending;
   const lead = linkedLead(quote.leadId);
+  const waitingLabel = quoteWaitingLabel(quote.status, quote.createdAt);
+  const vehicleNotice = quoteVehicleNotice(quote);
   const busy = isDeleting;
   const heroImage = !imageFailed ? resolveImageUrl(quote.vehicleImage) : undefined;
   const imageViewerItems: VehicleImageLightboxItem[] = [
@@ -278,6 +282,21 @@ export function TransportationMobileQuoteCard({
                     · {formatDate(quote.createdAt)}
                   </span>
                 </div>
+                {waitingLabel && (
+                  <p className="mt-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                    {waitingLabel}
+                  </p>
+                )}
+                {vehicleNotice && (
+                  <p
+                    className={cn(
+                      "mt-0.5 text-[11px] font-bold",
+                      vehicleNotice.tone === "stopped" ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300",
+                    )}
+                  >
+                    {vehicleNotice.label}
+                  </p>
+                )}
                 <h3 className="mt-1 truncate text-[15px] font-black tracking-tight text-foreground sm:text-base">
                   {vehicleName}
                 </h3>

@@ -772,7 +772,19 @@ export default function LoadDetailsPage() {
             {cancellation.note ? <p>Note: {cancellation.note}</p> : null}
             {cancellation.driverName ? <p>Driver who had it: {cancellation.driverName}</p> : null}
             <p className="text-xs text-red-900/80 dark:text-red-200/80">
-              It&apos;s kept as a record and can&apos;t be edited. Use Duplicate if the shipment is back on.
+              {/* A quote's load made with Duplicate isn't linked to the quote, so the quote could be converted twice. */}
+              {load.quoteId ? (
+                <>
+                  It&apos;s kept as a record and can&apos;t be edited. This load came from a quote, which is back to
+                  Pending. If the shipment is back on, convert that quote again in the{" "}
+                  <Link href="/transportation?tab=drafts" className="font-semibold underline underline-offset-2">
+                    Quotes tab
+                  </Link>{" "}
+                  instead of using Duplicate.
+                </>
+              ) : (
+                <>It&apos;s kept as a record and can&apos;t be edited. Use Duplicate if the shipment is back on.</>
+              )}
             </p>
           </div>
         </div>

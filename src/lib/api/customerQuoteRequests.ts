@@ -31,5 +31,49 @@ export async function requestShippingQuote(formData: ShippingQuoteFormData, toke
 
 /** The confirmation a customer sees, with the estimated shipping price. */
 export function shippingRequestSentMessage(message: string, rate: number): string {
-  return `${message} Estimated shipping: $${Math.round(rate).toLocaleString("en-US")}.`;
+  return `${message} Estimated shipping: $${Math.round(rate).toLocaleString("en-US")}. You can follow it in My Shipments.`;
+}
+
+/** Where a customer's request stands. Mirrors the server's CustomerShipmentStage. */
+export type CustomerShipmentStage =
+  | "waiting"
+  | "accepted"
+  | "declined"
+  | "unavailable"
+  | "booked"
+  | "picked_up"
+  | "on_the_way"
+  | "delivered"
+  | "cancelled";
+
+/** One request on "My Shipments" (no driver details or location). */
+export interface CustomerShipment {
+  id: string;
+  vehicleName: string;
+  vehicleImage: string | null;
+  dealerName: string;
+  deliveryAddress: string;
+  miles: number | null;
+  rate: number | null;
+  eta: { min: number; max: number } | null;
+  requestedAt: string | null;
+  stage: CustomerShipmentStage;
+  shipment: {
+    number: string;
+    bookedAt: string | null;
+    pickedUpAt: string | null;
+    onTheWayAt: string | null;
+    deliveredAt: string | null;
+    cancelledAt: string | null;
+    /** The reason's label only. */
+    cancelReason: string | null;
+  } | null;
+}
+
+/** The signed-in customer's own shipping requests, newest first. */
+export async function getMyShipments(token: string | null): Promise<CustomerShipment[]> {
+  const response = await apiClient.get("/api/quote-requests/mine", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return Array.isArray(response.data?.data) ? (response.data.data as CustomerShipment[]) : [];
 }
