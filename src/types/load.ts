@@ -73,6 +73,8 @@ export interface Load {
   _id: string;
   organizationId: string;
   createdBy: string;
+  /** The quote this load was converted from, if any. */
+  quoteId?: string | null;
   loadNumber: string;
   postType: "load-board" | "assign-carrier";
   status: LoadStatus;
@@ -158,6 +160,17 @@ export interface Load {
     reason?: string;
     previousStatus?: string;
     proofAdded?: boolean;
+  };
+  /** Set when staff cancelled the load before pickup. */
+  cancellation?: {
+    reason: string;
+    note?: string;
+    by?: string;
+    byName?: string;
+    at?: string;
+    previousStatus?: string;
+    driverId?: string;
+    driverName?: string;
   };
   createdAt: string;
   updatedAt: string;

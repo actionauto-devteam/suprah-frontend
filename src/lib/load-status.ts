@@ -9,9 +9,13 @@ export const GPS_TRACKING_LOAD_STATUSES = ["Accepted", "Picked Up", "In-Transit"
 /** The vehicles are on the trailer. */
 export const VEHICLES_ON_BOARD_STATUSES = ["Picked Up", "In-Transit"] as const;
 
+/** Before pickup: staff can still cancel the load. */
+export const CANCELLABLE_LOAD_STATUSES = ["Draft", "Posted", "Assigned", "Accepted"] as const;
+
 const includesStatus = (list: readonly string[], status: unknown) =>
   list.includes(String(status ?? ""));
 
 export const isActiveLoadStatus = (status: unknown) => includesStatus(ACTIVE_LOAD_STATUSES, status);
 export const isGpsTrackingLoadStatus = (status: unknown) => includesStatus(GPS_TRACKING_LOAD_STATUSES, status);
 export const hasVehiclesOnBoard = (status: unknown) => includesStatus(VEHICLES_ON_BOARD_STATUSES, status);
+export const isCancellableLoadStatus = (status: unknown) => includesStatus(CANCELLABLE_LOAD_STATUSES, status);

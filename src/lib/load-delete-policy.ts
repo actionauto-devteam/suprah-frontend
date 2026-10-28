@@ -1,9 +1,10 @@
 import type { Load } from "@/types/load";
+import { hasVehiclesOnBoard } from "@/lib/load-status";
 
-// Mirrors canStaffDeleteLoad in suprah-backend/src/services/loadLifecyclePolicy.ts.
-// Active loads have a driver relying on them and must be released through
-// Driver Tracker (Remove) instead of being deleted. Delivered loads are the
-// record of the driver's work and pay and are never deleted.
+// Mirrors canStaffDeleteLoad and staffDeleteBlockedMessage in
+// suprah-backend/src/services/loadLifecyclePolicy.ts. A load a driver has is
+// cancelled instead (before pickup) and can be deleted after that. Delivered
+// loads are the record of the driver's work and pay and are never deleted.
 const CLOSED_DELETABLE_STATUSES = new Set(["Cancelled"]);
 const UNASSIGNED_DELETABLE_STATUSES = new Set(["Draft", "Posted"]);
 
@@ -18,5 +19,8 @@ export function getLoadDeleteBlockReason(
   if (UNASSIGNED_DELETABLE_STATUSES.has(load.status) && !load.assignedDriverId) {
     return null;
   }
-  return `${load.status} loads with an assigned driver can't be deleted. Remove the driver in Driver Tracker first.`;
+  if (hasVehiclesOnBoard(load.status)) {
+    return `${load.status} loads can't be deleted while the vehicles are on the driver's truck. Finish the delivery, or use Reassign in Driver Tracker.`;
+  }
+  return "Loads with a driver can't be deleted. If the shipment isn't happening, open the load and choose Cancel load. You can delete it after that.";
 }

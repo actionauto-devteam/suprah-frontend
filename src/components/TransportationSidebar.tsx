@@ -40,7 +40,7 @@ const PIPELINE_STATUSES = [
   "In-Transit",
 ] as const;
 
-const TERMINAL_STATUSES = ["Delivered"] as const;
+const TERMINAL_STATUSES = ["Delivered", "Cancelled"] as const;
 
 const QUOTE_STATUSES = [
   { key: "pending", label: "Pending" },
@@ -100,6 +100,12 @@ const STATUS_THEME: Record<
     dot: "bg-emerald-500",
     glow: "shadow-[0_0_8px_rgba(16,185,129,0.55)]",
     bar: "bg-emerald-500",
+  },
+  Cancelled: {
+    active: "bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/30",
+    dot: "bg-red-500",
+    glow: "shadow-[0_0_8px_rgba(239,68,68,0.55)]",
+    bar: "bg-red-500",
   },
   pending: {
     active: "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30",
