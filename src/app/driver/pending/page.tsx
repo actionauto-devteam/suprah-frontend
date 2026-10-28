@@ -118,7 +118,7 @@ export default function DriverPendingPage() {
               Finish Your Application
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Complete these steps so the Suprah team can review and approve
+              Complete these steps so the Suprah AI team can review and approve
               your account.
             </p>
           </div>
@@ -169,7 +169,7 @@ export default function DriverPendingPage() {
                   Pending Approval
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Your driver application has been sent to the Suprah team for
+                  Your driver application has been sent to the Suprah AI team for
                   review. We&apos;ll let you know as soon as you&apos;re
                   approved, and this page updates by itself. You don&apos;t
                   need to do anything else.

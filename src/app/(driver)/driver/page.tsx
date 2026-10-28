@@ -1988,7 +1988,7 @@ export default function DriverDashboardPage() {
                 : "Press Replace on it on your "}
               <Link href="/driver/documents" className="underline font-bold">Documents page</Link> and
               upload the renewed document with its new expiration date. This warning goes away once the
-              Suprah team approves it. Until then, Dispatch sees a compliance warning on your profile.
+              Suprah AI team approves it. Until then, Dispatch sees a compliance warning on your profile.
             </p>
           </div>
         </div>

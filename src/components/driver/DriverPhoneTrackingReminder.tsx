@@ -16,7 +16,7 @@ const MESSAGES: Record<Exclude<PhoneTrackingReminder, null | "keep_on">, { title
   },
   not_receiving: {
     title: "Traccar Client isn't sending your location",
-    body: "Suprah hasn't received your location from Traccar Client for a few minutes. Open the app and check that tracking is on and location is allowed all the time.",
+    body: "Suprah AI hasn't received your location from Traccar Client for a few minutes. Open the app and check that tracking is on and location is allowed all the time.",
     tone: "red",
   },
   turn_off: {
