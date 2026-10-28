@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { Socket } from "socket.io-client";
+import { getSocket } from "@/lib/socket.client";
 
 export type MessageStatus = "queued" | "sent" | "delivered" | "failed" | "received";
 
@@ -42,6 +44,7 @@ export interface CommCall {
   endedAt?: string;
   durationSec?: number;
   customerName?: string;
+  lineLabel?: string;
   clientCallId?: string;
   createdAt: string;
 }
@@ -63,6 +66,7 @@ interface CommState {
   incomingCalls: CommCall[]; // ringing, unclaimed
   activeCall: ActiveCallState | null;
   softphoneReady: boolean;
+  callNotice: string | null;
 }
 
 let state: CommState = {
@@ -71,9 +75,40 @@ let state: CommState = {
   incomingCalls: [],
   activeCall: null,
   softphoneReady: false,
+  callNotice: null,
 };
 
 const listeners = new Set<() => void>();
+const DISMISSED_CALLS_KEY = "suprah-dismissed-calls";
+const dismissedCalls = new Set<string>(readDismissedCalls());
+
+function readDismissedCalls(): string[] {
+  try {
+    if (typeof window === "undefined") return [];
+    const parsed = JSON.parse(window.sessionStorage.getItem(DISMISSED_CALLS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string").slice(-50) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDismissedCalls() {
+  try {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(DISMISSED_CALLS_KEY, JSON.stringify(Array.from(dismissedCalls).slice(-50)));
+  } catch {
+    return;
+  }
+}
+const ringingReceivedAt = new Map<string, number>();
+
+const CALL_ENDED_NOTICES: Record<string, string> = {
+  missed: "The call couldn't connect to your browser, so it was marked as missed.",
+  canceled: "The caller hung up before the call connected.",
+  failed: "The call couldn't be connected. Please call the customer back.",
+  completed: "The call ended.",
+  ringing: "The call couldn't connect to your browser, so it is ringing for your teammates again.",
+};
 
 function emitChange() {
   listeners.forEach((l) => l());
@@ -85,6 +120,10 @@ function setState(partial: Partial<CommState>) {
 }
 
 /* ------------------------------- selectors ------------------------------ */
+
+export function getCommState(): CommState {
+  return state;
+}
 
 export function useCommStore(): CommState {
   return useSyncExternalStore(
@@ -139,7 +178,12 @@ export const commActions = {
   upsertCall(call: CommCall) {
     // incoming ringing list
     let incoming = state.incomingCalls.filter((c) => c._id !== call._id);
-    if (call.status === "ringing" && call.direction === "inbound") incoming = [call, ...incoming];
+    if (call.status === "ringing" && call.direction === "inbound" && !dismissedCalls.has(call._id)) {
+      incoming = [call, ...incoming];
+      if (!ringingReceivedAt.has(call._id)) ringingReceivedAt.set(call._id, Date.now());
+    } else {
+      ringingReceivedAt.delete(call._id);
+    }
 
     // per-customer history
     let callsByCustomer = state.callsByCustomer;
@@ -151,11 +195,49 @@ export const commActions = {
       callsByCustomer = { ...callsByCustomer, [key]: next };
     }
 
-    setState({ incomingCalls: incoming, callsByCustomer });
+    let activeCall = state.activeCall;
+    let callNotice = state.callNotice;
+    if (
+      activeCall?.kind === "inbound" &&
+      activeCall.callLogId === call._id &&
+      activeCall.phase !== "active" &&
+      CALL_ENDED_NOTICES[call.status]
+    ) {
+      activeCall = null;
+      callNotice = CALL_ENDED_NOTICES[call.status];
+    }
+
+    setState({ incomingCalls: incoming, callsByCustomer, activeCall, callNotice });
+  },
+
+  replaceRinging(calls: CommCall[], requestedAt: number) {
+    const fromServer = calls.filter(
+      (call) => call.status === "ringing" && call.direction === "inbound" && !dismissedCalls.has(call._id)
+    );
+    const serverIds = new Set(fromServer.map((call) => call._id));
+    const arrivedDuringRequest = state.incomingCalls.filter(
+      (call) => !serverIds.has(call._id) && (ringingReceivedAt.get(call._id) || 0) >= requestedAt
+    );
+    const next = [...arrivedDuringRequest, ...fromServer];
+    const keep = new Set(next.map((call) => call._id));
+    Array.from(ringingReceivedAt.keys()).forEach((id) => {
+      if (!keep.has(id)) ringingReceivedAt.delete(id);
+    });
+    fromServer.forEach((call) => {
+      if (!ringingReceivedAt.has(call._id)) ringingReceivedAt.set(call._id, Date.now());
+    });
+    setState({ incomingCalls: next });
   },
 
   dismissIncoming(callId: string) {
+    dismissedCalls.add(callId);
+    saveDismissedCalls();
+    ringingReceivedAt.delete(callId);
     setState({ incomingCalls: state.incomingCalls.filter((c) => c._id !== callId) });
+  },
+
+  clearCallNotice() {
+    if (state.callNotice) setState({ callNotice: null });
   },
 
   setActiveCall(activeCall: ActiveCallState | null) {
@@ -175,34 +257,56 @@ export const commActions = {
 /* ----------------------------- socket wiring ----------------------------- */
 /** Call once with your existing Socket.io client instance (the one YapLine /
  *  Pulse360 use) after the user is authenticated. */
-let wired = false;
+let wiredSocket: Socket | null = null;
+let wiredOrgId = "";
+let unwireSocket: (() => void) | null = null;
+const reconnectListeners = new Set<() => void>();
+
+export function onCommunicationReconnect(listener: () => void): () => void {
+  reconnectListeners.add(listener);
+  if (wiredSocket?.connected) listener();
+  return () => {
+    reconnectListeners.delete(listener);
+  };
+}
 
 /** Wire the platform's existing Socket.io client (lib/socket.client) into the
  *  store. Backend emits globally with orgId on the payload, so events for
  *  other orgs are filtered out here. Safe to call more than once. */
 export function connectCommunicationSocket(socket: any, orgId: string) {
-  if (!socket || wired) return;
-  wired = true;
-  const mine = (data: any) => !data?.orgId || String(data.orgId) === String(orgId);
+  const target = getSocket() || socket;
+  if (!target) return;
+  wiredOrgId = String(orgId);
+  if (wiredSocket === target) return;
+  unwireSocket?.();
+  wiredSocket = target;
+  const mine = (data: any) => !data?.orgId || String(data.orgId) === wiredOrgId;
 
-  socket.on("comm:message:new", (data: any) => {
-    if (mine(data) && data?.message) commActions.upsertMessage(data.message);
-  });
+  const handlers = {
+    "comm:message:new": (data: any) => {
+      if (mine(data) && data?.message) commActions.upsertMessage(data.message);
+    },
+    "comm:message:status": (data: any) => {
+      if (mine(data) && data?.messageId)
+        commActions.patchMessageStatus(data.conversationId, data.messageId, data.status);
+    },
+    "comm:call:incoming": (data: any) => {
+      if (mine(data) && data?.call) commActions.upsertCall(data.call);
+    },
+    "comm:call:update": (data: any) => {
+      if (mine(data) && data?.call) commActions.upsertCall(data.call);
+    },
+    "comm:call:removed": (data: { orgId?: string; callId?: string }) => {
+      if (mine(data) && data.callId) commActions.dismissIncoming(data.callId);
+    },
+    connect: () => {
+      reconnectListeners.forEach((listener) => listener());
+    },
+  };
 
-  socket.on("comm:message:status", (data: any) => {
-    if (mine(data) && data?.messageId)
-      commActions.patchMessageStatus(data.conversationId, data.messageId, data.status);
-  });
-
-  socket.on("comm:call:incoming", (data: any) => {
-    if (mine(data) && data?.call) commActions.upsertCall(data.call);
-  });
-
-  socket.on("comm:call:update", (data: any) => {
-    if (mine(data) && data?.call) commActions.upsertCall(data.call);
-  });
-
-  socket.on('comm:call:removed', (data: { orgId?: string; callId?: string }) => {
-    if (mine(data) && data.callId) commActions.dismissIncoming(data.callId);
-  });
+  Object.entries(handlers).forEach(([event, handler]) => target.on(event, handler));
+  unwireSocket = () => {
+    Object.entries(handlers).forEach(([event, handler]) => target.off(event, handler));
+  };
+  if (target.connected) reconnectListeners.forEach((listener) => listener());
 }

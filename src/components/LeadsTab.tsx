@@ -24,7 +24,8 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/hooks/useLeads"
-import { initializeSocket } from "@/lib/socket.client"
+import { useQueryClient } from "@tanstack/react-query"
+import { initializeSocket, onSocketChange } from "@/lib/socket.client"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
 import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
 import { useTeamMembers } from "@/hooks/useTeamPulse"
@@ -121,6 +122,7 @@ const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
 const LEADS_PER_PAGE = 20;
 const THREAD_POLL_INTERVAL_MS = 15_000;
 const LIVE_THREAD_REFRESH_DELAY_MS = 400;
+const LEADS_LIVE_REFRESH_MS = 30_000;
 
 type LiveLeadEvent = { leadId?: string; _id?: string; lead?: { _id?: string }; call?: { leadId?: string } };
 
@@ -406,10 +408,16 @@ export function LeadsTab({
     source: sourceFilter,
     dateFrom: resolvedDateFilter.from,
     dateTo: resolvedDateFilter.to,
+    liveRefreshMs: LEADS_LIVE_REFRESH_MS,
   });
 
-  const { counts: leadStatusCounts } = useLeadStatusCounts();
-  const { counts: leadLocationCounts } = useLeadLocationCounts();
+  const { counts: leadStatusCounts } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
+  const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
+  const queryClient = useQueryClient();
+  const refreshLeadCounts = React.useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["leads", "status-counts"] });
+    void queryClient.invalidateQueries({ queryKey: ["leads", "location-counts"] });
+  }, [queryClient]);
 
   const locationFilterTabs = React.useMemo(() => {
     const knownLocations = Object.keys(leadLocationCounts)
@@ -1069,12 +1077,20 @@ export function LeadsTab({
   // 2. Real-Time WebSocket Implementation
   React.useEffect(() => {
     let socket: any = null;
+    let cancelled = false;
+    let stopWatchingSocket: (() => void) | null = null;
+    const registered: Array<[string, (...args: never[]) => void]> = [];
+    const listen = (event: string, handler: (...args: never[]) => void) => {
+      registered.push([event, handler]);
+      socket.on(event, handler);
+    };
     const setupSocket = async () => {
       const token = await getToken();
-      if (!token) return;
+      if (!token || cancelled) return;
       socket = initializeSocket(token);
 
-      socket.on("lead:new", (newLead: any) => {
+      listen("lead:new", (newLead: any) => {
+        refreshLeadCounts();
         if (currentPage === 1) {
           refetch();
           setHighlightedLeadIds((prev) => new Set(prev).add(newLead._id));
@@ -1099,13 +1115,13 @@ export function LeadsTab({
         }, LIVE_THREAD_REFRESH_DELAY_MS);
       };
 
-      socket.on("lead:update", (data?: LiveLeadEvent) => {
+      listen("lead:update", (data?: LiveLeadEvent) => {
         refetch();
         scheduleSelectedRefresh(data?.leadId || data?._id);
       });
-      socket.on("comm:call:incoming", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
-      socket.on("comm:call:update", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
-      socket.on("lead:review", () => {
+      listen("comm:call:incoming", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
+      listen("comm:call:update", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
+      listen("lead:review", () => {
         getLeadReviewCount().then(setReviewSummary).catch(() => undefined);
       });
 
@@ -1114,7 +1130,7 @@ export function LeadsTab({
        * customer text) lands, append it to that lead's cached thread so
        * every open Leads workspace updates live without a refetch.
        */
-      socket.on("comm:message:new", (data: any) => {
+      listen("comm:message:new", (data: any) => {
         const message = data?.message;
         if (!message) return;
         const leadId = message?.leadId;
@@ -1141,7 +1157,7 @@ export function LeadsTab({
         }, LIVE_THREAD_REFRESH_DELAY_MS);
       });
 
-      socket.on(
+      listen(
         "webchat:message",
         (data: { leadId?: string; message?: { _id?: string; leadId?: string } }) => {
           const message = data?.message;
@@ -1158,7 +1174,7 @@ export function LeadsTab({
         },
       );
 
-      socket.on("comm:message:status", (data: any) => {
+      listen("comm:message:status", (data: any) => {
         const { messageId, status } = data || {};
         if (!messageId) return;
         setThreads((previous) => {
@@ -1180,8 +1196,9 @@ export function LeadsTab({
           return changed ? next : previous;
         });
       });
-      socket.on("lead:delete", () => {
+      listen("lead:delete", () => {
         refetch();
+        refreshLeadCounts();
         setSelectedLead(null);
       });
 
@@ -1202,37 +1219,36 @@ export function LeadsTab({
           },
         }));
       };
-      socket.on("webchat:ai_paused", handleAiPaused);
-      socket.on("comm:ai_paused", handleAiPaused);
-      socket.on("email:ai_paused", handleAiPaused);
-      socket.on("email:message:new", (data?: LiveLeadEvent) => {
+      listen("webchat:ai_paused", handleAiPaused);
+      listen("comm:ai_paused", handleAiPaused);
+      listen("email:ai_paused", handleAiPaused);
+      listen("email:message:new", (data?: LiveLeadEvent) => {
         refetch();
         scheduleSelectedRefresh(data?.leadId || data?.lead?._id);
+      });
+
+      stopWatchingSocket = onSocketChange((next) => {
+        if (cancelled || next === socket) return;
+        registered.forEach(([event, handler]) => socket.off(event, handler));
+        socket = next;
+        registered.forEach(([event, handler]) => socket.on(event, handler));
+        refetch();
+        refreshLeadCounts();
       });
     };
     setupSocket();
     return () => {
+      cancelled = true;
+      stopWatchingSocket?.();
       if (liveThreadRefreshTimerRef.current) {
         window.clearTimeout(liveThreadRefreshTimerRef.current);
         liveThreadRefreshTimerRef.current = null;
       }
       if (socket) {
-        socket.off("lead:new");
-        socket.off("lead:update");
-        socket.off("comm:message:new");
-        socket.off("comm:message:status");
-        socket.off("webchat:message");
-        socket.off("lead:delete");
-        socket.off("webchat:ai_paused");
-        socket.off("comm:ai_paused");
-        socket.off("email:ai_paused");
-        socket.off("email:message:new");
-        socket.off("comm:call:incoming");
-        socket.off("comm:call:update");
-        socket.off("lead:review");
+        registered.forEach(([event, handler]) => socket.off(event, handler));
       }
     };
-  }, [getToken, currentPage, refetch]);
+  }, [getToken, currentPage, refetch, refreshLeadCounts]);
 
   // 3. Central Status Fetch
   React.useEffect(() => {
@@ -3001,6 +3017,7 @@ export function LeadsTab({
                               recipientLabel: replyState.recipientPhone
                                 ? formatSmsRecipient(replyState.recipientPhone)
                                 : null,
+                              senderLabel: selectedReplyOptions?.sms?.sender?.label || null,
                             },
                             email: {
                               available: !replyState.emailReason,

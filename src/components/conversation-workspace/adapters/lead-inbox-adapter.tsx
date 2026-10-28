@@ -102,6 +102,7 @@ export function leadDetailSections(
         { id: "vehicle", label: "Vehicle", value: vehicleLabel, icon: <Calculator size={15} />, copyText: vehicleLabel },
         { id: "vin", label: "VIN", value: vin, icon: <Tag size={15} />, copyText: vin === "Not provided" ? "" : vin },
         { id: "location", label: "Location", value: lead.location || "Not specified", icon: <MapPin size={15} />, copyText: lead.location || "" },
+        ...(lead.dealershipLine ? [{ id: "line", label: "First contacted", value: lead.dealershipLine, icon: <Phone size={15} />, copyText: lead.dealershipLine }] : []),
         { id: "created", label: "Created", value: lead.createdAt, icon: <Clock3 size={15} />, copyText: String(lead.createdAt || "") },
       ],
     },

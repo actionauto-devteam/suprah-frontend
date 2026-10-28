@@ -8,6 +8,8 @@ import { geolocation } from "@/lib/geolocation";
 
 
 const PING_INTERVAL_MS = 30_000;
+const GPS_OFF_CONFIRM_MS = 60_000;
+const SHIFT_ENDED_MESSAGE = "Your shift was ended because location was turned off. Turn location back on and start a new shift.";
 const MPS_TO_MPH = 2.23694;
 
 type SharingRuntime = {
@@ -22,6 +24,7 @@ type SharingRuntime = {
   // succeeds or errors out — the UI shows a "getting your location…" state for this
   // window instead of looking like sharing silently did nothing.
   awaitingFirstFix: boolean;
+  unavailableTimer: ReturnType<typeof setTimeout> | null;
   listeners: Set<() => void>;
 };
 
@@ -34,6 +37,7 @@ const runtime: SharingRuntime = {
   manuallyPaused: false,
   busy: false,
   awaitingFirstFix: false,
+  unavailableTimer: null,
   listeners: new Set(),
 };
 
@@ -66,7 +70,15 @@ function readConnectionInfo(): { connectionType?: string; effectiveType?: string
   };
 }
 
+function clearUnavailableTimer() {
+  if (runtime.unavailableTimer !== null) {
+    clearTimeout(runtime.unavailableTimer);
+    runtime.unavailableTimer = null;
+  }
+}
+
 function clearWatch() {
+  clearUnavailableTimer();
   if (runtime.watchId !== null) {
     geolocation.clearWatch(runtime.watchId);
     runtime.watchId = null;
@@ -144,7 +156,11 @@ export function useLocationSharing({
   const reportPermissionDeniedToServer = useCallback(async () => {
     try {
       const headers = await resolveAuthHeaders();
-      await apiClient.reportLocationPermissionDenied(headers);
+      const res = await apiClient.reportLocationPermissionDenied(headers);
+      if (res?.data?.data?.autoClockedOut) {
+        runtime.error = SHIFT_ENDED_MESSAGE;
+        notifyListeners();
+      }
     } catch {
       // best-effort
     }
@@ -157,6 +173,7 @@ export function useLocationSharing({
 
     const id = geolocation.watchPosition(
       (position) => {
+        clearUnavailableTimer();
         const now = Date.now();
         if (now - runtime.lastSentAt >= PING_INTERVAL_MS) {
           runtime.lastSentAt = now;
@@ -171,6 +188,19 @@ export function useLocationSharing({
           runtime.awaitingFirstFix = false;
           clearWatch();
           reportPermissionDeniedToServer();
+        } else if (err.code === err.POSITION_UNAVAILABLE && getDeviceType() === "mobile") {
+          runtime.error = "Can't get your location — make sure Location/GPS is turned on.";
+          runtime.awaitingFirstFix = false;
+          if (runtime.unavailableTimer === null) {
+            runtime.unavailableTimer = setTimeout(() => {
+              runtime.unavailableTimer = null;
+              runtime.error = "Location is turned off on this phone.";
+              runtime.sharingState = "declined_permission";
+              clearWatch();
+              notifyListeners();
+              reportPermissionDeniedToServer();
+            }, GPS_OFF_CONFIRM_MS);
+          }
         } else if (err.code === err.TIMEOUT) {
           // Usually transient (indoors/weak GPS) — the browser keeps the watch running and
           // can still succeed later, so don't kill it. Just let the UI know it's taking a while.

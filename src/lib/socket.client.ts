@@ -4,6 +4,14 @@ let socket: Socket | null = null;
 let currentToken: string | null = null;
 let tokenProvider: (() => Promise<string | null>) | null = null;
 let recoveryListenersAttached = false;
+const socketChangeListeners = new Set<(next: Socket) => void>();
+
+export const onSocketChange = (listener: (next: Socket) => void) => {
+  socketChangeListeners.add(listener);
+  return () => {
+    socketChangeListeners.delete(listener);
+  };
+};
 
 /** Registered by AuthProvider so reconnects can use a refreshed token. */
 export const setSocketTokenProvider = (provider: (() => Promise<string | null>) | null) => {
@@ -125,6 +133,15 @@ export const initializeSocket = (token: string): Socket => {
 
   socket.on('connect_error', (error) => {
     console.error('Socket connection error:', error);
+  });
+
+  const created = socket;
+  socketChangeListeners.forEach((listener) => {
+    try {
+      listener(created);
+    } catch {
+      return;
+    }
   });
 
   return socket;

@@ -18,6 +18,7 @@ import {
   type CustomerRecordStatus,
 } from "@/lib/api/customerRecords";
 import { cn } from "@/lib/utils";
+import { CustomerCatchUpNote } from "@/components/customer-records/CustomerCatchUpNote";
 
 const STATUS_OPTIONS: Array<{ value: CustomerRecordStatus; label: string }> = [
   { value: "active", label: "Active" },
@@ -174,6 +175,7 @@ export function CustomerRecordsList() {
     queryFn: async () => fetchCustomerRecords(await getToken(), { search: urlSearch, status, sort, page }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    refetchInterval: 30_000,
     retry: (count, error) => customerRecordErrorStatus(error) !== 403 && count < 2,
   });
 
@@ -201,6 +203,8 @@ export function CustomerRecordsList() {
           </p>
         )}
       </div>
+
+      <CustomerCatchUpNote />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1">

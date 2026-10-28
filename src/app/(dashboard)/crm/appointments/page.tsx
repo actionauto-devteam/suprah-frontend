@@ -1139,7 +1139,7 @@ function AppointmentsPageInner() {
                     accentClass="bg-teal-500"
                     iconBgClass="bg-teal-500/10"
                     iconColorClass="text-teal-600 dark:text-teal-400"
-                    sublabel="In database"
+                    sublabel="People, not leads"
                   />
                 </div>
               </div>

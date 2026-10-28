@@ -28,10 +28,15 @@ export default function IncomingCallCenter() {
   const [mounted, setMounted] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
-  const { incomingCalls, activeCall } = useCommStore();
+  const { incomingCalls, activeCall, callNotice } = useCommStore();
   const { answerInbound, hangup, toggleMute } = useTelnyxRTC();
 
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (!callNotice) return;
+    const timer = setTimeout(() => commActions.clearCallNotice(), 6000);
+    return () => clearTimeout(timer);
+  }, [callNotice]);
   if (!mounted) return null;
 
   const answer = async (call: (typeof incomingCalls)[number]) => {
@@ -46,11 +51,12 @@ export default function IncomingCallCenter() {
     } catch (err: any) {
       const code = err?.response?.status;
       setClaimError(
-        code === 409
-          ? "Another teammate answered this call."
-          : err?.response?.data?.message || "Couldn't answer the call."
+        err?.userMessage ||
+          (code === 409
+            ? "Another teammate answered this call."
+            : err?.response?.data?.message || "Couldn't answer the call.")
       );
-      setTimeout(() => setClaimError(null), 4000);
+      setTimeout(() => setClaimError(null), 6000);
     } finally {
       setClaiming(null);
     }
@@ -64,8 +70,14 @@ export default function IncomingCallCenter() {
         aria-live="polite"
       >
         {claimError && (
-          <div className="pointer-events-auto rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 shadow-lg dark:bg-amber-950/80 dark:text-amber-300">
+          <div className="pointer-events-auto max-w-sm rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 shadow-lg dark:bg-amber-950/80 dark:text-amber-300" role="alert">
             {claimError}
+          </div>
+        )}
+
+        {callNotice && !claimError && (
+          <div className="pointer-events-auto max-w-sm rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-lg dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" role="status">
+            {callNotice}
           </div>
         )}
 
@@ -90,6 +102,9 @@ export default function IncomingCallCenter() {
                   {call.customerName || "Unknown caller"}
                 </p>
                 <p className="truncate text-xs text-slate-500 dark:text-slate-400">{call.from}</p>
+                {call.lineLabel && (
+                  <p className="break-words text-xs font-medium text-cyan-700 dark:text-cyan-400">Called {call.lineLabel}</p>
+                )}
                 {call.routing?.selectedLabel && (
                   <p className="break-words text-xs font-medium text-emerald-600 dark:text-emerald-400">
                     {call.routing.selectedLabel}{call.routing.stage === 'reception' && call.routing.type !== 'language' ? ' - Reception' : ''}

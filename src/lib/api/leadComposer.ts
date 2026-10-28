@@ -7,6 +7,7 @@ export interface ReplyChannelOption {
   code: string | null;
   reason: string | null;
   recipient: string | null;
+  sender?: { number: string; label: string };
 }
 
 export interface LeadReplyOptions {

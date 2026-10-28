@@ -353,9 +353,10 @@ export function InboundCallsTab() {
     } catch (err: any) {
       addToast(
         "error",
-        err?.response?.status === 409
-          ? "Another teammate answered this call"
-          : err?.response?.data?.message || "Couldn't answer the call",
+        err?.userMessage ||
+          (err?.response?.status === 409
+            ? "Another teammate answered this call"
+            : err?.response?.data?.message || "Couldn't answer the call"),
       )
     }
   }
@@ -373,9 +374,10 @@ export function InboundCallsTab() {
     } catch (err: any) {
       addToast(
         "error",
-        err?.response?.status === 409
-          ? "Another teammate answered this call"
-          : err?.response?.data?.message || "Couldn't pick up the call",
+        err?.userMessage ||
+          (err?.response?.status === 409
+            ? "Another teammate answered this call"
+            : err?.response?.data?.message || "Couldn't pick up the call"),
       )
     }
   }

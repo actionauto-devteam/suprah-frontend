@@ -25,7 +25,6 @@ import {
   Monitor,
   MonitorDot,
   Play,
-  Power,
   Radio,
   RefreshCw,
   Scissors,
@@ -36,10 +35,6 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import type { AxiosRequestConfig } from "axios"
 import { apiClient } from "@/lib/api-client"
 import { getActiveTrayToken, openTrayConnect, openTrayViaProtocol, openTrayWake, pushTokenToTray } from "@/lib/trayConnection"
@@ -51,7 +46,7 @@ import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isMobileMonitoringDept, isMandatoryLocationDept } from "@/lib/departments"
+import { isMobileMonitoringDept } from "@/lib/departments"
 import { useLocationSharing } from "@/hooks/useLocationSharing"
 import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/LocatorMapLegend"
 import {
@@ -482,24 +477,7 @@ export default function TimeprofClockPage() {
     }
   }, [getCrmLocatorHeaders, refreshLocatorStatus])
 
-  const [stopSharingConfirmOpen, setStopSharingConfirmOpen] = React.useState(false)
-  const [stopSharingSaving, setStopSharingSaving] = React.useState(false)
   const [resumeSharingSaving, setResumeSharingSaving] = React.useState(false)
-
-  const handleStopSharingNow = React.useCallback(async () => {
-    setStopSharingSaving(true)
-    try {
-      const headers = await getCrmLocatorHeaders()
-      await apiClient.setLocationConsent({ granted: false }, headers)
-      toast.message("Location sharing turned off — your shift stays active. Admins have been notified.")
-      await refreshLocatorStatus()
-    } catch {
-      toast.error("Could not turn off location sharing")
-    } finally {
-      setStopSharingSaving(false)
-      setStopSharingConfirmOpen(false)
-    }
-  }, [getCrmLocatorHeaders, refreshLocatorStatus])
 
   const handleResumeSharingNow = React.useCallback(async () => {
     setResumeSharingSaving(true)
@@ -1740,7 +1718,7 @@ export default function TimeprofClockPage() {
               const meta = locatorStateMeta(locatorState, locatorError, locatorAwaitingFirstFix)
               return (
                 <div className="w-full rounded-2xl border border-border/40 bg-card">
-                  <div className="flex items-center justify-between gap-3 px-5 py-4">
+                  <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="h-8 w-8 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
                         {locatorAwaitingFirstFix ? <Loader2 className="h-4 w-4 text-emerald-500 animate-spin" />
@@ -1756,7 +1734,7 @@ export default function TimeprofClockPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 pl-11 sm:pl-0">
                       <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-black uppercase tracking-widest", meta.text, meta.pill)}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot, (locatorState === "sharing" || locatorAwaitingFirstFix) && "animate-pulse motion-reduce:animate-none")} />
                         {meta.label}
@@ -1774,30 +1752,10 @@ export default function TimeprofClockPage() {
                   {isActive && !isOnBreak && (
                     <div className="flex items-center justify-between gap-3 border-t border-border/30 px-5 py-3">
                       {locatorStatus?.consentGranted ? (
-                        isMandatoryLocationDept(user?.department) ? (
-                          <>
-                            <div className="min-w-0">
-                              <p className="text-[13px] font-bold text-foreground">Sharing during your active shift</p>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground/80">Lot Tech accounts can&apos;t turn off location while clocked in. End your shift to stop sharing.</p>
-                            </div>
-                            <span className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border/40 bg-muted/20 px-2.5 text-[12px] font-bold text-muted-foreground/85">
-                              <Lock className="h-3 w-3" /> Locked
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <div className="min-w-0">
-                              <p className="text-[13px] font-bold text-foreground">Sharing during your active shift</p>
-                              <p className="mt-0.5 text-[11px] text-muted-foreground/80">Required to clock in. You can pause it now — admins will be notified — and turn it back on any time.</p>
-                            </div>
-                            <Button
-                              size="sm" variant="outline" onClick={() => setStopSharingConfirmOpen(true)}
-                              className="h-7 gap-1.5 rounded-full border-red-500/30 bg-red-500/5 px-2.5 text-[12px] font-bold text-red-500 hover:bg-red-500/10 shrink-0"
-                            >
-                              <Power className="h-3 w-3" /> Stop Sharing
-                            </Button>
-                          </>
-                        )
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold text-foreground">Sharing during your active shift</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground/80">Your location stays on while you&apos;re clocked in.</p>
+                        </div>
                       ) : (
                         <>
                           <div className="min-w-0">
@@ -2421,22 +2379,6 @@ export default function TimeprofClockPage() {
         </div>
       )}
 
-      <AlertDialog open={stopSharingConfirmOpen} onOpenChange={setStopSharingConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Stop sharing your location?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your shift stays active — this only pauses location sharing. Admins will be notified that it&apos;s off, and you can turn it back on any time from this page.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={stopSharingSaving}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleStopSharingNow} disabled={stopSharingSaving} className="bg-red-500 hover:bg-red-600">
-              {stopSharingSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Stop Sharing"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

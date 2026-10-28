@@ -458,7 +458,7 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
               )}
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {SOURCE_LABELS[customer.source] || "Customer record"} · Since {dateOrDash(customer.createdAt)}
+              {SOURCE_LABELS[customer.source] || "Customer record"} · Customer since {dateOrDash(customer.createdAt)}
             </p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
               {customer.email && (

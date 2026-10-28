@@ -219,6 +219,17 @@ export async function updateCustomerRecord(token: string | null, id: string, cha
   return response.data?.data as CustomerProfileData;
 }
 
+export interface CustomerCatchUpStatus {
+  canView: boolean;
+  ready: boolean;
+  remaining: number;
+}
+
+export async function fetchCustomerCatchUpStatus(token: string | null): Promise<CustomerCatchUpStatus> {
+  const response = await apiClient.get("/api/crm/customer-records/catch-up", { headers: authHeaders(token) });
+  return response.data?.data as CustomerCatchUpStatus;
+}
+
 export function customerRecordErrorStatus(error: unknown): number | null {
   const status = (error as { response?: { status?: number } } | null)?.response?.status;
   return typeof status === "number" ? status : null;

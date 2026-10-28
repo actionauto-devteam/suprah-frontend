@@ -1,19 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { TelnyxRTC } from "@telnyx/webrtc";
 import { apiClient } from "@/lib/api-client";
-import { commActions } from "@/lib/communicationStore";
+import { commActions, getCommState } from "@/lib/communicationStore";
+
+const READY_TIMEOUT_MS = 12_000;
+const ANSWER_WINDOW_MS = 60_000;
 
 let client: TelnyxRTC | null = null;
-let loggingIn = false;
+let connecting: Promise<TelnyxRTC> | null = null;
 let callerNumber = "";
 let currentCall: any = null;
-let expectingInbound = false; // set true right after a successful claim
+let pendingAnswer: { callLogId: string; until: number } | null = null;
+let refuseInvitesUntil = 0;
 let remoteAudioEl: HTMLAudioElement | null = null;
 
 const newClientCallId = () =>
   `cc_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+function softphoneError(code: string, message: string) {
+  return Object.assign(new Error(message), { code, userMessage: message });
+}
 
 function ensureAudioElement(): HTMLAudioElement {
   if (remoteAudioEl) return remoteAudioEl;
@@ -35,97 +43,151 @@ async function reportCall(body: Record<string, any>) {
   }
 }
 
+function handleNotification(notification: any) {
+  if (notification.type !== "callUpdate" || !notification.call) return;
+  const call = notification.call;
+
+  switch (call.state) {
+    case "ringing": {
+      if (call.direction && call.direction !== "inbound") break;
+      const active = getCommState().activeCall;
+      if (pendingAnswer && Date.now() < pendingAnswer.until && active?.callLogId === pendingAnswer.callLogId) {
+        pendingAnswer = null;
+        currentCall = call;
+        call.answer();
+        commActions.patchActiveCall({ phase: "connecting" });
+      } else if (pendingAnswer || Date.now() < refuseInvitesUntil) {
+        pendingAnswer = null;
+        refuseInvitesUntil = 0;
+        call.hangup();
+      }
+      break;
+    }
+    case "active": {
+      currentCall = call;
+      commActions.patchActiveCall({ phase: "active", startedAt: Date.now() });
+      const ccid = (call as any).__clientCallId;
+      if (ccid) reportCall({ clientCallId: ccid, event: "answered" });
+      break;
+    }
+    case "hangup":
+    case "destroy": {
+      const ccid = (call as any).__clientCallId;
+      if (currentCall === call) {
+        currentCall = null;
+        commActions.setActiveCall(null);
+      }
+      if (ccid && !(call as any).__reportedEnd) {
+        (call as any).__reportedEnd = true;
+        reportCall({ clientCallId: ccid, event: "end", hangupCause: call.cause });
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+async function disconnectClient(c: TelnyxRTC | null) {
+  if (!c) return;
+  try {
+    await Promise.resolve(c.disconnect());
+  } catch {
+    return;
+  }
+}
+
+async function createClient(): Promise<TelnyxRTC> {
+  const { data } = await apiClient.post("/api/crm/communications/rtc/token");
+  const payload = data?.data || data;
+  callerNumber = payload.callerNumber || "";
+
+  const c = new TelnyxRTC({ login_token: payload.token });
+  c.remoteElement = ensureAudioElement() as any;
+
+  const gate: { settle?: (error?: Error) => void } = {};
+  const ready = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(
+      () => gate.settle?.(softphoneError("SOFTPHONE_NOT_READY", "Your phone line couldn't connect.")),
+      READY_TIMEOUT_MS
+    );
+    gate.settle = (error?: Error) => {
+      clearTimeout(timer);
+      gate.settle = undefined;
+      if (error) reject(error);
+      else resolve();
+    };
+  });
+
+  c.on("telnyx.ready", () => {
+    gate.settle?.();
+    if (client === c) commActions.setSoftphoneReady(true);
+  });
+  c.on("telnyx.error", () => {
+    gate.settle?.(softphoneError("SOFTPHONE_NOT_READY", "Your phone line couldn't connect."));
+    if (client === c) commActions.setSoftphoneReady(false);
+  });
+  c.on("telnyx.socket.close", () => {
+    gate.settle?.(softphoneError("SOFTPHONE_NOT_READY", "Your phone line couldn't connect."));
+    if (client !== c) return;
+    client = null;
+    commActions.setSoftphoneReady(false);
+    void disconnectClient(c);
+  });
+  c.on("telnyx.notification", handleNotification);
+
+  try {
+    await c.connect();
+    await ready;
+  } catch (error) {
+    await disconnectClient(c);
+    throw error;
+  }
+  client = c;
+  commActions.setSoftphoneReady(true);
+  return c;
+}
+
 async function ensureClient(): Promise<TelnyxRTC> {
   if (client) return client;
-  if (loggingIn) {
-    await new Promise((r) => {
-      const t = setInterval(() => {
-        if (!loggingIn) {
-          clearInterval(t);
-          r(null);
-        }
-      }, 150);
+  if (!connecting) {
+    connecting = createClient().finally(() => {
+      connecting = null;
     });
-    if (client) return client;
   }
+  return connecting;
+}
 
-  loggingIn = true;
+async function registerThisTab(): Promise<TelnyxRTC> {
+  if (connecting) {
+    await connecting.catch(() => undefined);
+  }
+  const previous = client;
+  client = null;
+  commActions.setSoftphoneReady(false);
+  await disconnectClient(previous);
+  return ensureClient();
+}
+
+async function ensureMicrophone() {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw softphoneError("MIC_UNAVAILABLE", "This browser can't use a microphone for calls. The call is still ringing for your teammates.");
+  }
   try {
-    const { data } = await apiClient.post("/api/crm/communications/rtc/token");
-    const payload = data?.data || data;
-    callerNumber = payload.callerNumber || "";
-
-    const c = new TelnyxRTC({ login_token: payload.token });
-    c.remoteElement = ensureAudioElement() as any;
-
-    c.on("telnyx.ready", () => commActions.setSoftphoneReady(true));
-    c.on("telnyx.error", () => commActions.setSoftphoneReady(false));
-    c.on("telnyx.socket.close", () => {
-      commActions.setSoftphoneReady(false);
-      client = null; // force re-login (token is short-lived)
-    });
-
-    c.on("telnyx.notification", (notification: any) => {
-      if (notification.type !== "callUpdate" || !notification.call) return;
-      const call = notification.call;
-
-      switch (call.state) {
-        case "ringing": {
-          // Inbound INVITE. Only auto-answer if we just claimed a call —
-          // anything else is unexpected and gets rejected.
-          if (expectingInbound) {
-            expectingInbound = false;
-            currentCall = call;
-            call.answer();
-            commActions.patchActiveCall({ phase: "connecting" });
-          } else {
-            call.hangup();
-          }
-          break;
-        }
-        case "active": {
-          currentCall = call;
-          commActions.patchActiveCall({ phase: "active", startedAt: Date.now() });
-          const ccid = (call as any).__clientCallId;
-          if (ccid) reportCall({ clientCallId: ccid, event: "answered" });
-          break;
-        }
-        case "hangup":
-        case "destroy": {
-          const ccid = (call as any).__clientCallId;
-          if (currentCall === call) {
-            currentCall = null;
-            commActions.setActiveCall(null);
-          }
-          if (ccid && !(call as any).__reportedEnd) {
-            (call as any).__reportedEnd = true;
-            reportCall({ clientCallId: ccid, event: "end", hangupCause: call.cause });
-          }
-          break;
-        }
-        default:
-          break;
-      }
-    });
-
-    await c.connect();
-    client = c;
-    return c;
-  } finally {
-    loggingIn = false;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+  } catch {
+    throw softphoneError(
+      "MIC_BLOCKED",
+      "Allow microphone access for Suprah in your browser, then try again. The call is still ringing for your teammates."
+    );
   }
 }
 
 export function useTelnyxRTC() {
-  const mounted = useRef(false);
-
   // Warm the softphone up on mount so inbound bridging works immediately.
   useEffect(() => {
-    mounted.current = true;
     ensureClient().catch(() => commActions.setSoftphoneReady(false));
-    return () => {
-      mounted.current = false;
-    };
   }, []);
 
   /** Outbound call from the customer profile. */
@@ -155,7 +217,7 @@ export function useTelnyxRTC() {
 
       const call = c.newCall({
         destinationNumber: phoneNumber,
-        callerNumber,
+        callerNumber: logged?.call?.from || callerNumber,
         audio: true,
         video: false,
         ...(logged?.correlation ? { clientState: btoa(JSON.stringify({ kind: 'recording-outbound', ...logged.correlation })) } : {}),
@@ -168,8 +230,7 @@ export function useTelnyxRTC() {
 
   /** Claim + auto-answer an inbound ringing call. */
   const answerInbound = useCallback(async (callLogId: string, meta: { phoneNumber: string; displayName?: string }) => {
-    await ensureClient(); // must be registered before the backend transfers
-    expectingInbound = true;
+    if (getCommState().activeCall) throw softphoneError("ALREADY_ON_CALL", "You're already on a call.");
     commActions.setActiveCall({
       kind: "inbound",
       phase: "connecting",
@@ -179,21 +240,40 @@ export function useTelnyxRTC() {
       callLogId,
     });
     try {
+      await ensureMicrophone();
+      await registerThisTab().catch(() => {
+        throw softphoneError(
+          "SOFTPHONE_NOT_READY",
+          "Your phone line couldn't connect. Check your internet connection and try again. The call is still ringing for your teammates."
+        );
+      });
+    } catch (err) {
+      if (getCommState().activeCall?.callLogId === callLogId) commActions.setActiveCall(null);
+      throw err;
+    }
+    if (getCommState().activeCall?.callLogId !== callLogId) return;
+    pendingAnswer = { callLogId, until: Date.now() + ANSWER_WINDOW_MS };
+    try {
       await apiClient.post(`/api/crm/communications/calls/${callLogId}/claim`);
       commActions.dismissIncoming(callLogId);
     } catch (err: any) {
-      expectingInbound = false;
-      commActions.setActiveCall(null);
+      if (pendingAnswer?.callLogId === callLogId) pendingAnswer = null;
+      if (getCommState().activeCall?.callLogId === callLogId) commActions.setActiveCall(null);
       commActions.dismissIncoming(callLogId);
       throw err;
     }
   }, []);
 
   const hangup = useCallback(() => {
-    try {
-      currentCall?.hangup();
-    } catch {
-      /* already ended */
+    if (currentCall) {
+      try {
+        currentCall.hangup();
+      } catch {
+        currentCall = null;
+      }
+    } else if (pendingAnswer) {
+      pendingAnswer = null;
+      refuseInvitesUntil = Date.now() + ANSWER_WINDOW_MS;
     }
     commActions.setActiveCall(null);
   }, []);

@@ -42,6 +42,7 @@ export interface Lead {
   };
   vehicleId?: string;
   location?: string;
+  dealershipLine?: string;
   comments: string;
   address?: string;
   birthday?: string;
@@ -104,6 +105,7 @@ interface UseLeadsOptions {
   source?: string | null
   dateFrom?: string | null
   dateTo?: string | null
+  liveRefreshMs?: number
 }
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -125,6 +127,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   source = null,
   dateFrom = null,
   dateTo = null,
+  liveRefreshMs = 0,
   } = options
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
@@ -228,6 +231,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     staleTime: 30_000,
 
     refetchOnWindowFocus: false,
+
+    refetchInterval: liveRefreshMs > 0 ? liveRefreshMs : false,
 
     retry: (failureCount, error: any) => {
       if (
@@ -473,7 +478,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   };
 };
 
-export const useLeadStatusCounts = () => {
+export const useLeadStatusCounts = (liveRefreshMs = 0) => {
   const { getToken } = useAuth();
 
   const { data, isLoading } = useQuery({
@@ -493,12 +498,13 @@ export const useLeadStatusCounts = () => {
 
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    refetchInterval: liveRefreshMs > 0 ? liveRefreshMs : false,
   });
 
   return { counts: data || {}, isLoading };
 };
 
-export const useLeadLocationCounts = () => {
+export const useLeadLocationCounts = (liveRefreshMs = 0) => {
   const { getToken } = useAuth();
 
   const { data, isLoading } = useQuery({
@@ -518,6 +524,7 @@ export const useLeadLocationCounts = () => {
 
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    refetchInterval: liveRefreshMs > 0 ? liveRefreshMs : false,
   });
 
   return { counts: data || {}, isLoading };

@@ -33,7 +33,8 @@ import { Pulse360Bell } from "@/components/crm/pulse360/Pulse360Bell";
 import { YapLineDock } from "@/components/yapline/YapLineDock";
 import IncomingCallCenter from "@/components/communications/IncomingCallCenter";
 import { useCommunicationSocket } from "@/hooks/useCommunicationSocket";
-import { connectCommunicationSocket } from "@/lib/communicationStore";
+import { commActions, connectCommunicationSocket, onCommunicationReconnect } from "@/lib/communicationStore";
+import { onSocketChange } from "@/lib/socket.client";
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -71,6 +72,7 @@ import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import { apiClient } from "@/lib/api-client";
+import { ExtensionAutoSignIn } from "@/components/crm/ExtensionAutoSignIn";
 // Suprah Meet — the meeting session lives at this shell level so navigating
 // anywhere keeps the call alive (minimize + floating mini window).
 import { MeetSessionProvider } from "@/components/suprah-meet/MeetSessionProvider"; // ← ADDED
@@ -518,6 +520,8 @@ function DashboardLayoutContent({
 
       {isCrmRoute && <IncomingCallCenter />}
 
+      <ExtensionAutoSignIn enabled={isCrmRoute} />
+
       {/* Browser web-push prompt — meaningless inside the native iOS app
           (WKWebView has no web push; native push will come via APNs). */}
       {showCrmPushPrompt && !isNativeApp && (
@@ -569,7 +573,21 @@ function CommunicationSocketGate({
   const { orgId } = useAuth();
 
   React.useEffect(() => {
-    if (enabled && socket && orgId) connectCommunicationSocket(socket, orgId);
+    if (!enabled || !orgId) return;
+    const recoverRingingCalls = () => {
+      const requestedAt = Date.now();
+      apiClient
+        .get("/api/crm/communications/calls/ringing")
+        .then((res) => commActions.replaceRinging(res.data?.data?.items || [], requestedAt))
+        .catch(() => undefined);
+    };
+    const stopRecovery = onCommunicationReconnect(recoverRingingCalls);
+    const stopWatching = onSocketChange((next) => connectCommunicationSocket(next, orgId));
+    if (socket) connectCommunicationSocket(socket, orgId);
+    return () => {
+      stopRecovery();
+      stopWatching();
+    };
   }, [enabled, socket, orgId]);
 
   return <>{children}</>;

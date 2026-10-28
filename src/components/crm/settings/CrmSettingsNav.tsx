@@ -11,6 +11,7 @@ import {
   Lock,
   MapPin,
   Phone,
+  PhoneCall,
   ShieldCheck,
   Users,
   type LucideIcon,
@@ -28,6 +29,7 @@ interface SettingsNavItem {
 }
 
 export const CRM_SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
+  { href: "/crm/settings/phone-numbers", label: "Phone Numbers", icon: PhoneCall, roles: ["admin"] },
   { href: "/crm/settings/call-recording", label: "Call Recording", icon: Phone, roles: ["admin"] },
   { href: "/crm/settings/call-routing", label: "Call Routing", icon: Phone, roles: ["admin"] },
   { href: "/crm/settings", label: "User Management", icon: Users, exact: true },

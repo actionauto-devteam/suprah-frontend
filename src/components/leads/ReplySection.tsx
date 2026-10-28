@@ -86,6 +86,7 @@ export interface ReplyChannelChoice {
   available: boolean;
   reason: string | null;
   recipientLabel: string | null;
+  senderLabel?: string | null;
 }
 
 export interface ReplyChannelSelector {
@@ -574,6 +575,14 @@ export const ReplySection = React.memo(
                         <span className="font-semibold text-slate-800 dark:text-slate-100">
                           {channelSelector[channelSelector.value].recipientLabel}
                         </span>
+                        {channelSelector[channelSelector.value].senderLabel && (
+                          <>
+                            {" "}from{" "}
+                            <span className="font-semibold text-slate-800 dark:text-slate-100">
+                              {channelSelector[channelSelector.value].senderLabel}
+                            </span>
+                          </>
+                        )}
                       </>
                     )
                     : null}

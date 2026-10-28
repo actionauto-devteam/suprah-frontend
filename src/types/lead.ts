@@ -37,6 +37,7 @@ export interface Lead {
   vehicle: VehicleInterest;
   vehicleId?: string;
   location?: string;
+  dealershipLine?: string;
   comments: string;
   subject?: string;
   body?: string;
