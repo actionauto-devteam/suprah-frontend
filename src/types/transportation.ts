@@ -1,3 +1,5 @@
+import type { QuoteLeadRef } from "@/lib/quote-lead";
+
 export interface Quote {
   _id: string;
   firstName: string;
@@ -39,6 +41,9 @@ export interface Quote {
   };
   /** Set when a customer sent the request from the customer portal. */
   source?: "customer_portal";
+  /** The dealership's CRM lead for this customer, and that lead's customer record. */
+  leadId?: QuoteLeadRef | string | null;
+  customerRecordId?: string | null;
   organization?: {
     name: string;
     logoUrl?: string;
