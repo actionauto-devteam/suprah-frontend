@@ -23,6 +23,7 @@ const {
   cancellationReasonLabel,
 } = loadLib('load-cancellation');
 const { CANCELLABLE_LOAD_STATUSES, isCancellableLoadStatus } = loadLib('load-status');
+const { getLoadDeleteBlockReason } = loadLib('load-delete-policy');
 
 test('matches the server list of reasons, each with a plain label', () => {
   assert.deepEqual([...LOAD_CANCELLATION_REASONS], [
@@ -55,4 +56,18 @@ test('loads can be cancelled only before pickup', () => {
     assert.equal(isCancellableLoadStatus(status), false);
   }
   assert.equal(isCancellableLoadStatus('Accepted'), true);
+});
+
+test('the delete button explains what to do instead', () => {
+  assert.equal(getLoadDeleteBlockReason({ status: 'Cancelled', assignedDriverId: null }), null);
+  assert.equal(getLoadDeleteBlockReason({ status: 'Posted', assignedDriverId: null }), null);
+  assert.equal(
+    getLoadDeleteBlockReason({ status: 'Accepted', assignedDriverId: 'driver-1' }),
+    "Loads with a driver can't be deleted. If the shipment isn't happening, open the load and choose Cancel load. You can delete it after that.",
+  );
+  assert.match(
+    getLoadDeleteBlockReason({ status: 'In-Transit', assignedDriverId: 'driver-1' }),
+    /^In-Transit loads can't be deleted while the vehicles are on the driver's truck\./,
+  );
+  assert.match(getLoadDeleteBlockReason({ status: 'Delivered', assignedDriverId: 'driver-1' }), /^Delivered loads are kept/);
 });

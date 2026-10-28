@@ -481,7 +481,7 @@ export default function LoadDetailsPage() {
   const [markDeliveredOpen, setMarkDeliveredOpen] = React.useState(false)
   const [cancelOpen, setCancelOpen] = React.useState(false)
   const queryClient = useQueryClient()
-  const { userId, orgRole, getToken } = useAuth()
+  const { userId, orgId, orgRole, getToken } = useAuth()
   const { user: currentUser } = useUser()
   const isNativeApp = useIsNativeApp()
 
@@ -668,10 +668,15 @@ export default function LoadDetailsPage() {
   const isOrgAdmin =
     ["admin", "super_admin"].includes(String(currentUser?.role ?? "")) ||
     ["admin", "super_admin"].includes(String(orgRole ?? ""))
+  // The server lets an admin act on a driver's load only in their own
+  // dealership, so a platform admin viewing another dealership doesn't get
+  // buttons it would refuse.
+  const isAdminOfThisDealership = isOrgAdmin && Boolean(orgId) && String(load.organizationId) === String(orgId)
+  const canManageDriverLoad = isAdminOfThisDealership || (Boolean(userId) && dispatchOwnerId === userId)
   const canMarkDelivered =
     ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(load.status) &&
     Boolean(load.assignedDriverId) &&
-    (isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+    canManageDriverLoad
   // The live route reveals where the driver is: the same people who can see
   // their location (the server checks too), while the load is on the road.
   const canSeeLiveRoute =
@@ -686,7 +691,7 @@ export default function LoadDetailsPage() {
     : (typeof assignedDriver === "object" && assignedDriver.name) || "The assigned driver"
   const canCancel =
     isCancellableLoadStatus(load.status) &&
-    (!load.assignedDriverId || isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+    (!load.assignedDriverId || canManageDriverLoad)
   const cancellation = load.status === "Cancelled" ? load.cancellation : undefined
 
   return (
