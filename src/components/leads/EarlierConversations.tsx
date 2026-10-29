@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, History, Loader2, Lock, Mail, MessageCircle, MessageSquare, Phone, ClipboardList } from "lucide-react";
+import { ChevronDown, History, Layers, Loader2, Lock, Mail, MessageCircle, MessageSquare, Phone, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   fetchEarlierConversation,
   type ConversationItem,
   type EarlierConversations as EarlierInfo,
+  type LeadCombineInfo,
 } from "@/lib/api/leadConversation";
+import { errorMessage, undoLeadCombine } from "@/lib/api/leadIntake";
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 const timeFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -67,6 +69,87 @@ function EarlierItems({ items }: { items: ConversationItem[] }) {
   );
 }
 
+export function CombineNotice({
+  leadId,
+  combine,
+  onUndone,
+}: {
+  leadId: string;
+  combine: LeadCombineInfo | null | undefined;
+  onUndone?: () => void;
+}) {
+  const [confirming, setConfirming] = React.useState(false);
+  const [working, setWorking] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    setConfirming(false);
+    setError("");
+  }, [leadId]);
+
+  if (!combine?.combined && !combine?.combinedInto) return null;
+
+  const when = formatDate(combine.combined?.at || combine.combinedInto?.at);
+  const text = combine.combined
+    ? `${combine.combined.count} duplicate ${combine.combined.count === 1 ? "lead" : "leads"} for this customer ${combine.combined.count === 1 ? "was" : "were"} combined into this lead${when ? ` on ${when}` : ""}. Their messages are under Earlier conversations.`
+    : `This lead was combined into ${combine.combinedInto?.name || "the customer's newest lead"}${when ? ` on ${when}` : ""}. New messages go there.`;
+
+  const undo = async () => {
+    setWorking(true);
+    setError("");
+    try {
+      await undoLeadCombine(leadId);
+      setConfirming(false);
+      onUndone?.();
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't undo. Please try again."));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-[12px] text-sky-900 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100" data-testid="combine-notice">
+      <div className="flex flex-wrap items-start gap-2">
+        <Layers className="mt-0.5 h-4 w-4 shrink-0" />
+        <p className="min-w-0 flex-1 leading-snug">{text}</p>
+        {combine.canUndo && !confirming && (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="rounded-md px-2 py-1 font-semibold underline-offset-2 hover:underline"
+          >
+            Undo combine
+          </button>
+        )}
+      </div>
+      {confirming && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1">Undo? The combined leads open again with their earlier status.</span>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={working}
+            className="rounded-md border border-sky-300 px-2.5 py-1 font-semibold dark:border-sky-400/30"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void undo()}
+            disabled={working}
+            className="flex items-center gap-1.5 rounded-md bg-sky-600 px-2.5 py-1 font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
+          >
+            {working && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Yes, undo
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-1.5 text-red-600 dark:text-red-300">{error}</p>}
+    </div>
+  );
+}
+
 export function EarlierConversations({ leadId, earlier }: { leadId: string; earlier: EarlierInfo | null | undefined }) {
   const [open, setOpen] = React.useState(false);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
@@ -85,7 +168,9 @@ export function EarlierConversations({ leadId, earlier }: { leadId: string; earl
     if (!earlier?.available) return [];
     const list = earlier.leads.map((entry) => ({
       id: entry._id,
-      title: `${entry.closed ? "Closed lead" : "Open lead"} · ${entry.status}`,
+      title: entry.combined
+        ? `Combined into this customer's lead · was ${entry.previousStatus || "open"}`
+        : `${entry.closed ? "Closed lead" : "Open lead"} · ${entry.status}`,
       detail: [entry.source, formatDate(entry.createdAt)].filter(Boolean).join(" · "),
     }));
     if (earlier.unlinkedCount > 0) {

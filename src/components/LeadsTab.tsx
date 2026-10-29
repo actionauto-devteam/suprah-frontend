@@ -1398,6 +1398,7 @@ export function LeadsTab({
             [lead._id]: {
               composer: data.composer,
               earlier: data.earlier,
+              combine: data.combine || null,
               unavailableSources: data.unavailableSources || [],
               unverified: Boolean(data.lead?.unverified),
               nextCursor: data.nextCursor,
@@ -2964,6 +2965,10 @@ export function LeadsTab({
                     loadState={threadLoadState[selectedLead._id] || "ready"}
                     onRetryLoad={() => void fetchThread(selectedLead)}
                     onLinkUnverified={reviewSummary?.canResolve ? () => setLinkLeadOpen(true) : undefined}
+                    onCombineUndone={() => {
+                      refetch();
+                      void fetchThread(selectedLead);
+                    }}
                   />
 
                   {conversationMeta[selectedLead._id]?.composer?.blocked &&

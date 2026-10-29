@@ -132,6 +132,7 @@ const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000
+const OTHER_REASON_MIN_CHARS = 10
 
 function fmt(d: Date) {
   return toMDTDate(d).toLocaleTimeString("en-US", {
@@ -389,6 +390,9 @@ export default function TimeprofClockPage() {
   const [earlyEndReason, setEarlyEndReason] = React.useState("")
   const [earlyEndDetails, setEarlyEndDetails] = React.useState("")
   const [earlyEndSubmitting, setEarlyEndSubmitting] = React.useState(false)
+  const earlyEndIsOther = earlyEndReason === "Other"
+  const earlyEndDetailsLength = earlyEndDetails.trim().length
+  const earlyEndNeedsMoreDetail = earlyEndIsOther && earlyEndDetailsLength < OTHER_REASON_MIN_CHARS
   const [locatorStatus, setLocatorStatus] = React.useState<{
     consentGranted: boolean
   } | null>(null)
@@ -1080,7 +1084,7 @@ export default function TimeprofClockPage() {
   }, [wallClockBaseMs, wallClockBaseAt])
 
   const handleEarlyEndSubmit = async () => {
-    if (!earlyEndReason) return
+    if (!earlyEndReason || earlyEndNeedsMoreDetail) return
     setEarlyEndSubmitting(true)
     try {
       const note = earlyEndDetails.trim() ? `${earlyEndReason} — ${earlyEndDetails.trim()}` : earlyEndReason
@@ -2097,12 +2101,25 @@ export default function TimeprofClockPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">Additional details (optional)</label>
-                <textarea value={earlyEndDetails} onChange={(e) => setEarlyEndDetails(e.target.value)} placeholder="Add more context here…" rows={3}
-                  className="w-full bg-zinc-800 border border-zinc-700/60 rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-amber-500/50 transition-colors resize-none" />
+                <label className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">
+                  {earlyEndIsOther ? <>Type your reason <span className="text-red-400">*</span></> : "Additional details (optional)"}
+                </label>
+                <textarea value={earlyEndDetails} onChange={(e) => setEarlyEndDetails(e.target.value)}
+                  placeholder={earlyEndIsOther ? `Tell us why you need to end early (at least ${OTHER_REASON_MIN_CHARS} characters)…` : "Add more context here…"} rows={3}
+                  className={cn(
+                    "w-full bg-zinc-800 border rounded-xl px-3 py-2.5 text-sm text-zinc-200 outline-none transition-colors resize-none",
+                    earlyEndNeedsMoreDetail && earlyEndDetailsLength > 0 ? "border-red-500/50 focus:border-red-500/70" : "border-zinc-700/60 focus:border-amber-500/50",
+                  )} />
+                {earlyEndIsOther && (
+                  <p className={cn("text-[12px]", earlyEndNeedsMoreDetail ? "text-red-400" : "text-emerald-400")}>
+                    {earlyEndNeedsMoreDetail
+                      ? `${earlyEndDetailsLength}/${OTHER_REASON_MIN_CHARS} characters — please type at least ${OTHER_REASON_MIN_CHARS} characters.`
+                      : `${earlyEndDetailsLength} characters — good to go.`}
+                  </p>
+                )}
               </div>
               <div className="space-y-2 pt-1">
-                <button onClick={handleEarlyEndSubmit} disabled={!earlyEndReason || earlyEndSubmitting}
+                <button onClick={handleEarlyEndSubmit} disabled={!earlyEndReason || earlyEndNeedsMoreDetail || earlyEndSubmitting}
                   className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-red-500/90 hover:bg-red-500 text-white text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                   {earlyEndSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogOut className="h-4 w-4" /> Submit &amp; End Shift</>}
                 </button>

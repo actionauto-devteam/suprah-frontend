@@ -34,6 +34,14 @@ export interface EarlierLeadSummary {
   channel?: string | null;
   createdAt: string;
   closed: boolean;
+  combined?: boolean;
+  previousStatus?: string | null;
+}
+
+export interface LeadCombineInfo {
+  combined?: { count: number; at: string };
+  combinedInto?: { leadId: string; name: string; at: string };
+  canUndo?: boolean;
 }
 
 export interface EarlierConversations {
@@ -56,6 +64,7 @@ export interface LeadConversationData {
   nextCursor: string | null;
   unavailableSources: string[];
   earlier: EarlierConversations | null;
+  combine?: LeadCombineInfo | null;
   channelState: {
     sms: PauseState & { conversationId: string | null; ownsConversation: boolean; optedOut: boolean };
     webchat: (PauseState & { sessionId: string; contactPolicy?: unknown }) | null;
@@ -66,6 +75,7 @@ export interface LeadConversationData {
 export interface LeadConversationMeta {
   composer: LeadConversationData["composer"];
   earlier: EarlierConversations | null;
+  combine?: LeadCombineInfo | null;
   unavailableSources: string[];
   unverified: boolean;
   nextCursor: string | null;
