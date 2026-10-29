@@ -44,6 +44,10 @@ export interface Quote {
   /** The dealership's CRM lead for this customer, and that lead's customer record. */
   leadId?: QuoteLeadRef | string | null;
   customerRecordId?: string | null;
+  /** A customer request closed because its vehicle left the marketplace. */
+  closedReason?: "vehicle_unavailable" | null;
+  /** Set when the quote's inventory vehicle was sold or removed. */
+  vehicleState?: "sold" | "removed";
   organization?: {
     name: string;
     logoUrl?: string;

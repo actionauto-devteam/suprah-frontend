@@ -8,124 +8,56 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
+  Clock,
   FileCheck,
   FileWarning,
+  Hand,
+  Inbox,
+  LogOut,
   MapPinOff,
+  PackageX,
+  UserX,
 } from "lucide-react"
 import { useAuth } from "@/providers/AuthProvider"
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 import { initializeSocket } from "@/lib/socket.client"
+import { getLoadAttention, type LoadAttentionKind } from "@/lib/api/loads"
 import {
-  getLoadAttention,
-  type LoadAttentionItem,
-  type LoadAttentionKind,
-} from "@/lib/api/loads"
+  ATTENTION_KIND_ORDER,
+  attentionHref,
+  attentionKey,
+  attentionKindLabel,
+  attentionTitle,
+  describeAttention,
+  mountainTodayKey,
+} from "@/lib/load-attention"
 import { cn } from "@/lib/utils"
 
 // ─── Needs attention ──────────────────────────────────────────────────────────
 // One place for what Dispatch should look at now: delivery photos waiting for
-// confirmation, missed pickup/delivery days, drivers whose GPS has gone quiet
-// and driver documents that have expired or expire soon. Hidden when there is
-// nothing to show (or the server doesn't offer the list).
+// confirmation, missed pickup/delivery days, loads with no driver on pickup
+// day, assignments not accepted, driver release and load requests, customer
+// shipping requests, vehicles removed from inventory before pickup, drivers
+// whose GPS has gone quiet and driver documents
+// that have expired or expire soon. Hidden when there is nothing to show (or
+// the server doesn't offer the list). The wording lives in lib/load-attention.
 
 const QUERY_KEY = ["transportation-load-attention"]
 const COLLAPSED_STORAGE_KEY = "transportation:needs-attention:collapsed"
 
-const KIND_META: Record<
-  LoadAttentionKind,
-  { label: (count: number) => string; icon: React.ElementType; tone: string }
-> = {
-  proof_waiting: {
-    label: (n) => `${n} delivery photo${n === 1 ? "" : "s"} to confirm`,
-    icon: FileCheck,
-    tone: "text-emerald-600 dark:text-emerald-400",
-  },
-  late_delivery: {
-    label: (n) => `${n} late deliver${n === 1 ? "y" : "ies"}`,
-    icon: CalendarClock,
-    tone: "text-red-600 dark:text-red-400",
-  },
-  late_pickup: {
-    label: (n) => `${n} late pickup${n === 1 ? "" : "s"}`,
-    icon: CalendarClock,
-    tone: "text-amber-600 dark:text-amber-400",
-  },
-  gps_quiet: {
-    label: (n) => `${n} driver${n === 1 ? "" : "s"} not sharing location`,
-    icon: MapPinOff,
-    tone: "text-red-600 dark:text-red-400",
-  },
-  document_expired: {
-    label: (n) => `${n} expired document${n === 1 ? "" : "s"}`,
-    icon: FileWarning,
-    tone: "text-red-600 dark:text-red-400",
-  },
-  document_expiring: {
-    label: (n) => `${n} document${n === 1 ? "" : "s"} expiring soon`,
-    icon: FileWarning,
-    tone: "text-amber-600 dark:text-amber-400",
-  },
-}
-
-const KIND_ORDER: LoadAttentionKind[] = [
-  "proof_waiting",
-  "late_delivery",
-  "late_pickup",
-  "gps_quiet",
-  "document_expired",
-  "document_expiring",
-]
-
-/** "Oct 12" for a YYYY-MM-DD calendar day. */
-function formatDay(day?: string): string {
-  if (!day) return "an earlier day"
-  const date = new Date(`${day}T12:00:00Z`)
-  if (!Number.isFinite(date.getTime())) return day
-  return date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
-}
-
-/** "25 min ago", "3 h ago", "2 days ago". */
-function formatAgo(iso?: string): string {
-  if (!iso) return ""
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000))
-  if (!Number.isFinite(minutes)) return ""
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 48) return `${hours} h ago`
-  return `${Math.round(hours / 24)} days ago`
-}
-
-function describe(item: LoadAttentionItem): string {
-  const driver = item.driverName || "The driver"
-  switch (item.kind) {
-    case "proof_waiting":
-      return `Delivery photo waiting for your confirmation${item.since ? ` · sent ${formatAgo(item.since)}` : ""}`
-    case "late_delivery":
-      return `Delivery was due ${formatDay(item.date)} · ${item.status}`
-    case "late_pickup":
-      return `Pickup was due ${formatDay(item.date)} · ${item.status}`
-    case "gps_quiet":
-      return item.since
-        ? `${driver} hasn't shared location since ${formatAgo(item.since)}`
-        : `${driver} isn't sharing location`
-    case "document_expired":
-      return `${driver}'s ${item.credential ?? "document"} expired on ${formatDay(item.date)}`
-    case "document_expiring":
-      return `${driver}'s ${item.credential ?? "document"} expires ${
-        (item.daysLeft ?? 0) <= 1 ? "tomorrow" : `in ${item.daysLeft} days`
-      }`
-  }
-}
-
-/**
- * Where a row goes: the delivery review for proofs, otherwise the load. The
- * iPhone app has no Billing pages, so there proofs open the load page, which
- * shows the delivery photo.
- */
-function hrefFor(item: LoadAttentionItem, inNativeApp: boolean): string {
-  return item.kind === "proof_waiting" && !inNativeApp
-    ? `/billing/driver-payouts/${item.loadId}`
-    : `/transportation/load/${item.loadId}`
+const KIND_STYLE: Record<LoadAttentionKind, { icon: React.ElementType; tone: string }> = {
+  proof_waiting: { icon: FileCheck, tone: "text-emerald-600 dark:text-emerald-400" },
+  late_delivery: { icon: CalendarClock, tone: "text-red-600 dark:text-red-400" },
+  late_pickup: { icon: CalendarClock, tone: "text-amber-600 dark:text-amber-400" },
+  unassigned_pickup: { icon: UserX, tone: "text-red-600 dark:text-red-400" },
+  not_accepted: { icon: Clock, tone: "text-amber-600 dark:text-amber-400" },
+  release_request: { icon: LogOut, tone: "text-red-600 dark:text-red-400" },
+  gps_quiet: { icon: MapPinOff, tone: "text-red-600 dark:text-red-400" },
+  load_request: { icon: Hand, tone: "text-blue-600 dark:text-blue-400" },
+  customer_request: { icon: Inbox, tone: "text-emerald-600 dark:text-emerald-400" },
+  vehicle_removed: { icon: PackageX, tone: "text-red-600 dark:text-red-400" },
+  document_expired: { icon: FileWarning, tone: "text-red-600 dark:text-red-400" },
+  document_expiring: { icon: FileWarning, tone: "text-amber-600 dark:text-amber-400" },
 }
 
 export function NeedsAttentionPanel({ className }: { className?: string }) {
@@ -142,7 +74,8 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
     retry: 1,
   })
 
-  // Load updates (new proof, status change, edits) refresh the list.
+  // Load updates (new proof, status change, driver requests, edits) and quote
+  // updates (customer requests) refresh the list.
   React.useEffect(() => {
     let active = true
     let timer: number | undefined
@@ -158,13 +91,18 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
       if (!token || !active) return
       socket = initializeSocket(token)
       socket.on("load:change", refresh)
+      socket.on("quote:change", refresh)
     })()
     return () => {
       active = false
       window.clearTimeout(timer)
       socket?.off("load:change", refresh)
+      socket?.off("quote:change", refresh)
     }
   }, [getToken, queryClient])
+
+  // Mountain Time "today", so "pickup is today" matches the dealership calendar.
+  const todayKey = mountainTodayKey()
 
   const [collapsed, setCollapsed] = React.useState(false)
   React.useEffect(() => {
@@ -185,10 +123,10 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
     })
   }
 
-  const total = data ? KIND_ORDER.reduce((sum, kind) => sum + (data.counts?.[kind] ?? 0), 0) : 0
+  const total = data ? ATTENTION_KIND_ORDER.reduce((sum, kind) => sum + (data.counts?.[kind] ?? 0), 0) : 0
   if (!data || total === 0) return null
 
-  const summary = KIND_ORDER.filter((kind) => (data.counts?.[kind] ?? 0) > 0)
+  const summary = ATTENTION_KIND_ORDER.filter((kind) => (data.counts?.[kind] ?? 0) > 0)
 
   return (
     <section
@@ -213,7 +151,7 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
             </span>
           </span>
           <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-            {summary.map((kind) => KIND_META[kind].label(data.counts[kind])).join(" · ")}
+            {summary.map((kind) => attentionKindLabel(kind, data.counts[kind])).join(" · ")}
           </span>
         </span>
         <ChevronDown
@@ -224,18 +162,18 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
       {!collapsed && (
         <ul id="needs-attention-list" className="max-h-80 overflow-y-auto border-t border-border/60 px-1.5 py-1.5 sm:px-2">
           {data.items.map((item) => {
-            const meta = KIND_META[item.kind]
+            const meta = KIND_STYLE[item.kind]
             const Icon = meta.icon
             return (
-              <li key={`${item.kind}:${item.loadId}:${item.credential ?? ""}`}>
+              <li key={attentionKey(item)}>
                 <Link
-                  href={hrefFor(item, inNativeApp)}
+                  href={attentionHref(item, inNativeApp)}
                   className="flex min-h-11 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
                   <Icon className={cn("size-4 shrink-0", meta.tone)} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-mono text-xs font-bold text-foreground">{item.loadNumber}</span>
-                    <span className="block text-xs leading-snug text-muted-foreground">{describe(item)}</span>
+                    <span className="block truncate font-mono text-xs font-bold text-foreground">{attentionTitle(item)}</span>
+                    <span className="block text-xs leading-snug text-muted-foreground">{describeAttention(item, todayKey)}</span>
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
                 </Link>

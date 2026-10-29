@@ -89,6 +89,12 @@ const navSections = [
         icon: Heart,
         hoverTooltip: "Vehicles you've saved from the shop.",
       },
+      {
+        title: "My Shipments",
+        url: "/customer/shipments",
+        icon: Truck,
+        hoverTooltip: "Shipping quotes you asked for and how each shipment is going.",
+      },
     ],
   },
   {
