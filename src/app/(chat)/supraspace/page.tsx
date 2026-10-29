@@ -1,6 +1,9 @@
 'use client';
 
+import { loadSupraSpaceMessageTarget, revealSupraSpaceMessage, supraSpaceSearchExcerpt } from '@/lib/supraspace-message-navigation';
+
 import * as React from 'react';
+import { useMessageSearch } from '@/components/supraspace/useMessageSearch';
 import { isAxiosError, type AxiosRequestConfig } from 'axios';
 import { createMessageId, type ComposerDraft, type FailedSend } from '@/components/supraspace/composer/send-state';
 import { reconcileSupraSpaceDelivery } from '@/components/supraspace/composer/delivery-reconciliation';
@@ -91,9 +94,7 @@ const SS4_MESSAGE_LIMIT_WARNING_CHARS = 9500;
 const SS4_MESSAGE_LIMIT_ERROR = 'Messages can be up to 10,000 characters. Send the rest in a new message.';
 const SS4_MESSAGE_PAGE_SIZE = 40;
 const SS4_CONVERSATION_PAGE_SIZE = 80;
-const SS4_MESSAGE_HIGHLIGHT_DURATION_MS = 2300;
 const SS4_OPEN_BOTTOM_STABILIZATION_MS = 1200;
-const ss4MessageHighlightTimers = new WeakMap<HTMLElement, number>();
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
 type PasteMode = 'formatted' | 'plain';
 
@@ -104,19 +105,6 @@ type SS4InlineTypingPreferences = Record<
 >;
 
 const EMPTY_MEMBERS_ARRAY: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }> = [];
-
-function highlightSupraSpaceMessageTarget(target: HTMLElement): void {
-  const existingTimer = ss4MessageHighlightTimers.get(target);
-  if (existingTimer !== undefined) window.clearTimeout(existingTimer);
-
-  target.classList.remove('ss4-msg-highlight');
-  void target.offsetWidth;
-  target.classList.add('ss4-msg-highlight');
-  ss4MessageHighlightTimers.set(target, window.setTimeout(() => {
-    target.classList.remove('ss4-msg-highlight');
-    ss4MessageHighlightTimers.delete(target);
-  }, SS4_MESSAGE_HIGHLIGHT_DURATION_MS));
-}
 
 function shallowEqualFlat<T extends Record<string, unknown>>(a: T, b: T): boolean {
   const keysA = Object.keys(a);
@@ -3676,6 +3664,12 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
     .replace(/\n{4,}/g, '\n\n\n');
+}
+
+function renderSearchExcerpt(content: string, query: string): React.ReactNode {
+  return supraSpaceSearchExcerpt(messagePreviewText(content), query).map((part, index) => part.match
+    ? <mark key={index} style={{ background: '#fbbf24', color: '#1c1917', borderRadius: 2 }}>{part.text}</mark>
+    : <React.Fragment key={index}>{part.text}</React.Fragment>);
 }
 
 function messagePreviewText(content?: string | null): string {
@@ -9880,20 +9874,7 @@ export default function SupraSpacePage() {
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned' | 'search'>('members');
   const [convSearchQuery, setConvSearchQuery] = React.useState('');
-  const [convSearchResults, setConvSearchResults] = React.useState<SSMessageSearchResult[]>([]);
-  const [convSearching, setConvSearching] = React.useState(false);
-  React.useEffect(() => {
-    if (infoTab !== 'search' || !token || !activeId || convSearchQuery.trim().length < 2) {
-      setConvSearchResults([]);
-      return;
-    }
-    setConvSearching(true);
-    const t = setTimeout(() => {
-      apiClient.get('/api/supraspace/search', { headers: { Authorization: `Bearer ${token}` }, params: { q: convSearchQuery.trim(), conversationId: activeId } })
-        .then(r => setConvSearchResults(r.data?.data || [])).catch(() => setConvSearchResults([])).finally(() => setConvSearching(false));
-    }, 350);
-    return () => clearTimeout(t);
-  }, [infoTab, convSearchQuery, activeId, token]);
+  const { results: convSearchResults, searching: convSearching, hasMore: convSearchHasMore, error: convSearchError, loadMore: loadMoreConvSearch } = useMessageSearch<SSMessageSearchResult>(token, convSearchQuery, activeId, showInfo && infoTab === 'search');
   const [ssMediaItems, setSsMediaItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssFileItems, setSsFileItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssAttachmentsLoading, setSsAttachmentsLoading] = React.useState(false);
@@ -10017,8 +9998,7 @@ export default function SupraSpacePage() {
     };
   }, [activeId]);
 
-  const [msgResults, setMsgResults] = React.useState<SSMessageSearchResult[]>([]);
-  const [searching, setSearching] = React.useState(false);
+  const { results: msgResults, searching, hasMore: msgSearchHasMore, error: msgSearchError, loadMore: loadMoreMsgSearch } = useMessageSearch<SSMessageSearchResult>(token, q);
   // A search result can already be mounted in the current timeline. Keep a
   // render signal alongside the target ref so selecting it still runs the
   // reveal effect instead of only updating the ref.
@@ -10051,8 +10031,10 @@ export default function SupraSpacePage() {
   const unreadBoundaryPendingCountsRef = React.useRef<Record<string, number>>({});
   const fetchSeqRef = React.useRef<Record<string, number>>({});
   const refreshFormatsRafRef = React.useRef<number | null>(null);
-  const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string } | null>(null);
+  const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string; query?: string } | null>(null);
   const notificationTargetFetchesRef = React.useRef(new Set<string>());
+  const messageRevealCleanupRef = React.useRef<(() => void) | null>(null);
+  const [messageTargetLoading, setMessageTargetLoading] = React.useState<string | null>(null);
   const composerDraftsRef = React.useRef<Record<string, string>>({});
   const previousComposerConversationRef = React.useRef<string | null>(null);
   const [composerDraftPreviews, setComposerDraftPreviews] = React.useState<Record<string, string>>({});
@@ -10174,6 +10156,10 @@ export default function SupraSpacePage() {
   }, []);
 
   const scrollToLatest = React.useCallback((behavior: ScrollBehavior = 'smooth', conversationId = activeIdRef.current) => {
+    messageRevealCleanupRef.current?.();
+    pendingNotificationTargetRef.current = null;
+    setMessageTargetLoading(null);
+    suppressAutoScrollOnceRef.current = false;
     if (conversationId) forceScrollToBottomRef.current = conversationId;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -11025,9 +11011,15 @@ export default function SupraSpacePage() {
 
   React.useLayoutEffect(() => {
     const target = pendingNotificationTargetRef.current;
-    if (!target || target.conversationId !== activeId) return;
+    if (!target) return;
+    if (target.conversationId !== activeId) {
+      pendingNotificationTargetRef.current = null;
+      setMessageTargetLoading(null);
+      return;
+    }
 
     if (!target.messageId) {
+      messageRevealCleanupRef.current?.();
       scrollToLatest('auto', target.conversationId);
       pendingNotificationTargetRef.current = null;
       return;
@@ -11037,47 +11029,54 @@ export default function SupraSpacePage() {
     if (!conversationMessages.some(message => message._id === target.messageId)) {
       const targetKey = `${target.conversationId}:${target.messageId}`;
       if (notificationTargetFetchesRef.current.has(targetKey)) return;
-
       const token = tokenRef.current;
       if (!token) return;
       notificationTargetFetchesRef.current.add(targetKey);
-
-      void apiClient
-        .get(`/api/supraspace/conversations/${target.conversationId}/messages/${target.messageId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        .then((response) => {
-          const message = response.data?.data as SSMessage | undefined;
-          if (!message?._id) {
-            if (pendingNotificationTargetRef.current?.conversationId === target.conversationId
-              && pendingNotificationTargetRef.current?.messageId === target.messageId) {
-              pendingNotificationTargetRef.current = null;
-            }
-            return;
-          }
-          setMsgs(previous => ({
-            ...previous,
-            [target.conversationId]: mergeMessages(previous[target.conversationId] || [], [message]),
-          }));
-        })
-        .catch(() => {
-          if (pendingNotificationTargetRef.current?.conversationId === target.conversationId
-            && pendingNotificationTargetRef.current?.messageId === target.messageId) {
-            pendingNotificationTargetRef.current = null;
-          }
-        })
-        .finally(() => {
-          notificationTargetFetchesRef.current.delete(targetKey);
+      setMessageTargetLoading(targetKey);
+      void loadSupraSpaceMessageTarget(
+        (path, params) => apiClient.get(path, { headers: { Authorization: `Bearer ${token}` }, params }),
+        target.conversationId, target.messageId, msgsRef.current[target.conversationId] || [],
+        () => pendingNotificationTargetRef.current === target && activeIdRef.current === target.conversationId,
+      ).then(({ messages, hasOlder }) => {
+        if (pendingNotificationTargetRef.current !== target || activeIdRef.current !== target.conversationId) return;
+        pendingScrollRestoreRef.current = null;
+        suppressAutoScrollOnceRef.current = true;
+        setMsgs(previous => ({ ...previous, [target.conversationId]: mergeMessages(previous[target.conversationId] || [], messages) }));
+        setHasMore(previous => {
+          const oldest = msgsRef.current[target.conversationId]?.[0];
+          const fetchedOldest = messages[0];
+          if (oldest && fetchedOldest && (new Date(oldest.createdAt).getTime() < new Date(fetchedOldest.createdAt).getTime()
+            || (oldest.createdAt === fetchedOldest.createdAt && oldest._id < fetchedOldest._id))) return previous;
+          return { ...previous, [target.conversationId]: hasOlder };
         });
+      }).catch(() => {
+        if (pendingNotificationTargetRef.current !== target) return;
+        pendingNotificationTargetRef.current = null;
+        toast.error('Could not load the selected message. It may no longer be available.');
+      }).finally(() => {
+        notificationTargetFetchesRef.current.delete(targetKey);
+        setMessageTargetLoading(current => current === targetKey ? null : current);
+        setMessageTargetRequest(previous => previous + 1);
+      });
       return;
     }
-
+    // Wait for older-page restoration and loading UI to finish before positioning.
+    if (loadingMsgs || loadingOlderMessages || messageTargetLoading === `${target.conversationId}:${target.messageId}`) return;
     const el = document.getElementById(`ss4-msg-${target.messageId}`);
-    if (!el) return;
-    highlightSupraSpaceMessageTarget(el);
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const container = messageScrollRef.current;
+    if (!el || !container) return;
+    cancelOpenBottomLock();
+    pendingScrollRestoreRef.current = null;
+    suppressAutoScrollOnceRef.current = true;
+    messageRevealCleanupRef.current?.();
+    messageRevealCleanupRef.current = revealSupraSpaceMessage(el, container, target.query);
     pendingNotificationTargetRef.current = null;
-  }, [activeId, messageTargetRequest, msgs, scrollToLatest]);
+  }, [activeId, messageTargetRequest, msgs, scrollToLatest, loadingMsgs, loadingOlderMessages, messageTargetLoading, cancelOpenBottomLock]);
+
+  React.useLayoutEffect(() => () => {
+    messageRevealCleanupRef.current?.();
+    if (pendingNotificationTargetRef.current?.conversationId === activeId) pendingNotificationTargetRef.current = null;
+  }, [activeId]);
 
   const targetUserId = searchParams.get('userId');
   React.useEffect(() => {
@@ -11327,7 +11326,7 @@ export default function SupraSpacePage() {
   React.useLayoutEffect(() => {
     const pending = pendingScrollRestoreRef.current;
     const el = messageScrollRef.current;
-    if (!pending || !el || pending.convId !== activeId) return;
+    if (!pending || !el || pending.convId !== activeId || pendingNotificationTargetRef.current) return;
 
     const heightDelta = el.scrollHeight - pending.scrollHeight;
     el.scrollTop = pending.scrollTop + heightDelta;
@@ -11337,7 +11336,7 @@ export default function SupraSpacePage() {
 
   React.useLayoutEffect(() => {
     const el = messageScrollRef.current;
-    if (!el || pendingScrollRestoreRef.current) return;
+    if (!el || pendingScrollRestoreRef.current || pendingNotificationTargetRef.current) return;
 
     if (suppressAutoScrollOnceRef.current) {
       suppressAutoScrollOnceRef.current = false;
@@ -11606,15 +11605,6 @@ export default function SupraSpacePage() {
     return () => document.removeEventListener('mousedown', h);
   }, [memberCard]);
 
-  React.useEffect(() => {
-    if (!token || q.trim().length < 2) { setMsgResults([]); setSearching(false); return; }
-    setSearching(true);
-    const t = setTimeout(() => {
-      apiClient.get('/api/supraspace/search', { headers: { Authorization: `Bearer ${token}` }, params: { q: q.trim() } })
-        .then(r => setMsgResults(r.data?.data || [])).catch(() => setMsgResults([])).finally(() => setSearching(false));
-    }, 350);
-    return () => clearTimeout(t);
-  }, [q, token]);
 
   const handleSend = async (scheduledAt?: string, retry?: FailedSend) => {
     if (!activeId || sending) return;
@@ -12777,64 +12767,18 @@ export default function SupraSpacePage() {
     }
   }, [activeId, pinnedMsgIds, uid, token, patchMsg, fetchPinnedMessages, pinnedMessages]);
 
-  const jumpToMessage = React.useCallback(async (msgId: string, createdAt?: string) => {
+  const jumpToMessage = React.useCallback((msgId: string) => {
+    if (!activeId) return;
+    setMessageTargetLoading(null);
     setPinnedModalOpen(false);
     setShowInfo(false);
-    const scrollToTarget = () => {
-      const target = document.getElementById(`ss4-msg-${msgId}`);
-      if (!target) return false;
-      highlightSupraSpaceMessageTarget(target);
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.animate(
-        [
-          { boxShadow: '0 0 0 0 rgba(46, 213, 127, 0)', transform: 'scale(1)' },
-          { boxShadow: '0 0 0 4px rgba(46, 213, 127, 0.5), 0 0 26px rgba(46, 213, 127, 0.28)', transform: 'scale(1.01)' },
-          { boxShadow: '0 0 0 0 rgba(46, 213, 127, 0)', transform: 'scale(1)' },
-        ],
-        { duration: 1300, easing: 'ease' },
-      );
-      return true;
-    };
-
-    if (scrollToTarget()) return;
-    if (!activeId || !createdAt || !token) {
-      toast.info('Original message is not available in this conversation.');
-      return;
-    }
-
-    const timestamp = new Date(createdAt);
-    if (Number.isNaN(timestamp.getTime())) {
-      toast.info('Original message is not available in this conversation.');
-      return;
-    }
-
+    cancelOpenBottomLock();
+    messageRevealCleanupRef.current?.();
+    pendingScrollRestoreRef.current = null;
+    suppressAutoScrollOnceRef.current = true;
     pendingNotificationTargetRef.current = { conversationId: activeId, messageId: msgId };
-    setLoadingMsgs(true);
-    try {
-      const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          before: new Date(timestamp.getTime() + 1000).toISOString(),
-          limit: SS4_MESSAGE_PAGE_SIZE,
-        },
-      });
-      const messages: SSMessage[] = r.data?.data || [];
-      if (!messages.some(message => message._id === msgId)) {
-        pendingNotificationTargetRef.current = null;
-        toast.info('Original message is no longer available.');
-        return;
-      }
-      setMsgs(previous => ({
-        ...previous,
-        [activeId]: mergeMessages(previous[activeId] || [], messages),
-      }));
-    } catch {
-      pendingNotificationTargetRef.current = null;
-      toast.error('Could not load the original message.');
-    } finally {
-      setLoadingMsgs(false);
-    }
-  }, [activeId, token]);
+    setMessageTargetRequest(previous => previous + 1);
+  }, [activeId, cancelOpenBottomLock]);
 
   const togglePinConv = React.useCallback(async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
@@ -13910,7 +13854,7 @@ export default function SupraSpacePage() {
   handleReorderConvRef.current = handleReorderConv;
 
   const loadMore = React.useCallback(async () => {
-    if (!activeId || !hasMore[activeId] || loadingMsgs) return;
+    if (!activeId || !hasMore[activeId] || loadingMsgs || pendingNotificationTargetRef.current || messageTargetLoading) return;
     if (forceScrollToBottomRef.current === activeId) return;
     const scrollEl = messageScrollRef.current;
     if (scrollEl) {
@@ -13941,7 +13885,7 @@ export default function SupraSpacePage() {
     } catch {
       pendingScrollRestoreRef.current = null;
     } finally { setLoadingMsgs(false); setLoadingOlderMessages(false); }
-  }, [activeId, activeMsgs, hasMore, loadingMsgs, token, uid]);
+  }, [activeId, activeMsgs, hasMore, loadingMsgs, messageTargetLoading, token, uid]);
 
   const refreshActiveMedia = React.useCallback(() => {
     if (!activeId) return;
@@ -14039,10 +13983,12 @@ export default function SupraSpacePage() {
     };
   }, []);
 
-  const openSearchResult = React.useCallback(async (convId: string, messageId: string, createdAt?: string) => {
+  const openSearchResult = React.useCallback(async (convId: string, messageId: string, _createdAt?: string, query?: string) => {
+    setMessageTargetLoading(null);
     setQ('');
     setMobileSearchOpen(false);
     cancelOpenBottomLock();
+    messageRevealCleanupRef.current?.();
     pendingScrollRestoreRef.current = null;
     suppressAutoScrollOnceRef.current = true;
     setShowJumpToLatest(false);
@@ -14051,7 +13997,7 @@ export default function SupraSpacePage() {
     setStoredSupraSpaceConversationId(convId, uid);
     setActiveId(convId);
     setManualUnread(p => { if (!p.has(convId)) return p; const n = new Set(p); n.delete(convId); return n; });
-    pendingNotificationTargetRef.current = { conversationId: convId, messageId };
+    pendingNotificationTargetRef.current = { conversationId: convId, messageId, query };
 
     // This path can reuse an already-cached message, so it cannot rely on the
     // message fetch below to create the receipt. The socket helper queues the
@@ -14078,27 +14024,6 @@ export default function SupraSpacePage() {
     // rendered timeline (which otherwise leaves the viewport unchanged).
     setMessageTargetRequest(previous => previous + 1);
 
-    if ((msgsRef.current[convId] || []).some(m => m._id === messageId)) return;
-
-    const t = tokenRef.current;
-    if (!t) return;
-    setLoadingMsgs(true);
-    try {
-      const params: Record<string, string | number> = { limit: SS4_MESSAGE_PAGE_SIZE };
-      if (createdAt) params.before = new Date(new Date(createdAt).getTime() + 1000).toISOString();
-      const r = await apiClient.get(`/api/supraspace/conversations/${convId}/messages`, {
-        headers: { Authorization: `Bearer ${t}` }, params,
-      });
-      const d: SSMessage[] = r.data?.data || [];
-      // Preserve already-loaded newer messages so a jump into older history
-      // remains a normal, two-direction scrollable conversation.
-      setMsgs(p => ({ ...p, [convId]: mergeMessages(p[convId] || [], d) }));
-      setHasMore(p => ({ ...p, [convId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
-      setMsgFetchState(p => ({ ...p, [convId]: 'loaded' }));
-    } catch {
-    } finally {
-      setLoadingMsgs(false);
-    }
   }, [cancelOpenBottomLock, ctxMarkAsRead, markConversationActivity, markRead, uid]);
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
@@ -14950,13 +14875,14 @@ export default function SupraSpacePage() {
                     const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
                     const cName = typeof rawConv === 'object' && rawConv?.type === 'group' ? (rawConv.name || 'Channel') : 'Direct message';
                     return (
-                      <button key={m._id} onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                      <button key={m._id} onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt, q)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
                         <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
-                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
+                        <span className="w-full whitespace-normal break-words" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{renderSearchExcerpt(m.content, q)}</span>
                       </button>
                     );
                   })}
-                  {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
+                  {(msgSearchHasMore || msgSearchError) && <button type="button" onClick={loadMoreMsgSearch} disabled={searching} className="ss4-pill-btn w-full py-2">{searching ? 'Loading...' : msgSearchError ? 'Retry search' : 'Load older matches'}</button>}
+                  {!searching && !msgSearchError && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
                 </div>
               )}
               {loadingMoreConversations && q.trim().length < 2 && (
@@ -15086,15 +15012,16 @@ export default function SupraSpacePage() {
                                   key={m._id}
                                   type="button"
                                   disabled={!resultConversationId}
-                                  onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)}
+                                  onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt, q)}
                                   className="flex w-full flex-col items-start rounded-2xl px-2.5 py-2.5 text-left transition-colors active:bg-white/5 disabled:opacity-50"
                                 >
                                   <span className="max-w-full truncate font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{cName}</span>
                                   <span className="max-w-full truncate" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{m.sender?.fullName || 'Unknown sender'}</span>
-                                  <span className="mt-1 max-w-full truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{messagePreviewText(m.content)}</span>
+                                  <span className="mt-1 max-w-full whitespace-normal break-words" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{renderSearchExcerpt(m.content, q)}</span>
                                 </button>
                               );
                             })}
+                            {(msgSearchHasMore || msgSearchError) && <button type="button" onClick={loadMoreMsgSearch} disabled={searching} className="ss4-pill-btn w-full py-2">{searching ? 'Loading...' : msgSearchError ? 'Retry search' : 'Load older matches'}</button>}
                           </div>
                         </div>
                       )}
@@ -15355,6 +15282,7 @@ export default function SupraSpacePage() {
 
                   {/* Messages */}
                   <div className="relative flex-1 min-h-0">
+                    {messageTargetLoading?.startsWith(`${activeId}:`) && <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded-full px-4 py-2 text-xs shadow" style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}>Loading selected message...</div>}
                     <div
                       ref={messageScrollRef}
                       onScroll={handleMessageScroll}
@@ -16482,8 +16410,10 @@ export default function SupraSpacePage() {
                             />
                           </div>
                           {convSearchQuery.trim().length >= 2 && (
-                            convSearching ? (
+                            convSearching && convSearchResults.length === 0 ? (
                               <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Searching…</p>
+                            ) : convSearchError && convSearchResults.length === 0 ? (
+                              <button type="button" onClick={loadMoreConvSearch} className="ss4-pill-btn w-full py-2">Search failed. Retry</button>
                             ) : convSearchResults.length === 0 ? (
                               <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matching messages</p>
                             ) : (
@@ -16491,7 +16421,7 @@ export default function SupraSpacePage() {
                                 {convSearchResults.map(m => (
                                   <button
                                     key={m._id}
-                                    onClick={() => { setShowInfo(false); openSearchResult(activeId, m._id, m.createdAt); }}
+                                    onClick={() => { setShowInfo(false); openSearchResult(activeId, m._id, m.createdAt, convSearchQuery); }}
                                     className="w-full text-left rounded-xl px-3 py-2.5"
                                     style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
                                   >
@@ -16499,9 +16429,10 @@ export default function SupraSpacePage() {
                                       <p className="font-semibold truncate" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{m.sender?.fullName || 'Deleted User'}</p>
                                       <p className="shrink-0" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtRelative(m.createdAt)}</p>
                                     </div>
-                                    <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content) || '\u{1f4ce} Attachment'}</p>
+                                    <p className="mt-0.5 whitespace-normal break-words" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{renderSearchExcerpt(m.content, convSearchQuery)}</p>
                                   </button>
                                 ))}
+                                {(convSearchHasMore || convSearchError) && <button type="button" onClick={loadMoreConvSearch} disabled={convSearching} className="ss4-pill-btn w-full py-2">{convSearching ? 'Loading...' : convSearchError ? 'Retry search' : 'Load older matches'}</button>}
                               </div>
                             )
                           )}

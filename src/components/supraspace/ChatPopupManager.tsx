@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { loadSupraSpaceMessageTarget, revealSupraSpaceMessage } from '@/lib/supraspace-message-navigation';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react';
@@ -33,6 +34,8 @@ import { getOperationalMessageKind, OperationalMessageCard } from './Operational
 import { PreSendMediaPreview } from './PreSendMediaPreview';
 import { AdaptiveAttachmentImage, getSupraSpaceImageFileDimensions } from './AdaptiveAttachmentImage';
 import { SeenBySummary } from './SeenBySummary';
+import { MessageSearchModal } from './MessageSearchModal';
+import { mergeMessages } from './messages/message-state';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -4326,6 +4329,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
   const pinRequestIdsRef = React.useRef(new Set<string>());
   const [pinnedOpen, setPinnedOpen] = React.useState(false);
+  const [messageSearchOpen, setMessageSearchOpen] = React.useState(false);
   const syncPinnedMessageIds = React.useCallback((nextMessages: SSMessage[]) => {
     setPinnedMsgIds(prev => {
       const next = new Set(prev);
@@ -4597,59 +4601,100 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const jumpToPopupRepliedMessage = React.useCallback((replyTo: SSMessage['replyTo']) => {
-    const targetId =
-      typeof replyTo === 'string'
-        ? replyTo
-        : replyTo?._id;
+  const popupMessagesRef = React.useRef(messages);
+  popupMessagesRef.current = messages;
+  const [popupHasOlder, setPopupHasOlder] = React.useState(false);
+  const [popupOlderLoading, setPopupOlderLoading] = React.useState(false);
+  const popupOlderLoadingRef = React.useRef(false);
+  const popupOlderRestoreRef = React.useRef<{ height: number; top: number; request: number } | null>(null);
+  const popupTargetRef = React.useRef<{ id: string; query?: string } | null>(null);
+  const popupTargetRequestRef = React.useRef(0);
+  const popupRevealCleanupRef = React.useRef<(() => void) | null>(null);
+  const popupNavigatingRef = React.useRef(false);
+  const [popupTargetRequest, setPopupTargetRequest] = React.useState(0);
+  const [popupTargetLoading, setPopupTargetLoading] = React.useState(false);
+  React.useLayoutEffect(() => () => {
+    ++popupTargetRequestRef.current;
+    popupRevealCleanupRef.current?.();
+  }, [conv._id]);
 
-    if (!targetId) return;
-
-    const focusTarget = (node: HTMLElement) => {
-      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      node.animate(
-      [
-        { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)', transform: 'scale(1)' },
-        { boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.55), 0 0 24px rgba(59, 130, 246, 0.32)', transform: 'scale(1.015)' },
-        { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)', transform: 'scale(1)' },
-      ],
-      { duration: 1400, easing: 'ease' },
-      );
-    };
-    const target = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
-    if (target) {
-      focusTarget(target);
-      return;
-    }
-
-    const createdAt = typeof replyTo === 'string' ? undefined : replyTo?.createdAt;
-    const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
-    const timestamp = createdAt ? new Date(createdAt) : null;
-    if (!effectiveToken || !timestamp || Number.isNaN(timestamp.getTime())) {
-      toast.info('Original message is not available in this conversation.');
-      return;
-    }
-
-    void apiClient.get(`/api/supraspace/conversations/${conv._id}/messages`, {
-      headers: { Authorization: `Bearer ${effectiveToken}` },
-      params: { before: new Date(timestamp.getTime() + 1000).toISOString(), limit: 40 },
-    }).then(response => {
-      const fetched: SSMessage[] = response.data?.data || [];
-      if (!fetched.some(message => message._id === targetId)) {
-        toast.info('Original message is no longer available.');
-        return;
-      }
-      setMessages(previous => Array.from(
-        new Map([...previous, ...fetched].map(message => [message._id, message])).values(),
-      ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
-      requestAnimationFrame(() => {
-        const fetchedTarget = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
-        if (fetchedTarget) focusTarget(fetchedTarget);
-      });
+  const jumpToPopupRepliedMessage = React.useCallback((replyTo: SSMessage['replyTo'], query?: string) => {
+    const targetId = typeof replyTo === 'string' ? replyTo : replyTo?._id;
+    const effectiveToken = crmToken || localStorage.getItem('crm_token');
+    if (!targetId || !effectiveToken) return;
+    const request = ++popupTargetRequestRef.current;
+    popupRevealCleanupRef.current?.();
+    setPopupTargetLoading(false);
+    popupNavigatingRef.current = true;
+    popupTargetRef.current = { id: targetId, query };
+    setPopupTargetRequest(previous => previous + 1);
+    const container = bottomRef.current?.parentElement;
+    if (container?.querySelector(`[data-popup-bubble-id="${targetId}"]`)) return;
+    setPopupTargetLoading(true);
+    void loadSupraSpaceMessageTarget(
+      (path, params) => apiClient.get(path, { headers: { Authorization: `Bearer ${effectiveToken}` }, params }),
+      conv._id, targetId, popupMessagesRef.current, () => request === popupTargetRequestRef.current,
+    ).then(({ messages: fetched, hasOlder }) => {
+      if (request !== popupTargetRequestRef.current) return;
+      const previousOldest = popupMessagesRef.current[0];
+      if (!previousOldest || !fetched[0] || new Date(previousOldest.createdAt).getTime() > new Date(fetched[0].createdAt).getTime()
+        || (previousOldest.createdAt === fetched[0].createdAt && previousOldest._id >= fetched[0]._id)) setPopupHasOlder(hasOlder);
+      setMessages(previous => mergeMessages(previous, fetched));
     }).catch(() => {
-      toast.error('Could not load the original message.');
+      if (request !== popupTargetRequestRef.current) return;
+      popupTargetRef.current = null;
+      popupNavigatingRef.current = false;
+      toast.error('Could not load the selected message. It may no longer be available.');
+    }).finally(() => {
+      if (request === popupTargetRequestRef.current) setPopupTargetLoading(false);
     });
   }, [conv._id, crmToken]);
+
+  React.useLayoutEffect(() => {
+    const pendingTarget = popupTargetRef.current;
+    const targetId = pendingTarget?.id;
+    const container = bottomRef.current?.parentElement;
+    if (!targetId || !container || loading || popupTargetLoading || isMinimized) return;
+    const target = container.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
+    if (!target) return;
+    popupRevealCleanupRef.current?.();
+    popupRevealCleanupRef.current = revealSupraSpaceMessage(target, container, pendingTarget?.query);
+    popupTargetRef.current = null;
+  }, [messages, loading, popupTargetLoading, isMinimized, popupTargetRequest]);
+
+  const loadPopupOlderMessages = React.useCallback(async () => {
+    const oldest = popupMessagesRef.current[0];
+    const container = bottomRef.current?.parentElement;
+    if (!oldest || !container || !crmToken || popupOlderLoadingRef.current || popupTargetRef.current) return;
+    popupOlderLoadingRef.current = true;
+    popupNavigatingRef.current = true;
+    setPopupOlderLoading(true);
+    const request = popupTargetRequestRef.current;
+    try {
+      const response = await apiClient.get(`/api/supraspace/conversations/${conv._id}/messages`, {
+        headers: { Authorization: `Bearer ${crmToken}` },
+        params: { before: oldest.createdAt, beforeId: oldest._id, limit: 40 },
+      });
+      if (request !== popupTargetRequestRef.current) return;
+      const fetched: SSMessage[] = response.data?.data || [];
+      popupOlderRestoreRef.current = { height: container.scrollHeight, top: container.scrollTop, request };
+      setPopupHasOlder(fetched.length === 40);
+      setMessages(previous => mergeMessages(previous, fetched));
+    } catch {
+      if (request === popupTargetRequestRef.current) toast.error('Could not load older messages. Please try again.');
+    } finally {
+      popupOlderLoadingRef.current = false;
+      setPopupOlderLoading(false);
+    }
+  }, [conv._id, crmToken]);
+
+  React.useLayoutEffect(() => {
+    const restore = popupOlderRestoreRef.current;
+    const container = bottomRef.current?.parentElement;
+    popupOlderRestoreRef.current = null;
+    if (!restore || !container || popupTargetRef.current || restore.request !== popupTargetRequestRef.current) return;
+    container.scrollTop = restore.top + container.scrollHeight - restore.height;
+  }, [messages]);
 
   const stageFiles = React.useCallback(async (files: FileList | File[] | null) => {
     const incoming = Array.from(files || []);
@@ -5963,7 +6008,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const nextMessages: SSMessage[] = r.data?.data ?? [];
       syncPinnedMessageIds(nextMessages);
       setUnreadBoundaryMessageId(findSupraSpaceUnreadBoundary(nextMessages, crmUserId || '', conv.unreadCount));
-      setMessages(nextMessages);
+      if (!popupMessagesRef.current.length || popupMessagesRef.current[0]?._id === nextMessages[0]?._id) setPopupHasOlder(nextMessages.length === 40);
+      setMessages(previous => mergeMessages(previous, nextMessages));
       markAsRead(conv._id);
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: unknown }; message?: string };
@@ -6119,7 +6165,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     return () => { socket.off('message:event', handler); };
   }, [socket, conv._id]);
   React.useEffect(() => {
-    if (!isMinimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!isMinimized && !popupNavigatingRef.current) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMinimized]);
   React.useEffect(() => {
     if (!isMinimized && !isReadOnlyConversation) setTimeout(() => inputRef.current?.focus(), 60);
@@ -6986,7 +7032,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         {/* Body */}
         {!isMinimized && (
           <>
-            <div data-popup-chat-body="true" className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-2">
+            <div data-popup-chat-body="true" onScroll={event => {
+              const el = event.currentTarget;
+              popupNavigatingRef.current = !!popupTargetRef.current || el.scrollHeight - el.scrollTop - el.clientHeight > 100;
+            }} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-2">
+              {!loading && popupHasOlder && <button type="button" onClick={loadPopupOlderMessages} disabled={popupOlderLoading || popupTargetLoading} className="block w-full py-2 text-center text-xs text-muted-foreground">{popupOlderLoading ? 'Loading older messages...' : 'Load older messages'}</button>}
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -7749,6 +7799,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   );
                 })
               )}
+              {popupTargetLoading && <div role="status" className="sticky bottom-2 mx-auto w-fit rounded-full bg-card px-3 py-2 text-xs shadow">Loading selected message...</div>}
               <div ref={bottomRef} />
             </div>
 
@@ -8590,6 +8641,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       )}
 
       {/* ── Pinned messages modal ── */}
+      {messageSearchOpen && <MessageSearchModal
+        conversationId={conv._id}
+        token={crmToken}
+        onClose={() => setMessageSearchOpen(false)}
+        onSelect={(message, query) => {
+          setMessageSearchOpen(false);
+          jumpToPopupRepliedMessage(message, query);
+        }}
+      />}
       {pinnedOpen && (
         <PinnedMessagesModal
           messages={pinnedMessages}
@@ -8824,6 +8884,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 }}>
                   <Pin className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('View pinned messages')}
+                </button>
+                <button className={row} onClick={() => { setMessageSearchOpen(true); close(); }}>
+                  <Search className={ic} style={{ color: 'var(--muted-foreground)' }} />
+                  {label('Search conversation')}
                 </button>
 
                 {/* Members / invite — only for group chats */}
