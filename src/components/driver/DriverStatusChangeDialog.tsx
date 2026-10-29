@@ -197,7 +197,7 @@ export function DriverStatusChangeDialog({
       toast.error("Each attachment can be up to 10 MB. Choose a smaller file.");
     }
     if (rejectedType) {
-      toast.error("Only JPG, PNG, WebP, and PDF files are supported");
+      toast.error("That file type isn't supported. Attach a JPG, PNG, WebP or PDF file.");
     }
 
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -215,7 +215,7 @@ export function DriverStatusChangeDialog({
 
   const submit = async () => {
     if (!emergency && !reason) {
-      toast.error("Choose a reason for the status change request");
+      toast.error("Choose a reason for your status change request, then send it.");
       return;
     }
 

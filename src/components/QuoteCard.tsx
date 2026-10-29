@@ -7,6 +7,7 @@ import {
     Car, Edit3, DollarSign, Gauge, Layers, ShieldCheck, Container, ChevronRight, Link2
 } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 import { linkedLead, leadPageHref } from "@/lib/quote-lead"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,13 +30,17 @@ import { EditQuoteModal } from "./EditQuoteModal"
 import { resolveImageUrl, cn } from "@/lib/utils"
 import { quoteWaitingLabel } from "@/lib/quote-age"
 import { quoteVehicleNotice } from "@/lib/quote-vehicle"
+import { customerRequestAnswers, quoteDeleteConfirmation } from "@/lib/customer-request"
+import { userErrorMessage } from "@/lib/user-error"
 import { QuoteLoadRouteCompletionDialog } from "./QuoteLoadRouteCompletionDialog"
+import { CustomerRequestActions } from "./transportation/CustomerRequestActions"
 
 interface QuoteCardProps {
     quote: Quote
     onConvertToLoad: (id: string, routeDetails?: QuoteLoadRouteDetails) => Promise<boolean | void>
     onDelete: (id: string) => void
     onUpdate: (id: string, updatedQuote: Partial<Quote>) => Promise<void>
+    onSetStatus: (id: string, status: "accepted" | "rejected", declineReason?: string) => Promise<unknown>
 }
 
 /** HUD-style stat tile — matches the LoadCard info row.
@@ -164,12 +169,13 @@ const QUOTE_STATUS_META: Record<
     },
 }
 
-export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteCardProps) {
+export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetStatus }: QuoteCardProps) {
     // The iPhone app has no CRM pages, so there the linked lead is shown as text.
     const inNativeApp = useIsNativeApp()
     const lead = linkedLead(quote.leadId)
     const waitingLabel = quoteWaitingLabel(quote.status, quote.createdAt)
     const vehicleNotice = quoteVehicleNotice(quote)
+    const answers = customerRequestAnswers(quote)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isConvertingToLoad, setIsConvertingToLoad] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -237,10 +243,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
             showAlert({
                 type: "error",
                 title: "Conversion Failed",
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Could not convert this quote into a load. Please try again.",
+                message: userErrorMessage(error, "convert this quote into a load"),
             })
             throw error
         } finally {
@@ -290,12 +293,13 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     const handleDelete = async () => {
         if (isDeleting) return
 
+        const confirmation = quoteDeleteConfirmation(quote)
         showAlert({
             type: "confirm",
-            title: "Delete Quote",
-            message: `Are you sure you want to delete this quote for ${quote.firstName} ${quote.lastName}? This action cannot be undone.`,
+            title: confirmation.title,
+            message: confirmation.message,
             confirmText: "Yes, Delete",
-            cancelText: "No, Keep Quote",
+            cancelText: "No, Keep It",
             onConfirm: async () => {
                 if (isDeleting) return
 
@@ -306,7 +310,10 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                     hideAlert()
                 } catch (error) {
                     console.error("Error deleting quote:", error)
-                    throw error
+                    // The list hides the card while deleting and brings it
+                    // back on failure, so say why (for example, a shipment
+                    // still in progress) with a toast the card can't lose.
+                    toast.error(userErrorMessage(error, "delete this quote"))
                 } finally {
                     setIsDeleting(false)
                 }
@@ -495,6 +502,11 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                                     </span>
                                                 </div>
                                             )}
+                                            {isRejected && quote.declineReason && (
+                                                <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2 break-words">
+                                                    Reason given: <span className="text-foreground">{quote.declineReason}</span>
+                                                </p>
+                                            )}
                                             {lead && (
                                                 <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-border/40 min-w-0">
                                                     <div className="size-4 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
@@ -602,8 +614,11 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                 )}
                             </div>
 
-                            {/* Primary CTA */}
-                            <div className="pt-5">
+                            {/* Primary CTA; a customer's open request can be answered first */}
+                            <div className="space-y-2 pt-5">
+                                {(answers.accept || answers.decline) && (
+                                    <CustomerRequestActions quote={quote} onSetStatus={onSetStatus} />
+                                )}
                                 <Button
                                     className={cn(
                                         "w-full h-11 gap-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all",

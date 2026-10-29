@@ -268,6 +268,8 @@ function TransportationPageInner() {
   );
   const [selectedStatus, setSelectedStatus] = React.useState("all");
   const [selectedQuoteStatus, setSelectedQuoteStatus] = React.useState("all");
+  // Quotes tab: show only the requests customers sent from the customer portal.
+  const [customerRequestsOnly, setCustomerRequestsOnly] = React.useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = React.useState(false);
   const [isQuoteResultModalOpen, setIsQuoteResultModalOpen] =
@@ -363,9 +365,11 @@ function TransportationPageInner() {
     handleDeleteQuote,
     handleDeleteLoad,
     handleUpdateQuote,
+    handleSetQuoteStatus,
   } = useTransportationData({
     shipmentStatus: activeTab === "shipments" ? selectedStatus : "all",
     quoteStatus: activeTab === "drafts" ? selectedQuoteStatus : "all",
+    quoteSource: activeTab === "drafts" && customerRequestsOnly ? "customer_portal" : undefined,
     activeView: activeTab,
     // On every screen size the load search covers all loads (the hook searches
     // its full list, or the server beyond 100 loads), not only the page on
@@ -871,6 +875,37 @@ function TransportationPageInner() {
 
         {/* Main Content */}
         <div className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-background">
+          {activeTab === "drafts" && (
+            <div
+              role="group"
+              aria-label="Which quotes to show"
+              className="mb-3 flex w-full gap-1 rounded-xl border border-border/60 bg-card/60 p-1 sm:mb-4 sm:w-fit"
+            >
+              {(
+                [
+                  { value: false, label: "All quotes" },
+                  { value: true, label: "Customer requests" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  aria-pressed={customerRequestsOnly === option.value}
+                  onClick={() => {
+                    setCustomerRequestsOnly(option.value);
+                    setInspectedMobileQuote(null);
+                  }}
+                  className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 sm:flex-none ${
+                    customerRequestsOnly === option.value
+                      ? "bg-green-500/15 text-green-700 dark:text-green-300"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
           {activeTab === "load-board" ? (
             boardError && !isBoardLoading && boardLoads.length === 0 ? (
               <Card className="border-border">
@@ -1169,29 +1204,36 @@ function TransportationPageInner() {
               <CardContent className="p-6 sm:p-8 md:p-12 text-center">
                 <Package className="size-10 sm:size-12 md:size-16 text-muted-foreground/50 mx-auto mb-3 sm:mb-4" />
                 <h3 className="text-sm sm:text-base md:text-lg font-medium text-foreground mb-2">
-                  {selectedQuoteStatus !== "all"
-                    ? `No ${
-                        selectedQuoteStatus.charAt(0).toUpperCase() +
-                        selectedQuoteStatus.slice(1)
-                      } quotes found`
-                    : "No Quotes Found"}
+                  {customerRequestsOnly
+                    ? "No Customer Requests Found"
+                    : selectedQuoteStatus !== "all"
+                      ? `No ${
+                          selectedQuoteStatus.charAt(0).toUpperCase() +
+                          selectedQuoteStatus.slice(1)
+                        } quotes found`
+                      : "No Quotes Found"}
                 </h3>
                 <p className="text-xs sm:text-sm md:text-base text-muted-foreground mb-4 sm:mb-6 px-2 sm:px-4">
-                  {searchQuery
-                    ? selectedQuoteStatus !== "all"
-                      ? `No ${selectedQuoteStatus} quotes match your search criteria.`
-                      : "No quotes match your search criteria."
-                    : selectedQuoteStatus !== "all"
-                      ? `There are no quotes with ${selectedQuoteStatus} status.`
-                      : "You don't have any quotes yet. Create a new quote to get started."}
+                  {customerRequestsOnly
+                    ? searchQuery || selectedQuoteStatus !== "all"
+                      ? "No customer requests match your filters."
+                      : "Customers haven't sent any shipping requests from the customer portal yet."
+                    : searchQuery
+                      ? selectedQuoteStatus !== "all"
+                        ? `No ${selectedQuoteStatus} quotes match your search criteria.`
+                        : "No quotes match your search criteria."
+                      : selectedQuoteStatus !== "all"
+                        ? `There are no quotes with ${selectedQuoteStatus} status.`
+                        : "You don't have any quotes yet. Create a new quote to get started."}
                 </p>
-                {searchQuery || selectedQuoteStatus !== "all" ? (
+                {searchQuery || selectedQuoteStatus !== "all" || customerRequestsOnly ? (
                   <Button
                     variant="outline"
                     className="text-xs sm:text-sm h-8 sm:h-9 md:h-10"
                     onClick={() => {
                       setSearchQuery("");
                       setSelectedQuoteStatus("all");
+                      setCustomerRequestsOnly(false);
                     }}
                   >
                     Clear Filters
@@ -1215,6 +1257,7 @@ function TransportationPageInner() {
                     quote={quote}
                     onDelete={handleDeleteQuote}
                     onUpdate={handleUpdateQuote}
+                    onSetStatus={handleSetQuoteStatus}
                     onInspect={(selected, tab = "overview") => {
                       setInspectedMobileLoad(null);
                       setInspectedMobileQuoteTab(tab);
@@ -1244,6 +1287,7 @@ function TransportationPageInner() {
                     onConvertToLoad={handleConvertToLoad}
                     onDelete={handleDeleteQuote}
                     onUpdate={handleUpdateQuote}
+                    onSetStatus={handleSetQuoteStatus}
                   />
                 ))}
                 <PaginationBar

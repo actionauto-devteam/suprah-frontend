@@ -58,6 +58,8 @@ export interface CustomerShipment {
   eta: { min: number; max: number } | null;
   requestedAt: string | null;
   stage: CustomerShipmentStage;
+  /** What the dealership wrote when declining (declined requests only). */
+  declineReason?: string | null;
   shipment: {
     number: string;
     bookedAt: string | null;

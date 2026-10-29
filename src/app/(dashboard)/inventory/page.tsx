@@ -1069,12 +1069,17 @@ function InventoryContent() {
         }));
       }
 
-      toast.success(`Draft created. Rate: $${data.rate}`);
+      const rate = Number(data?.rate);
+      toast.success(
+        Number.isFinite(rate)
+          ? `Quote created. Estimated shipping: $${Math.round(rate).toLocaleString("en-US")}. You'll find it under Quotes in Transportation.`
+          : "Quote created. You'll find it under Quotes in Transportation.",
+      );
       setShippingOpen(false);
     } catch (error) {
       console.error("[Quote] Error creating quote:", error);
       // The server says what to fix, for example a ZIP code it can't find.
-      toast.error(userErrorMessage(error, "create this draft"));
+      toast.error(userErrorMessage(error, "create this quote"));
     }
   };
 

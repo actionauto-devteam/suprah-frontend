@@ -83,6 +83,8 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   dispatch_channel: { icon: MessageSquare, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   driver_payout: { icon: DollarSign, gradient: 'from-green-500 to-emerald-600', bg: 'bg-green-500' },
   driver_document_expiring: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
+  driver_document_verified: { icon: CheckCircle2, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
+  driver_document_rejected: { icon: XCircle, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   new_load_available: { icon: Truck, gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-500' },
   new_load_check_first: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   new_load_unavailable: { icon: XCircle, gradient: 'from-slate-400 to-slate-500', bg: 'bg-slate-500' },
@@ -223,6 +225,8 @@ const TYPE_LABELS: Record<string, string> = {
   driver_location_update: 'Driver Location Update',
   driver_payout: 'Driver Payout',
   driver_document_expiring: 'Document Expiring Soon',
+  driver_document_verified: 'Document Verified',
+  driver_document_rejected: 'Document Rejected',
   new_load_available: 'New Load You Can Request',
   new_load_check_first: 'New Load: Check Before Requesting',
   new_load_unavailable: 'Load No Longer Available',
@@ -439,6 +443,8 @@ const DRIVER_ROUTE_MAP: Record<string, string> = {
   driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
   driver_assigned: '/driver/loads', driver_payout: '/driver/earnings',
   driver_document_expiring: '/driver/documents',
+  // Older document notices were sent without a link.
+  driver_document_verified: '/driver/documents', driver_document_rejected: '/driver/documents',
   new_load_available: '/driver/available-loads', new_load_check_first: '/driver/available-loads',
   new_load_unavailable: '/driver/available-loads',
   // Work Availability is set on the Driver Page; verification lives on Documents.

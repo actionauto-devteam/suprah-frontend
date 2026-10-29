@@ -19,6 +19,7 @@ import type {
 import { Notification } from '@/types/notification';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
+import { userErrorMessage } from '@/lib/user-error';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   formatFullDate,
@@ -259,8 +260,8 @@ export function NotificationDetailsModal({
       );
       toast.success(`Response sent: ${responseLabel(response)}`);
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Could not send alert response');
+    } catch (error) {
+      toast.error(userErrorMessage(error, 'send your response'));
     } finally {
       setSubmitting(null);
     }
