@@ -3,12 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Car, CheckCircle2, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck } from "lucide-react";
+import { AlertTriangle, CalendarClock, Car, CheckCircle2, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/AuthProvider";
 import { getMyShipments, type CustomerShipment } from "@/lib/api/customerQuoteRequests";
 import {
   SHIPMENT_STAGE_META,
+  formatExpectedByDate,
   formatShipmentDate,
   formatShipmentPrice,
   shipmentSteps,
@@ -33,6 +34,7 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
   const steps = shipmentSteps(entry);
   const price = formatShipmentPrice(entry.rate);
   const eta = entry.eta && entry.eta.min > 0 ? `${entry.eta.min}–${entry.eta.max} days` : "";
+  const expectedBy = formatExpectedByDate(entry.shipment?.expectedBy);
   const image = entry.vehicleImage ? resolveImageUrl(entry.vehicleImage) : "";
 
   return (
@@ -76,6 +78,15 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
           </div>
 
           <p className="text-sm text-foreground/90">{meta.description}</p>
+
+          {expectedBy && (
+            <p className="flex items-center gap-1.5 text-sm text-foreground/90">
+              <CalendarClock className="size-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+              <span>
+                Expected by <span className="font-bold text-foreground">{expectedBy}</span>
+              </span>
+            </p>
+          )}
 
           {entry.stage === "cancelled" && entry.shipment?.cancelReason && (
             <p className="text-sm text-red-800 dark:text-red-300">Reason: {entry.shipment.cancelReason}</p>
