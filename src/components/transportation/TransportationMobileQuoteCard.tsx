@@ -13,6 +13,7 @@ import {
   Maximize2,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, resolveImageUrl } from "@/lib/utils";
@@ -22,10 +23,13 @@ import type { Quote } from "@/types/transportation";
 import { linkedLead } from "@/lib/quote-lead";
 import { quoteWaitingLabel } from "@/lib/quote-age";
 import { quoteVehicleNotice } from "@/lib/quote-vehicle";
+import { customerRequestAnswers, quoteDeleteConfirmation } from "@/lib/customer-request";
+import { userErrorMessage } from "@/lib/user-error";
 import {
   VehicleImageLightbox,
   type VehicleImageLightboxItem,
 } from "@/components/transportation/VehicleImageLightbox";
+import { CustomerRequestActions } from "@/components/transportation/CustomerRequestActions";
 
 export type TransportationMobileQuoteTab = "overview" | "vehicle" | "financials";
 
@@ -33,6 +37,7 @@ interface TransportationMobileQuoteCardProps {
   quote: Quote;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updatedQuote: Partial<Quote>) => Promise<void>;
+  onSetStatus: (id: string, status: "accepted" | "rejected", declineReason?: string) => Promise<unknown>;
   onInspect: (quote: Quote, tab?: TransportationMobileQuoteTab) => void;
 }
 
@@ -127,6 +132,7 @@ export function TransportationMobileQuoteCard({
   quote,
   onDelete,
   onUpdate,
+  onSetStatus,
   onInspect,
 }: TransportationMobileQuoteCardProps) {
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -144,6 +150,7 @@ export function TransportationMobileQuoteCard({
   const lead = linkedLead(quote.leadId);
   const waitingLabel = quoteWaitingLabel(quote.status, quote.createdAt);
   const vehicleNotice = quoteVehicleNotice(quote);
+  const answers = customerRequestAnswers(quote);
   const busy = isDeleting;
   const heroImage = !imageFailed ? resolveImageUrl(quote.vehicleImage) : undefined;
   const imageViewerItems: VehicleImageLightboxItem[] = [
@@ -178,18 +185,24 @@ export function TransportationMobileQuoteCard({
 
   const handleDelete = () => {
     if (isDeleting) return;
+    const confirmation = quoteDeleteConfirmation(quote);
     showAlert({
       type: "confirm",
-      title: "Delete Quote",
-      message: `Are you sure you want to delete this quote for ${quote.firstName} ${quote.lastName}? This action cannot be undone.`,
+      title: confirmation.title,
+      message: confirmation.message,
       confirmText: "Yes, Delete",
-      cancelText: "No, Keep Quote",
+      cancelText: "No, Keep It",
       onConfirm: async () => {
         if (isDeleting) return;
         setIsDeleting(true);
         try {
           await onDelete(quote._id);
           hideAlert();
+        } catch (error) {
+          // The list hides the card while deleting and brings it back on
+          // failure, so say why (for example, a shipment still in progress)
+          // with a toast the card can't lose.
+          toast.error(userErrorMessage(error, "delete this quote"));
         } finally {
           setIsDeleting(false);
         }
@@ -295,6 +308,11 @@ export function TransportationMobileQuoteCard({
                     )}
                   >
                     {vehicleNotice.label}
+                  </p>
+                )}
+                {normalizedStatus === "rejected" && quote.declineReason && (
+                  <p className="mt-0.5 line-clamp-2 break-words text-[11px] text-muted-foreground">
+                    Reason given: <span className="text-foreground">{quote.declineReason}</span>
                   </p>
                 )}
                 <h3 className="mt-1 truncate text-[15px] font-black tracking-tight text-foreground sm:text-base">
@@ -421,7 +439,13 @@ export function TransportationMobileQuoteCard({
               />
             </div>
 
-
+            {(answers.accept || answers.decline) && (
+              // The answer window renders in a portal; stop its clicks here so
+              // they don't also open the quote details.
+              <div className="mt-3" onClick={stop}>
+                <CustomerRequestActions quote={quote} onSetStatus={onSetStatus} compact />
+              </div>
+            )}
           </div>
         </div>
       </article>

@@ -3,9 +3,10 @@
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft, Globe, UserCheck, Truck, Copy, AlertCircle } from "lucide-react"
+import { ArrowLeft, Globe, UserCheck, Truck, Copy, AlertCircle, Car } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getLoadById } from "@/lib/api/loads"
+import { inventoryVehicleFromParams, inventoryVehicleLabel } from "@/lib/inventory-load-prefill"
 import { LoadFormLayout } from "@/components/create-load/LoadFormLayout"
 import { PostType } from "@/components/create-load/types"
 import { cn } from "@/lib/utils"
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils"
 //   /transportation/create-load?type=load-board → straight into that workflow
 //   /transportation/create-load?type=assign-carrier
 //   …&duplicate=<loadId>                       → pre-filled from that load
+//   …?vin=…&year=…&make=…&model=…              → that Inventory vehicle filled in
 
 const WORKFLOWS: Array<{
   key: PostType
@@ -65,6 +67,13 @@ function CreateLoadPageInner() {
     gcTime: 0,
     refetchOnWindowFocus: false,
   })
+
+  // "Create Load" on an Inventory vehicle opens this page with that vehicle.
+  // A copied load takes priority, since it brings its own vehicles.
+  const inventoryVehicle = React.useMemo(
+    () => (duplicateId ? null : inventoryVehicleFromParams(searchParams)),
+    [duplicateId, searchParams],
+  )
 
   return (
     <div className="min-h-dvh p-4 sm:p-6 lg:p-8">
@@ -155,7 +164,20 @@ function CreateLoadPageInner() {
               )}
             </div>
           )}
-          <LoadFormLayout postType={postType} duplicateFrom={duplicateFrom} />
+          {inventoryVehicle && (
+            <div className="max-w-3xl mx-auto mb-4 flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
+              <Car className="mt-0.5 size-4 shrink-0 text-primary" />
+              <p className="min-w-0 break-words">
+                Filled in from Inventory: <span className="font-semibold">{inventoryVehicleLabel(inventoryVehicle)}</span>.
+                Add the pickup and delivery details and the dates, and check the vehicle before you save.
+              </p>
+            </div>
+          )}
+          <LoadFormLayout
+            postType={postType}
+            duplicateFrom={duplicateFrom}
+            inventoryVehicle={inventoryVehicle ?? undefined}
+          />
         </>
       )}
     </div>

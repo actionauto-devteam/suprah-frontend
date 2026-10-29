@@ -619,7 +619,7 @@ export function DriverComplianceDocumentsDialog({
   const submitRejection = async () => {
     if (!driverId || !rejectDocument?._id) return;
     if (rejectReason.trim().length < 3) {
-      toast.error("Enter a rejection reason of at least 3 characters");
+      toast.error("Tell the driver why you're rejecting this document (at least 3 characters).");
       return;
     }
     setActionLoading(rejectDocument._id);

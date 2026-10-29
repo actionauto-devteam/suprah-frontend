@@ -683,7 +683,7 @@ export default function DriverTrackerPage() {
     if (handledReviewLoadDeepLinkRef.current === targetLoadId) return;
     handledReviewLoadDeepLinkRef.current = targetLoadId;
     if (!/^[a-f0-9]{24}$/i.test(targetLoadId)) {
-      toast.error("The load linked to this notification is not valid.");
+      toast.error("We couldn't open that load because the link is incomplete. Find the load on the Transportation page instead.");
       return;
     }
     setReviewLoadId(targetLoadId);
@@ -1791,6 +1791,45 @@ export default function DriverTrackerPage() {
 
   const selectDriverRef = React.useRef(focusDriverOnLiveMap);
   selectDriverRef.current = focusDriverOnLiveMap;
+
+  // Links with only a driver (for example a release request in Needs
+  // attention) open /driver-tracker?driverId=<id>: select that driver as if
+  // they were clicked in the list. Links that open a dialog are handled above.
+  const handledDriverDeepLinkRef = React.useRef<string | null>(null);
+  const lookedUpDeepLinkDriverRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const targetDriverId = searchParams.get("driverId");
+    const opensDialog =
+      searchParams.get("openDispatchChat") === "1" ||
+      Boolean(searchParams.get("statusRequestId")) ||
+      Boolean(searchParams.get("reviewLoadId"));
+    if (!targetDriverId || opensDialog) {
+      handledDriverDeepLinkRef.current = null;
+      lookedUpDeepLinkDriverRef.current = null;
+      return;
+    }
+    if (isLoading || handledDriverDeepLinkRef.current === targetDriverId) return;
+
+    const target = listDrivers.find(
+      (item) => String(item.driver?.id ?? item.id) === String(targetDriverId),
+    );
+    if (!target) {
+      // The driver may not be on a loaded directory page yet. Look them up
+      // once; this runs again when they arrive in the list.
+      const lookup = driverLookupRef.current;
+      if (!lookup || lookedUpDeepLinkDriverRef.current === targetDriverId) return;
+      lookedUpDeepLinkDriverRef.current = targetDriverId;
+      void lookup([String(targetDriverId)]).then((found) => {
+        if (found) return;
+        handledDriverDeepLinkRef.current = targetDriverId;
+        toast.error("We couldn't find that driver in Driver Tracker. Search for them in the driver list instead.");
+      });
+      return;
+    }
+
+    handledDriverDeepLinkRef.current = targetDriverId;
+    selectDriverRef.current(target);
+  }, [listDrivers, isLoading, searchParams]);
 
   const lookupDriverAreaName = React.useCallback<AreaNameLookup>(async (driverId, signal) => {
     const token = await getToken();

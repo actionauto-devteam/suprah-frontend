@@ -166,7 +166,7 @@ export function DriverStatusRequestReviewDialog({
   const takeAction = async (nextAction: "approve" | "reject") => {
     if (!resolvedRequestId) return;
     if (nextAction === "reject" && rejectReason.trim().length < 3) {
-      toast.error("Enter a reason for rejecting this request");
+      toast.error("Tell the driver why you're rejecting this request (at least 3 characters).");
       return;
     }
 

@@ -69,6 +69,8 @@ interface LoadFormLayoutProps {
   initialLoad?: Load
   /** Create mode: start from a copy of this earlier load (see copySource below). */
   duplicateFrom?: Load
+  /** Create mode: start with this Inventory vehicle (VIN kept, so it links). */
+  inventoryVehicle?: Pick<LoadVehicle, "vin" | "year" | "make" | "model">
 }
 
 type StepKey =
@@ -200,6 +202,7 @@ export function LoadFormLayout({
   mode = "create",
   initialLoad,
   duplicateFrom,
+  inventoryVehicle,
 }: LoadFormLayoutProps) {
   const router = useRouter()
   const isEdit = mode === "edit" && !!initialLoad
@@ -249,7 +252,15 @@ export function LoadFormLayout({
       ? mapVehiclesFromLoad(initialLoad!.vehicles)
       : copySource
         ? mapVehiclesForCopy(copySource.vehicles)
-        : [emptyVehicle()],
+        : inventoryVehicle
+          ? [{
+              ...emptyVehicle(),
+              vin: inventoryVehicle.vin,
+              year: inventoryVehicle.year,
+              make: inventoryVehicle.make,
+              model: inventoryVehicle.model,
+            }]
+          : [emptyVehicle()],
   )
   const [trailerType, setTrailerType] = React.useState<string>(
     () => (isEdit ? initialLoad!.trailerType : copySource?.trailerType) || "open_2car",

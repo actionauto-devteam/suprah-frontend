@@ -46,6 +46,8 @@ export interface Quote {
   customerRecordId?: string | null;
   /** A customer request closed because its vehicle left the marketplace. */
   closedReason?: "vehicle_unavailable" | null;
+  /** What staff told the customer when declining their request (optional). */
+  declineReason?: string;
   /** Set when the quote's inventory vehicle was sold or removed. */
   vehicleState?: "sold" | "removed";
   organization?: {

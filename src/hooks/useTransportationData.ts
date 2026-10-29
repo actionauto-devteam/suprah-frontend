@@ -68,6 +68,8 @@ interface TransportationFilters {
   shipmentDestination?: string;
   shipmentVisibility?: string;
   quoteOrigin?: string;
+  /** "customer_portal" lists only requests customers sent from the customer portal. */
+  quoteSource?: "customer_portal";
   quoteDestination?: string;
 }
 
@@ -207,6 +209,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   const shipmentDestination = filters.shipmentDestination?.trim() || "";
   const shipmentVisibility = filters.shipmentVisibility || "all";
   const quoteOrigin = filters.quoteOrigin?.trim() || "";
+  const quoteSource = filters.quoteSource === "customer_portal" ? "customer_portal" : "";
   const quoteDestination = filters.quoteDestination?.trim() || "";
   const activeView: TransportationView =
     filters.activeView === "drafts" || filters.activeView === "load-board"
@@ -259,6 +262,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         (!quoteStatus ||
           quoteStatus === "all" ||
           String(quote.status).toLowerCase() === quoteStatus.toLowerCase()) &&
+        (!quoteSource || quote.source === quoteSource) &&
         matchesQuoteSearch(quote, quoteSearch) &&
         matchesLocationText(
           [
@@ -607,10 +611,11 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           ],
           quoteDestination,
         );
-        return matchesStatus && matchesSearch && matchesOrigin && matchesDestination;
+        const matchesSource = !quoteSource || quote.source === quoteSource;
+        return matchesStatus && matchesSource && matchesSearch && matchesOrigin && matchesDestination;
       });
     },
-    [quoteSearch, quoteOrigin, quoteDestination],
+    [quoteSearch, quoteOrigin, quoteDestination, quoteSource],
   );
 
   const applyLoadSnapshot = React.useCallback(
@@ -710,6 +715,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           ...(quoteSearch ? { search: quoteSearch } : {}),
           ...(quoteOrigin ? { origin: quoteOrigin } : {}),
           ...(quoteDestination ? { destination: quoteDestination } : {}),
+          ...(quoteSource ? { source: quoteSource } : {}),
         },
         timeout: 15_000,
       });
@@ -720,7 +726,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       setQuotesPagination(pagination);
       hasLoadedQuotesRef.current = true;
     },
-    [getAuthConfig, quoteSearch, quoteOrigin, quoteDestination],
+    [getAuthConfig, quoteSearch, quoteOrigin, quoteDestination, quoteSource],
   );
 
   const refreshLoadSnapshot = React.useCallback(async () => {
@@ -1562,6 +1568,42 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     [getAuthConfig, refreshQuoteSnapshot],
   );
 
+  /**
+   * Accepts or declines a customer's shipping request; the server tells the
+   * customer. A decline can carry a short reason the customer sees.
+   */
+  const handleSetQuoteStatus = React.useCallback(
+    async (quoteId: string, status: "accepted" | "rejected", declineReason?: string) => {
+      try {
+        const config = await getAuthConfig();
+        const response = await apiClient.patch(
+          `/api/quotes/${quoteId}/status`,
+          { status, ...(status === "rejected" && declineReason ? { declineReason } : {}) },
+          config ?? undefined,
+        );
+        const data = response.data?.data ?? response.data;
+        if (quoteSnapshotRef.current) {
+          quoteSnapshotRef.current = {
+            ...quoteSnapshotRef.current,
+            items: quoteSnapshotRef.current.items.map((quote) =>
+              quote._id === quoteId ? { ...quote, ...data } : quote,
+            ),
+          };
+        }
+        setQuotes((prev) =>
+          prev.map((q) => (q._id === quoteId ? { ...q, ...data } : q)),
+        );
+        void refreshQuoteSnapshot();
+        return data;
+      } catch (err) {
+        throw new Error(
+          userErrorMessage(err as AxiosError, status === "accepted" ? "accept this request" : "decline this request"),
+        );
+      }
+    },
+    [getAuthConfig, refreshQuoteSnapshot],
+  );
+
   const handleUpdateLoad = React.useCallback(
     async (loadId: string, updatedLoad: Partial<Load>) => {
       try {
@@ -1626,6 +1668,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     handleDeleteLoad,
     deletingLoadId,
     handleUpdateQuote,
+    handleSetQuoteStatus,
     handleUpdateLoad,
   };
 }

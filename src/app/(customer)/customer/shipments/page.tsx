@@ -81,6 +81,10 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
             <p className="text-sm text-red-800 dark:text-red-300">Reason: {entry.shipment.cancelReason}</p>
           )}
 
+          {entry.stage === "declined" && entry.declineReason && (
+            <p className="break-words text-sm text-red-800 dark:text-red-300">Reason: {entry.declineReason}</p>
+          )}
+
           {steps && (
             <ol className="grid grid-cols-4 gap-1" aria-label="Shipment progress">
               {steps.map((step) => (
