@@ -208,7 +208,7 @@ export function useCrmWebPush() {
       }
 
       setIsSubscribed(true);
-      toast.success("Admin alerts enabled!");
+      toast.success("Device notifications enabled!");
       return "subscribed";
     } catch (error) {
       console.error("[CrmWebPush] Subscribe failed:", error);
@@ -231,7 +231,7 @@ export function useCrmWebPush() {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         setIsSubscribed(false);
-        toast.info("Admin alerts disabled.");
+        toast.info("Device notifications disabled.");
       }
     } catch (error) {
       console.error("[CrmWebPush] Unsubscribe failed:", error);

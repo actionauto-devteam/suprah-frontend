@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Armchair, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
+  Armchair, BellRing, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
   Info, LayoutGrid, MessageSquare, Mic, MicOff, Minimize2, MonitorUp, MoreVertical, PhoneOff,
   Pin, PinOff, ScreenShareOff, Search, Send, Share2, SmilePlus, SwitchCamera, UserMinus, UserPlus, Users, Video,
   VideoOff, Wand2, X,
@@ -356,17 +356,30 @@ export default function SuprahMeetRoomPage() {
 
   if (gate === "waiting") {
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
-          <Hourglass className="size-8 animate-pulse text-emerald-500" />
+      <div className="flex h-full min-h-0 items-start justify-center overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(16,185,129,.10),transparent_45%)] p-4 md:p-8">
+        <div className="my-auto w-full max-w-xl rounded-3xl border border-emerald-500/20 bg-card/90 p-6 text-center shadow-xl backdrop-blur md:p-8">
+          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
+            <Hourglass className="size-8 animate-pulse text-emerald-500" />
+          </div>
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-300">
+            <span className="size-1.5 animate-pulse rounded-full bg-amber-500" /> Request sent
+          </div>
+          <h1 className="mt-3 text-xl font-semibold">Waiting for the host to admit you</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{meetingTitle ?? "Suprah Meet"} · {code}</p>
+          <div className="mt-5 grid gap-2 text-left text-sm sm:grid-cols-2">
+            <div className="rounded-xl border bg-background/60 p-3">
+              <BellRing className="mb-2 size-4 text-emerald-500" />
+              <p className="font-medium">No need to keep refreshing</p>
+              <p className="mt-1 text-xs text-muted-foreground">This page checks automatically every few seconds.</p>
+            </div>
+            <div className="rounded-xl border bg-background/60 p-3">
+              <Check className="mb-2 size-4 text-emerald-500" />
+              <p className="font-medium">Your place is saved</p>
+              <p className="mt-1 text-xs text-muted-foreground">You’ll move to device check as soon as the host admits you.</p>
+            </div>
+          </div>
+          <Button className="mt-5" variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Leave waiting room</Button>
         </div>
-        <p className="text-lg font-medium">Asking the host to let you in</p>
-        <p className="max-w-md text-sm text-muted-foreground">
-          You&apos;re in the waiting room for <span className="font-medium text-foreground">{code}</span>.
-          You&apos;ll join automatically the moment the host admits you — keep this page open.
-          Refreshing is fine; your spot is saved.
-        </p>
-        <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Cancel</Button>
       </div>
     );
   }
@@ -379,19 +392,26 @@ export default function SuprahMeetRoomPage() {
         })
       : "the scheduled time";
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
-          <Hourglass className="size-8 animate-pulse text-emerald-500" />
+      <div className="flex h-full min-h-0 items-start justify-center overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(16,185,129,.10),transparent_45%)] p-4 md:p-8">
+        <div className="my-auto w-full max-w-xl rounded-3xl border border-emerald-500/20 bg-card/90 p-6 text-center shadow-xl backdrop-blur md:p-8">
+          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
+            <CalendarClock className="size-8 text-emerald-500" />
+          </div>
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" /> Waiting automatically
+          </div>
+          <h1 className="mt-3 text-xl font-semibold">{hostPresent ? "The host is preparing the room" : "Waiting for the host"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{meetingTitle ?? code}</p>
+          <div className="mt-5 rounded-2xl border bg-background/60 p-4">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Scheduled time</p>
+            <p className="mt-1 font-semibold text-emerald-600 dark:text-emerald-400">{when}</p>
+          </div>
+          <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
+            The meeting and its timer stay stopped until the host opens the room. You’ll move to camera and microphone check automatically when it is ready.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Keep this page open or safely refresh—your access is checked every few seconds.</p>
+          <Button className="mt-5" variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
         </div>
-        <p className="text-lg font-medium">{hostPresent ? "This meeting has not opened yet" : "Waiting for the host"}</p>
-        <p className="max-w-md text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{meetingTitle ?? code}</span> is scheduled for {when}.
-          {hostPresent
-            ? " You’ll be taken to the device check as soon as the host starts it."
-            : " The host must be in the room before anyone can join or the clock can run."}
-        </p>
-        <p className="text-xs text-muted-foreground">Keep this page open — refreshing is safe.</p>
-        <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
       </div>
     );
   }
@@ -713,7 +733,7 @@ export default function SuprahMeetRoomPage() {
                 iconOn={<SwitchCamera className="size-5" />} iconOff={<SwitchCamera className="size-5" />} />
             )}
             <Ctl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
-              label={meet.sharing ? "Stop share" : "Share"}
+              label={meet.sharing ? "Stop share" : meet.shareSupported ? "Share" : "Present cam"}
               iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
             <Ctl on={!meet.handRaised} accent onClick={meet.toggleHand}
               label={meet.handRaised ? "Lower hand" : "Raise hand"}

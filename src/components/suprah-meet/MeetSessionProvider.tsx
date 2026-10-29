@@ -17,6 +17,7 @@ import { GripHorizontal, Maximize2, MessageSquare, Mic, MicOff, PhoneOff, Pictur
 import { cn } from "@/lib/utils";
 import { useSuprahMeet, type MeetJoinOptions } from "@/hooks/useSuprahMeet";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
+import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
 
 type MeetApi = ReturnType<typeof useSuprahMeet>;
 
@@ -156,6 +157,7 @@ function MiniMeetWindow() {
   const tile = contentTile ?? speakerTile ?? selfTile ?? cameraTiles[0];
   const mirror = !!tile && tile === selfTile && !meet.isBackCamera;
   const participantCount = Object.keys(meet.roster).length;
+  const latestChat = meet.chatMessages.at(-1) ?? null;
 
   const back = () => router.push(`/crm/suprah-meet/room/${activeCode}`);
 
@@ -201,6 +203,8 @@ function MiniMeetWindow() {
           <Maximize2 className="size-3.5" />
         </span>
       </button>
+
+      <MeetChatPeek message={latestChat} compact onOpen={back} />
 
       {/* Controls */}
       <div className="flex items-center gap-1.5 p-2">

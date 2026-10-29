@@ -16,7 +16,7 @@ import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/
 import * as React from "react";
 import { useParams } from "next/navigation";
 import {
-  Hand, Hourglass, MessageSquare, Mic, MicOff, MonitorUp, PhoneOff,
+  BellRing, CalendarClock, Check, Hand, Hourglass, MessageSquare, Mic, MicOff, MonitorUp, PhoneOff,
   ScreenShareOff, Send, SwitchCamera, Users, Video, VideoOff, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -195,18 +195,39 @@ export default function SuprahMeetGuestPage() {
       : null;
     return (
       <Shell>
-        <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
-          <Hourglass className="size-8 animate-pulse text-emerald-500" />
+        <div className="w-full max-w-lg rounded-3xl border border-emerald-400/20 bg-[#0a1410]/90 p-5 text-center shadow-2xl md:p-7">
+          <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
+            {gate === "waiting"
+              ? <Hourglass className="size-8 animate-pulse text-emerald-400" />
+              : <CalendarClock className="size-8 text-emerald-400" />}
+          </div>
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Waiting automatically
+          </div>
+          <h1 className="mt-3 text-xl font-semibold">
+            {gate === "waiting" ? "Waiting for the host to admit you" : "Waiting for the host to start"}
+          </h1>
+          <p className="mt-1 text-sm text-emerald-100/60">{title ?? "Suprah Meet"} · {code}</p>
+          {when && (
+            <div className="mt-5 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.06] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/50">Scheduled time</p>
+              <p className="mt-1 text-sm font-semibold text-emerald-300">{when}</p>
+            </div>
+          )}
+          <div className="mt-5 grid gap-2 text-left text-sm sm:grid-cols-2">
+            <div className="rounded-xl border border-emerald-400/15 bg-[#071410]/70 p-3">
+              <BellRing className="mb-2 size-4 text-emerald-300" />
+              <p className="font-medium">Automatic checks</p>
+              <p className="mt-1 text-xs text-emerald-100/50">No refreshing needed. We check the room every few seconds.</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/15 bg-[#071410]/70 p-3">
+              <Check className="mb-2 size-4 text-emerald-300" />
+              <p className="font-medium">You won’t miss the start</p>
+              <p className="mt-1 text-xs text-emerald-100/50">You’ll move to device check as soon as access is ready.</p>
+            </div>
+          </div>
+          <p className="mt-4 text-xs text-emerald-100/40">Keep this page open. Refreshing is safe and keeps the same guest pass.</p>
         </div>
-        <p className="text-lg font-medium">
-          {gate === "waiting" ? "Asking the host to let you in" : "Waiting for the host to start"}
-        </p>
-        <p className="max-w-md text-sm text-emerald-200/60">
-          {gate === "waiting"
-            ? "The host has been notified. You'll join automatically the moment they admit you — keep this page open."
-            : `You're in! The meeting hasn't started yet. The host will start it when ready${when ? ` (scheduled for ${when})` : ""}.`}
-        </p>
-        <p className="text-xs text-emerald-200/40">{title ?? code}</p>
       </Shell>
     );
   }
@@ -320,7 +341,7 @@ export default function SuprahMeetGuestPage() {
               iconOn={<SwitchCamera className="size-5" />} iconOff={<SwitchCamera className="size-5" />} />
           )}
           <GuestCtl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
-            label={meet.sharing ? "Stop share" : "Share screen"}
+            label={meet.sharing ? "Stop share" : meet.shareSupported ? "Share screen" : "Present camera"}
             iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
           <GuestCtl on={!meet.handRaised} accent onClick={meet.toggleHand}
             label={meet.handRaised ? "Lower hand" : "Raise hand"}

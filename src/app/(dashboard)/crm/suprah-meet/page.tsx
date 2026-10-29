@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleDot, Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, Share2, ShieldCheck, Bot, Trash2,
+  ArrowRight, BellRing, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
+  Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, Share2, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,9 @@ import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
 import type { ShareableMeeting } from "@/lib/meet-share";
 import { useOptionalCrmNotificationContext } from "@/context/CrmNotificationContext";
+import { useCrmWebPush } from "@/hooks/useCrmWebPush";
+import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
+import { forgetRecentMeet, readRecentMeet } from "@/lib/meet-recent";
 
 interface MeetingRow {
   _id: string; code: string; title: string;
@@ -125,6 +128,8 @@ const PAST_TIME_MSG = "That time has already passed in Mountain time (MDT) — p
 
 export default function SuprahMeetLobbyPage() {
   const router = useRouter();
+  const { activeCode, meet: activeMeet } = useMeetSession();
+  const deviceAlerts = useCrmWebPush();
   const crmNotifications = useOptionalCrmNotificationContext();
   const meetingNoticeKey = (crmNotifications?.notifications ?? [])
     .filter((notice) => notice.type === 'suprah_meet_invited' || notice.type === 'suprah_meet_reminder' || notice.type === 'suprah_meet_live')
@@ -151,6 +156,8 @@ export default function SuprahMeetLobbyPage() {
   const [upcomingPage, setUpcomingPage] = React.useState(1);
   const [missedPage, setMissedPage] = React.useState(1);
   const [pastPage, setPastPage] = React.useState(1);
+  const [recentMeet, setRecentMeet] = React.useState<ReturnType<typeof readRecentMeet>>(null);
+  React.useEffect(() => { setRecentMeet(readRecentMeet()); }, []);
   // The lobby's clock: drives countdowns and Upcoming→Missed transitions live.
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -161,7 +168,16 @@ export default function SuprahMeetLobbyPage() {
   const load = React.useCallback(async () => {
     try {
       const res = await apiClient.get("/api/crm/meet/meetings");
-      setMeetings(res.data?.data?.meetings ?? []);
+      const rows: MeetingRow[] = res.data?.data?.meetings ?? [];
+      setMeetings(rows);
+      setRecentMeet((recent) => {
+        const saved = recent ?? readRecentMeet();
+        if (saved && rows.some((meeting) => meeting.code === saved.code && meeting.status === "ended")) {
+          forgetRecentMeet(saved.code);
+          return null;
+        }
+        return saved;
+      });
       setSelfId(res.data?.data?.selfCrmUserId ?? "");
       setCanManageAll(Boolean(res.data?.data?.canManageAll));
     } catch (err: any) {
@@ -216,15 +232,22 @@ export default function SuprahMeetLobbyPage() {
   const missed = scheduled.filter(
     (m) => m.scheduledAt && new Date(m.scheduledAt).getTime() < nowMs - MISSED_AFTER_MS);
   const past = meetings.filter((m) => m.status === "ended");
+  const previousScheduled = [...missed, ...past.filter((m) => Boolean(m.scheduledAt))]
+    .sort((a, b) => new Date(b.scheduledAt ?? b.createdAt).getTime() - new Date(a.scheduledAt ?? a.createdAt).getTime());
+  const recentLive = recentMeet
+    ? meetings.find((meeting) => meeting.code === recentMeet.code && meeting.status === "live") ?? null
+    : null;
+  const resumableCode = activeCode ?? recentLive?.code ?? null;
+  const resumableTitle = activeMeet.meeting?.title ?? recentLive?.title ?? recentMeet?.title ?? resumableCode;
 
   // ── Pagination: Upcoming and Past both cap at 10 per page ─────────────
   const upcomingTotalPages = Math.max(1, Math.ceil(upcoming.length / PER_PAGE));
   const safeUpcomingPage = Math.min(upcomingPage, upcomingTotalPages);
   const upcomingVisible = upcoming.slice((safeUpcomingPage - 1) * PER_PAGE, safeUpcomingPage * PER_PAGE);
 
-  const missedTotalPages = Math.max(1, Math.ceil(missed.length / PER_PAGE));
+  const missedTotalPages = Math.max(1, Math.ceil(previousScheduled.length / PER_PAGE));
   const safeMissedPage = Math.min(missedPage, missedTotalPages);
-  const missedVisible = missed.slice((safeMissedPage - 1) * PER_PAGE, safeMissedPage * PER_PAGE);
+  const missedVisible = previousScheduled.slice((safeMissedPage - 1) * PER_PAGE, safeMissedPage * PER_PAGE);
 
   const pastTotalPages = Math.max(1, Math.ceil(past.length / PER_PAGE));
   const safePastPage = Math.min(pastPage, pastTotalPages);
@@ -260,7 +283,7 @@ export default function SuprahMeetLobbyPage() {
 
       <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-8 md:py-7">
         {/* Brand bar */}
-        <header className="mb-6 flex flex-wrap items-center gap-4 md:mb-8">
+        <header className="mb-5 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <SuprahMeetLogo className="size-11 md:size-12" />
             <div>
@@ -270,74 +293,82 @@ export default function SuprahMeetLobbyPage() {
               <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">CRM Video Platform</p>
             </div>
           </div>
-          <div className="ml-auto hidden items-center gap-2 rounded-xl border bg-card/85 p-1 pl-3 shadow-sm backdrop-blur md:flex">
-            <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && joinByCode()}
-              placeholder="Enter a meeting code"
-              className="h-9 w-52 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />
-            <Button variant="secondary" onClick={joinByCode} className="gap-1">
-              Join <ArrowRight className="size-3.5" />
-            </Button>
-          </div>
         </header>
 
-        <div className="mb-4 flex items-center gap-2 rounded-xl border bg-card/85 p-1 pl-3 shadow-sm backdrop-blur md:hidden">
-          <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && joinByCode()}
-            placeholder="Enter a meeting code"
-            aria-label="Meeting code"
-            className="h-9 min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />
-          <Button onClick={joinByCode} className="shrink-0 bg-emerald-600 hover:bg-emerald-500">Join</Button>
-        </div>
-
-        <div className="grid min-w-0 gap-7 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)] xl:gap-8">
-          {/* Hero */}
-          <section className="order-2 min-w-0 rounded-3xl border bg-card/80 p-5 shadow-lg shadow-emerald-950/5 backdrop-blur xl:order-2 xl:self-start">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">Your meeting desk</p>
-            <h2 className="mt-1 max-w-xl text-2xl font-semibold leading-[1.15] tracking-tight md:text-3xl">
-              Join the next conversation.
-            </h2>
-            <p className="mt-2 max-w-lg text-sm text-muted-foreground">Live meetings and your next schedule are kept at the top, so you can get in quickly.</p>
-            <p className="hidden">
-              Enterprise-grade video built into Suprah AI — schedule single or recurring sessions in MDT,
-              tag people or whole departments, record to the cloud, and let AI turn every session into
-              decisions and action items.
-            </p>
-
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Button size="lg" className="gap-2 bg-emerald-600 shadow-lg shadow-emerald-600/25 hover:bg-emerald-500"
-                onClick={() => setShowNew("now")}>
-                <Video className="size-4" /> New meeting
-              </Button>
-              <Button size="lg" variant="outline" className="gap-2 border-emerald-500/30"
-                onClick={() => setShowNew("later")}>
-                <CalendarClock className="size-4" /> Schedule
-              </Button>
+        <section className="mb-7 overflow-hidden rounded-3xl border border-emerald-500/25 bg-card/90 p-4 shadow-lg shadow-emerald-950/10 backdrop-blur md:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">Join a meeting</p>
+              <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Enter the code from your invite</h2>
+              <div className="mt-4 flex min-w-0 flex-col gap-2 sm:flex-row">
+                <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && joinByCode()}
+                  placeholder="MEET-0000" aria-label="Meeting code" autoCapitalize="characters"
+                  className="h-14 min-w-0 flex-1 border-emerald-500/25 bg-background/80 px-4 text-base font-medium uppercase tracking-wide shadow-inner focus-visible:ring-emerald-500/40 md:text-lg" />
+                <Button onClick={joinByCode} size="lg"
+                  className="h-14 shrink-0 gap-2 bg-emerald-600 px-8 text-base shadow-md shadow-emerald-600/20 hover:bg-emerald-500">
+                  Join meeting <ArrowRight className="size-4" />
+                </Button>
+              </div>
+              {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
             </div>
+            {resumableCode && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[.08] p-4 lg:w-[22rem]">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">
+                  {activeCode ? "Meeting still open" : "Last joined meeting"}
+                </p>
+                <p className="mt-1 truncate font-semibold">{resumableTitle}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{resumableCode}</p>
+                <Button className="mt-3 w-full bg-emerald-600 hover:bg-emerald-500"
+                  onClick={() => router.push(`/crm/suprah-meet/room/${resumableCode}`)}>
+                  {activeCode ? "Return to meeting" : "Rejoin meeting"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
 
-            {/* Mobile join */}
-            <div className="hidden">
-              <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && joinByCode()}
-                placeholder="Enter a meeting code"
-                className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" />
-              <Button variant="secondary" onClick={joinByCode}>Join</Button>
-            </div>
-            {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-
-            {/* Capability tiles */}
-            <div className="hidden">
-              <Capability icon={<ShieldCheck className="size-5" />} title="CRM-only access"
-                text="Every session is gated by your CRM identity and scoped to your org." />
-              <Capability icon={<CircleDot className="size-5" />} title="Cloud recording"
-                text="Server-side capture straight to AWS — nothing depends on one laptop." />
-              <Capability icon={<Bot className="size-5" />} title="AI summaries"
-                text="Key points, decisions, and action items generated after every recording." />
-            </div>
-          </section>
+        <div className="grid min-w-0 gap-7 xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-8">
+          <aside className="order-2 min-w-0 space-y-4 xl:self-start">
+            <section className="rounded-2xl border bg-card/80 p-4 shadow-sm backdrop-blur">
+              <h2 className="text-sm font-semibold">Meeting tools</h2>
+              <div className="mt-3 grid gap-2">
+                <Button className="justify-start gap-2 bg-emerald-600 hover:bg-emerald-500" onClick={() => setShowNew("now")}>
+                  <Video className="size-4" /> Start a new meeting
+                </Button>
+                <Button variant="outline" className="justify-start gap-2 border-emerald-500/30" onClick={() => setShowNew("later")}>
+                  <CalendarClock className="size-4" /> Create a schedule
+                </Button>
+              </div>
+            </section>
+            <section className="rounded-2xl border bg-card/80 p-4 shadow-sm backdrop-blur">
+              <div className="flex items-start gap-3">
+                <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-500/10 text-emerald-500"><BellRing className="size-4" /></div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm font-semibold">Device meeting alerts</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {deviceAlerts.isLoading ? "Checking this device…" : deviceAlerts.isSubscribed
+                      ? "On for this browser or installed PWA."
+                      : deviceAlerts.isSupported
+                        ? "Off on this device. Enable alerts for invites, reminders, and live meetings."
+                        : "Not supported by this browser or installation."}
+                  </p>
+                  {deviceAlerts.isSupported && !deviceAlerts.isSubscribed && !deviceAlerts.isLoading && (
+                    <Button size="sm" variant="outline" className="mt-3 w-full border-emerald-500/30"
+                      onClick={() => void deviceAlerts.subscribe()}>Enable device alerts</Button>
+                  )}
+                </div>
+              </div>
+            </section>
+            <button type="button" onClick={() => setHistoryOpen((open) => !open)}
+              className="flex w-full items-center justify-between rounded-2xl border bg-card/80 px-4 py-4 text-left text-sm font-medium text-muted-foreground shadow-sm transition-colors hover:border-emerald-500/35 hover:text-foreground">
+              <span>Meeting history <span className="text-xs">({past.length})</span></span>
+              <ChevronDown className={cn("size-4 transition-transform", historyOpen && "rotate-180")} />
+            </button>
+          </aside>
 
           {/* Meetings column */}
-          <section className="order-1 min-w-0 space-y-6 xl:order-1">
+          <section className="order-1 min-w-0 space-y-6">
             {live.length > 0 && (
               <Group title="Happening now" live>
                 {live.map((m) => (
@@ -369,10 +400,10 @@ export default function SuprahMeetLobbyPage() {
               </Group>
             )}
 
-            <Group title={live.length > 0 || openRooms.length > 0 ? "Up next" : "Upcoming"}>
-              {upcoming.length === 0 && <EmptyRow text="Nothing scheduled yet — plan one with Schedule." />}
-              {upcomingVisible.map((m) => (
-                <MeetingCard key={m._id} m={m}
+            <Group title={live.length > 0 || openRooms.length > 0 ? "Up next" : "Upcoming meetings"} prominent>
+              {upcoming.length === 0 && <EmptyRow text="Your scheduled meetings will appear here." />}
+              {upcomingVisible.map((m, index) => (
+                <MeetingCard key={m._id} m={m} emphasis={index === 0}
                   sub={m.scheduledAt ? (
                     <>
                       {m.visibility === "private" && (
@@ -417,45 +448,46 @@ export default function SuprahMeetLobbyPage() {
                 totalPages={upcomingTotalPages} onPage={goUpcomingPage} />
             </Group>
 
-            {missed.length > 0 && (
-              <Group title="Missed">
+            {previousScheduled.length > 0 && (
+              <Group title="Earlier scheduled meetings">
                 {missedVisible.map((m) => (
-                  <MeetingCard key={m._id} m={m}
-                    sub={<span className="text-amber-500 dark:text-amber-400">
-                      {m.scheduledAt ? mdt(m.scheduledAt) : ""} · missed
-                    </span>}
-                    action={
-                      <div className="flex items-center gap-1">
-                        {canDelete(m) && (
-                          <>
-                            <Button size="icon" variant="ghost"
-                              className="size-8 text-muted-foreground hover:text-emerald-500"
-                              title="Reschedule" onClick={() => setEditTarget(m)}>
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost"
-                              className="size-8 text-muted-foreground hover:text-destructive"
-                              title="Delete this session" onClick={() => setConfirmDelete(m)}>
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </>
-                        )}
-                        <Button size="sm" variant="outline"
-                          onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>Start anyway</Button>
-                      </div>
-                    } />
+                  <div key={`schedule-${m._id}`} className="overflow-hidden rounded-2xl border bg-card/70 backdrop-blur">
+                    <MeetingCard m={m} plain
+                      sub={m.status === "ended"
+                        ? <>ended {m.endedAt ? mdt(m.endedAt) : m.scheduledAt ? mdt(m.scheduledAt) : ""}</>
+                        : <span className="text-amber-500 dark:text-amber-400">{m.scheduledAt ? mdt(m.scheduledAt) : ""} · not started</span>}
+                      action={m.status === "ended" ? (
+                        <Button size="sm" variant="ghost" className="gap-1"
+                          onClick={() => setExpanded(expanded === m._id ? null : m._id)}>
+                          Summary <ChevronDown className={cn("size-4 transition-transform", expanded === m._id && "rotate-180")} />
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          {canDelete(m) && (
+                            <>
+                              <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-emerald-500"
+                                title="Reschedule" onClick={() => setEditTarget(m)}><Pencil className="size-4" /></Button>
+                              <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive"
+                                title="Delete this session" onClick={() => setConfirmDelete(m)}><Trash2 className="size-4" /></Button>
+                            </>
+                          )}
+                          <Button size="sm" variant="outline"
+                            onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>{m.hostCrmUserId === selfId ? "Start" : "View room"}</Button>
+                        </div>
+                      )} />
+                    {m.status === "ended" && expanded === m._id && <div className="border-t p-3"><MeetingSummaryPanel code={m.code} /></div>}
+                  </div>
                 ))}
-                <Pager total={missed.length} page={safeMissedPage}
+                <Pager total={previousScheduled.length} page={safeMissedPage}
                   totalPages={missedTotalPages} onPage={goMissedPage} />
               </Group>
             )}
+          </section>
+        </div>
 
-            <button type="button" onClick={() => setHistoryOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-xl border bg-card/60 px-4 py-3 text-left text-sm font-medium text-muted-foreground transition-colors hover:border-emerald-500/35 hover:text-foreground">
-              <span>Past meetings <span className="text-xs">({past.length})</span></span>
-              <ChevronDown className={cn("size-4 transition-transform", historyOpen && "rotate-180")} />
-            </button>
-            {historyOpen && <Group title="Past meetings">
+        {historyOpen && (
+          <section className="mt-8 rounded-3xl border bg-card/70 p-4 shadow-sm backdrop-blur md:p-5">
+            <Group title="Meeting history">
               {past.length === 0 && <EmptyRow text="Ended meetings appear here with recordings and AI summaries." />}
               {pastVisible.map((m) => (
                 <div key={m._id} className="overflow-hidden rounded-2xl border bg-card/70 backdrop-blur">
@@ -473,9 +505,9 @@ export default function SuprahMeetLobbyPage() {
 
               <Pager total={past.length} page={safePastPage}
                 totalPages={pastTotalPages} onPage={goPastPage} />
-            </Group>}
+            </Group>
           </section>
-        </div>
+        )}
       </div>
 
       {toast && (
@@ -545,22 +577,11 @@ export default function SuprahMeetLobbyPage() {
   );
 }
 
-/* ── Landing building blocks ─────────────────────────────────────── */
-function Capability({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+function Group({ title, live, prominent, children }: { title: string; live?: boolean; prominent?: boolean; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border bg-card/60 p-4 backdrop-blur transition-colors hover:border-emerald-500/40">
-      <div className="mb-2 grid size-9 place-items-center rounded-lg bg-emerald-500/10 text-emerald-500">{icon}</div>
-      <p className="text-sm font-medium">{title}</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
-    </div>
-  );
-}
-
-function Group({ title, live, children }: { title: string; live?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
+    <div className={cn(prominent && "rounded-3xl border border-emerald-500/20 bg-card/55 p-4 shadow-sm md:p-5")}>
       <h3 className={cn("mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground",
-        live && "text-emerald-500")}>
+        live && "text-emerald-500", prominent && "mb-3 text-sm text-foreground")}>
         {live && <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />}{title}
       </h3>
       <div className="space-y-2">{children}</div>
@@ -704,7 +725,7 @@ function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers
   return (
     <>
         {/* Who */}
-        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tag attendees</label>
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Who should see this meeting and get alerts?</label>
         <div className="mb-3 grid grid-cols-3 gap-1 rounded-lg border bg-muted/40 p-1 text-xs">
           {([["people", "People", <Users key="u" className="size-3.5" />],
              ["departments", "Departments", <Building2 key="b" className="size-3.5" />],
@@ -866,6 +887,12 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
       };
       if (mode === "later") {
         if (!date) throw new Error("Pick a date.");
+        if (audience === "people" && selectedUsers.size === 0) {
+          throw new Error("Choose at least one person to notify, or select a department or All CRM users.");
+        }
+        if (audience === "departments" && selectedDepts.size === 0) {
+          throw new Error("Choose at least one department to notify, or select people or All CRM users.");
+        }
         if (sessionDates.length === 0) {
           throw new Error(repeat === "none" ? PAST_TIME_MSG : "No upcoming days match this repeat rule.");
         }
@@ -1108,6 +1135,12 @@ function EditMeetingModal({ m, onClose, onSaved }: {
   const save = async () => {
     setBusy(true); setError(null);
     try {
+      if (audience === "people" && selectedUsers.size === 0) {
+        throw new Error("Choose at least one person to notify, or select a department or All CRM users.");
+      }
+      if (audience === "departments" && selectedDepts.size === 0) {
+        throw new Error("Choose at least one department to notify, or select people or All CRM users.");
+      }
       const body: any = {
         title,
         visibility,

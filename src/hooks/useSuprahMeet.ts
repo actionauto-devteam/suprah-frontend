@@ -10,6 +10,7 @@ import {
   type DataMessage, type MeetingSessionStatus, type VideoTileState, type TranscriptEvent,
 } from "amazon-chime-sdk-js";
 import { apiClient } from "@/lib/api-client";
+import { forgetRecentMeet, rememberRecentMeet } from "@/lib/meet-recent";
 import { meetSounds } from "@/lib/meet-sounds";
 import { updateCaptionLines, type CaptionLine, type CaptionStatus } from '@/lib/meet-captions';
 
@@ -437,6 +438,10 @@ export function useSuprahMeet() {
 
       audioVideo.realtimeSubscribeToReceiveDataMessage(CHAT_TOPIC, (msg: DataMessage) => {
         try {
+          // Chime can echo a data message back to its sender. The sender has
+          // already appended the local message, so ignore that echo instead of
+          // showing a duplicate notification/chat preview.
+          if (msg.senderAttendeeId === selfAttendeeIdRef.current) return;
           const payload = JSON.parse(msg.text());
           setChatMessages((m) => [...m, {
             id: `${msg.timestampMs}-${msg.senderAttendeeId}`,
@@ -502,6 +507,7 @@ export function useSuprahMeet() {
       }
       joinedAtRef.current = Date.now();
       if (!options?.startMic) setMicOn(false);
+      if (!guestTokenRef.current) rememberRecentMeet({ code: codeRef.current, title: meetingInfo.title });
       setPhase("in");
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");
@@ -911,6 +917,7 @@ export function useSuprahMeet() {
       return;
     }
     await teardown();
+    forgetRecentMeet(codeRef.current);
     selfAttendeeIdRef.current = "";
     setSelfAttendeeId("");
     setEndedReason(null);

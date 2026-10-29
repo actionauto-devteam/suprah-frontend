@@ -72,6 +72,7 @@ function createMeeting() {
     if (name === '@/lib/api-client') return { apiClient: api };
     if (name === '@/lib/meet-sounds') return { meetSounds: new Proxy({}, { get: () => () => {} }) };
     if (name === '@/lib/meet-captions') return { updateCaptionLines: (lines) => lines };
+    if (name === '@/lib/meet-recent') return { rememberRecentMeet: () => {}, forgetRecentMeet: () => {} };
     throw new Error(`Unexpected import ${name}`);
   };
   loaded._compile(compiled, filename);
