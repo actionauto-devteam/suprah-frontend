@@ -35,6 +35,7 @@ import {
 import { validateAll, validateAssignment } from "./validation"
 import { LocationSection } from "./LocationSection"
 import { VehicleSection } from "./VehicleSection"
+import { SameVehicleWarning, useSameVinLoads } from "./SameVehicleWarning"
 import { DatesSection } from "./DatesSection"
 import { AdditionalInfoSection } from "./AdditionalInfoSection"
 import { DriverPickerSection, OrgDriver } from "./DriverPickerSection"
@@ -261,6 +262,11 @@ export function LoadFormLayout({
               model: inventoryVehicle.model,
             }]
           : [emptyVehicle()],
+  )
+  // Warns (never blocks) when a VIN is already on another live load.
+  const sameVinLoads = useSameVinLoads(
+    vehicles.map((vehicle) => vehicle.vin),
+    isEdit ? initialLoad!._id : undefined,
   )
   const [trailerType, setTrailerType] = React.useState<string>(
     () => (isEdit ? initialLoad!.trailerType : copySource?.trailerType) || "open_2car",
@@ -655,6 +661,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
               onChange={setVehicles}
               trailerType={trailerType}
             />
+            <SameVehicleWarning matches={sameVinLoads} />
           </div>
         )}
 
@@ -719,6 +726,12 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             onPendingPhotosChange={setPendingPhotos}
             onVehicleUpdate={updateVehicleAt}
           />
+        )}
+
+        {step.key === "review" && sameVinLoads.length > 0 && (
+          <div className="mb-4">
+            <SameVehicleWarning matches={sameVinLoads} />
+          </div>
         )}
 
         {step.key === "review" && (

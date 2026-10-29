@@ -10,6 +10,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import { subscribeToLoadChanges, type LoadRefreshReason } from "@/lib/live-load-updates";
 import { userErrorMessage } from "@/lib/user-error";
+import { convertedSameVehicleWarning, type VehicleShippingLoad } from "@/lib/vehicle-shipping";
 
 export interface TransportationPagination {
   page: number;
@@ -1325,11 +1326,21 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     ) => {
       try {
         const config = await getAuthConfig();
-        await apiClient.post(
+        const response = await apiClient.post(
           `/api/quotes/${quoteId}/convert-to-load`,
           routeDetails ?? {},
           config ?? undefined,
         );
+
+        // The car may already be on another live load. Say so, without
+        // undoing anything: the new load is a draft staff can check or delete.
+        const created = response.data?.data ?? response.data;
+        const sameVehicleLoads: VehicleShippingLoad[] = Array.isArray(created?.sameVehicleLoads)
+          ? created.sameVehicleLoads
+          : [];
+        if (sameVehicleLoads.length > 0) {
+          toast.warning(convertedSameVehicleWarning(sameVehicleLoads), { duration: 12000 });
+        }
 
         // Keep the warm quote snapshot authoritative immediately. Converted
         // quotes remain in quote history as "booked" instead of disappearing
