@@ -119,6 +119,19 @@ export function formatShipmentDate(iso: string | null | undefined): string {
   })
 }
 
+/**
+ * "Nov 3, 2026" for a delivery deadline. Schedule dates are calendar days
+ * stored at UTC midnight, so this reads the day the way the load page does
+ * (formatScheduleDate) and never shows the day before. "" when there's none.
+ */
+export function formatExpectedByDate(iso: string | null | undefined): string {
+  const match = typeof iso === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim()) : null
+  if (!match) return ""
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12))
+  if (!Number.isFinite(date.getTime())) return ""
+  return date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" })
+}
+
 /** "$950" for an estimated shipping price, or "" when there's none. */
 export function formatShipmentPrice(rate: number | null | undefined): string {
   if (typeof rate !== "number" || !Number.isFinite(rate)) return ""

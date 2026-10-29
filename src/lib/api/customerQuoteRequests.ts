@@ -69,6 +69,8 @@ export interface CustomerShipment {
     cancelledAt: string | null;
     /** The reason's label only. */
     cancelReason: string | null;
+    /** The load's delivery deadline, only while the car is still coming. */
+    expectedBy?: string | null;
   } | null;
 }
 

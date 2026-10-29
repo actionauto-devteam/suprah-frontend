@@ -16,7 +16,7 @@ function loadLib(name) {
   return cjs.exports;
 }
 
-const { SHIPMENT_STAGE_META, shipmentSteps, formatShipmentPrice, formatShipmentDate } = loadLib('customer-shipments');
+const { SHIPMENT_STAGE_META, shipmentSteps, formatShipmentPrice, formatShipmentDate, formatExpectedByDate } = loadLib('customer-shipments');
 const { quoteVehicleNotice } = loadLib('quote-vehicle');
 
 const STAGES = ['waiting', 'accepted', 'declined', 'unavailable', 'booked', 'picked_up', 'on_the_way', 'delivered', 'cancelled'];
@@ -67,4 +67,12 @@ test('quote cards say when the vehicle is gone', () => {
   assert.deepEqual(quoteVehicleNotice({ status: 'booked', vehicleState: 'sold' }), { label: 'Vehicle sold', tone: 'info' });
   assert.equal(quoteVehicleNotice({ status: 'pending' }), null);
   assert.equal(quoteVehicleNotice({ status: 'accepted', closedReason: 'vehicle_unavailable' }), null);
+});
+
+test('the expected delivery date is the day staff entered, never the day before', () => {
+  // Stored at UTC midnight; in Mountain Time that instant is still the evening before.
+  assert.equal(formatExpectedByDate('2026-11-03T00:00:00.000Z'), 'Nov 3, 2026');
+  assert.equal(formatExpectedByDate('2026-12-31'), 'Dec 31, 2026');
+  assert.equal(formatExpectedByDate(null), '');
+  assert.equal(formatExpectedByDate('soon'), '');
 });
