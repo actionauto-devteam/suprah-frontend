@@ -6,6 +6,9 @@ import { Archive, Car, Loader2, Package, RefreshCw } from "lucide-react";
 import { CarInventoryCard, preloadInventoryVehicleImages } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
 import { DeferredInventoryModal } from "@/components/inventory/DeferredInventoryModal";
+import { VehicleShippingTag } from "@/components/inventory/VehicleShippingTag";
+import { getVehicleShipping } from "@/lib/api/vehicleShipping";
+import { checkableVins, inventoryShippingStates, type VehicleShippingResult } from "@/lib/vehicle-shipping";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
@@ -836,6 +839,47 @@ function InventoryContent() {
 
   const preparedPhotos = usePreparedInventoryPhotos(visibleVehicles, `${inventoryView}:${viewMode}`);
 
+  // Staff see which cars on this page are already on a live load or have a
+  // shipping quote waiting, so nobody ships the same car twice. A failed
+  // lookup just shows no tags.
+  const [shippingResult, setShippingResult] = React.useState<VehicleShippingResult | null>(null);
+  const shippingLookupKey = isCustomer
+    ? "[]"
+    : JSON.stringify(visibleVehicles.map((vehicle) => ({ id: vehicle.id, vin: vehicle.vin ?? "" })));
+  React.useEffect(() => {
+    const cars = JSON.parse(shippingLookupKey) as Array<{ id: string; vin: string }>;
+    if (cars.length === 0) {
+      setShippingResult(null);
+      return;
+    }
+    const controller = new AbortController();
+    getVehicleShipping(
+      { vehicleIds: cars.map((car) => car.id), vins: checkableVins(cars.map((car) => car.vin)), quotes: true },
+      { signal: controller.signal },
+    )
+      .then(setShippingResult)
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.warn("Could not check which inventory cars are already being shipped", err);
+        setShippingResult(null);
+      });
+    return () => controller.abort();
+  }, [shippingLookupKey]);
+  const shippingStates = React.useMemo(
+    () => inventoryShippingStates(shippingResult, visibleVehicles),
+    [shippingResult, visibleVehicles],
+  );
+  const withShippingTag = (vehicleId: string, card: React.ReactElement) => {
+    const state = shippingStates.get(vehicleId);
+    if (!state) return card;
+    return (
+      <div key={vehicleId} className="flex h-full min-w-0 flex-col gap-1.5">
+        <div className="min-h-0 flex-1">{card}</div>
+        <VehicleShippingTag state={state} />
+      </div>
+    );
+  };
+
   React.useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
@@ -1317,7 +1361,8 @@ function InventoryContent() {
               {preparedPhotos.vehicles.map((vehicle, vehicleIndex) => {
                 if (viewMode === "grid") {
                   if (isMobile) {
-                    return (
+                    return withShippingTag(
+                      vehicle.id,
                       <CarInventoryCard
                         imagePriority={vehicleIndex < 4}
                         key={vehicle.id}
@@ -1337,7 +1382,8 @@ function InventoryContent() {
                     );
                   }
 
-                  return (
+                  return withShippingTag(
+                    vehicle.id,
                     <PremiumVehicleCard
                       key={vehicle.id}
                       vehicle={vehicle}
@@ -1355,7 +1401,8 @@ function InventoryContent() {
                   );
                 }
 
-                return (
+                return withShippingTag(
+                  vehicle.id,
                   <CarInventoryCard
                     imagePriority={vehicleIndex < 4}
                     key={vehicle.id}
