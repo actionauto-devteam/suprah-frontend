@@ -41,6 +41,16 @@ interface MeetingRow {
 interface CrmUserRow { _id: string; fullName: string; role: string; department?: string; }
 interface DeptRow { key: string; label: string; }
 
+interface MeetingMutationPayload {
+  title: string;
+  visibility: "public" | "private";
+  inviteAll: boolean;
+  invitees: string[];
+  inviteDepartments: string[];
+  scheduledAt?: string;
+  occurrences?: string[];
+}
+
 type RepeatRule = "none" | "daily" | "weekdays" | "weekends" | "custom";
 const MAX_SESSIONS = 30;
 const PER_PAGE = 10; // Upcoming and Past both paginate at 10 per page
@@ -58,6 +68,17 @@ const TIME_OPTIONS = (() => {
 })();
 
 const fieldCls = "h-10 w-full rounded-lg border bg-background px-3 text-sm focus:border-emerald-500/60 focus:outline-none";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const apiErrorMessage = (error: unknown, fallback: string) => {
+  if (!isRecord(error)) return fallback;
+  const response = isRecord(error.response) ? error.response : null;
+  const data = response && isRecord(response.data) ? response.data : null;
+  if (data && typeof data.message === "string" && data.message) return data.message;
+  return typeof error.message === "string" && error.message ? error.message : fallback;
+};
 
 const mdt = (iso: string) =>
   new Date(iso).toLocaleString("en-US", {
@@ -141,6 +162,7 @@ export default function SuprahMeetLobbyPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [historyTab, setHistoryTab] = React.useState<"scheduled" | "ended">("scheduled");
   const [showNew, setShowNew] = React.useState<false | "now" | "later">(false);
   const [confirmDelete, setConfirmDelete] = React.useState<MeetingRow | null>(null);
   const [editTarget, setEditTarget] = React.useState<MeetingRow | null>(null);
@@ -158,6 +180,19 @@ export default function SuprahMeetLobbyPage() {
   const [pastPage, setPastPage] = React.useState(1);
   const [recentMeet, setRecentMeet] = React.useState<ReturnType<typeof readRecentMeet>>(null);
   React.useEffect(() => { setRecentMeet(readRecentMeet()); }, []);
+  React.useEffect(() => {
+    if (!historyOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setHistoryOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [historyOpen]);
   // The lobby's clock: drives countdowns and Upcoming→Missed transitions live.
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -180,8 +215,8 @@ export default function SuprahMeetLobbyPage() {
       });
       setSelfId(res.data?.data?.selfCrmUserId ?? "");
       setCanManageAll(Boolean(res.data?.data?.canManageAll));
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Could not load meetings.");
+    } catch (err: unknown) {
+      setError(apiErrorMessage(err, "Could not load meetings."));
     }
   }, []);
   React.useEffect(() => { void load(); }, [load, meetingNoticeKey]);
@@ -212,8 +247,8 @@ export default function SuprahMeetLobbyPage() {
       await apiClient.delete(`/api/crm/meet/meetings/${m.code}${wholeSeries ? "?series=1" : ""}`);
       setConfirmDelete(null);
       await load();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Could not delete the meeting.");
+    } catch (err: unknown) {
+      setError(apiErrorMessage(err, "Could not delete the meeting."));
       setConfirmDelete(null);
     } finally {
       setDeleting(false);
@@ -283,7 +318,7 @@ export default function SuprahMeetLobbyPage() {
 
       <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-8 md:py-7">
         {/* Brand bar */}
-        <header className="mb-5 flex flex-wrap items-center gap-4">
+        <header className="mb-5 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <SuprahMeetLogo className="size-11 md:size-12" />
             <div>
@@ -293,13 +328,23 @@ export default function SuprahMeetLobbyPage() {
               <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">CRM Video Platform</p>
             </div>
           </div>
+          <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+            {(live.length > 0 || openRooms.length > 0) && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[.07] px-3 py-1.5 text-emerald-600 dark:text-emerald-400">
+                <span className={cn("size-1.5 rounded-full bg-emerald-500", live.length > 0 && "animate-pulse")} />
+                {live.length + openRooms.length} open {live.length + openRooms.length === 1 ? "room" : "rooms"}
+              </span>
+            )}
+            <span>{upcoming.length} upcoming</span>
+          </div>
         </header>
 
-        <section className="mb-7 overflow-hidden rounded-3xl border border-emerald-500/25 bg-card/90 p-4 shadow-lg shadow-emerald-950/10 backdrop-blur md:p-6">
+        <section className="mb-7 overflow-hidden rounded-2xl border border-emerald-500/25 bg-card/90 p-4 shadow-md shadow-emerald-950/10 backdrop-blur md:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
             <div className="min-w-0 flex-1">
               <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">Join a meeting</p>
               <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Enter the code from your invite</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Paste the code you received. Meeting codes look like MEET-0000.</p>
               <div className="mt-4 flex min-w-0 flex-col gap-2 sm:flex-row">
                 <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && joinByCode()}
@@ -329,7 +374,7 @@ export default function SuprahMeetLobbyPage() {
         </section>
 
         <div className="grid min-w-0 gap-7 xl:grid-cols-[minmax(0,1fr)_18rem] xl:gap-8">
-          <aside className="order-2 min-w-0 space-y-4 xl:self-start">
+          <aside className="order-2 min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
             <section className="rounded-2xl border bg-card/80 p-4 shadow-sm backdrop-blur">
               <h2 className="text-sm font-semibold">Meeting tools</h2>
               <div className="mt-3 grid gap-2">
@@ -360,15 +405,28 @@ export default function SuprahMeetLobbyPage() {
                 </div>
               </div>
             </section>
-            <button type="button" onClick={() => setHistoryOpen((open) => !open)}
-              className="flex w-full items-center justify-between rounded-2xl border bg-card/80 px-4 py-4 text-left text-sm font-medium text-muted-foreground shadow-sm transition-colors hover:border-emerald-500/35 hover:text-foreground">
-              <span>Meeting history <span className="text-xs">({past.length})</span></span>
-              <ChevronDown className={cn("size-4 transition-transform", historyOpen && "rotate-180")} />
+            <button type="button" onClick={() => { setHistoryTab(previousScheduled.length > 0 ? "scheduled" : "ended"); setHistoryOpen(true); }}
+              className="group flex w-full items-center justify-between rounded-2xl border bg-card/80 px-4 py-4 text-left shadow-sm transition-colors hover:border-emerald-500/35 hover:bg-card">
+              <span>
+                <span className="block text-sm font-medium text-foreground">Earlier meetings</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">Schedules and meeting history</span>
+              </span>
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                {previousScheduled.length + past.filter((meeting) => !meeting.scheduledAt).length}
+                <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
             </button>
           </aside>
 
           {/* Meetings column */}
           <section className="order-1 min-w-0 space-y-6">
+            <div className="flex flex-wrap items-end justify-between gap-2 border-b pb-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Your meetings</p>
+                <h2 className="mt-0.5 text-lg font-semibold tracking-tight">Today and coming up</h2>
+              </div>
+              <p className="text-xs text-muted-foreground">Live rooms stay at the top automatically.</p>
+            </div>
             {live.length > 0 && (
               <Group title="Happening now" live>
                 {live.map((m) => (
@@ -448,67 +506,76 @@ export default function SuprahMeetLobbyPage() {
                 totalPages={upcomingTotalPages} onPage={goUpcomingPage} />
             </Group>
 
-            {previousScheduled.length > 0 && (
-              <Group title="Earlier scheduled meetings">
-                {missedVisible.map((m) => (
-                  <div key={`schedule-${m._id}`} className="overflow-hidden rounded-2xl border bg-card/70 backdrop-blur">
-                    <MeetingCard m={m} plain
-                      sub={m.status === "ended"
-                        ? <>ended {m.endedAt ? mdt(m.endedAt) : m.scheduledAt ? mdt(m.scheduledAt) : ""}</>
-                        : <span className="text-amber-500 dark:text-amber-400">{m.scheduledAt ? mdt(m.scheduledAt) : ""} · not started</span>}
-                      action={m.status === "ended" ? (
-                        <Button size="sm" variant="ghost" className="gap-1"
-                          onClick={() => setExpanded(expanded === m._id ? null : m._id)}>
-                          Summary <ChevronDown className={cn("size-4 transition-transform", expanded === m._id && "rotate-180")} />
-                        </Button>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          {canDelete(m) && (
-                            <>
-                              <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-emerald-500"
-                                title="Reschedule" onClick={() => setEditTarget(m)}><Pencil className="size-4" /></Button>
-                              <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive"
-                                title="Delete this session" onClick={() => setConfirmDelete(m)}><Trash2 className="size-4" /></Button>
-                            </>
-                          )}
-                          <Button size="sm" variant="outline"
-                            onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>{m.hostCrmUserId === selfId ? "Start" : "View room"}</Button>
-                        </div>
-                      )} />
-                    {m.status === "ended" && expanded === m._id && <div className="border-t p-3"><MeetingSummaryPanel code={m.code} /></div>}
-                  </div>
-                ))}
-                <Pager total={previousScheduled.length} page={safeMissedPage}
-                  totalPages={missedTotalPages} onPage={goMissedPage} />
-              </Group>
-            )}
           </section>
         </div>
-
-        {historyOpen && (
-          <section className="mt-8 rounded-3xl border bg-card/70 p-4 shadow-sm backdrop-blur md:p-5">
-            <Group title="Meeting history">
-              {past.length === 0 && <EmptyRow text="Ended meetings appear here with recordings and AI summaries." />}
-              {pastVisible.map((m) => (
-                <div key={m._id} className="overflow-hidden rounded-2xl border bg-card/70 backdrop-blur">
-                  <MeetingCard m={m} plain
-                    sub={m.endedAt ? (
-                      <>ended {mdt(m.endedAt)}{m.startedAt && <> · {meetingMinutes(m, new Date(m.endedAt).getTime())} active min</>}</>
-                    ) : undefined}
-                    action={<Button size="sm" variant="ghost" className="gap-1"
-                      onClick={() => setExpanded(expanded === m._id ? null : m._id)}>
-                      Summary <ChevronDown className={cn("size-4 transition-transform", expanded === m._id && "rotate-180")} />
-                    </Button>} />
-                  {expanded === m._id && <div className="border-t p-3"><MeetingSummaryPanel code={m.code} /></div>}
-                </div>
-              ))}
-
-              <Pager total={past.length} page={safePastPage}
-                totalPages={pastTotalPages} onPage={goPastPage} />
-            </Group>
-          </section>
-        )}
       </div>
+
+      {historyOpen && (
+        <div className="fixed inset-0 z-[80]">
+          <button type="button" aria-label="Close earlier meetings"
+            className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" onClick={() => setHistoryOpen(false)} />
+          <aside role="dialog" aria-modal="true" aria-labelledby="meet-history-title"
+            className="absolute inset-y-0 right-0 flex w-full flex-col border-l bg-background shadow-2xl sm:max-w-2xl">
+            <header className="border-b px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Suprah Meet</p>
+                  <h2 id="meet-history-title" className="mt-1 text-xl font-semibold tracking-tight">Earlier meetings</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Review schedules that passed and summaries from ended calls.</p>
+                </div>
+                <Button type="button" size="icon" variant="ghost" className="shrink-0" aria-label="Close"
+                  onClick={() => setHistoryOpen(false)}><X className="size-5" /></Button>
+              </div>
+              <div className="mt-4 grid grid-cols-2 rounded-xl border bg-muted/30 p-1">
+                <button type="button" onClick={() => { setHistoryTab("scheduled"); setExpanded(null); }}
+                  className={cn("rounded-lg px-3 py-2 text-sm transition-colors", historyTab === "scheduled" ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  Earlier schedules <span className="ml-1 text-xs">{previousScheduled.length}</span>
+                </button>
+                <button type="button" onClick={() => { setHistoryTab("ended"); setExpanded(null); }}
+                  className={cn("rounded-lg px-3 py-2 text-sm transition-colors", historyTab === "ended" ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  All ended <span className="ml-1 text-xs">{past.length}</span>
+                </button>
+              </div>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+              <div className="space-y-2">
+                {historyTab === "scheduled" && (
+                  <>
+                    {previousScheduled.length === 0 && <EmptyRow text="Earlier scheduled meetings will appear here." />}
+                    {missedVisible.map((m) => (
+                      <EarlierMeetingRow key={`schedule-${m._id}`} m={m} selfId={selfId} canDelete={canDelete(m)}
+                        expanded={expanded === m._id} onToggle={() => setExpanded(expanded === m._id ? null : m._id)}
+                        onOpen={() => router.push(`/crm/suprah-meet/room/${m.code}`)}
+                        onEdit={() => { setHistoryOpen(false); setEditTarget(m); }}
+                        onDelete={() => { setHistoryOpen(false); setConfirmDelete(m); }} />
+                    ))}
+                    <Pager total={previousScheduled.length} page={safeMissedPage}
+                      totalPages={missedTotalPages} onPage={goMissedPage} />
+                  </>
+                )}
+                {historyTab === "ended" && (
+                  <>
+                    {past.length === 0 && <EmptyRow text="Ended meetings appear here with recordings and summaries." />}
+                    {pastVisible.map((m) => (
+                      <div key={m._id} className="overflow-hidden rounded-2xl border bg-card/70">
+                        <MeetingCard m={m} plain
+                          sub={m.endedAt ? <>ended {mdt(m.endedAt)}{m.startedAt && <> · {meetingMinutes(m, new Date(m.endedAt).getTime())} active min</>}</> : undefined}
+                          action={<Button size="sm" variant="ghost" className="gap-1"
+                            onClick={() => setExpanded(expanded === m._id ? null : m._id)}>
+                            Summary <ChevronDown className={cn("size-4 transition-transform", expanded === m._id && "rotate-180")} />
+                          </Button>} />
+                        {expanded === m._id && <div className="border-t p-3"><MeetingSummaryPanel code={m.code} /></div>}
+                      </div>
+                    ))}
+                    <Pager total={past.length} page={safePastPage} totalPages={pastTotalPages} onPage={goPastPage} />
+                  </>
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-50 w-max max-w-[90%] -translate-x-1/2 rounded-xl border border-emerald-500/30 bg-background px-4 py-2 text-center text-sm shadow-lg">
@@ -665,6 +732,44 @@ function MeetingCard({ m, sub, action, plain, emphasis }: { m: MeetingRow; sub?:
   );
 }
 
+function EarlierMeetingRow({ m, selfId, canDelete, expanded, onToggle, onOpen, onEdit, onDelete }: {
+  m: MeetingRow;
+  selfId: string;
+  canDelete: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border bg-card/70">
+      <MeetingCard m={m} plain
+        sub={m.status === "ended"
+          ? <>ended {m.endedAt ? mdt(m.endedAt) : m.scheduledAt ? mdt(m.scheduledAt) : ""}</>
+          : <span className="text-amber-500 dark:text-amber-400">{m.scheduledAt ? mdt(m.scheduledAt) : ""} · not started</span>}
+        action={m.status === "ended" ? (
+          <Button size="sm" variant="ghost" className="gap-1" onClick={onToggle}>
+            Summary <ChevronDown className={cn("size-4 transition-transform", expanded && "rotate-180")} />
+          </Button>
+        ) : (
+          <div className="flex items-center gap-1">
+            {canDelete && (
+              <>
+                <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-emerald-500"
+                  title="Reschedule" onClick={onEdit}><Pencil className="size-4" /></Button>
+                <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive"
+                  title="Delete this session" onClick={onDelete}><Trash2 className="size-4" /></Button>
+              </>
+            )}
+            <Button size="sm" variant="outline" onClick={onOpen}>{m.hostCrmUserId === selfId ? "Start" : "View room"}</Button>
+          </div>
+        )} />
+      {m.status === "ended" && expanded && <div className="border-t p-3"><MeetingSummaryPanel code={m.code} /></div>}
+    </div>
+  );
+}
+
 /* ── Audience picker — shared by the New and Edit meeting modals ──────────── */
 function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers, selectedDepts, setSelectedDepts }: {
   audience: "people" | "departments" | "all";
@@ -697,12 +802,15 @@ function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers
         const res = await apiClient.get("/api/crm/departments");
         const raw = res.data?.data?.departments ?? res.data?.data ?? [];
         setDepartments(
-          (Array.isArray(raw) ? raw : []).map((d: any) => ({
+          (Array.isArray(raw) ? raw : []).map((value: unknown) => {
+            const d = isRecord(value) ? value : {};
+            return {
             // NOTE: sent value must match CrmUser.department. If your
             // department docs store it under a different field, adjust here.
             key: String(d.key ?? d.slug ?? d.name ?? d.label ?? ""),
             label: String(d.label ?? d.name ?? d.key ?? ""),
-          })).filter((d: DeptRow) => d.key)
+            };
+          }).filter((d: DeptRow) => d.key)
         );
       } catch { /* picker degrades gracefully */ }
     })();
@@ -711,14 +819,16 @@ function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers
   const toggleUser = (u: CrmUserRow) =>
     setSelectedUsers((s) => {
       const next = new Map(s);
-      next.has(u._id) ? next.delete(u._id) : next.set(u._id, u.fullName);
+      if (next.has(u._id)) next.delete(u._id);
+      else next.set(u._id, u.fullName);
       return next;
     });
 
   const toggleDept = (key: string) =>
     setSelectedDepts((s) => {
       const next = new Set(s);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
 
@@ -871,14 +981,15 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
   const toggleDow = (dow: number) =>
     setCustomDays((s) => {
       const next = new Set(s);
-      next.has(dow) ? next.delete(dow) : next.add(dow);
+      if (next.has(dow)) next.delete(dow);
+      else next.add(dow);
       return next;
     });
 
   const create = async () => {
     setBusy(true); setError(null);
     try {
-      const body: any = {
+      const body: MeetingMutationPayload = {
         title,
         visibility,
         inviteAll: audience === "all",
@@ -908,8 +1019,8 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
         .filter((x) => x?.code)
         .map((x) => ({ code: x.code, title: x.title, scheduledAt: x.scheduledAt ?? null, status: x.status }));
       onScheduled(list);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Could not create the meeting.");
+    } catch (err: unknown) {
+      setError(apiErrorMessage(err, "Could not create the meeting."));
       setBusy(false);
     }
   };
@@ -1141,7 +1252,7 @@ function EditMeetingModal({ m, onClose, onSaved }: {
       if (audience === "departments" && selectedDepts.size === 0) {
         throw new Error("Choose at least one department to notify, or select people or All CRM users.");
       }
-      const body: any = {
+      const body: MeetingMutationPayload = {
         title,
         visibility,
         inviteAll: audience === "all",
@@ -1154,8 +1265,8 @@ function EditMeetingModal({ m, onClose, onSaved }: {
       }
       await apiClient.patch(`/api/crm/meet/meetings/${m.code}${applySeries ? "?series=1" : ""}`, body);
       onSaved();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Could not update the meeting.");
+    } catch (err: unknown) {
+      setError(apiErrorMessage(err, "Could not update the meeting."));
       setBusy(false);
     }
   };
