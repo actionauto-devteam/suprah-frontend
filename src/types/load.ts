@@ -1,4 +1,5 @@
 import type { ConditionReport, DeliverySignature } from "@/lib/condition-report";
+import type { QuoteLeadRef } from "@/lib/quote-lead";
 
 export interface LoadLocation {
   locationType?: string;
@@ -75,6 +76,12 @@ export interface Load {
   createdBy: string;
   /** The quote this load was converted from, if any. */
   quoteId?: string | null;
+  /** That quote's customer and linked CRM lead (load details only). */
+  quoteOrigin?: {
+    quoteId: string;
+    customerName: string;
+    lead: QuoteLeadRef | null;
+  } | null;
   loadNumber: string;
   postType: "load-board" | "assign-carrier";
   status: LoadStatus;

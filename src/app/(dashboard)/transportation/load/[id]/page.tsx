@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy, Ban } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy, Ban, Link2 } from "lucide-react"
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview"
@@ -32,6 +32,7 @@ import { arrivalAt, formatWait } from "@/lib/load-arrival"
 import { formatMountainDateTime } from "@/lib/mountain-time"
 import { ConditionReportCard } from "@/components/transportation/ConditionReportCard"
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
+import { linkedLead, leadPageHref } from "@/lib/quote-lead"
 
 function LoadDetailsLoading() {
   return (
@@ -693,6 +694,7 @@ export default function LoadDetailsPage() {
     isCancellableLoadStatus(load.status) &&
     (!load.assignedDriverId || canManageDriverLoad)
   const cancellation = load.status === "Cancelled" ? load.cancellation : undefined
+  const originLead = linkedLead(load.quoteOrigin?.lead)
 
   return (
     <div
@@ -720,6 +722,36 @@ export default function LoadDetailsPage() {
             Posted {formatDate(load.createdAt)}
             {load.postType === "assign-carrier" && <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Direct Dispatch</Badge>}
           </p>
+          {load.quoteOrigin && (
+            <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 break-words">
+              <Link2 className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+              <span>
+                From a quote
+                {load.quoteOrigin.customerName ? (
+                  <>
+                    {" "}for <span className="font-semibold text-foreground">{load.quoteOrigin.customerName}</span>
+                  </>
+                ) : null}
+              </span>
+              {originLead && (
+                <span>
+                  · Linked lead:{" "}
+                  {/* The iPhone app has no CRM pages, so there the lead is shown as text. */}
+                  {isNativeApp ? (
+                    <span className="font-semibold text-foreground">{originLead.name}</span>
+                  ) : (
+                    <Link
+                      href={leadPageHref(originLead.id)}
+                      className="font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                      title="Open this customer's lead in the CRM"
+                    >
+                      {originLead.name}
+                    </Link>
+                  )}
+                </span>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol}><FileText className="size-4 mr-2 text-muted-foreground" /> Print BOL</Button>
