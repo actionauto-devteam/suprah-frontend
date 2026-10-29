@@ -48,6 +48,12 @@ function loadSupraSpacePastedMediaHelpers() {
 }
 
 const links = loadTypeScriptModule('../src/lib/supra-space-links.ts');
+const tables = loadTypeScriptModule('../src/lib/supra-space-tables.ts');
+const unevenTable = { rows: [{ cells: ['Name'] }, { cells: ['VIN', '1HGCM82633A004352'] }] };
+const serializedTable = tables.serializeSupraSpaceEditorTable(unevenTable, cell => cell);
+assert.equal(serializedTable, '| Name |  |\n| --- | --- |\n| VIN | 1HGCM82633A004352 |');
+assert.equal(tables.supraSpaceTablesToComparableText(serializedTable).replace(/\s+/g, ''), 'NameVIN1HGCM82633A004352');
+assert.equal(tables.supraSpaceTablesToComparableText('Keep | literal text'), 'Keep | literal text');
 const richPaste = loadTypeScriptModule('../src/lib/supra-space-rich-paste.ts', {
   './supra-space-links': links,
 });
@@ -70,6 +76,11 @@ const pastedMedia = loadSupraSpacePastedMediaHelpers();
 assert.equal(richPaste.hasSupraSpaceTextSelection(), false);
 assert.equal(richPaste.getSupraSpaceSelectionClipboardData({}), null);
 assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('*Italic text*'), '<em>Italic text</em>');
+assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('___Italic underline___'), '<u><em>Italic underline</em></u>');
+const combinedStyle = richInline.renderSupraSpaceRichTextInline('___Italic underline___', true, 'combined');
+assert.equal(combinedStyle[0].type, 'u');
+assert.equal(combinedStyle[0].props.children.type, 'em');
+assert.equal(combinedStyle[0].props.children.props.children[0], 'Italic underline');
 assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('***Bold and italic text***'), '<strong><em>Bold and italic text</em></strong>');
 assert.equal(links.supraSpaceMarkdownToEditorInlineHtml('**Bold with *italic* inside**'), '<strong>Bold with <em>italic</em> inside</strong>');
 const externalClassFormatting = richPaste.getSupraSpaceClipboardSemanticClassFormatting(
@@ -311,6 +322,9 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   assert.equal((source.match(/useState<PasteMode>\('formatted'\)/g) || []).length, 2, `${path}: compose and edit must keep formatting by default`);
   assert.equal((source.match(/insertRichHtmlAtRichEditorSelection\(/g) || []).length, 3, `${path}: rich paste must use range insertion in compose and edit`);
   assert.match(source, /getSupraSpaceClipboardSemanticClassFormatting/, `${path}: semantic external CSS classes must preserve supported text formatting`);
+  assert.match(source, /text-decoration\(\?:-line\)\?/, `${path}: CSS underline and strikethrough must retain rich-paste routing`);
+  assert.match(source, /font-style\\s\*:\\s\*\(\?:italic\|oblique\)/, `${path}: CSS oblique text must retain italic formatting`);
+  assert.doesNotMatch(source, /spreadsheetFileToSupraSpaceEditorHtml|isSupraSpaceSpreadsheetFile/, `${path}: spreadsheets selected for upload must remain file attachments`);
   assert.match(source, /richPasteComparablePlainText/, `${path}: Markdown clipboard syntax must not trigger a false content-loss fallback`);
   assert.match(source, /const codeFence = line\.match\(\/\^```/, `${path}: text-only Markdown code fences must become rich editor blocks`);
   assert.match(source, /const headingMatch = line\.match\(\/\^\\s\{0,3\}#\{1,6\}/, `${path}: text-only Markdown headings must retain their semantic emphasis`);
@@ -328,6 +342,7 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     stripSupraSpaceControlMarkup: formatting.stripSupraSpaceControlMarkup,
     normalizeSupraSpaceLegacyMarkup: formatting.normalizeSupraSpaceLegacyMarkup,
     findSupraSpaceMarkdownLink: links.findSupraSpaceMarkdownLink,
+    supraSpaceTablesToComparableText: tables.supraSpaceTablesToComparableText,
   };
   vm.createContext(richPasteContext);
   vm.runInContext(typescript.transpileModule(source.slice(richPasteStart, richPasteEnd), {
@@ -368,6 +383,8 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
   clipboardHtmlPlainText = 'VIN: 1HGCM82633A004352';
   assert.equal(richPasteContext.richPasteDropsVisibleText('VIN: 1HGCM82633A004352\nInvisible source detail', '<div>incomplete clipboard</div>'), true, `${path}: a real visible-text loss must still fall back safely`);
   assert.equal(richPasteContext.richPasteDropsVisibleText('Literal **** marker', '<div>missing marker</div>'), true, `${path}: literal marker text must not be treated as formatting syntax`);
+  assert.equal(richPasteContext.richTextSerializationDropsVisibleText('Name\nVIN\t1HGCM82633A004352', serializedTable), false, `${path}: valid tables preserve their formatting`);
+  assert.equal(richPasteContext.richTextSerializationDropsVisibleText('Name\nVIN\t1HGCM82633A004352 missing', serializedTable), true, `${path}: missing table content must still fall back`);
   const start = source.indexOf('function htmlToMarkdown(');
   const end = source.indexOf('\nfunction ', start + 1);
   const compiled = typescript.transpileModule(source.slice(start, end), {

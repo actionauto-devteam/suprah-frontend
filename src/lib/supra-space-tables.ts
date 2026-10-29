@@ -116,9 +116,9 @@ export function serializeSupraSpaceEditorTable(
     .filter(row => row.length > 0);
   if (!rows.length) return '';
 
-  const columnCount = rows[0].length;
+  const columnCount = Math.max(...rows.map(row => row.length));
   const normalizedRows = rows.map(row => [
-    ...row.slice(0, columnCount),
+    ...row,
     ...Array(Math.max(0, columnCount - row.length)).fill(''),
   ]);
   const toRow = (cells: string[]) => `| ${cells.join(' | ')} |`;
@@ -127,6 +127,22 @@ export function serializeSupraSpaceEditorTable(
     toRow(Array(columnCount).fill('---')),
     ...normalizedRows.slice(1).map(toRow),
   ].join('\n');
+}
+
+/** Remove only recognized table syntax for the visible-content comparison. */
+export function supraSpaceTablesToComparableText(value: string): string {
+  const lines = value.replace(/\r\n?/g, '\n').split('\n');
+  const output: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const table = parseSupraSpaceMarkdownTable(lines, index);
+    if (!table) {
+      output.push(lines[index]);
+      continue;
+    }
+    output.push(...[table.header, ...table.rows].map(row => row.join(' ').replace(/<br\s*\/?\s*>/gi, '\n')));
+    index = table.endIndex - 1;
+  }
+  return output.join('\n');
 }
 
 export function createSupraSpaceEditorTableHtml(rows = 3, columns = 3): string {

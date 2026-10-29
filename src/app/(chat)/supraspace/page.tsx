@@ -71,7 +71,7 @@ import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
-import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
+import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
@@ -2023,7 +2023,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
     const elementIsBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)
       || fontWeight === 'bold' || fontWeight === 'bolder' || Number.parseInt(fontWeight || '0', 10) >= 600;
-    const elementIsItalic = tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic';
+    const elementIsItalic = tag === 'em' || tag === 'i' || /^(?:italic|oblique)$/i.test(element.style.fontStyle);
     const elementIsUnderline = tag === 'u' || decoration.includes('underline');
     const elementIsStrike = tag === 's' || tag === 'strike' || tag === 'del' || decoration.includes('line-through');
     const childInherited: InheritedFormats = {
@@ -2754,7 +2754,7 @@ function escapeHtmlText(s: string): string {
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|table|tr|t[dh]|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html)
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*(?:italic|oblique)|text-decoration(?:-line)?\s*:\s*[^"';]*(?:underline|line-through)|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html)
     || Array.from(html.matchAll(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi))
       .some(match => {
         const semantic = getSupraSpaceClipboardSemanticClassFormatting(match[1] || match[2] || match[3]);
@@ -2798,7 +2798,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim() || '';
     const isBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)
       || weight === 'bold' || weight === 'bolder' || Number.parseInt(weight || '0', 10) >= 600;
-    const isItalic = tag === 'em' || tag === 'i' || /font-style\s*:\s*italic/.test(style);
+    const isItalic = tag === 'em' || tag === 'i' || /font-style\s*:\s*(?:italic|oblique)/.test(style);
     const isUnderline = tag === 'u' || /text-decoration(?:-line)?\s*:[^;]*underline/.test(style);
     const isStrike = tag === 's' || tag === 'strike' || tag === 'del'
       || /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style);
@@ -3114,7 +3114,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       || Number.parseInt(fontWeight || '0', 10) >= 600
       || semanticClassFormatting.bold
     ) formatted = `<strong>${formatted}</strong>`;
-    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic' || semanticClassFormatting.italic) {
+    if (tag === 'em' || tag === 'i' || /^(?:italic|oblique)$/i.test(element.style.fontStyle) || semanticClassFormatting.italic) {
       formatted = `<em>${formatted}</em>`;
     }
     if (tag === 'u' || decoration.includes('underline') || semanticClassFormatting.underline) formatted = `<u>${formatted}</u>`;
@@ -3153,6 +3153,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
   return stripSupraSpaceMarkdownLinksToLabels(stripSupraSpaceControlMarkup(value))
+    .replace(/(?<!_)___([^_\n]+)___(?!_)/g, '$1')
     .replace(/\*\*\*([^*\n]+)\*\*\*/g, '$1')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
@@ -3190,7 +3191,7 @@ function richPasteComparablePlainText(value: string): string {
 }
 
 function richTextSerializationDropsVisibleText(visibleText: string, serializedText: string): boolean {
-  const serializedPlainText = stripRichTextMarkupForPlainPaste(serializedText)
+  const serializedPlainText = stripRichTextMarkupForPlainPaste(supraSpaceTablesToComparableText(serializedText))
     .replace(/^\s*>\s?/gm, '')
     .replace(/^\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+[.)])\s+/gm, '')
     .replace(/^\s*```[^\n]*$/gm, '');
@@ -11901,24 +11902,6 @@ export default function SupraSpacePage() {
     if (isArchivedActiveConv) {
       showUploadNotice('info', 'This conversation is archived. Unarchive it to send messages.');
       return;
-    }
-    const spreadsheetFiles = selected.filter(isSupraSpaceSpreadsheetFile);
-    if (spreadsheetFiles.length) {
-      for (const file of spreadsheetFiles) {
-        try {
-          const editor = textareaRef.current;
-          if (!editor) throw new Error('The message editor is not ready.');
-          editor.focus();
-          document.execCommand('insertHTML', false, await spreadsheetFileToSupraSpaceEditorHtml(file));
-          const serialized = htmlToMarkdown(editor);
-          if (serialized.length > SS4_MAX_MESSAGE_CHARS) throw new Error(SS4_MESSAGE_LIMIT_ERROR);
-          syncComposerText(serialized, true);
-          showUploadNotice('info', `${file.name} inserted as a table from its first sheet.`);
-        } catch (error) {
-          showUploadNotice('error', error instanceof Error ? error.message : `Could not import ${file.name}.`);
-        }
-      }
-      selected = selected.filter(file => !isSupraSpaceSpreadsheetFile(file));
     }
     if (!selected.length) return;
     const seenIncoming = new Set<string>();

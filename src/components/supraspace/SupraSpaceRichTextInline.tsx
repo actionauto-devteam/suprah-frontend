@@ -22,7 +22,7 @@ const FONT_SIZES = new Set([10, 12, 14, 16, 18, 20, 24, 28, 32, 36]);
 type FormatToken = {
   start: number;
   end: number;
-  type: 'color' | 'highlight' | 'font' | 'size' | 'bold' | 'strike' | 'underline' | 'italic' | 'code' | 'link';
+  type: 'color' | 'highlight' | 'font' | 'size' | 'bold' | 'strike' | 'underline' | 'italic' | 'underlineItalic' | 'code' | 'link';
   color?: string;
   fontFamily?: keyof typeof FONT_FAMILIES;
   fontSize?: number;
@@ -106,6 +106,11 @@ function findNextToken(text: string, from: number): FormatToken | null {
     if ((kind !== 'font' || token.fontFamily) && (kind !== 'size' || token.fontSize)) candidates.push(token);
   });
 
+  const combined = /(?<!_)___([^_\n]+)___(?!_)/g;
+  combined.lastIndex = from;
+  const combinedMatch = combined.exec(text);
+  if (combinedMatch) candidates.push({ start: combinedMatch.index, end: combinedMatch.index + combinedMatch[0].length, type: 'underlineItalic' });
+
   ([['**', 'bold'], ['~~', 'strike'], ['__', 'underline'], ['`', 'code']] as const).forEach(([marker, type]) => {
     const start = text.indexOf(marker, from);
     if (start < 0) return;
@@ -118,7 +123,7 @@ function findNextToken(text: string, from: number): FormatToken | null {
   const italicMatch = italicRe.exec(text);
   if (italicMatch) candidates.push({ start: italicMatch.index, end: italicMatch.index + italicMatch[0].length, type: 'italic' });
 
-  return candidates.sort((a, b) => a.start - b.start || a.end - b.end)[0] || null;
+  return candidates.sort((a, b) => a.start - b.start || (a.type === 'underlineItalic' ? -1 : b.type === 'underlineItalic' ? 1 : a.end - b.end))[0] || null;
 }
 
 export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, keyPrefix: string, insideLink = false, mentionAliases: readonly string[] = []): React.ReactNode[] {
@@ -172,6 +177,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
     else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `calc(${token.fontSize || 16}px * var(--ss4-message-font-scale, 1))` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
     else if (token.type === 'bold') nodes.push(<strong key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink, mentionAliases)}</strong>);
     else if (token.type === 'strike') nodes.push(<s key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink, mentionAliases)}</s>);
+    else if (token.type === 'underlineItalic') nodes.push(<u key={key}><em>{renderSupraSpaceRichTextInline(text.slice(token.start + 3, token.end - 3), isOwn, key, insideLink, mentionAliases)}</em></u>);
     else if (token.type === 'underline') nodes.push(<u key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink, mentionAliases)}</u>);
     else if (token.type === 'italic') nodes.push(<em key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 1, token.end - 1), isOwn, key, insideLink, mentionAliases)}</em>);
     else if (token.type === 'link') nodes.push(<a key={key} href={token.linkHref} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{renderSupraSpaceRichTextInline(token.linkText || '', isOwn, key, true, mentionAliases)}</a>);
