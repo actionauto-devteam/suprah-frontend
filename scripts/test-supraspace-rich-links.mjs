@@ -59,6 +59,7 @@ const richPaste = loadTypeScriptModule('../src/lib/supra-space-rich-paste.ts', {
 });
 const formatting = loadTypeScriptModule('../src/lib/supra-space-message-formatting.ts', {
   './supra-space-links': links,
+  './supra-space-rich-paste': richPaste,
 });
 const react = {
   Fragment: Symbol.for('react.fragment'),
@@ -343,6 +344,7 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     normalizeSupraSpaceLegacyMarkup: formatting.normalizeSupraSpaceLegacyMarkup,
     findSupraSpaceMarkdownLink: links.findSupraSpaceMarkdownLink,
     supraSpaceTablesToComparableText: tables.supraSpaceTablesToComparableText,
+    supraSpaceMarkupToComparableText: richPaste.supraSpaceMarkupToComparableText,
   };
   vm.createContext(richPasteContext);
   vm.runInContext(typescript.transpileModule(source.slice(richPasteStart, richPasteEnd), {

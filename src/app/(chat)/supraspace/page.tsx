@@ -77,6 +77,7 @@ import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceh
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
+import { mapSupraSpaceMarkupOutsideCode, supraSpaceMarkupToComparableText } from '@/lib/supra-space-rich-paste';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
 import { AdaptiveAttachmentImage, getSupraSpaceImageFileDimensions } from '@/components/supraspace/AdaptiveAttachmentImage';
@@ -2022,9 +2023,10 @@ function htmlToMarkdown(el: HTMLElement): string {
     };
 
     if (tag === 'table') {
-      return serializeSupraSpaceEditorTable(element as HTMLTableElement, cell =>
+      const table = serializeSupraSpaceEditorTable(element as HTMLTableElement, cell =>
         Array.from(cell.childNodes).map(child => walk(child, listDepth, childInherited)).join(''),
       );
+      return table ? `\n${table}\n` : '';
     }
 
     if (tag === 'ul' || tag === 'ol') {
@@ -2127,7 +2129,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = `__${inner}__`;
     if (hasInlineContent && elementIsStrike && !inherited.strike) inner = `~~${inner}~~`;
     if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
-    else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = '`' + inner.replace(/`/g, '') + '`';
+    else if ((tag === 'code' || isMonospace) && hasInlineContent && !element.closest('pre')) inner = '`' + inner.replace(/`/g, '') + '`';
     else if (tag === 'blockquote') inner = inner
       .split('\n')
       .map(line => line ? `> ${line}` : '>')
@@ -2493,6 +2495,10 @@ function restoreRichEditorHtmlSnapshot(root: HTMLElement, html: string): void {
 }
 
 function canonicalizeColorMarkup(value: string): string {
+  return mapSupraSpaceMarkupOutsideCode(value, canonicalizeColorMarkupProse);
+}
+
+function canonicalizeColorMarkupProse(value: string): string {
   const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
   let result = '';
   let cursor = 0;
@@ -3160,45 +3166,41 @@ function hasRichMarkdownClipboardSyntax(value: string): boolean {
 }
 
 function richPasteComparablePlainText(value: string): string {
-  const withoutInlineSyntax = stripRichTextMarkupForPlainPaste(value)
-    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
-    .replace(/^\s*>\s?/gm, '')
-    .replace(/^\s*(?:[-+*]|\d+[.)])\s+/gm, '')
-    .replace(/^```[^\n]*$/gm, '')
-    .replace(/^\s*(?:---+|\*\*\*+|___+)\s*$/gm, '')
-    .replace(/^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/gm, '')
-    .replace(/(?<!\\)\\(?=\r?\n)/g, '')
-    .replace(/\\([\\`*_[\]{}()#+\-.!~|>])/g, '$1');
+  return supraSpaceMarkupToComparableText(value, markup => {
+    const withoutInlineSyntax = stripRichTextMarkupForPlainPaste(markup)
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+      .replace(/^\s*>\s?/gm, '')
+      .replace(/^\s*(?:[-+*\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+[.)])\s+/gm, '')
+      .replace(/^```[^\n]*$/gm, '')
+      .replace(/^\s*(?:---+|\*\*\*+|___+)\s*$/gm, '')
+      .replace(/^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/gm, '')
+      .replace(/(?<!\\)\\(?=\r?\n)/g, '')
+      .replace(/\\([\\`*_[\]{}()#+\-.!~|>])/g, '$1');
 
-  return withoutInlineSyntax
-    .split('\n')
-    .map(line => /^\s*\|.*\|\s*$/.test(line)
-      ? line.replace(/(?<!\\)\|/g, ' ')
-      : line)
-    .join('\n');
+    return withoutInlineSyntax
+      .split('\n')
+      .map(line => /^\s*\|.*\|\s*$/.test(line)
+        ? line.replace(/(?<!\\)\|/g, ' ')
+        : line)
+      .join('\n');
+  });
 }
 
 function richTextSerializationDropsVisibleText(visibleText: string, serializedText: string): boolean {
-  const serializedPlainText = stripRichTextMarkupForPlainPaste(supraSpaceTablesToComparableText(serializedText))
+  const serializedPlainText = supraSpaceMarkupToComparableText(serializedText, value => stripRichTextMarkupForPlainPaste(supraSpaceTablesToComparableText(value))
     .replace(/^\s*>\s?/gm, '')
     .replace(/^\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+[.)])\s+/gm, '')
-    .replace(/^\s*```[^\n]*$/gm, '');
+    .replace(/^\s*```[^\n]*$/gm, ''));
   return supraSpaceClipboardTextLosesPlainText(visibleText, serializedPlainText);
 }
 
 function clipboardPayloadToPlainText(text: string, html: string): string {
-  const structuredListText = html && htmlAppearsToContainLists(html)
-    ? clipboardHtmlToListAwareText(html)
-    : '';
-  const markerPreservedListText = structuredListText
-    ? applySourceBulletMarkers(structuredListText, text)
-    : '';
-  const raw = stripCopiedTextArtifacts(markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : ''));
-  return normalizePastedListArtifacts(
-    stripRichTextMarkupForPlainPaste(raw)
-      .replace(/\r\n?/g, '\n')
-      .replace(/\u00a0/g, ' '),
-  );
+  // text/plain is the browser's complete visible payload. Reinterpreting it
+  // as Markdown or replacing it with list-only HTML can erase literal text,
+  // code, table cells, or VINs omitted by a clipboard producer's HTML.
+  return stripCopiedTextArtifacts(text || (html ? clipboardHtmlToPlainText(html) : ''))
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ');
 }
 
 
@@ -3258,7 +3260,7 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
 
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
   const normalizedText = normalizeSupraSpaceLegacyMarkup(text || '');
-  if (containsSupraSpaceControlMarkup(text) && normalizedText.trim()) {
+  if (!html.trim() && containsSupraSpaceControlMarkup(text) && normalizedText.trim()) {
     return sanitizePastedEditorHtmlForTheme(markdownTextToEditorHtml(normalizedText));
   }
 
@@ -3449,16 +3451,17 @@ function markdownTextToEditorHtml(text: string): string {
 }
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  const perLine = (inner: string, marker: string) =>
-    inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
-  let normalized = text
-    .replace(/\*\*([\s\S]+?)\*\*/g, (match, inner: string) => inner.includes('\n') && !inner.includes('**') ? perLine(inner, '**') : match)
-    .replace(/__([\s\S]*?)__/g, (match, inner: string) => inner.includes('\n') && !inner.includes('__') ? perLine(inner, '__') : match)
-    .replace(/~~([\s\S]*?)~~/g, (match, inner: string) => inner.includes('\n') && !inner.includes('~~') ? perLine(inner, '~~') : match);
-  normalized = normalized.replace(/(^|[^\w_])_(?!_)([\s\S]*?)(?<!_)_(?![\w_])/g, (match, prefix: string, inner: string) =>
-    inner.includes('\n') ? `${prefix}${perLine(inner, '_')}` : match
-  );
-  return normalized;
+  return mapSupraSpaceMarkupOutsideCode(text, markup => {
+    const perLine = (inner: string, marker: string) =>
+      inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
+    const canLocalize = (inner: string, marker: string) => inner.includes('\n')
+      && !inner.includes(marker) && !inner.includes('\uE000') && !inner.includes('\n\n');
+    return markup
+      .replace(/\*\*(?![\s*])([\s\S]*?)(?<![\s*])\*\*/g, (match, inner: string) => canLocalize(inner, '**') ? perLine(inner, '**') : match)
+      .replace(/(?<!_)__(?![\s_])([\s\S]*?)(?<![\s_])__(?!_)/g, (match, inner: string) => canLocalize(inner, '__') ? perLine(inner, '__') : match)
+      .replace(/~~(?![\s~])([\s\S]*?)(?<![\s~])~~/g, (match, inner: string) => canLocalize(inner, '~~') ? perLine(inner, '~~') : match)
+      .replace(/(?<![\w_])_(?![_\s])([\s\S]*?)(?<![\s_])_(?![\w_])/g, (match, inner: string) => canLocalize(inner, '_') ? perLine(inner, '_') : match);
+  });
 }
 
 const STRUCTURED_LEAD_LABEL_PATTERN = '(?:Age|Lead|Original Cost|Retail Price|Maxoffer|Profit)';
@@ -3541,7 +3544,7 @@ function normalizeStructuredLeadLayout(text: string): string {
 }
 
 function normalizeFinalMessageMarkup(text: string): string {
-  return text
+  return mapSupraSpaceMarkupOutsideCode(text, markup => markup
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*(?:\*\*)?\s*\n+\s*([^\n{}]+?)\s*(?:\*\*)?\s*\{\/color\}/g, '{color:$1}$2{/color}')
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([^{}\n]+?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
     .split('\n')
@@ -3553,7 +3556,7 @@ function normalizeFinalMessageMarkup(text: string): string {
       return line;
     })
     .join('\n')
-    .replace(/\n{3,}/g, '\n\n');
+    .replace(/\n{3,}/g, '\n\n'));
 }
 
 function normalizePastedListArtifacts(text: string): string {
@@ -3614,6 +3617,10 @@ function stripOrphanedBoldMarker(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
+  return mapSupraSpaceMarkupOutsideCode(text, normalizeMessageMarkdownProse);
+}
+
+function normalizeMessageMarkdownProse(text: string): string {
   const normalized = normalizeListExitLineSpacing(
     normalizeSupraSpaceBoldMarkerRuns(normalizeSupraSpaceExternalQuoteArtifacts(normalizeSupraSpaceSplitUrlFormatting(stripCopiedTextArtifacts(text))))
       .replace(/\r\n?/g, '\n')

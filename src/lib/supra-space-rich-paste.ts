@@ -21,6 +21,28 @@ const BLOCK_STYLE_DESCENDANTS = 'address,article,aside,blockquote,div,dl,fieldse
 const DISALLOWED_TAGS = 'embed,frame,iframe,link,meta,object,script,style';
 const PASTE_PARAGRAPH_ATTRIBUTE = 'data-ss4-paste-paragraph';
 
+/** Transform prose without interpreting literal code as formatting syntax. */
+export function mapSupraSpaceMarkupOutsideCode(
+  value: string,
+  projectMarkup: (value: string) => string,
+  preserveMarkers = true,
+): string {
+  const code: string[] = [];
+  let prefix = '\uE000SS4CODE';
+  while (value.includes(prefix)) prefix += 'X';
+  const protect = (text: string): string => `${prefix}${code.push(text) - 1}\uE001`;
+  const protectedText = value
+    .replace(/^```[^\n]*\n([\s\S]*?)\n```[ \t]*\r?(?=\n|$)/gm, (match, body: string) => protect(preserveMarkers ? match : body))
+    .replace(/`([^`\n]+)`/g, (match, body: string) => protect(preserveMarkers ? match : body));
+  const projected = projectMarkup(protectedText);
+  return projected.replace(new RegExp(`${prefix}(\\d+)\uE001`, 'g'), (_match, index: string) => code[Number(index)]);
+}
+
+/** Project message markup for comparison without interpreting literal code. */
+export function supraSpaceMarkupToComparableText(value: string, projectMarkup: (value: string) => string): string {
+  return mapSupraSpaceMarkupOutsideCode(value, projectMarkup, false);
+}
+
 export function supraSpaceClipboardTextLosesPlainText(
   plainText: string,
   convertedHtmlText: string,

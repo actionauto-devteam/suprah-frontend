@@ -160,7 +160,7 @@ function formatSimpleMarkdown(value: string): string {
   return escapeHtml(value)
     .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/(?<!_)___([^_\n]+)___(?!_)/g, '<u><em>$1</em></u>')
-    .replace(/\*\*([^*\n]*(?:\*[^*\n]+\*[^*\n]*)*)\*\*/g, (_match, inner: string) =>
+    .replace(/\*\*([^*\n]*(?:\*[^*\n]+\*[^*\n]*)*)\*\*/g, (match, inner: string) => !inner.trim() ? match :
       `<strong>${inner.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')}</strong>`)
     .replace(/__([^_\n]+)__/g, '<u>$1</u>')
     .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')

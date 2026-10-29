@@ -1,5 +1,6 @@
 const DOUBLE_BRACE_CONTROL_TAG = /\{\{\s*(\/?)\s*(color|highlight|font|size)(?:\s*:\s*([^{}\n]+?))?\s*\}\}/gi;
 import { stripSupraSpaceMarkdownLinksToLabels } from './supra-space-links';
+import { mapSupraSpaceMarkupOutsideCode } from './supra-space-rich-paste';
 
 const SINGLE_BRACE_CONTROL_TAG = /\{\s*(?:color|highlight|font|size)\s*:\s*[^{}\n]+\s*\}|\{\s*\/\s*(?:color|highlight|font|size)\s*\}/gi;
 const STYLE_CONTROL_TAG = /\{\s*(\/?)\s*(color|highlight|font|size)(?:\s*:\s*([^{}\n]+?))?\s*\}/gi;
@@ -281,46 +282,47 @@ function canonicalizeDoubleBraceControlTag(
  */
 export function normalizeSupraSpaceLegacyMarkup(content: string): string {
   if (!content) return '';
-
-  let normalized = normalizeSupraSpaceControlMarkup(
-    normalizeSupraSpaceBoldMarkerRuns(content)
-      .replace(DOUBLE_BRACE_CONTROL_TAG, canonicalizeDoubleBraceControlTag),
-  );
-
-  // SupraSpace has no authored text-highlight control. Background colors only
-  // arrived through pasted page/bubble CSS, including messages stored before
-  // the paste sanitizer existed. Keep the message text and its supported
-  // formatting, but remove those display artifacts for existing messages too.
-  normalized = normalized
-    .replace(/\{highlight:#[0-9a-f]{3,8}\}/gi, '')
-    .replace(/\{\/highlight\}/gi, '');
-
-  // Remove wrappers that contain formatting controls only. Repeat so nested
-  // empty wrappers collapse from the inside out.
-  let previous = '';
-  while (previous !== normalized) {
-    previous = normalized;
-    normalized = normalized.replace(EMPTY_CONTROL_WRAPPER, '');
-  }
-
-  // Older serializers could concatenate a bold/styled section heading and the
-  // first semantic list item without a newline, e.g.
-  //   **Current Progress**• **Continued...**
-  // Split only when the list marker immediately follows a formatting closer,
-  // which avoids treating an ordinary bullet character inside prose as a block.
-  normalized = normalized
-    .replace(
-      /(\*\*|__|~~|\{\s*\/\s*(?:color|font|size)\s*\})([ \t]*)([•◦▪])(?=\s+)/gi,
-      '$1\n$3',
-    )
-    .replace(
-      /(\*\*|__|~~|\{\s*\/\s*(?:color|font|size)\s*\})([ \t]*)(\d+\.)(?=\s+)/gi,
-      '$1\n$3',
+  return mapSupraSpaceMarkupOutsideCode(content, markup => {
+    let normalized = normalizeSupraSpaceControlMarkup(
+      normalizeSupraSpaceBoldMarkerRuns(markup)
+        .replace(DOUBLE_BRACE_CONTROL_TAG, canonicalizeDoubleBraceControlTag),
     );
 
-  normalized = repairSingleSidedBoldMarkers(normalizeSupraSpaceExternalQuoteArtifacts(normalized))
-    .replace(FORMAT_ONLY_LINE, '$1');
-  return normalized;
+    // SupraSpace has no authored text-highlight control. Background colors only
+    // arrived through pasted page/bubble CSS, including messages stored before
+    // the paste sanitizer existed. Keep the message text and its supported
+    // formatting, but remove those display artifacts for existing messages too.
+    normalized = normalized
+      .replace(/\{highlight:#[0-9a-f]{3,8}\}/gi, '')
+      .replace(/\{\/highlight\}/gi, '');
+
+    // Remove wrappers that contain formatting controls only. Repeat so nested
+    // empty wrappers collapse from the inside out.
+    let previous = '';
+    while (previous !== normalized) {
+      previous = normalized;
+      normalized = normalized.replace(EMPTY_CONTROL_WRAPPER, '');
+    }
+
+    // Older serializers could concatenate a bold/styled section heading and the
+    // first semantic list item without a newline, e.g.
+    //   **Current Progress**• **Continued...**
+    // Split only when the list marker immediately follows a formatting closer,
+    // which avoids treating an ordinary bullet character inside prose as a block.
+    normalized = normalized
+      .replace(
+        /(\*\*|__|~~|\{\s*\/\s*(?:color|font|size)\s*\})([ \t]*)([•◦▪])(?=\s+)/gi,
+        '$1\n$3',
+      )
+      .replace(
+        /(\*\*|__|~~|\{\s*\/\s*(?:color|font|size)\s*\})([ \t]*)(\d+\.)(?=\s+)/gi,
+        '$1\n$3',
+      );
+
+    normalized = repairSingleSidedBoldMarkers(normalizeSupraSpaceExternalQuoteArtifacts(normalized))
+      .replace(FORMAT_ONLY_LINE, '$1');
+    return normalized;
+  });
 }
 
 /**
@@ -335,63 +337,64 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
 export function prepareSupraSpaceMarkupForDisplay(content: string): string {
   const compatible = normalizeSupraSpaceLegacyMarkup(content);
   if (!compatible || !compatible.includes('\n')) return compatible;
+  return mapSupraSpaceMarkupOutsideCode(compatible, markup => {
+    const active: Array<{ kind: string; openTag: string }> = [];
+    let output = '';
+    let cursor = 0;
+    STYLE_CONTROL_TAG.lastIndex = 0;
 
-  const active: Array<{ kind: string; openTag: string }> = [];
-  let output = '';
-  let cursor = 0;
-  STYLE_CONTROL_TAG.lastIndex = 0;
+    const appendTextWithLocalizedNewlines = (value: string) => {
+      const pieces = value.split('\n');
+      pieces.forEach((piece, index) => {
+        output += piece;
+        if (index >= pieces.length - 1) return;
 
-  const appendTextWithLocalizedNewlines = (value: string) => {
-    const pieces = value.split('\n');
-    pieces.forEach((piece, index) => {
-      output += piece;
-      if (index >= pieces.length - 1) return;
+        if (active.length > 0) {
+          for (let i = active.length - 1; i >= 0; i -= 1) {
+            output += `{/${active[i].kind}}`;
+          }
+        }
+        output += '\n';
+        if (active.length > 0) {
+          active.forEach(tag => { output += tag.openTag; });
+        }
+      });
+    };
 
-      if (active.length > 0) {
+    let match: RegExpExecArray | null;
+    while ((match = STYLE_CONTROL_TAG.exec(markup)) !== null) {
+      appendTextWithLocalizedNewlines(markup.slice(cursor, match.index));
+
+      const fullTag = match[0];
+      const closing = Boolean(match[1]);
+      const kind = match[2].toLowerCase();
+      const rawValue = (match[3] || '').trim();
+      output += fullTag;
+
+      if (closing) {
         for (let i = active.length - 1; i >= 0; i -= 1) {
-          output += `{/${active[i].kind}}`;
+          if (active[i].kind === kind) {
+            active.splice(i, 1);
+            break;
+          }
         }
+      } else if (rawValue) {
+        active.push({ kind, openTag: fullTag });
       }
-      output += '\n';
-      if (active.length > 0) {
-        active.forEach(tag => { output += tag.openTag; });
-      }
-    });
-  };
 
-  let match: RegExpExecArray | null;
-  while ((match = STYLE_CONTROL_TAG.exec(compatible)) !== null) {
-    appendTextWithLocalizedNewlines(compatible.slice(cursor, match.index));
-
-    const fullTag = match[0];
-    const closing = Boolean(match[1]);
-    const kind = match[2].toLowerCase();
-    const rawValue = (match[3] || '').trim();
-    output += fullTag;
-
-    if (closing) {
-      for (let i = active.length - 1; i >= 0; i -= 1) {
-        if (active[i].kind === kind) {
-          active.splice(i, 1);
-          break;
-        }
-      }
-    } else if (rawValue) {
-      active.push({ kind, openTag: fullTag });
+      cursor = match.index + fullTag.length;
     }
 
-    cursor = match.index + fullTag.length;
-  }
+    appendTextWithLocalizedNewlines(markup.slice(cursor));
 
-  appendTextWithLocalizedNewlines(compatible.slice(cursor));
-
-  let localized = output;
-  let previous = '';
-  while (previous !== localized) {
-    previous = localized;
-    localized = localized.replace(EMPTY_CONTROL_WRAPPER, '');
-  }
-  return localized.replace(FORMAT_ONLY_LINE, '$1');
+    let localized = output;
+    let previous = '';
+    while (previous !== localized) {
+      previous = localized;
+      localized = localized.replace(EMPTY_CONTROL_WRAPPER, '');
+    }
+    return localized.replace(FORMAT_ONLY_LINE, '$1');
+  });
 }
 
 
