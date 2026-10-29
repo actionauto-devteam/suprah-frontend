@@ -112,8 +112,8 @@ export function RecordingPermissionsSection({ directory, save }: { directory: Re
     catch (err) { setRemovalError(recordingError(err)); }
     finally { removalSaving.current = false; setRemovalBusy(false); }
   };
-  return <section className="min-w-0 space-y-4 border-t pt-5" aria-labelledby="recording-permissions-heading">
-    <h2 id="recording-permissions-heading" className="text-base font-semibold">Recording Permissions</h2>
+  return <section className="min-w-0 space-y-4" aria-labelledby="recording-permissions-heading">
+    <div className="space-y-1"><h2 id="recording-permissions-heading" className="text-base font-semibold">Who can access recordings</h2><p className="text-sm text-muted-foreground">Every rep can record their own calls. Only the people listed here can listen to, download, share, review or delete recordings.</p></div>
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row"><Button className="order-first min-h-11 self-start sm:order-last sm:shrink-0" disabled={!candidates.length} onClick={() => { setSuccess(''); setEditing({ person: null, permissions: [] }); }}><Plus className="h-4 w-4" />Grant Access</Button>
       <label className="relative min-w-0 flex-1"><Search aria-hidden className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" /><input aria-label="Search employees with recording access" placeholder="Search employees..." value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full min-w-0 rounded-md border bg-background py-2 pl-10 pr-3 text-sm" /></label>
       <select aria-label="Access Level filter" className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:w-44" value={filter} onChange={event => setFilter(event.target.value as RecordingAccessLevel | 'all')}><option value="all">All Access Levels</option>{RECORDING_ACCESS_LEVELS.map(level => <option key={level} value={level}>{level}</option>)}</select>

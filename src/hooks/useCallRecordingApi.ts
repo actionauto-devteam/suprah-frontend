@@ -5,7 +5,10 @@ import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
 
 export type RecordingPermission = 'view' | 'download' | 'share' | 'review' | 'control' | 'delete';
-export type Recording = { _id: string; callLogId: string; direction: string; state: string; manualPaused: boolean; incomplete: boolean; error?: string; endedAt?: string; expiresAt?: string; files: { _id: string; bytes: number; startedAt: string; endedAt: string }[] };
+export type Recording = { _id: string; callLogId: string; direction: string; state: string; manualPaused: boolean; incomplete: boolean; error?: string; startedAt?: string; endedAt?: string; expiresAt?: string; reviewedAt?: string; reviewedByName?: string; files: { _id: string; bytes: number; startedAt: string; endedAt: string }[] };
+export type RecordingListItem = { _id: string; callLogId: string; leadId: string | null; customerName: string; customerPhone: string; repId: string; repName: string; direction: string; line: string; durationSec: number | null; startedAt: string; endedAt?: string; state: string; incomplete: boolean; reviewedAt: string | null; reviewedByName: string };
+export type RecordingList = { items: RecordingListItem[]; total: number; page: number; pageSize: number; reps: { id: string; name: string }[] };
+export type RecordingAccess = { permissions: RecordingPermission[]; admin: boolean };
 export function recordingError(error: unknown) {
   return (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Recording request failed';
 }

@@ -520,7 +520,7 @@ function DashboardLayoutContent({
 
       {isCrmRoute && <IncomingCallCenter />}
 
-      <ExtensionAutoSignIn enabled={isCrmRoute} />
+      <ExtensionAutoSignIn enabled />
 
       {/* Browser web-push prompt — meaningless inside the native iOS app
           (WKWebView has no web push; native push will come via APNs). */}

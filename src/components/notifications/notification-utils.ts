@@ -3,7 +3,7 @@ import {
   CheckCircle2, XCircle, DollarSign, Calendar, Car, MapPin,
   CreditCard, Users, Megaphone, MessageSquare, Clock, Tag,
   TrendingUp, AlertTriangle, Shield, Award, Send, LogIn, Video,
-  BarChart3, Boxes, Fingerprint, Timer, Bot, StickyNote, type LucideIcon,
+  BarChart3, Boxes, Fingerprint, Timer, Bot, StickyNote, PhoneMissed, type LucideIcon,
 } from 'lucide-react';
 import { Notification, NotificationCategory } from '@/types/notification';
 import {
@@ -49,6 +49,7 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   ai_agent_handoff_needed: { icon: Bot, gradient: 'from-fuchsia-500 to-purple-500', bg: 'bg-fuchsia-500' },
   ai_technical_failures_alert: { icon: Bot, gradient: 'from-zinc-500 to-slate-600', bg: 'bg-zinc-500' },
   lead_note_mention: { icon: StickyNote, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
+  missed_call: { icon: PhoneMissed, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   new_lead: { icon: UserPlus, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   lead_new_inquiry: { icon: UserPlus, gradient: 'from-sky-500 to-blue-500', bg: 'bg-sky-500' },
   lead_inquiry_review: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
@@ -197,6 +198,7 @@ const TYPE_LABELS: Record<string, string> = {
   ai_agent_handoff_needed: 'AI Agent Needs Help',
   ai_technical_failures_alert: 'AI Safety Check Failures',
   lead_note_mention: 'Mentioned in a Note',
+  missed_call: 'Missed Call',
   new_lead: 'New Lead',
   lead_new_inquiry: 'New Inquiry on Lead',
   lead_inquiry_review: 'Inquiry Needs Review',
@@ -402,6 +404,7 @@ const ROUTE_MAP: Record<string, string> = {
   ai_agent_handoff_needed: '/crm/leads',
   ai_technical_failures_alert: '/crm/ai-tasks',
   lead_note_mention: '/crm/leads',
+  missed_call: '/crm/leads',
   new_lead: '/crm', lead_assigned: '/crm', lead_status_changed: '/crm', lead_new_inquiry: '/crm/leads', lead_inquiry_review: '/crm/leads?review=1',
   reminder: '/crm',
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',

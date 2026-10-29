@@ -10,18 +10,18 @@ export const RECORDING_PERMISSION_LABELS: Record<RecordingPermission, string> = 
 export const RECORDING_ACCESS_PRESETS = [
   { level: 'Viewer', permissions: ['view'], summary: 'Can listen to recordings' },
   { level: 'QA/Reviewer', permissions: ['view', 'review', 'download', 'share'], summary: 'Can listen, review, download and share' },
-  { level: 'Full Access', permissions: ['view', 'review', 'download', 'share', 'control', 'delete'], summary: 'All recording permissions, including delete' },
+  { level: 'Full Access', permissions: ['view', 'review', 'download', 'share', 'delete'], summary: 'All recording permissions, including delete' },
 ] as const;
 export type RecordingAccessLevel = typeof RECORDING_ACCESS_PRESETS[number]['level'] | 'Custom';
 export const RECORDING_ACCESS_LEVELS: RecordingAccessLevel[] = [...RECORDING_ACCESS_PRESETS.map(p => p.level), 'Custom'];
 export const recordingStaffKey = (person: Pick<RecordingStaff, 'id' | 'kind'>) => `${person.kind}:${person.id}`;
 export function recordingAccessLevel(permissions: readonly RecordingPermission[]): RecordingAccessLevel {
-  const unique = new Set(permissions);
+  const unique = new Set(permissions.filter(key => key !== 'control'));
   return RECORDING_ACCESS_PRESETS.find(p => p.permissions.length === unique.size && p.permissions.every(key => unique.has(key)))?.level || 'Custom';
 }
 export function recordingAccessSummary(permissions: readonly RecordingPermission[]): string {
   const preset = RECORDING_ACCESS_PRESETS.find(p => p.level === recordingAccessLevel(permissions));
-  return preset?.summary || Object.entries(RECORDING_PERMISSION_LABELS).filter(([key]) => permissions.includes(key as RecordingPermission)).map(([, label]) => label).join(', ') || 'No recording access';
+  return preset?.summary || Object.entries(RECORDING_PERMISSION_LABELS).filter(([key]) => key !== 'control' && permissions.includes(key as RecordingPermission)).map(([, label]) => label).join(', ') || 'No recording access';
 }
 export function recordingPermissionsFor(person: RecordingStaff, grants: readonly RecordingGrant[]): RecordingPermission[] {
   return grants.find(g => g.principalId === person.id && g.principalKind === person.kind)?.permissions || [];

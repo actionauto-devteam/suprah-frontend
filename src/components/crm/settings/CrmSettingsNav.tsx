@@ -13,10 +13,13 @@ import {
   Phone,
   PhoneCall,
   ShieldCheck,
+  Smartphone,
   Users,
   type LucideIcon,
 } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
+import { useCallRecordingApi, type RecordingAccess } from "@/hooks/useCallRecordingApi"
 
 type CrmRole = "employee" | "manager" | "admin" | string
 
@@ -26,12 +29,14 @@ interface SettingsNavItem {
   icon: LucideIcon
   roles?: CrmRole[]
   exact?: boolean
+  recordingAccess?: boolean
 }
 
 export const CRM_SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { href: "/crm/settings/phone-numbers", label: "Phone Numbers", icon: PhoneCall, roles: ["admin"] },
-  { href: "/crm/settings/call-recording", label: "Call Recording", icon: Phone, roles: ["admin"] },
+  { href: "/crm/settings/call-recording", label: "Call Recordings", icon: Phone, roles: ["admin"], recordingAccess: true },
   { href: "/crm/settings/call-routing", label: "Call Routing", icon: Phone, roles: ["admin"] },
+  { href: "/crm/settings/my-calls", label: "My Calls", icon: Smartphone },
   { href: "/crm/settings", label: "User Management", icon: Users, exact: true },
   { href: "/crm/settings/departments", label: "Departments", icon: Building2 },
   { href: "/crm/settings/integrations", label: "Lead Integrations", icon: Lock },
@@ -41,8 +46,20 @@ export const CRM_SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { href: "/crm/hr", label: "Team Engagement", icon: HeartHandshake },
 ]
 
-export function visibleSettingsNavItems(role: CrmRole | undefined): SettingsNavItem[] {
-  return CRM_SETTINGS_NAV_ITEMS.filter((item) => !item.roles || (role ? item.roles.includes(role) : false))
+export function visibleSettingsNavItems(role: CrmRole | undefined, canListenToRecordings = false): SettingsNavItem[] {
+  return CRM_SETTINGS_NAV_ITEMS.filter((item) => !item.roles || (role ? item.roles.includes(role) : false) || (item.recordingAccess && canListenToRecordings))
+}
+
+function useCanListenToRecordings(role: CrmRole | undefined) {
+  const { request, orgId, authKey } = useCallRecordingApi()
+  const access = useQuery({
+    queryKey: ["call-recording-access", orgId, authKey],
+    enabled: Boolean(role) && role !== "admin",
+    retry: false,
+    staleTime: 60_000,
+    queryFn: () => request<RecordingAccess>("get", "/recording-access"),
+  })
+  return Boolean(access.data?.permissions.includes("view"))
 }
 
 function isActive(pathname: string, item: SettingsNavItem): boolean {
@@ -53,7 +70,8 @@ function isActive(pathname: string, item: SettingsNavItem): boolean {
 export function CrmSettingsNav({ role }: { role: CrmRole | undefined }) {
   const router = useRouter()
   const pathname = usePathname() || ""
-  const items = visibleSettingsNavItems(role)
+  const canListenToRecordings = useCanListenToRecordings(role)
+  const items = visibleSettingsNavItems(role, canListenToRecordings)
 
   return (
     <nav aria-label="Settings" className="rounded-2xl border border-border/40 bg-card overflow-hidden">

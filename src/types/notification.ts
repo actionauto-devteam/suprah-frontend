@@ -33,6 +33,7 @@ export type NotificationType =
   | 'ai_agent_handoff_needed'
   | 'ai_technical_failures_alert'
   | 'lead_note_mention'
+  | 'missed_call'
   | 'new_lead'
   | 'lead_new_inquiry'
   | 'lead_inquiry_review'

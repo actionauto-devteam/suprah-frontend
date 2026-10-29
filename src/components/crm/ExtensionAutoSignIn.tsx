@@ -19,6 +19,8 @@ interface SignInCode {
 }
 
 const RECHECK_MS = 30_000;
+const RETRY_EVERY_MS = 60_000;
+const PAUSE_AFTER_REFUSAL_MS = 10 * 60_000;
 const UNAVAILABLE_KEY = "suprah_ext_auto_sign_in_unavailable";
 const USERNAME_PREFIX = "suprah_ext_crm_username:";
 
@@ -38,6 +40,11 @@ function writeStorage(storage: "local" | "session", key: string, value: string |
   } catch {
     return;
   }
+}
+
+function refusedRecently() {
+  const until = Number(readStorage("session", UNAVAILABLE_KEY));
+  return Number.isFinite(until) && until > Date.now();
 }
 
 function forgetKnownUsernames() {
@@ -64,10 +71,12 @@ function storedCrmToken(): { token: string; id: string } | null {
 export function ExtensionAutoSignIn({ enabled }: { enabled: boolean }) {
   const { isLoaded, isSignedIn, getToken, userId } = useAuth();
   const running = React.useRef(false);
+  const signedInToSuprah = React.useRef(false);
+  signedInToSuprah.current = Boolean(isLoaded && isSignedIn);
   const lastCheck = React.useRef(0);
 
   const connect = React.useCallback(async (force: boolean) => {
-    if (running.current || readStorage("session", UNAVAILABLE_KEY)) return;
+    if (running.current || refusedRecently()) return;
     if (!force && Date.now() - lastCheck.current < RECHECK_MS) return;
     running.current = true;
     lastCheck.current = Date.now();
@@ -91,7 +100,7 @@ export function ExtensionAutoSignIn({ enabled }: { enabled: boolean }) {
         await sendToExtension(extensionId, { type: "suprah:extension-sign-in", code: data.code }, 10_000);
       }
     } catch (error) {
-      if ((error as { response?: { status?: number } })?.response?.status === 403) writeStorage("session", UNAVAILABLE_KEY, "1");
+      if ((error as { response?: { status?: number } })?.response?.status === 403) writeStorage("session", UNAVAILABLE_KEY, String(Date.now() + PAUSE_AFTER_REFUSAL_MS));
     } finally {
       running.current = false;
     }
@@ -104,16 +113,21 @@ export function ExtensionAutoSignIn({ enabled }: { enabled: boolean }) {
     const onVisible = () => {
       if (document.visibilityState === "visible") void connect(false);
     };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void connect(false);
+    }, RETRY_EVERY_MS);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [enabled, isLoaded, isSignedIn, connect]);
 
   React.useEffect(() => {
-    const signOutExtension = () => {
+    const signOutExtension = (event: Event) => {
+      if ((event as CustomEvent<{ reason?: string }>).detail?.reason === "exit-crm" && signedInToSuprah.current) return;
       forgetKnownUsernames();
       writeStorage("session", UNAVAILABLE_KEY, null);
       for (const extensionId of suprahExtensionIds()) void sendToExtension(extensionId, { type: "suprah:extension-sign-out" });
