@@ -6,10 +6,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { cn } from "@/lib/utils";
 import {
   errorMessage,
+  getDuplicateLeads,
   getIntakeControl,
   getLeadReviews,
   resolveLeadReview,
   setIntakeControl,
+  type DuplicateLeadStatus,
   type IntakeMode,
   type LeadReviewItem,
   type ReviewResolution,
@@ -217,9 +219,28 @@ function ReviewCard({
 
 const MODE_OPTIONS: Array<{ value: IntakeMode; label: string; help: string }> = [
   { value: "off", label: "Off", help: "Leads are handled the way they are today." },
-  { value: "active", label: "On", help: "New inquiries join the customer's open lead, closed leads get a fresh lead, and unclear cases come here." },
+  { value: "active", label: "On", help: "An inquiry with the same email or phone joins the customer's newest open lead. Closed leads get a fresh lead. Unclear cases come here." },
   { value: "paused", label: "Paused", help: "New inquiries are saved and held. They are filed when you turn this back on." },
 ];
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+function duplicateNote(status: DuplicateLeadStatus | null): string | null {
+  if (!status) return null;
+  const { run, preview } = status;
+  const skipped = (count: number) =>
+    count ? ` ${plural(count, "group shares", "groups share")} details with too many leads and ${count === 1 ? "was" : "were"} left for a manual check.` : "";
+  if (run?.state === "done") {
+    const when = run.finishedAt ? new Date(run.finishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+    if (!run.leadsCombined) return `Checked for duplicate leads${when ? ` on ${when}` : ""}. None needed combining.${skipped(run.skippedGroups)}`;
+    return `Duplicate leads were combined${when ? ` on ${when}` : ""}: ${plural(run.leadsCombined, "extra lead", "extra leads")} for ${plural(run.customers, "customer", "customers")}. They are under Earlier conversations in each customer's lead.${skipped(run.skippedGroups)}`;
+  }
+  if (run?.state === "running") return "Combining duplicate leads now…";
+  if (run?.state === "failed") return "Some duplicate leads couldn't be combined yet. It will try again in a few minutes.";
+  if (!preview) return null;
+  if (!preview.leads) return `No duplicate open leads right now.${skipped(preview.skippedGroups)}`;
+  return `${plural(preview.customers, "customer has", "customers have")} ${plural(preview.leads, "extra open lead", "extra open leads")} with the same email or phone. When this is On, they are combined into one lead per customer, once.${skipped(preview.skippedGroups)}`;
+}
 
 function IntakeSwitch() {
   const [control, setControl] = React.useState<{ mode: IntakeMode; canManage: boolean; heldEvents?: number | null } | null>(null);
@@ -227,15 +248,29 @@ function IntakeSwitch() {
   const [reason, setReason] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState("");
+  const [duplicates, setDuplicates] = React.useState<DuplicateLeadStatus | null>(null);
+
+  const loadDuplicates = React.useCallback(() => {
+    getDuplicateLeads()
+      .then(setDuplicates)
+      .catch(() => setDuplicates(null));
+  }, []);
 
   React.useEffect(() => {
     getIntakeControl()
       .then((data) => {
         setControl({ mode: data.mode, canManage: data.canManage, heldEvents: data.heldEvents });
         setMode(data.mode);
+        if (data.canManage) loadDuplicates();
       })
       .catch(() => setControl(null));
-  }, []);
+  }, [loadDuplicates]);
+
+  React.useEffect(() => {
+    if (duplicates?.run?.state !== "running") return;
+    const timer = window.setTimeout(loadDuplicates, 4000);
+    return () => window.clearTimeout(timer);
+  }, [duplicates, loadDuplicates]);
 
   if (!control?.canManage) return null;
 
@@ -251,6 +286,7 @@ function IntakeSwitch() {
       setControl((previous) => ({ mode: result.mode, canManage: true, heldEvents: previous?.heldEvents }));
       setReason("");
       setMessage("Saved.");
+      window.setTimeout(loadDuplicates, 1500);
     } catch (err) {
       setMessage(errorMessage(err, "Couldn't save. Please try again."));
     } finally {
@@ -267,6 +303,11 @@ function IntakeSwitch() {
       {Boolean(control.heldEvents) && (
         <p className="mt-1 text-[12px] text-amber-700 dark:text-amber-300">
           {control.heldEvents} {control.heldEvents === 1 ? "inquiry is" : "inquiries are"} saved and waiting to be filed. They are filed when matching is On.
+        </p>
+      )}
+      {duplicateNote(duplicates) && (
+        <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300" data-testid="duplicate-leads-note">
+          {duplicateNote(duplicates)}
         </p>
       )}
       <div className="mt-2 grid gap-1.5 sm:grid-cols-3">

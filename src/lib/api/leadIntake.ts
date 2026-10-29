@@ -85,6 +85,28 @@ export async function setIntakeControl(mode: IntakeMode, reason: string) {
   return res.data?.data as { mode: IntakeMode };
 }
 
+export interface DuplicateLeadStatus {
+  run: {
+    state: "running" | "done" | "failed";
+    finishedAt?: string | null;
+    customers: number;
+    leadsCombined: number;
+    skippedGroups: number;
+    failedGroups: number;
+  } | null;
+  preview: { customers: number; leads: number; skippedGroups: number; complete: boolean } | null;
+}
+
+export async function getDuplicateLeads() {
+  const res = await apiClient.get("/api/crm/lead-intake/duplicates");
+  return res.data?.data as DuplicateLeadStatus;
+}
+
+export async function undoLeadCombine(leadId: string) {
+  const res = await apiClient.post(`/api/crm/lead-intake/leads/${leadId}/undo-combine`);
+  return res.data?.data as { mainLeadId: string; restoredLeadIds: string[] };
+}
+
 export async function searchLeads(search: string) {
   const res = await apiClient.get("/api/leads", { params: { search, limit: 8, page: 1 } });
   const payload = res.data?.data;

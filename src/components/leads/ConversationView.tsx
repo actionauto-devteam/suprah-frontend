@@ -30,7 +30,7 @@ import { Avatar } from "./atomic/Avatar";
 import { aiModeIndicatorLabel, type AiMode } from "@/lib/aiOperatingModes";
 import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
-import { EarlierConversations } from "./EarlierConversations";
+import { CombineNotice, EarlierConversations } from "./EarlierConversations";
 import type { LeadConversationMeta } from "@/lib/api/leadConversation";
 
 interface ConversationViewProps {
@@ -47,6 +47,7 @@ interface ConversationViewProps {
   loadState?: "loading" | "ready" | "error";
   onRetryLoad?: () => void;
   onLinkUnverified?: () => void;
+  onCombineUndone?: () => void;
   onBack?: () => void;
   onShowDetails?: () => void;
   aiAgentName?: string;
@@ -591,6 +592,7 @@ export function ConversationView({
   loadState = "ready",
   onRetryLoad,
   onLinkUnverified,
+  onCombineUndone,
   onBack,
   onShowDetails,
   aiAgentName = "AI Agent",
@@ -849,6 +851,7 @@ export function ConversationView({
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6"
       >
         <div className="mx-auto w-full max-w-4xl">
+          {lead?._id && <CombineNotice leadId={String(lead._id)} combine={conversationMeta?.combine} onUndone={onCombineUndone} />}
           {lead?._id && <EarlierConversations leadId={String(lead._id)} earlier={conversationMeta?.earlier} />}
 
           {loadState === "error" && (
