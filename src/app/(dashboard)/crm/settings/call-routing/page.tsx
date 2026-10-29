@@ -11,9 +11,10 @@ import { Switch } from '@/components/ui/switch';
 import type { CrmLeadGroup } from '@/hooks/useCrmLeadGroups';
 
 type Option = {
-  digit: string; label: string; type: 'location' | 'department' | 'language';
-  groupId: string | null; leadLocation: string; language: string; externalDestination: string;
+  digit: string; label: string; type: 'location' | 'department' | 'language' | 'number';
+  groupId: string | null; leadLocation: string; language: string; externalDestination: string; phoneNumberId?: string | null;
 };
+type PhoneNumberChoice = { _id: string; number: string; label: string; ringGroupName?: string; ringGroupId?: string | null };
 type Config = {
   _id?: string; enabled: boolean; name: string; inboundNumber: string; mainNumber: string;
   greeting: string; ringTimeoutSeconds: number; retryCount: number;
@@ -38,8 +39,8 @@ function message(error: unknown): string {
   return (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Unable to save call routing.';
 }
 
-function RoutingForm({ initial, groups, save, pending, cancel }: {
-  initial: Config; groups: CrmLeadGroup[]; save: (config: Config) => Promise<Config>; pending: boolean; cancel: () => void;
+function RoutingForm({ initial, groups, numbers, save, pending, cancel }: {
+  initial: Config; groups: CrmLeadGroup[]; numbers: PhoneNumberChoice[]; save: (config: Config) => Promise<Config>; pending: boolean; cancel: () => void;
 }) {
   const [config, setConfig] = useState(initial);
   const [error, setError] = useState('');
@@ -82,11 +83,12 @@ function RoutingForm({ initial, groups, save, pending, cancel }: {
               <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="space-y-1 text-sm">Digit<select className={field} value={option.digit} onChange={event => optionPatch(index, { digit: event.target.value })}>{Array.from({ length: 10 }, (_, i) => <option key={i} value={i}>{i}</option>)}</select></label>
                 <label className="space-y-1 text-sm">Label<input required maxLength={80} className={field} value={option.label} onChange={event => optionPatch(index, { label: event.target.value })} /></label>
-                <label className="space-y-1 text-sm">Route type<select className={field} value={option.type} onChange={event => optionPatch(index, { type: event.target.value as Option['type'], leadLocation: '', language: '' })}><option value="location">Location</option><option value="department">Department</option><option value="language">Language</option></select></label>
-                <label className="space-y-1 text-sm">Target Lead Group<select aria-label={`Target Lead Group for option ${option.digit}`} required={config.enabled && !(option.digit === '0' && option.type === 'language')} disabled={option.digit === '0' && option.type === 'language'} className={field} value={option.digit === '0' && option.type === 'language' ? config.receptionGroupId || '' : option.groupId || ''} onChange={event => optionPatch(index, { groupId: event.target.value || null })}>{groupOptions}</select></label>
+                <label className="space-y-1 text-sm">Route type<select className={field} value={option.type} onChange={event => optionPatch(index, { type: event.target.value as Option['type'], leadLocation: '', language: '', ...(event.target.value === 'number' ? { groupId: null, externalDestination: '' } : { phoneNumberId: null }) })}><option value="number">Dealership number</option><option value="location">Location</option><option value="department">Department</option><option value="language">Language</option></select></label>
+                {option.type === 'number' && <label className="space-y-1 text-sm">Dealership number<select aria-label={`Dealership number for option ${option.digit}`} required className={field} value={option.phoneNumberId || ''} onChange={event => optionPatch(index, { phoneNumberId: event.target.value || null })}><option value="">Select a number</option>{numbers.map(number => <option key={number._id} value={number._id}>{number.label} ({number.number})</option>)}</select><span className="block text-xs text-muted-foreground">{(() => { const chosen = numbers.find(number => number._id === option.phoneNumberId); return chosen ? `Rings ${chosen.ringGroupId ? chosen.ringGroupName || 'its team' : 'everyone'}, as set on the Phone Numbers page.` : 'Uses the team set for that number on the Phone Numbers page.'; })()}</span></label>}
+                {option.type !== 'number' && <label className="space-y-1 text-sm">Target Lead Group<select aria-label={`Target Lead Group for option ${option.digit}`} required={config.enabled && !(option.digit === '0' && option.type === 'language')} disabled={option.digit === '0' && option.type === 'language'} className={field} value={option.digit === '0' && option.type === 'language' ? config.receptionGroupId || '' : option.groupId || ''} onChange={event => optionPatch(index, { groupId: event.target.value || null })}>{groupOptions}</select></label>}
                 {option.type === 'location' && <label className="space-y-1 text-sm">Lead location<input maxLength={120} className={field} value={option.leadLocation} onChange={event => optionPatch(index, { leadLocation: event.target.value })} /></label>}
                 {option.type === 'language' && <label className="space-y-1 text-sm">Language request<input maxLength={40} className={field} value={option.language} onChange={event => optionPatch(index, { language: event.target.value })} /></label>}
-                <label className="space-y-1 text-sm">External number (pending verification)<input type="tel" className={field} value={option.externalDestination} onChange={event => optionPatch(index, { externalDestination: event.target.value })} /><span className="block text-xs text-muted-foreground">External transfer disabled</span></label>
+                {option.type !== 'number' && <label className="space-y-1 text-sm">External number (pending verification)<input type="tel" className={field} value={option.externalDestination} onChange={event => optionPatch(index, { externalDestination: event.target.value })} /><span className="block text-xs text-muted-foreground">External transfer disabled</span></label>}
               </div>
             </div>
           ))}
@@ -108,8 +110,12 @@ export default function CallRoutingSettingsPage() {
   const key = ['crm-call-routing', orgId];
   const query = useQuery({ queryKey: key, retry: false, queryFn: async () => {
     const auth = await headers();
-    const [routing, groupResponse] = await Promise.all([apiClient.get('/api/crm/communications/ivr-configs', auth), apiClient.get('/api/crm/lead-groups', auth)]);
-    return { configs: routing.data.data.configs as Config[], groups: groupResponse.data.data as CrmLeadGroup[] };
+    const [routing, groupResponse, numberResponse] = await Promise.all([
+      apiClient.get('/api/crm/communications/ivr-configs', auth),
+      apiClient.get('/api/crm/lead-groups', auth),
+      apiClient.get('/api/crm/phone-numbers', auth).catch(() => null),
+    ]);
+    return { configs: routing.data.data.configs as Config[], groups: groupResponse.data.data as CrmLeadGroup[], numbers: (numberResponse?.data?.data?.numbers || []) as PhoneNumberChoice[] };
   } });
   const mutation = useMutation({ mutationFn: async (config: Config) => {
     const { _id, ...body } = config;
@@ -117,7 +123,8 @@ export default function CallRoutingSettingsPage() {
       greeting: body.greeting, ringTimeoutSeconds: body.ringTimeoutSeconds, retryCount: body.retryCount,
       receptionGroupId: body.receptionGroupId, allOrgFallback: body.allOrgFallback,
       options: body.options.map(option => ({ digit: option.digit, label: option.label, type: option.type, groupId: option.groupId,
-        leadLocation: option.leadLocation, language: option.language, externalDestination: option.externalDestination })),
+        leadLocation: option.leadLocation, language: option.language, externalDestination: option.externalDestination,
+        phoneNumberId: option.type === 'number' ? option.phoneNumberId || null : null })),
     };
     const auth = await headers();
     const response = _id ? await apiClient.put(`/api/crm/communications/ivr-configs/${_id}`, payload, auth) : await apiClient.post('/api/crm/communications/ivr-configs', payload, auth);
@@ -130,7 +137,7 @@ export default function CallRoutingSettingsPage() {
         <Link href="/crm/settings/lead-groups" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground"><Users className="h-4 w-4" />Lead Groups</Link>
       </div>
       {query.isPending ? <Loader2 aria-label="Loading call routing" className="h-5 w-5 animate-spin" /> : query.isError ? <p role="alert" className="break-words text-sm text-red-500">{message(query.error)}</p> : editing ? (
-        <RoutingForm key={editing._id || 'new'} initial={editing} groups={query.data.groups} pending={mutation.isPending} cancel={() => setEditing(null)} save={config => mutation.mutateAsync(config)} />
+        <RoutingForm key={editing._id || 'new'} initial={editing} groups={query.data.groups} numbers={query.data.numbers} pending={mutation.isPending} cancel={() => setEditing(null)} save={config => mutation.mutateAsync(config)} />
       ) : (
         <div className="space-y-4"><Button className="min-h-11" onClick={() => setEditing(newConfig())} variant="outline"><Plus className="h-4 w-4" />New configuration</Button>
           {query.data.configs.map(config => <button key={config._id} onClick={() => setEditing(config)} className="flex min-h-16 w-full flex-wrap items-center justify-between gap-3 border-b py-4 text-left"><span className="min-w-0"><span className="block break-words text-sm font-semibold">{config.name}</span><span className="block text-sm text-muted-foreground">{config.inboundNumber}</span></span><span className={`text-sm ${config.enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>{config.enabled ? 'Enabled' : 'Disabled'}</span></button>)}

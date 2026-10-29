@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { useLeadLocationCounts } from "@/hooks/useLeads"
 import { useCrmLocations } from "@/hooks/useCrmLocations"
+import { useCrmLeadGroups } from "@/hooks/useCrmLeadGroups"
 import { formatSmsRecipient } from "@/lib/api/leadComposer"
 import { cn } from "@/lib/utils"
 
@@ -28,6 +29,8 @@ interface DealershipNumber {
   kind: Kind
   location: string
   department: string
+  ringGroupId: string | null
+  ringGroupName: string
   telnyx: TelnyxCheck
 }
 
@@ -42,6 +45,7 @@ interface FormValues {
   kind: Kind
   location: string
   department: string
+  ringGroupId: string
 }
 
 const KIND_LABELS: Record<Kind, string> = { main: "Main number", location: "Location", department: "Department" }
@@ -59,12 +63,14 @@ function errorStatus(error: unknown) {
 function NumberForm({
   initial,
   locations,
+  teams,
   saving,
   onCancel,
   onSave,
 }: {
   initial: FormValues
   locations: string[]
+  teams: { _id: string; name: string }[]
   saving: boolean
   onCancel: () => void
   onSave: (values: FormValues) => Promise<void>
@@ -134,6 +140,18 @@ function NumberForm({
           </datalist>
         </label>
       )}
+      <label className="block text-xs font-medium text-muted-foreground">
+        Who answers calls to this number?
+        <select value={values.ringGroupId} onChange={(e) => set({ ringGroupId: e.target.value })} className={field}>
+          <option value="">Everyone in Suprah CRM</option>
+          {teams.map((team) => <option key={team._id} value={team._id}>{team.name}</option>)}
+        </select>
+        <span className="mt-1 block font-normal">
+          {values.ringGroupId
+            ? "Only this team gets the call. If nobody answers, the caller hears the missed-call message and gets a text back, and the team and admins are notified."
+            : "Everyone who uses Suprah CRM gets the call. Choose a Lead Group to ring only that team."}
+        </span>
+      </label>
       {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" onClick={onCancel} className="min-h-11 rounded-lg border px-4 text-sm font-medium hover:bg-muted">Cancel</button>
@@ -167,6 +185,8 @@ export default function PhoneNumbersSettingsPage() {
   const [notice, setNotice] = React.useState("")
   const { counts: leadLocationCounts } = useLeadLocationCounts()
   const crmLocations = useCrmLocations(getToken, "active")
+  const { groups } = useCrmLeadGroups()
+  const teams = React.useMemo(() => groups.filter((group) => group.isActive).map((group) => ({ _id: group._id, name: group.name })), [groups])
   const headers = async () => ({ headers: { Authorization: `Bearer ${localStorage.getItem("crm_token") || await getToken()}` } })
   const key = ["crm-phone-numbers", orgId]
 
@@ -210,7 +230,7 @@ export default function PhoneNumbersSettingsPage() {
 
   const startNew = (values?: Partial<FormValues>) => {
     setNotice("")
-    setEditing({ id: null, values: { number: "", label: "", kind: hasMain ? "location" : "main", location: "", department: "", ...values } })
+    setEditing({ id: null, values: { number: "", label: "", kind: hasMain ? "location" : "main", location: "", department: "", ringGroupId: "", ...values } })
   }
 
   return (
@@ -254,6 +274,7 @@ export default function PhoneNumbersSettingsPage() {
               key={editing.id || "new"}
               initial={editing.values}
               locations={locations}
+              teams={teams}
               saving={save.isPending}
               onCancel={() => setEditing(null)}
               onSave={async (values) => {
@@ -284,7 +305,7 @@ export default function PhoneNumbersSettingsPage() {
                     <button type="button" title="Check with Telnyx again" aria-label={`Check ${row.label} with Telnyx again`} onClick={() => check.mutate(row._id)} disabled={check.isPending && check.variables === row._id} className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
                       <RefreshCw className={cn("h-4 w-4", check.isPending && check.variables === row._id && "animate-spin")} />
                     </button>
-                    <button type="button" title="Edit" aria-label={`Edit ${row.label}`} onClick={() => { setNotice(""); setEditing({ id: row._id, values: { number: row.number, label: row.label, kind: row.kind, location: row.location, department: row.department } }) }} className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
+                    <button type="button" title="Edit" aria-label={`Edit ${row.label}`} onClick={() => { setNotice(""); setEditing({ id: row._id, values: { number: row.number, label: row.label, kind: row.kind, location: row.location, department: row.department, ringGroupId: row.ringGroupId || "" } }) }} className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button type="button" title="Remove" aria-label={`Remove ${row.label}`} onClick={() => setRemovingId(row._id)} className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-600">
@@ -292,6 +313,9 @@ export default function PhoneNumbersSettingsPage() {
                     </button>
                   </div>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Calls ring: <span className="font-medium text-foreground">{row.ringGroupId ? row.ringGroupName || "A Lead Group that is no longer active (everyone)" : "Everyone"}</span>
+                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <ReadyChip ok={row.telnyx?.readyForCalls} label={row.telnyx?.readyForCalls ? "Ready for calls" : "Calls not ready"} />
                   <ReadyChip ok={row.telnyx?.readyForTexts} label={row.telnyx?.readyForTexts ? "Ready for texts" : "Texts not ready"} />

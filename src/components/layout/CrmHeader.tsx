@@ -49,7 +49,7 @@ export function CrmHeader({
   const { organization } = useOrg();
 
   const handleExit = async () => {
-    window.dispatchEvent(new Event('suprah:clear-private-cache'));
+    window.dispatchEvent(new CustomEvent('suprah:clear-private-cache', { detail: { reason: 'exit-crm' } }));
     if ('serviceWorker' in navigator) void navigator.serviceWorker.getRegistrations().then(registrations => registrations.forEach(registration => registration.active?.postMessage({ type: 'SUPRASPACE_CLEAR_PRIVATE_DATA' }))).catch(() => {});
     try {
       await apiClient.post('/api/crm/logout', {}, {
