@@ -116,3 +116,31 @@ export function leadQuoteCreatedMessage(rate: unknown): string {
     ? `Quote created. Estimated shipping: $${Math.round(value).toLocaleString("en-US")}. You'll find it under Quotes in Transportation.`
     : "Quote created. You'll find it under Quotes in Transportation."
 }
+
+/** One of a lead's shipping quotes and the load it became (GET /api/quotes/for-lead/:leadId). */
+export interface LeadShipment {
+  quoteId: string
+  status: string
+  source: string
+  vehicleName: string
+  rate: number | null
+  createdAt: string | null
+  load: { _id: string; loadNumber: string; status: string } | null
+}
+
+const QUOTE_STATUS_WORDS: Record<string, string> = {
+  pending: "Pending",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  booked: "Converted to Load",
+}
+
+/** A quote's status in the words the Quotes tab uses. */
+export function quoteStatusWords(status: string): string {
+  return QUOTE_STATUS_WORDS[status] ?? status
+}
+
+/** "$950" for a quote's price, or "" when there's none. */
+export function quotePriceWords(rate: number | null | undefined): string {
+  return typeof rate === "number" && Number.isFinite(rate) && rate > 0 ? `$${Math.round(rate).toLocaleString("en-US")}` : ""
+}

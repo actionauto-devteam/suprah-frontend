@@ -15,7 +15,7 @@ function loadLib(name) {
   return cjs.exports;
 }
 
-const { isSoldLeadStatus, leadAddressToDestination, leadQuoteInitialData, inventoryVehicleFromApi, leadQuoteCreatedMessage } =
+const { isSoldLeadStatus, leadAddressToDestination, leadQuoteInitialData, inventoryVehicleFromApi, leadQuoteCreatedMessage, quoteStatusWords, quotePriceWords } =
   loadLib('lead-shipping');
 
 test('the button shows only on leads in the Sold group', () => {
@@ -58,4 +58,13 @@ test('shapes Inventory cars like Transportation does', () => {
 test('confirms the quote with a plain price', () => {
   assert.equal(leadQuoteCreatedMessage(1234.6), "Quote created. Estimated shipping: $1,235. You'll find it under Quotes in Transportation.");
   assert.equal(leadQuoteCreatedMessage(undefined), "Quote created. You'll find it under Quotes in Transportation.");
+});
+
+test("words a lead's quotes the way the Quotes tab does", () => {
+  assert.equal(quoteStatusWords('pending'), 'Pending');
+  assert.equal(quoteStatusWords('booked'), 'Converted to Load');
+  assert.equal(quoteStatusWords('rejected'), 'Rejected');
+  assert.equal(quotePriceWords(950.4), '$950');
+  assert.equal(quotePriceWords(null), '');
+  assert.equal(quotePriceWords(0), '');
 });
