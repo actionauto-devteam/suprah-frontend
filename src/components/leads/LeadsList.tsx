@@ -7,17 +7,20 @@
  */
 
 import * as React from "react";
-import { Search, ChevronLeft, ChevronRight, Inbox, CheckSquare } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Inbox, CheckSquare, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "./atomic/Avatar";
 import { STATUS_CONFIG } from "./atomic/StatusPill";
 import { SupraLeoReadButton } from "@/components/supra-leo-ai/SupraLeoReadButton";
 import { useTeamMembers } from "@/hooks/useTeamPulse";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
+import { MDT_TZ, isTodayMDT } from "@/lib/timezone";
 
 interface LeadsListProps {
   leads: any[];
   isLoading: boolean;
+  loadFailed?: boolean;
+  onRetry?: () => void;
   total: number;
   pages: number;
   currentPage: number;
@@ -42,14 +45,15 @@ interface LeadsListProps {
 const listTime = (value: any) => {
   const date = new Date(value || 0);
   if (Number.isNaN(date.getTime())) return "";
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return new Intl.DateTimeFormat(undefined, {
+  if (isTodayMDT(date)) {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: MDT_TZ,
       hour: "numeric",
       minute: "2-digit",
     }).format(date);
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MDT_TZ,
     month: "short",
     day: "numeric",
   }).format(date);
@@ -170,6 +174,8 @@ export const LeadsList = React.memo(
   ({
     leads,
     isLoading,
+    loadFailed,
+    onRetry,
     total,
     pages,
     currentPage,
@@ -273,6 +279,23 @@ export const LeadsList = React.memo(
                   className="h-[74px] animate-pulse rounded-xl bg-slate-100 dark:bg-[#0f1f19]"
                 />
               ))}
+            </div>
+          ) : loadFailed ? (
+            <div role="alert" data-testid="leads-load-failed" className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+              <TriangleAlert className="h-7 w-7 text-amber-500" />
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                Couldn&apos;t load leads
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                This is a connection problem, not an empty search.
+              </p>
+              <button
+                type="button"
+                onClick={onRetry}
+                className="mt-1 inline-flex h-9 items-center rounded-lg border border-slate-200 px-3 text-[13px] font-medium text-slate-600 transition hover:bg-slate-100 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:bg-emerald-400/10"
+              >
+                Try again
+              </button>
             </div>
           ) : leads.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
@@ -429,7 +452,7 @@ export const LeadsList = React.memo(
 
         {/* Pagination footer */}
         {pages > 1 && (
-          <div className="flex shrink-0 items-center justify-between border-t border-slate-200 px-3 py-2 dark:border-emerald-400/15">
+          <div className="flex shrink-0 items-center justify-between border-t border-slate-200 px-3 py-2 max-md:pb-[calc(var(--mobile-bottom-nav-offset,0px)-3.75rem)] dark:border-emerald-400/15">
             <button
               type="button"
               onClick={() => onPageChange(Math.max(1, currentPage - 1))}

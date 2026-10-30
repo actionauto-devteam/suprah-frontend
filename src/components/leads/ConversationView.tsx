@@ -12,8 +12,6 @@ import {
   ChevronDown,
   ClipboardList,
   Bot,
-  Pause,
-  Play,
   AlertTriangle,
   Link2,
   MessageCircle,
@@ -27,11 +25,11 @@ import {
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
-import { aiModeIndicatorLabel, type AiMode } from "@/lib/aiOperatingModes";
 import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
 import { CombineNotice, EarlierConversations } from "./EarlierConversations";
 import type { LeadConversationMeta } from "@/lib/api/leadConversation";
+import { MDT_TZ, isTodayMDT, isYesterdayMDT, mdtDateKey } from "@/lib/timezone";
 
 interface ConversationViewProps {
   lead: any;
@@ -41,8 +39,6 @@ interface ConversationViewProps {
   sourceEmail: string;
   siblingCount?: number;
   onReplyToSiblings?: () => void;
-  aiAgentStatus?: { paused: boolean; pausedBy?: string; autoPausedUntil?: string; mode?: AiMode } | null;
-  onToggleAiAgent?: () => void;
   conversationMeta?: LeadConversationMeta | null;
   loadState?: "loading" | "ready" | "error";
   onRetryLoad?: () => void;
@@ -50,7 +46,6 @@ interface ConversationViewProps {
   onCombineUndone?: () => void;
   onBack?: () => void;
   onShowDetails?: () => void;
-  aiAgentName?: string;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -140,11 +135,13 @@ const formatTimestamp = (value: any) => {
     return String(value);
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MDT_TZ,
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZoneName: "short",
   }).format(date);
 };
 
@@ -398,7 +395,8 @@ const isLeadInquiryMessage = (
  * presentation only, self-contained Tailwind with dark-mode variants.
  * ==========================================================================*/
 
-const DAY_CHIP_FORMAT = new Intl.DateTimeFormat(undefined, {
+const DAY_CHIP_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: MDT_TZ,
   weekday: "short",
   month: "short",
   day: "numeric",
@@ -406,16 +404,14 @@ const DAY_CHIP_FORMAT = new Intl.DateTimeFormat(undefined, {
 
 const dayKeyOf = (value: any) => {
   const date = new Date(value || 0);
-  return Number.isNaN(date.getTime()) ? "unknown" : date.toDateString();
+  return Number.isNaN(date.getTime()) ? "unknown" : mdtDateKey(date);
 };
 
 const dayChipLabel = (value: any) => {
   const date = new Date(value || 0);
   if (Number.isNaN(date.getTime())) return "";
-  const today = new Date();
-  const yesterday = new Date(Date.now() - 86400000);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (isTodayMDT(date)) return "Today";
+  if (isYesterdayMDT(date)) return "Yesterday";
   return DAY_CHIP_FORMAT.format(date);
 };
 
@@ -586,8 +582,6 @@ export function ConversationView({
   sourceEmail,
   siblingCount = 0,
   onReplyToSiblings,
-  aiAgentStatus = null,
-  onToggleAiAgent,
   conversationMeta = null,
   loadState = "ready",
   onRetryLoad,
@@ -595,7 +589,6 @@ export function ConversationView({
   onCombineUndone,
   onBack,
   onShowDetails,
-  aiAgentName = "AI Agent",
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -668,64 +661,6 @@ export function ConversationView({
     });
   }, [groupedThreads, leadNotes, leadCreatedAt]);
 
-  const isAutoPaused =
-    Boolean(aiAgentStatus) &&
-    !aiAgentStatus!.paused &&
-    Boolean(aiAgentStatus!.autoPausedUntil) &&
-    new Date(aiAgentStatus!.autoPausedUntil as string) > new Date();
-  const isPausedForDisplay = Boolean(aiAgentStatus?.paused) || isAutoPaused;
-
-  const aiNotSending = Boolean(aiAgentStatus?.mode) && aiAgentStatus!.mode !== "live";
-
-  const aiToggleButton = aiAgentStatus && (aiNotSending ? (
-    <span
-      role="status"
-      title={aiModeIndicatorLabel(aiAgentStatus.mode as AiMode, aiAgentName)}
-      className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 shadow-sm dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
-    >
-      <Bot className="h-3.5 w-3.5 shrink-0" />
-      <span className="hidden max-w-[14rem] truncate sm:inline">{aiModeIndicatorLabel(aiAgentStatus.mode as AiMode, aiAgentName)}</span>
-      <span className="sm:hidden">{aiAgentStatus.mode === "off" ? "AI off" : "Training"}</span>
-    </span>
-  ) : (
-    <button
-      type="button"
-      onClick={onToggleAiAgent}
-      title={
-        isPausedForDisplay
-          ? `${aiAgentName} is paused — click to resume`
-          : `${aiAgentName} is replying live — click to pause`
-      }
-      aria-label={
-        isPausedForDisplay
-          ? `${aiAgentName} is paused — resume`
-          : `${aiAgentName} is replying live — pause`
-      }
-      className={cn(
-        "flex min-w-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition",
-        isPausedForDisplay
-          ? "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
-          : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-600 hover:bg-fuchsia-100 dark:border-fuchsia-400/20 dark:bg-fuchsia-400/10 dark:text-fuchsia-300",
-      )}
-    >
-      <Bot className="h-3.5 w-3.5 shrink-0" />
-      <span className="hidden max-w-[12rem] truncate sm:inline">
-        {aiAgentStatus.paused
-          ? aiAgentStatus.pausedBy
-            ? `Paused by ${aiAgentStatus.pausedBy}`
-            : `${aiAgentName} paused`
-          : isAutoPaused
-            ? "Auto-paused"
-            : `${aiAgentName} live`}
-      </span>
-      {isPausedForDisplay ? (
-        <Play className="h-3 w-3 shrink-0" />
-      ) : (
-        <Pause className="h-3 w-3 shrink-0" />
-      )}
-    </button>
-  ));
-
   const backButton = onBack && (
     <button
       type="button"
@@ -752,10 +687,9 @@ export function ConversationView({
 
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
-      {hideConversationChrome && (aiAgentStatus || backButton || detailsButton) && (
+      {hideConversationChrome && (backButton || detailsButton) && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-40 flex items-start justify-between gap-2">
           <div className="pointer-events-auto shrink-0">{backButton}</div>
-          <div className="pointer-events-auto min-w-0">{aiAgentStatus ? aiToggleButton : null}</div>
           <div className="pointer-events-auto shrink-0">{detailsButton}</div>
         </div>
       )}
@@ -809,8 +743,6 @@ export function ConversationView({
               Link to a lead
             </button>
           )}
-
-          {aiToggleButton}
 
           {detailsButton}
 

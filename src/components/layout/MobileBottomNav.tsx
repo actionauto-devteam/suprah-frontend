@@ -1386,7 +1386,8 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
             <AnimatePresence>
                 {isDealershipShell && userHidden && !shouldBeInvisible && !customizerOpen && (
                     <motion.div
-                        className="fixed right-3 z-[60] flex items-center gap-2 md:hidden print:hidden"
+                        className="fixed right-3 z-[60] flex items-center gap-2 md:hidden print:hidden [body[data-scroll-locked]_&]:hidden"
+                        data-testid="mobile-nav-recovery"
                         style={{ bottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
                         initial={{ y: 18, opacity: 0, scale: 0.94 }}
                         animate={{ y: 0, opacity: 1, scale: 1 }}

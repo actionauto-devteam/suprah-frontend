@@ -30,7 +30,7 @@ function CampaignsPageContent() {
       <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/crm/leads")} aria-label="Back to leads">
+            <Button variant="ghost" size="icon" onClick={() => router.push("/crm/dashboard")} aria-label="Back to CRM dashboard">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0">

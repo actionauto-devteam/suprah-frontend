@@ -24,6 +24,20 @@ interface AddLeadModalProps {
   onOpenChange: (open: boolean) => void
 }
 
+type PossibleMatch = {
+  kind: "lead" | "customer"
+  id: string
+  name: string
+  status: string | null
+  email: string
+  phone: string
+  address: string
+  sameAddress: boolean | null
+}
+
+const matchLabel = (match: PossibleMatch) =>
+  match.sameAddress === true ? "Same name and address" : match.sameAddress === false ? "Same name, different address" : "Same name"
+
 export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
   const { getToken } = useAuth()
 
@@ -41,6 +55,35 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
   const [comments, setComments] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vehicleLocations, setVehicleLocations] = React.useState<string[]>([])
+  const [matchResult, setMatchResult] = React.useState<{ key: string; matches: PossibleMatch[] } | null>(null)
+
+  const matchFirst = firstName.trim()
+  const matchLast = lastName.trim()
+  const matchAddress = address.trim()
+  const matchKey = `${matchFirst.toLowerCase()}|${matchLast.toLowerCase()}|${matchAddress.toLowerCase()}`
+  const visibleMatches = scanApplied && matchResult?.key === matchKey ? matchResult.matches : []
+
+  React.useEffect(() => {
+    if (!isOpen || !scanApplied || !matchFirst || !matchLast) return
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      try {
+        const token = await getToken()
+        const res = await apiClient.get("/api/leads/possible-matches", {
+          params: { firstName: matchFirst, lastName: matchLast, address: matchAddress || undefined },
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = res.data?.data || res.data
+        if (!cancelled) setMatchResult({ key: matchKey, matches: Array.isArray(data?.matches) ? data.matches : [] })
+      } catch {
+        if (!cancelled) setMatchResult({ key: matchKey, matches: [] })
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [isOpen, scanApplied, matchFirst, matchLast, matchAddress, matchKey, getToken])
 
   React.useEffect(() => {
     let cancelled = false
@@ -71,6 +114,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         setAddress("")
         setScanOpen(false)
         setScanApplied(false)
+        setMatchResult(null)
         setVehicleYear("")
         setVehicleMake("")
         setVehicleModel("")
@@ -141,6 +185,48 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
               <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">
                 Name and address filled in from the license. Check them before adding the lead.
               </p>
+            )}
+            {visibleMatches.length > 0 && (
+              <div
+                role="status"
+                data-testid="license-possible-matches"
+                className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-950/30"
+              >
+                <p className="font-semibold text-amber-900 dark:text-amber-200">This person may already be in the CRM</p>
+                <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+                  Check these before adding a new lead. Nothing is combined for you.
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {visibleMatches.map((match) => (
+                    <li
+                      key={`${match.kind}-${match.id}`}
+                      className="flex items-center justify-between gap-2 rounded-md bg-white/80 px-2.5 py-2 dark:bg-black/20"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-foreground">
+                          {match.name}
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · {match.kind === "customer" ? "Customer record" : `Lead${match.status ? ` (${match.status})` : ""}`}
+                          </span>
+                        </p>
+                        <p className="truncate text-muted-foreground">
+                          {match.address || match.phone || match.email || "No contact details saved"}
+                        </p>
+                        <p className="text-[11px] font-medium text-amber-800 dark:text-amber-300">{matchLabel(match)}</p>
+                      </div>
+                      <a
+                        href={match.kind === "customer" ? `/crm/customers/${match.id}` : `/crm/leads?leadId=${match.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-9 shrink-0 items-center rounded-md border bg-background px-3 font-medium text-foreground hover:bg-muted"
+                      >
+                        Open
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
 

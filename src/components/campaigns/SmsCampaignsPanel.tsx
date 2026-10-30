@@ -475,7 +475,7 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
         {!hideHeader && (
           <>
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => router.push("/crm/leads")} aria-label="Back to leads">
+              <Button variant="ghost" size="icon" onClick={() => router.push("/crm/dashboard")} aria-label="Back to CRM dashboard">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-2">

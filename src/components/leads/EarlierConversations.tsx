@@ -10,9 +10,10 @@ import {
   type LeadCombineInfo,
 } from "@/lib/api/leadConversation";
 import { errorMessage, undoLeadCombine } from "@/lib/api/leadIntake";
+import { MDT_TZ } from "@/lib/timezone";
 
-const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-const timeFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dateFormat = new Intl.DateTimeFormat("en-US", { timeZone: MDT_TZ, month: "short", day: "numeric", year: "numeric" });
+const timeFormat = new Intl.DateTimeFormat("en-US", { timeZone: MDT_TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 
 const formatDate = (value?: string) => {
   const date = new Date(value || "");

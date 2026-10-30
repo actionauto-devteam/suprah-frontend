@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { apiClient } from "@/lib/api-client"
 
 const GoogleIcon = () => (
@@ -21,8 +22,21 @@ export function CrmCalendarConnect() {
 
   const crmToken = typeof window !== "undefined" ? localStorage.getItem("crm_token") : null
 
-  // Don't render if no CRM session
-  if (!crmToken && !isLoading) return null
+  React.useEffect(() => {
+    const url = new URL(window.location.href)
+    const result = url.searchParams.get("calendar")
+    if (!result) return
+    if (result === "connected") {
+      toast.success("Google Calendar connected. Your appointments will start syncing in a minute.")
+    } else if (result === "cancelled") {
+      toast.info("Google Calendar was not connected. You can try again any time.")
+    } else if (result === "error") {
+      toast.error("We couldn't connect Google Calendar. Please try again.")
+    }
+    url.searchParams.delete("calendar")
+    const rest = url.searchParams.toString()
+    window.history.replaceState(window.history.state, "", url.pathname + (rest ? `?${rest}` : ""))
+  }, [])
 
   React.useEffect(() => {
     if (!crmToken) { setIsLoading(false); return }
@@ -34,18 +48,21 @@ export function CrmCalendarConnect() {
     return () => document.removeEventListener("visibilitychange", handleVisibility)
   }, [])
 
-  const checkConnection = async () => {
+  const checkConnection = async (): Promise<boolean> => {
     const token = localStorage.getItem("crm_token")
-    if (!token) { setIsLoading(false); return }
+    if (!token) { setIsLoading(false); return false }
     try {
       setIsLoading(true)
       const res = await apiClient.get("/api/crm/calendar/status", {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = res.data?.data || res.data
-      setIsConnected(data.connected || false)
+      const connected = Boolean(data.connected)
+      setIsConnected(connected)
+      return connected
     } catch {
       setIsConnected(false)
+      return false
     } finally {
       setIsLoading(false)
     }
@@ -60,10 +77,24 @@ export function CrmCalendarConnect() {
         headers: { Authorization: `Bearer ${token}` },
       })
       const { url } = res.data?.data || res.data
-      if (!url) return setIsConnecting(false)
+      if (!url) {
+        toast.error("We couldn't start the Google sign-in. Please try again.")
+        return setIsConnecting(false)
+      }
+
+      const useSameWindow =
+        window.matchMedia("(max-width: 767px)").matches || window.matchMedia("(display-mode: standalone)").matches
+      if (useSameWindow) {
+        window.location.assign(url)
+        return
+      }
 
       const popup = window.open(url, "Google Auth", "width=500,height=600")
-      if (!popup) return setIsConnecting(false)
+      if (!popup) {
+        toast.info("Opening Google sign-in in this window…")
+        window.location.assign(url)
+        return
+      }
 
       const pollConn = setInterval(async () => {
         try {
@@ -74,27 +105,37 @@ export function CrmCalendarConnect() {
           })
           const data = r.data?.data || r.data
           if (data.connected) {
-            clearInterval(pollConn); clearInterval(pollClose)
+            clearInterval(pollConn); clearInterval(pollClose); clearTimeout(giveUp)
             if (!popup.closed) popup.close()
             setIsConnected(true); setIsConnecting(false)
+            toast.success("Google Calendar connected. Your appointments will start syncing in a minute.")
           }
         } catch {}
       }, 1000)
 
       const pollClose = setInterval(() => {
         if (popup.closed) {
-          clearInterval(pollConn); clearInterval(pollClose)
-          checkConnection().then(() => setIsConnecting(false))
+          clearInterval(pollConn); clearInterval(pollClose); clearTimeout(giveUp)
+          checkConnection().then((connected) => {
+            setIsConnecting(false)
+            if (connected) {
+              toast.success("Google Calendar connected. Your appointments will start syncing in a minute.")
+            } else {
+              toast.info("Google Calendar was not connected. You can try again any time.")
+            }
+          })
         }
       }, 500)
 
-      setTimeout(() => {
+      const giveUp = setTimeout(() => {
         clearInterval(pollConn); clearInterval(pollClose)
         if (!popup.closed) popup.close()
         setIsConnecting(false)
+        toast.error("The Google sign-in took too long. Please try again.")
       }, 300_000)
     } catch {
       setIsConnecting(false)
+      toast.error("We couldn't start the Google sign-in. Please try again.")
     }
   }
 
@@ -107,6 +148,9 @@ export function CrmCalendarConnect() {
         headers: { Authorization: `Bearer ${token}` },
       })
       setIsConnected(false)
+      toast.success("Google Calendar disconnected.")
+    } catch {
+      toast.error("We couldn't disconnect Google Calendar. Please try again.")
     } finally {
       setIsConnecting(false)
     }

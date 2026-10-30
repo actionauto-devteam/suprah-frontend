@@ -86,6 +86,27 @@ const STATUS_OPTIONS = LEAD_STATUS_SELECT_OPTIONS;
 const fieldClass =
   "h-9 w-full min-w-0 rounded-md border bg-(--input-bg) px-2.5 text-xs outline-none focus:border-emerald-500/60";
 
+type LeadChangeDates = {
+  statusHistory?: Array<{ changedAt?: string | Date | null }> | null;
+  lastInquiryAt?: string | Date | null;
+  followUp?: { lastCustomerActivityAt?: string | Date | null; lastRepResponseAt?: string | Date | null } | null;
+};
+
+function summaryIsStale(lead: LeadChangeDates | null | undefined, generatedAt: unknown): boolean {
+  const written = new Date(String(generatedAt || "")).getTime();
+  if (!generatedAt || Number.isNaN(written)) return false;
+  const changes = [
+    ...(Array.isArray(lead?.statusHistory) ? lead.statusHistory.map((entry) => entry?.changedAt) : []),
+    lead?.lastInquiryAt,
+    lead?.followUp?.lastCustomerActivityAt,
+    lead?.followUp?.lastRepResponseAt,
+  ];
+  return changes.some((value) => {
+    const time = new Date(String(value || "")).getTime();
+    return !Number.isNaN(time) && time > written + 60_000;
+  });
+}
+
 export function LeadDetailsPanel({
   lead,
   sourceEmail,
@@ -309,6 +330,7 @@ export function LeadDetailsPanel({
       }
       summaryUpdatedAt={summaryOverride?.generatedAt || lead?.aiSummaryGeneratedAt}
       summaryLoading={summaryLoading}
+      summaryStale={summaryIsStale(lead, summaryOverride?.generatedAt || lead?.aiSummaryGeneratedAt)}
       onRegenerateSummary={handleRegenerateSummary}
       belowSummary={<AiAgentTasksSection leadId={lead?._id} />}
       detailsTop={

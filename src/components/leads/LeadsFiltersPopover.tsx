@@ -162,7 +162,7 @@ export function LeadsFiltersPopover({
   const [open, setOpen] = React.useState(false);
   const [activeType, setActiveType] = React.useState<FilterType>("status");
   const [memberQuery, setMemberQuery] = React.useState("");
-  const statusActive = Boolean(statusFilter);
+  const statusActive = Boolean(statusFilter || activeCategory);
   const dateActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
   const assigneeActive = Boolean(assignee?.value) && assignee?.value !== assignee?.currentUserId;
   const locationActive = Boolean(location?.value);
@@ -183,6 +183,7 @@ export function LeadsFiltersPopover({
           ? LEAD_STATUS_CATEGORY_LABEL[activeCategory]
           : "All statuses";
   const statusOptions = activeCategory ? LEAD_STATUS_CATEGORIES[activeCategory] : [];
+  const showExactStatuses = statusOptions.length > 1;
   const customRangeInvalid =
     Boolean(dateFilter.from && dateFilter.to) && dateFilter.from > dateFilter.to;
   const assigneeName = assignee?.value
@@ -248,7 +249,7 @@ export function LeadsFiltersPopover({
             <OptionButton selected={!statusFilter && !activeCategory} onClick={onAllStatuses}>All statuses</OptionButton>
             <OptionButton selected={statusFilter === "Inbound Calls"} onClick={onInboundCalls}>Inbound Calls</OptionButton>
           </div>
-          <div className="grid gap-3 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-3">
             <div className="space-y-1">
               {LEAD_STATUS_CATEGORY_ORDER.map((category) => (
                 <OptionButton
@@ -261,8 +262,11 @@ export function LeadsFiltersPopover({
                 </OptionButton>
               ))}
             </div>
-            {activeCategory ? (
-              <div className="space-y-1">
+            {activeCategory && showExactStatuses ? (
+              <div className="space-y-1 border-t pt-3" style={{ borderColor: "var(--border-1)" }}>
+                <p className="px-1 text-[11px] font-semibold" style={{ color: "var(--text-tertiary)" }}>
+                  Narrow {LEAD_STATUS_CATEGORY_LABEL[activeCategory]} to one status
+                </p>
                 {statusOptions.map((status) => (
                   <OptionButton
                     key={status}
@@ -275,9 +279,11 @@ export function LeadsFiltersPopover({
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border px-3 py-5 text-center text-[12px]" style={{ borderColor: "var(--border-1)", color: "var(--text-tertiary)" }}>
-                Choose a status group to filter by an exact status.
-              </div>
+              !activeCategory && (
+                <p className="px-1 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+                  Choose a group to see all of its leads, then narrow it to one status if you need to.
+                </p>
+              )
             )}
           </div>
         </>
@@ -507,9 +513,10 @@ export function LeadsFiltersPopover({
         align="start"
         className="z-200 w-[min(26rem,calc(100vw-1rem))] p-0"
         sideOffset={6}
+        collisionPadding={12}
       >
         <div
-          className="max-h-[min(80dvh,34rem)] overflow-y-auto rounded-xl border p-3 shadow-xl"
+          className="max-h-[min(var(--radix-popover-content-available-height),34rem)] overflow-y-auto rounded-xl border p-3 shadow-xl"
           style={{
             background: "var(--bg-elevated)",
             borderColor: "var(--border-1)",

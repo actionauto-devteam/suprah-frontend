@@ -61,6 +61,7 @@ export interface ContactDetailsPanelProps {
   summary?: string;
   summaryUpdatedAt?: string | Date | null;
   summaryLoading?: boolean;
+  summaryStale?: boolean;
   onRegenerateSummary?: () => void;
   belowSummary?: React.ReactNode;
   detailsTop?: React.ReactNode;
@@ -87,6 +88,7 @@ export function ContactDetailsPanel({
   summary,
   summaryUpdatedAt,
   summaryLoading = false,
+  summaryStale = false,
   onRegenerateSummary,
   belowSummary,
   detailsTop,
@@ -256,6 +258,11 @@ export function ContactDetailsPanel({
             ) : (
               <p className="mt-1.5 text-[11px] italic" style={{ color: "var(--text-tertiary)" }}>
                 No summary yet.
+              </p>
+            )}
+            {summary && summaryStale && !summaryLoading && (
+              <p className="mt-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" data-testid="summary-stale">
+                This lead has changed since this summary was written. Press the refresh button for an updated summary.
               </p>
             )}
           </div>

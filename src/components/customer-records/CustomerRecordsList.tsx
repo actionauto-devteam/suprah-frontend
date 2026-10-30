@@ -299,27 +299,55 @@ export function CustomerRecordsList() {
           )}
         </div>
       ) : customers.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-card p-8 text-center">
+        <div className="rounded-xl border border-dashed bg-card p-6 text-center sm:p-8" data-testid="customer-records-empty">
           <p className="text-sm font-medium">
             {urlSearch
-              ? `No customers match "${urlSearch}".`
+              ? `No customer record matches "${urlSearch}".`
               : status === "inactive"
                 ? "No inactive customers."
                 : "No customer records yet."}
           </p>
-          <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-            {urlSearch
-              ? "Check the spelling, or search by the full email or phone number."
-              : "Customers appear here when a lead's email or phone can be matched, or when staff add one."}
-          </p>
+          {urlSearch ? (
+            <div className="mx-auto mt-2 max-w-md space-y-1.5 text-xs text-muted-foreground">
+              <p>Check the spelling, or search by the full email or phone number.</p>
+              <p>
+                A lead only becomes a customer record when its email or phone matches. Leads that could not be matched, and Web
+                Chat visitors, stay in the Lead Inbox.
+              </p>
+              {status !== "all" && (
+                <p>You are only seeing {status === "inactive" ? "inactive" : "active"} customers right now.</p>
+              )}
+            </div>
+          ) : (
+            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+              Customers appear here when a lead&apos;s email or phone can be matched, or when staff add one.
+            </p>
+          )}
           {urlSearch && (
-            <button
-              type="button"
-              onClick={() => setInput("")}
-              className="mt-3 inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium hover:bg-muted"
-            >
-              Clear search
-            </button>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setInput("")}
+                className="inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium hover:bg-muted"
+              >
+                Clear search
+              </button>
+              {status !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => updateParams({ status: "all", page: 1 })}
+                  className="inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium hover:bg-muted"
+                >
+                  Show all customers
+                </button>
+              )}
+              <Link
+                href={`/crm/leads?leadSearch=${encodeURIComponent(urlSearch)}`}
+                className="inline-flex h-10 items-center rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                Search the Lead Inbox
+              </Link>
+            </div>
           )}
         </div>
       ) : (

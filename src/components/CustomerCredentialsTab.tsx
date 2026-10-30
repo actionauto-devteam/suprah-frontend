@@ -1171,7 +1171,6 @@ export function CustomerCredentialsTab({
     { value: "all", label: "All Sources", count: stats?.total },
     { value: "lead", label: "Leads", count: stats?.fromLeads },
     { value: "manual", label: "Manual", count: stats?.manual },
-    { value: "booking", label: "Bookings", count: stats?.recentlyAdded },
   ];
 
   return (
@@ -1302,8 +1301,8 @@ export function CustomerCredentialsTab({
             <div className={cn(
               "grid gap-2",
               isPaneContent
-                ? (compactPane && narrowPane ? "grid-cols-2" : "grid-cols-4")
-                : "grid-cols-2 sm:grid-cols-2 md:grid-cols-4",
+                ? (compactPane && narrowPane ? "grid-cols-2" : "grid-cols-3")
+                : "grid-cols-2 sm:grid-cols-3",
             )}>
               {sourceOptions.map(opt => (
                 <button
@@ -1358,12 +1357,14 @@ export function CustomerCredentialsTab({
                   <User className="h-5 w-5 text-muted-foreground/30" />
                 </div>
                 <p className="text-sm font-semibold text-foreground/80">
-                  {debouncedSearch ? "No matching records" : "No records yet"}
+                  {debouncedSearch ? "No matching records" : sourceFilter !== "all" ? "No records from this source" : "No records yet"}
                 </p>
                 <p className="text-xs text-muted-foreground/60 mt-1">
                   {debouncedSearch
                     ? "Try adjusting your search"
-                    : syncStatus === "syncing"
+                    : sourceFilter !== "all"
+                      ? "Choose All Sources to see every customer record"
+                      : syncStatus === "syncing"
                       ? "Importing leads now…"
                       : "Click Sync Leads above to import your leads as customer records"}
                 </p>

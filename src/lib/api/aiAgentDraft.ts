@@ -8,6 +8,7 @@ export interface AiAgentDraft {
   channel: AiDraftChannel;
   agentName: string;
   note: string | null;
+  safetyWarning?: string | null;
 }
 
 export const AI_DRAFT_FAILED_MESSAGE = "Couldn't generate a reply right now. Please try again.";
@@ -15,7 +16,6 @@ export const AI_DRAFT_TIMEOUT_MS = 45_000;
 
 const KEEP_SERVER_MESSAGE = new Set([
   AI_AGENT_NAME_REQUIRED_CODE,
-  "AI_DRAFT_UNSAFE",
   "AI_DRAFT_IN_PROGRESS",
   "AI_DRAFT_WRONG_CHANNEL",
   "AI_DRAFT_RATE_LIMITED",
@@ -61,5 +61,6 @@ export async function requestAiAgentDraft(leadId: string, channel: AiDraftChanne
     channel: (data.channel as AiDraftChannel) || channel,
     agentName: String(data.agentName || ""),
     note: data.note ? String(data.note) : null,
+    safetyWarning: data.safetyWarning ? String(data.safetyWarning) : null,
   };
 }

@@ -99,6 +99,7 @@ interface UseLeadsOptions {
   limit?: number
   search?: string
   status?: string | null
+  statusGroup?: string | null
   sortBy?: "newest" | "oldest" | "waiting_longest"
   assignedTo?: string | null
   location?: string | null
@@ -121,6 +122,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   limit = 20,
   search = '',
   status = null,
+  statusGroup = null,
   sortBy = 'newest',
   assignedTo = null,
   location = null,
@@ -148,6 +150,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     isLoading,
     isFetching,
     isPlaceholderData,
+    isError,
     refetch,
   } = useQuery({
     queryKey: [
@@ -156,6 +159,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       limit,
       search,
       status,
+      statusGroup,
       sortBy,
       assignedTo,
       location,
@@ -181,6 +185,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
         status !== "Inbound Calls"
       ) {
         params.append("status", status);
+      } else if (statusGroup) {
+        params.append("statusGroup", statusGroup);
       }
 
       params.append("sortBy", sortBy);
@@ -237,7 +243,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     retry: (failureCount, error: any) => {
       if (
         error?.code === "ECONNABORTED" ||
-        error?.message?.includes("timeout")
+        error?.message?.includes("timeout") ||
+        !error?.response
       ) {
         return failureCount < 1;
       }
@@ -438,6 +445,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     isLoading,
     isFetching,
     isPlaceholderData,
+    isError,
 
     refetch: stableRefetch,
 

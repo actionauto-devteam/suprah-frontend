@@ -5,6 +5,7 @@ export interface AiDraftSlot {
   inFlight?: boolean;
   pending?: string;
   note?: string;
+  warning?: string;
   failure?: AiDraftFailure;
   drafted?: boolean;
 }

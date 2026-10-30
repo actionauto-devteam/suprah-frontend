@@ -11,7 +11,6 @@ import {
   Inbox,
   ListChecks,
   Mail,
-  Megaphone,
   MessageSquare,
   Moon,
   MoreHorizontal,
@@ -56,7 +55,9 @@ import {
 // Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus";
 import { ToastStack, Toast } from "./leads/atomic/ToastStack";
+import { AiAgentStatusChip } from "./leads/AiAgentStatusChip";
 import {
+  LEAD_STATUS_CATEGORY_LABEL,
   LEAD_STATUS_CATEGORY_ORDER,
   LEAD_STATUS_CATEGORIES,
   getLeadStatusStyle,
@@ -234,6 +235,7 @@ const isEmailLead = (lead: Lead | null | undefined): boolean => {
 
 type LeadSortOption = "newest" | "oldest" | "waiting_longest";
 
+const LEAD_SORT_STORAGE_KEY = "crm-leads-sort";
 const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
@@ -326,6 +328,17 @@ export function LeadsTab({
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
   const [activeStatusCategory, setActiveStatusCategory] = React.useState<LeadStatusCategory | null>(null);
   const [sortBy, setSortBy] = React.useState<LeadSortOption>("newest");
+  React.useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(LEAD_SORT_STORAGE_KEY);
+      if (saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
+    } catch {}
+  }, []);
+  React.useEffect(() => {
+    try {
+      window.sessionStorage.setItem(LEAD_SORT_STORAGE_KEY, sortBy);
+    } catch {}
+  }, [sortBy]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const [isChatHovered, setIsChatHovered] = React.useState(false);
@@ -385,6 +398,7 @@ export function LeadsTab({
     leads,
     isLoading,
     isFetching,
+    isError: leadsLoadFailed,
     total,
     pages,
     updateLeadStatus,
@@ -402,6 +416,7 @@ export function LeadsTab({
     limit: LEADS_PER_PAGE,
     search: searchQuery,
     status: statusFilter,
+    statusGroup: statusFilter ? null : activeStatusCategory,
     sortBy,
     assignedTo: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
     location: locationFilter,
@@ -2369,7 +2384,17 @@ export function LeadsTab({
             setSelectedLead(null);
           },
         }]
-      : []),
+      : !statusFilter && activeStatusCategory
+        ? [{
+            key: "status-group",
+            label: `Status: ${LEAD_STATUS_CATEGORY_LABEL[activeStatusCategory]}`,
+            onRemove: () => {
+              setActiveStatusCategory(null);
+              setCurrentPage(1);
+              setSelectedLead(null);
+            },
+          }]
+        : []),
     ...(assigneeFilterName ? [{ key: "assignee", label: `Assigned: ${assigneeFilterName}`, onRemove: () => handleAssigneeFilter(null) }] : []),
     ...(sourceFilter
       ? [{
@@ -2440,11 +2465,6 @@ export function LeadsTab({
       data-has-active-lead={selectedLead ? "true" : "false"}
       data-details-expanded={showLeadDetails ? "true" : "false"}
     >
-      <ToastStack
-        toasts={toasts}
-        dismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))}
-      />
-
       {/* ── TOPBAR ── */}
       {/* The mobile version stays compact by default. Full sync information is
           available on demand instead of permanently taking vertical space. */}
@@ -2572,15 +2592,6 @@ export function LeadsTab({
             )}
 
             <button
-              onClick={() => router.push("/crm/campaigns")}
-              className="ss4-pill-btn hidden h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:flex sm:h-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
-              title="Campaigns"
-            >
-              <Megaphone className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden lg:inline">Campaigns</span>
-            </button>
-
-            <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
               className="ss4-pill-btn hidden h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-30 sm:flex sm:h-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
@@ -2619,10 +2630,6 @@ export function LeadsTab({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onSelect={() => router.push("/crm/campaigns")}>
-                  <Megaphone />
-                  Campaigns
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
                   onSelect={() => void syncAndRefresh()}
@@ -2660,6 +2667,18 @@ export function LeadsTab({
         )}
       </header>
 
+      <div className="relative z-50 h-0">
+        <ToastStack
+          toasts={toasts}
+          dismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))}
+          className={cn(
+            "absolute inset-x-3 sm:left-auto sm:right-5 sm:w-full sm:max-w-sm",
+            selectedLead ? "top-[3.75rem]" : "top-2",
+            "lg:fixed lg:left-auto lg:right-5 lg:top-auto lg:bottom-5",
+          )}
+        />
+      </div>
+
       {/* ── BODY ── */}
       {statusFilter === "Inbound Calls" ? (
         <div
@@ -2689,6 +2708,8 @@ export function LeadsTab({
                 subtitle="Lead Inbox"
                 leads={leads}
                 isLoading={isLoading}
+                loadFailed={leadsLoadFailed && leads.length === 0}
+                onRetry={() => void refetch()}
                 total={total}
                 pages={pages}
                 currentPage={currentPage}
@@ -2932,7 +2953,6 @@ export function LeadsTab({
                     onClose={() => setSelectedLead(null)}
                     onBack={viewportMode !== "wide" ? () => setSelectedLead(null) : undefined}
                     onShowDetails={!showLeadDetails ? () => setShowLeadDetails(true) : undefined}
-                    aiAgentName={aiAgentIdentity.displayName}
                     sourceEmail={LEADS_SOURCE_EMAIL}
                     siblingCount={
                       (selectedLead.vehicle as any)?.stock
@@ -2950,17 +2970,6 @@ export function LeadsTab({
                         selectedLead._id,
                       )
                     }
-                    aiAgentStatus={
-                      isSmsLead(selectedLead) || isWebchatLead(selectedLead) || isEmailLead(selectedLead)
-                        ? {
-                            ...(aiAgentStatus[selectedLead._id] || { paused: false }),
-                            mode: aiModesData?.effective[
-                              isWebchatLead(selectedLead) ? "webchat" : isSmsLead(selectedLead) ? "sms" : "email"
-                            ],
-                          }
-                        : null
-                    }
-                    onToggleAiAgent={() => toggleAiAgent(selectedLead)}
                     conversationMeta={conversationMeta[selectedLead._id] || null}
                     loadState={threadLoadState[selectedLead._id] || "ready"}
                     onRetryLoad={() => void fetchThread(selectedLead)}
@@ -2983,6 +2992,20 @@ export function LeadsTab({
                   ) : (
                   <ReplySection
                     isClosed={isClosed}
+                    aiStatusChip={
+                      isSmsLead(selectedLead) || isWebchatLead(selectedLead) || isEmailLead(selectedLead) ? (
+                        <AiAgentStatusChip
+                          status={{
+                            ...(aiAgentStatus[selectedLead._id] || { paused: false }),
+                            mode: aiModesData?.effective[
+                              isWebchatLead(selectedLead) ? "webchat" : isSmsLead(selectedLead) ? "sms" : "email"
+                            ],
+                          }}
+                          agentName={aiAgentIdentity.displayName}
+                          onToggle={() => toggleAiAgent(selectedLead)}
+                        />
+                      ) : null
+                    }
                     replyMessage={replyMessage}
                     setReplyMessage={(value) => {
                       setReplyMessage(value);

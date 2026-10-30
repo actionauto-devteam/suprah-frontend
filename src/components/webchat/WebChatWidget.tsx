@@ -88,6 +88,14 @@ function mergeMessages(current: WebChatVisitorMessage[], incoming: WebChatVisito
   )
 }
 
+function PoweredBySuprah({ className = "" }: { className?: string }) {
+  return (
+    <p className={`text-center text-[10px] text-muted-foreground ${className}`} data-testid="webchat-powered-by">
+      Powered by <span className="font-semibold text-foreground/80">Suprah</span>
+    </p>
+  )
+}
+
 export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: WebChatWidgetProps) {
   const storageKey = `${STORAGE_PREFIX}${orgKey ? `org:${orgKey}` : `vehicle:${vehicleId}`}`
 
@@ -422,6 +430,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
+            <PoweredBySuprah className="mt-2" />
           </div>
         </>
       ) : (
@@ -490,6 +499,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Start chat
           </Button>
+          <PoweredBySuprah />
         </form>
       )}
     </div>

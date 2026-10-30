@@ -58,6 +58,7 @@ import { refreshAiAgentIdentity } from "@/hooks/useAiAgentIdentity";
 
 interface ReplySectionProps {
   isClosed: boolean;
+  aiStatusChip?: React.ReactNode;
   replyMessage: string;
   setReplyMessage: (msg: string) => void;
   onSend: (attachments?: File[]) => void | Promise<void>;
@@ -174,6 +175,7 @@ export const ReplySection = React.memo(
     selectedLeadStatus,
     leadContext,
     leadId,
+    aiStatusChip = null,
     replyUnavailableReason = null,
     replyNoticeAction = null,
     replyRecipientNote = null,
@@ -227,6 +229,7 @@ export const ReplySection = React.memo(
     const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
     const emojiMenuRef = React.useRef<HTMLDivElement | null>(null);
+    const composerRef = React.useRef<HTMLDivElement | null>(null);
 
     const queryClient = useQueryClient();
     const draftSlot = useAiDraftSlot(draftKey);
@@ -255,6 +258,7 @@ export const ReplySection = React.memo(
     const currentFailure = draftSlot.failure || null;
     const currentPending = draftSlot.pending || null;
     const currentNote = draftSlot.note || null;
+    const currentWarning = draftSlot.warning || null;
     const aiDrafted = Boolean(draftSlot.drafted) && replyMessage.trim().length > 0;
     const replyBlocked = Boolean(replyUnavailableReason);
     const draftAvailable = Boolean(leadId && draftChannel && aiAgent);
@@ -269,7 +273,7 @@ export const ReplySection = React.memo(
       if (readAiDraft(key).inFlight) return;
 
       const baseline = latestRef.current.key === key ? latestRef.current.replyMessage : "";
-      updateAiDraft(key, { inFlight: true, failure: undefined, note: undefined });
+      updateAiDraft(key, { inFlight: true, failure: undefined, note: undefined, warning: undefined });
 
       try {
         const result = await requestAiAgentDraft(leadId, draftChannel);
@@ -277,6 +281,7 @@ export const ReplySection = React.memo(
         updateAiDraft(key, {
           inFlight: false,
           note: result.note || undefined,
+          warning: result.safetyWarning || undefined,
           pending: inserted ? undefined : result.draft,
           drafted: inserted || readAiDraft(key).drafted,
         });
@@ -480,7 +485,7 @@ export const ReplySection = React.memo(
       try {
         const sentKey = draftKey;
         await onSend(attachments);
-        if (sentKey) updateAiDraft(sentKey, { drafted: false, note: undefined });
+        if (sentKey) updateAiDraft(sentKey, { drafted: false, note: undefined, warning: undefined });
         setAttachments([]);
         setAttachmentError("");
         setEmojiOpen(false);
@@ -525,6 +530,7 @@ export const ReplySection = React.memo(
     return (
       <div className="suprah-reply-section shrink-0 border-t border-slate-200 bg-slate-50 px-2 py-2 dark:border-emerald-400/15 dark:bg-[#0a1410] sm:px-4 sm:py-2.5">
         <div
+          ref={composerRef}
           className={
             composerMode === "note"
               ? "relative overflow-visible rounded-2xl border border-amber-400/60 bg-amber-50/30 shadow-sm transition focus-within:border-amber-500/60 focus-within:ring-2 focus-within:ring-amber-500/15 dark:border-amber-500/30 dark:bg-amber-950/10"
@@ -555,8 +561,8 @@ export const ReplySection = React.memo(
                       }}
                       className={
                         selected
-                          ? "inline-flex h-8 items-center gap-1.5 rounded-md bg-white px-3 text-[12px] font-semibold text-emerald-700 shadow-sm dark:bg-[#153426] dark:text-emerald-300 sm:h-7"
-                          : "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-medium text-slate-500 transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-400 dark:hover:text-slate-200 sm:h-7"
+                          ? "inline-flex h-8 items-center gap-1.5 rounded-md bg-white px-3 max-sm:px-2 text-[12px] font-semibold text-emerald-700 shadow-sm dark:bg-[#153426] dark:text-emerald-300 sm:h-7"
+                          : "inline-flex h-8 items-center gap-1.5 rounded-md px-3 max-sm:px-2 text-[12px] font-medium text-slate-500 transition hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-400 dark:hover:text-slate-200 sm:h-7"
                       }
                     >
                       <ChannelIcon className="h-3.5 w-3.5" />
@@ -565,7 +571,7 @@ export const ReplySection = React.memo(
                   );
                 })}
               </div>
-              <span className="min-w-0 flex-1 text-[12px] leading-snug text-slate-600 [overflow-wrap:anywhere] dark:text-slate-300">
+              <span className="min-w-0 flex-1 text-[12px] max-sm:text-[11px] leading-snug text-slate-600 [overflow-wrap:anywhere] dark:text-slate-300">
                 {channelSelector.loading
                   ? "Checking how this customer can be reached…"
                   : channelSelector[channelSelector.value].recipientLabel
@@ -587,6 +593,7 @@ export const ReplySection = React.memo(
                     )
                     : null}
               </span>
+              {aiStatusChip}
               {(["sms", "email"] as const)
                 .filter((channel) => channel !== channelSelector.value)
                 .map((channel) => {
@@ -598,6 +605,12 @@ export const ReplySection = React.memo(
                     </p>
                   );
                 })}
+            </div>
+          )}
+
+          {composerMode === "reply" && !channelSelector && aiStatusChip && (
+            <div className="flex items-center justify-end border-b border-slate-100 px-3 py-1.5 dark:border-emerald-400/10 sm:px-4">
+              {aiStatusChip}
             </div>
           )}
 
@@ -883,6 +896,17 @@ export const ReplySection = React.memo(
             </p>
           )}
 
+          {composerMode === "reply" && aiDrafted && currentWarning && (
+            <p
+              role="status"
+              data-testid="ai-draft-warning"
+              className="flex items-start gap-1.5 border-t border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-medium leading-snug text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200"
+            >
+              <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+              <span className="min-w-0 [overflow-wrap:anywhere]">{currentWarning}</span>
+            </p>
+          )}
+
           {composerMode === "reply" && currentNote && (
             <p className="flex items-start gap-1.5 border-t border-slate-100 px-3 py-1.5 text-[11px] leading-snug text-slate-600 dark:border-emerald-400/10 dark:text-slate-300">
               <StickyNote className="mt-px h-3 w-3 shrink-0 text-amber-500" />
@@ -1011,6 +1035,7 @@ export const ReplySection = React.memo(
                     onInsert={insertTextAtCursor}
                     leadContext={leadContext}
                     disabled={isSending}
+                    anchorRef={composerRef}
                   />
 
                   <div ref={emojiMenuRef} className="relative hidden sm:block">
