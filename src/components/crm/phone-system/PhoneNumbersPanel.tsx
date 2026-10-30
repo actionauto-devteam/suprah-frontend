@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, Loader2, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
-import { useLeadLocationCounts } from "@/hooks/useLeads"
 import { useCrmLocations } from "@/hooks/useCrmLocations"
 import { useCrmLeadGroups } from "@/hooks/useCrmLeadGroups"
 import { formatSmsRecipient } from "@/lib/api/leadComposer"
@@ -38,6 +38,11 @@ interface NumbersResponse {
   suggestion: { number: string } | null
 }
 
+interface TeamMember {
+  id: string
+  name: string
+}
+
 interface FormValues {
   number: string
   label: string
@@ -48,7 +53,11 @@ interface FormValues {
 }
 
 const KIND_LABELS: Record<Kind, string> = { main: "Main number", location: "Location", department: "Department" }
-const DEPARTMENT_SUGGESTIONS = ["Sales", "Service", "Licensing", "Finance", "Parts"]
+const ANSWER_LABELS: Record<Kind, string> = {
+  main: "Who answers calls to this number?",
+  location: "Which department answers calls for this location?",
+  department: "Department",
+}
 const field = "mt-1 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
 
 function errorMessage(error: unknown, fallback: string) {
@@ -59,17 +68,66 @@ function errorStatus(error: unknown) {
   return (error as { response?: { status?: number } })?.response?.status
 }
 
+function TeamMembers({ groupId, load }: { groupId: string; load: (groupId: string) => Promise<TeamMember[]> }) {
+  const query = useQuery({
+    queryKey: ["crm-phone-team-members", groupId],
+    retry: false,
+    staleTime: 0,
+    queryFn: () => load(groupId),
+  })
+
+  if (query.isPending) {
+    return (
+      <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Loading the people in this department...
+      </p>
+    )
+  }
+  if (query.isError) {
+    return <p role="alert" className="mt-2 text-xs text-red-600 dark:text-red-400">{errorMessage(query.error, "Could not load the people in this department.")}</p>
+  }
+  if (query.data.length === 0) {
+    return (
+      <p role="status" className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+        This department has no active people yet, so calls to this number will ring everyone in Suprah CRM.
+      </p>
+    )
+  }
+  return (
+    <div className="mt-2 rounded-lg border bg-muted/30 p-3">
+      <p className="text-xs font-medium text-muted-foreground">
+        {query.data.length} {query.data.length === 1 ? "person" : "people"} in this department
+      </p>
+      <ul aria-label="People in this department" className="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+        {query.data.map((member) => (
+          <li key={member.id} className="max-w-full truncate rounded-full border bg-background px-2.5 py-1 text-xs">{member.name}</li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Only this department gets the call. If nobody answers, the caller hears the missed-call message and gets a text back, and the department and admins are notified.
+      </p>
+    </div>
+  )
+}
+
 function NumberForm({
   initial,
   locations,
+  locationsLoading,
+  locationsError,
   teams,
+  loadTeamMembers,
   saving,
   onCancel,
   onSave,
 }: {
   initial: FormValues
   locations: string[]
+  locationsLoading: boolean
+  locationsError: string | null
   teams: { _id: string; name: string }[]
+  loadTeamMembers: (groupId: string) => Promise<TeamMember[]>
   saving: boolean
   onCancel: () => void
   onSave: (values: FormValues) => Promise<void>
@@ -77,12 +135,15 @@ function NumberForm({
   const [values, setValues] = React.useState<FormValues>(initial)
   const [error, setError] = React.useState("")
   const set = (changes: Partial<FormValues>) => setValues((current) => ({ ...current, ...changes }))
+  const locationsReady = !locationsLoading && !locationsError
+  const savedLocationMissing = locationsReady && Boolean(values.location) && !locations.includes(values.location)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError("")
     try {
-      await onSave(values)
+      const team = teams.find((item) => item._id === values.ringGroupId)
+      await onSave(values.kind === "department" && team ? { ...values, department: team.name } : values)
     } catch (err) {
       setError(errorMessage(err, "Could not save this number."))
     }
@@ -121,36 +182,40 @@ function NumberForm({
         </div>
       </fieldset>
       {values.kind === "location" && (
-        <label className="block text-xs font-medium text-muted-foreground">
-          Location
-          <input list="phone-number-locations" required value={values.location} onChange={(e) => set({ location: e.target.value })} placeholder="e.g. LEHI" maxLength={80} className={field} />
-          <datalist id="phone-number-locations">
-            {locations.map((location) => <option key={location} value={location} />)}
-          </datalist>
-          <span className="mt-1 block font-normal">New leads from this number get this location. Use the same spelling as the Leads location filter.</span>
-        </label>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground">
+            Location
+            <select required disabled={locationsLoading} value={values.location} onChange={(e) => set({ location: e.target.value })} className={field}>
+              <option value="" disabled>{locationsLoading ? "Loading locations..." : "Choose a location"}</option>
+              {savedLocationMissing && <option value={values.location}>{values.location} (not in Locations)</option>}
+              {locations.map((location) => <option key={location} value={location}>{location}</option>)}
+            </select>
+            <span className="mt-1 block font-normal">New leads from this number get this location.</span>
+          </label>
+          {locationsError && <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{locationsError}</p>}
+          {locationsReady && locations.length === 0 && (
+            <p role="status" className="mt-1 text-xs text-muted-foreground">
+              No locations yet. Add one in <Link href="/crm/settings/locations" className="font-medium text-primary underline">CRM Settings, Locations</Link> first.
+            </p>
+          )}
+        </div>
       )}
-      {values.kind === "department" && (
+      <div>
         <label className="block text-xs font-medium text-muted-foreground">
-          Department
-          <input list="phone-number-departments" required value={values.department} onChange={(e) => set({ department: e.target.value })} placeholder="e.g. Service" maxLength={60} className={field} />
-          <datalist id="phone-number-departments">
-            {DEPARTMENT_SUGGESTIONS.map((department) => <option key={department} value={department} />)}
-          </datalist>
+          {ANSWER_LABELS[values.kind]}
+          <select required={values.kind === "department"} value={values.ringGroupId} onChange={(e) => set({ ringGroupId: e.target.value })} className={field}>
+            {values.kind === "department"
+              ? <option value="" disabled>Choose a department</option>
+              : <option value="">Everyone in Suprah CRM</option>}
+            {teams.map((team) => <option key={team._id} value={team._id}>{team.name}</option>)}
+          </select>
+          {values.kind !== "department" && !values.ringGroupId && <span className="mt-1 block font-normal">Everyone who uses Suprah CRM gets the call. Choose a department to ring only those people.</span>}
         </label>
-      )}
-      <label className="block text-xs font-medium text-muted-foreground">
-        Who answers calls to this number?
-        <select value={values.ringGroupId} onChange={(e) => set({ ringGroupId: e.target.value })} className={field}>
-          <option value="">Everyone in Suprah CRM</option>
-          {teams.map((team) => <option key={team._id} value={team._id}>{team.name}</option>)}
-        </select>
-        <span className="mt-1 block font-normal">
-          {values.ringGroupId
-            ? "Only this team gets the call. If nobody answers, the caller hears the missed-call message and gets a text back, and the team and admins are notified."
-            : "Everyone who uses Suprah CRM gets the call. Choose a Lead Group to ring only that team."}
-        </span>
-      </label>
+        {values.ringGroupId && <TeamMembers groupId={values.ringGroupId} load={loadTeamMembers} />}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Departments and their people are set in <Link href="/crm/settings/lead-groups" className="font-medium text-primary underline">Lead Groups</Link>.
+        </p>
+      </div>
       {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" onClick={onCancel} className="min-h-11 rounded-lg border px-4 text-sm font-medium hover:bg-muted">Cancel</button>
@@ -182,7 +247,6 @@ export function PhoneNumbersPanel() {
   const [editing, setEditing] = React.useState<{ id: string | null; values: FormValues } | null>(null)
   const [removingId, setRemovingId] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState("")
-  const { counts: leadLocationCounts } = useLeadLocationCounts()
   const crmLocations = useCrmLocations(getToken, "active")
   const { groups } = useCrmLeadGroups()
   const teams = React.useMemo(() => groups.filter((group) => group.isActive).map((group) => ({ _id: group._id, name: group.name })), [groups])
@@ -195,13 +259,10 @@ export function PhoneNumbersPanel() {
     queryFn: async () => (await apiClient.get("/api/crm/phone-numbers", await headers())).data.data as NumbersResponse,
   })
 
-  const locations = React.useMemo(() => {
-    const names = [
-      ...Object.keys(leadLocationCounts || {}).filter((name) => name && name !== "Unknown Location"),
-      ...((crmLocations.data?.locations || []).map((location) => location.name)),
-    ]
-    return [...new Set(names)].sort((a, b) => a.localeCompare(b))
-  }, [leadLocationCounts, crmLocations.data])
+  const locations = React.useMemo(() => (crmLocations.data?.locations || []).map((location) => location.name), [crmLocations.data])
+
+  const loadTeamMembers = async (groupId: string) =>
+    (await apiClient.get(`/api/crm/phone-numbers/teams/${groupId}/members`, await headers())).data.data.members as TeamMember[]
 
   const save = useMutation({
     mutationFn: async ({ id, values }: { id: string | null; values: FormValues }) => {
@@ -261,7 +322,10 @@ export function PhoneNumbersPanel() {
               key={editing.id || "new"}
               initial={editing.values}
               locations={locations}
+              locationsLoading={crmLocations.loading}
+              locationsError={crmLocations.error}
               teams={teams}
+              loadTeamMembers={loadTeamMembers}
               saving={save.isPending}
               onCancel={() => setEditing(null)}
               onSave={async (values) => {

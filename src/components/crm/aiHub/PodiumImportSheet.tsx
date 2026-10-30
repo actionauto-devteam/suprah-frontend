@@ -469,7 +469,7 @@ export function PodiumImportSheet({ open, getToken, onClose, onSaved, onOpenBatc
     <Sheet open={open} onOpenChange={(next) => !next && close()}>
       <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-3xl">
         <SheetHeader className="border-b border-border/40 px-4 py-4 sm:px-6">
-          <SheetTitle className="pr-10 text-base">Import from Podium</SheetTitle>
+          <SheetTitle className="pr-10 text-base">Import</SheetTitle>
           <SheetDescription className="text-xs">Copy questions, answers and rules from Podium. Everything is checked first and saved as inactive drafts for review.</SheetDescription>
           <ol className="mt-2 flex flex-wrap gap-1.5 text-[10px]" aria-label="Import steps">
             {[["source", "1. Source"], ["review", "2. Check and map"], ["done", "3. Saved"]].map(([value, label]) => (

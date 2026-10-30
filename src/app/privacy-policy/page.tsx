@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 // Fully static — no request-time data.
 export const dynamic = "force-static";
 
-const LAST_UPDATED = "August 25, 2026";
+const LAST_UPDATED = "October 30, 2026";
 
 const SECTIONS = [
   { id: "information-we-collect", label: "1. Information We Collect" },
@@ -299,9 +299,47 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          {/* 6 */}
           <section className="space-y-3">
-            <SectionHeading id="data-security">6. Data Security</SectionHeading>
+            <SectionHeading id="browser-extension">6. Suprah CRM Browser Extension</SectionHeading>
+            <p>
+              Suprah CRM Phone Lookup is a browser extension for dealership employees who have a
+              Suprah CRM account. It does not work without a CRM account.
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                On websites an employee has turned on, the extension looks for phone numbers and
+                email addresses inside the employee&rsquo;s browser. Page content is not sent to
+                Suprah.
+              </li>
+              <li>
+                A phone number or email address is sent to Suprah only when the employee clicks it
+                or chooses to look it up. The website it came from is not sent with the lookup.
+              </li>
+              <li>
+                The extension shows matching CRM records, such as names, contact details, vehicles
+                of interest, lead status, notes, and conversation history. Notes, text messages,
+                and emails an employee writes in the extension are handled the same way as those
+                written in Suprah CRM.
+              </li>
+              <li>
+                The extension uses the employee&rsquo;s CRM sign-in. The sign-in session stays in the
+                browser until the browser closes or the employee signs out. The list of websites
+                turned on and the employee&rsquo;s settings stay in the browser.
+              </li>
+              <li>
+                We do not sell this information, use it for advertising, or use the extension to
+                track browsing history.
+              </li>
+              <li>
+                Employees can turn a website off, pause detection on all websites, or remove the
+                extension at any time.
+              </li>
+            </ul>
+          </section>
+
+          {/* 7 */}
+          <section className="space-y-3">
+            <SectionHeading id="data-security">7. Data Security</SectionHeading>
             <p>
               We use reasonable administrative, technical, and physical safeguards designed to
               protect personal information processed on the platform. However, no method of
@@ -310,9 +348,9 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          {/* 7 */}
+          {/* 8 */}
           <section className="space-y-3">
-            <SectionHeading id="data-retention">7. Data Retention</SectionHeading>
+            <SectionHeading id="data-retention">8. Data Retention</SectionHeading>
             <p>
               Personal information is retained only as long as needed for the purposes described
               in this policy, to meet the Dealership Client&rsquo;s legal obligations (such as
@@ -320,9 +358,9 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          {/* 8 */}
+          {/* 9 */}
           <section className="space-y-3">
-            <SectionHeading id="your-choices">8. Your Choices and Rights</SectionHeading>
+            <SectionHeading id="your-choices">9. Your Choices and Rights</SectionHeading>
             <ul className="list-disc space-y-2 pl-5">
               <li>
                 <strong className="text-foreground">Text messages:</strong> reply STOP to any
@@ -342,18 +380,18 @@ export default function PrivacyPolicyPage() {
             </ul>
           </section>
 
-          {/* 9 */}
+          {/* 10 */}
           <section className="space-y-3">
-            <SectionHeading id="childrens-privacy">9. Children&rsquo;s Privacy</SectionHeading>
+            <SectionHeading id="childrens-privacy">10. Children&rsquo;s Privacy</SectionHeading>
             <p>
               The platform and Dealership Client services are intended for adults. We do not
               knowingly collect personal information from children under 13.
             </p>
           </section>
 
-          {/* 10 */}
+          {/* 11 */}
           <section className="space-y-3">
-            <SectionHeading id="changes">10. Changes to This Policy</SectionHeading>
+            <SectionHeading id="changes">11. Changes to This Policy</SectionHeading>
             <p>
               We may update this Privacy Policy from time to time. The &ldquo;Last updated&rdquo;
               date at the top shows when it was last revised. Material changes will be posted on
@@ -361,9 +399,9 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          {/* 11 */}
+          {/* 12 */}
           <section className="space-y-3">
-            <SectionHeading id="contact">11. Contact</SectionHeading>
+            <SectionHeading id="contact">12. Contact</SectionHeading>
             <div className="rounded-2xl border border-border/30 bg-background/40 p-4 sm:p-5">
               <p>
                 <strong className="text-foreground">Suprah AI</strong> —{" "}

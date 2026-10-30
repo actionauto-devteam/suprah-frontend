@@ -102,7 +102,7 @@ export function ImportHistoryPanel({ history, page, onPage, onOpen }: {
   const turnedOff = history.errorStatus === 409
   return (
     <HubCard
-      title="Podium imports"
+      title="Imports"
       description="Every import is recorded here with what happened to each row. Nothing imported is active."
       icon={<History className="h-4 w-4 text-primary" />}
     >
@@ -113,7 +113,7 @@ export function ImportHistoryPanel({ history, page, onPage, onOpen }: {
           loading={history.loading}
           error={history.error}
           onRetry={history.reload}
-          empty={history.data && !history.data.batches.length ? "No imports yet. Use Import from Podium to bring in questions, answers and rules." : false}
+          empty={history.data && !history.data.batches.length ? "No imports yet. Use Import to bring in questions, answers and rules." : false}
         >
           {history.data && (
             <>
