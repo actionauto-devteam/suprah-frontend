@@ -145,7 +145,7 @@ export function TrainingRulesPanel({ getToken }: { getToken: () => Promise<strin
           <div className="flex items-center gap-3">
             {info.enabled && importAvailable && (
               <Button size="sm" variant="outline" className="h-8" onClick={() => setImportOpen(true)}>
-                <FileUp className="mr-1 h-3.5 w-3.5" /> Import from Podium
+                <FileUp className="mr-1 h-3.5 w-3.5" /> Import
               </Button>
             )}
             {info.enabled && (

@@ -2,7 +2,7 @@
 
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, PhoneCall } from "lucide-react";
 import { useCallRecordingApi, type RecordingAccess } from "@/hooks/useCallRecordingApi";
@@ -30,7 +30,6 @@ const PANELS: Record<PhoneSystemTab, () => ReactNode> = {
 
 function PhoneSystem() {
   const { request, orgId, authKey } = useCallRecordingApi();
-  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const access = useQuery({ queryKey: ["call-recording-access", orgId, authKey], retry: false, queryFn: () => request<RecordingAccess>("get", "/recording-access") });
@@ -56,7 +55,7 @@ function PhoneSystem() {
       {access.isPending ? (
         <Loader2 aria-label="Loading phone system" className="h-5 w-5 animate-spin" />
       ) : (
-        <Tabs value={current} onValueChange={(value) => router.replace(`${pathname}?tab=${value}`, { scroll: false })} className="min-w-0 space-y-5">
+        <Tabs value={current} onValueChange={(value) => window.history.replaceState(null, "", `${pathname}?tab=${value}`)} className="min-w-0 space-y-5">
           <TabsList aria-label="Phone system sections" className="flex h-auto w-full flex-wrap justify-start gap-1 sm:w-auto">
             {allowed.map((tab) => <TabsTrigger key={tab.value} value={tab.value} className="min-h-10">{tab.label}</TabsTrigger>)}
           </TabsList>

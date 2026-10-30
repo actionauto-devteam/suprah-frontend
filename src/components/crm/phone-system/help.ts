@@ -9,13 +9,15 @@ export const PHONE_SYSTEM_HELP: Record<PhoneSystemTab, HelpTopic> = {
       "Press Add phone number.",
       "Type the number and give it a name, like Lehi Sales.",
       "Pick what the number is for: the main number, a store location, or a department like Service.",
-      "Pick who answers it: one team, or everyone.",
+      "Pick who answers it: one department, or everyone. When you pick a department, you see who is in it.",
       "Press Save. Wait until you see Ready for calls and Ready for texts.",
     ],
     goodToKnow: [
       "When you reply to a customer, Suprah uses the same number the customer called or texted.",
       "If nobody answers, the customer gets a text back and the team gets a Missed call message.",
       "A number that is not ready is never used.",
+      "The location list comes from CRM Settings, Locations. If a location is missing, add it there first.",
+      "The department only decides who gets calls. Texts go to Leads, where everyone in Suprah CRM can see them.",
     ],
   },
   menu: {
