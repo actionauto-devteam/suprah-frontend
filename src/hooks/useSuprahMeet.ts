@@ -38,8 +38,9 @@ export interface ChatMessage { id: string; name: string; text: string; at: numbe
 export interface MeetingInfo {
   _id: string; code: string; title: string;
   status: "scheduled" | "live" | "ended";
+  endedReason?: string | null;
   startedAt?: string | null;       // first moment host + another attendee were present
-  timer?: { elapsedMs: number; running: boolean; activeSince?: string | null; hostPresent?: boolean };
+  timer?: { elapsedMs: number; running: boolean; activeSince?: string | null; hostPresent?: boolean; scheduledOpen?: boolean };
   participants: MeetParticipantInfo[];
   recording: { status: string };
   captionsEnabled?: boolean;
@@ -227,6 +228,8 @@ export function useSuprahMeet() {
     if (!codeRef.current || leftIntentionallyRef.current) return;
     if (presencePendingRef.current) return presencePendingRef.current;
     const pending = (async () => {
+      const session = sessionRef.current;
+      const currentCode = codeRef.current;
       try {
       const attendeeId = selfAttendeeIdRef.current;
       const res = guestTokenRef.current
@@ -238,7 +241,14 @@ export function useSuprahMeet() {
         : attendeeId
           ? await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/heartbeat`, { attendeeId }, { timeout: 5000 })
           : await apiClient.get(`/api/crm/meet/meetings/${codeRef.current}`, { timeout: 5000 });
+      if (sessionRef.current !== session || codeRef.current !== currentCode || leftIntentionallyRef.current) return;
       const info = res.data?.data;
+      if (info?.status === 'ended') {
+        setEndedReason(info.endedReason || 'This meeting has ended.');
+        forgetRecentMeet(currentCode);
+        setPhase('ended');
+        return;
+      }
       const list: MeetParticipantInfo[] = info?.participants ?? [];
       if (info?.timer) {
         setMeeting((current) => current ? {
@@ -259,7 +269,14 @@ export function useSuprahMeet() {
         });
         return next;
       });
-      } catch { /* best-effort */ }
+      } catch (error: unknown) {
+        const failure = error as { response?: { status?: number; data?: { message?: string } } };
+        if (failure.response?.status === 410 && !leftIntentionallyRef.current && sessionRef.current === session && codeRef.current === currentCode) {
+          setEndedReason(failure.response.data?.message || 'This meeting has ended.');
+          forgetRecentMeet(codeRef.current);
+          setPhase('ended');
+        }
+      }
     })();
     presencePendingRef.current = pending;
     try { await pending; } finally {
@@ -400,7 +417,15 @@ export function useSuprahMeet() {
           if (leftIntentionallyRef.current) return;
           const code = status.statusCode();
           if (code === MeetingSessionStatusCode.MeetingEnded) {
-            setEndedReason("The host ended this meeting for everyone.");
+            setEndedReason("This meeting has ended for everyone.");
+            const endedCode = codeRef.current;
+            const token = guestTokenRef.current;
+            const url = token ? `/api/crm/meet/guest/${endedCode}/roster` : `/api/crm/meet/meetings/${endedCode}`;
+            void apiClient.get(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
+              .then((response) => {
+                if (codeRef.current === endedCode && response.data?.data?.endedReason) setEndedReason(response.data.data.endedReason);
+              }).catch(() => {});
+            forgetRecentMeet(endedCode);
           } else if (code === MeetingSessionStatusCode.AudioJoinedFromAnotherDevice) {
             setEndedReason("You joined this meeting from another device, so this session was disconnected.");
           } else if (code !== MeetingSessionStatusCode.Left) {
@@ -886,6 +911,13 @@ export function useSuprahMeet() {
     }
     releaseWakeLock();
   }, [stopTransform, releaseWakeLock]);
+
+  // Server expiry must release devices in full rooms, guest rooms, and Mini Meet.
+  useEffect(() => {
+    if (phase !== 'ended') return;
+    leftIntentionallyRef.current = true;
+    void teardown();
+  }, [phase, teardown]);
 
   const leave = useCallback(async () => {
     leftIntentionallyRef.current = true;

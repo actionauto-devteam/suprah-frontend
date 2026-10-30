@@ -24,7 +24,7 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useSuprahMeet, type RosterEntry, type TileInfo } from "@/hooks/useSuprahMeet";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
-import { MeetPreJoin } from "@/components/suprah-meet/MeetPreJoin";
+import { MeetPreJoin, type MeetJoinChoices } from "@/components/suprah-meet/MeetPreJoin";
 import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
 import { orderMeetPeople } from "@/lib/meet-layout";
 
@@ -33,7 +33,12 @@ type Gate = "form" | "checking" | "waiting" | "notlive" | "ready" | "denied" | "
 export default function SuprahMeetGuestPage() {
   const params = useParams<{ code: string }>();
   const code = decodeURIComponent(String(params.code || "")).toUpperCase();
+  return <SuprahMeetGuestRoom key={code} code={code} />;
+}
+
+function SuprahMeetGuestRoom({ code }: { code: string }) {
   const meet = useSuprahMeet();
+  const joinMeeting = meet.join;
 
   const [gate, setGate] = React.useState<Gate>("form");
   const [name, setName] = React.useState("");
@@ -47,6 +52,10 @@ export default function SuprahMeetGuestPage() {
   const [preJoinParticipants, setPreJoinParticipants] = React.useState<{ fullName: string; avatar?: string | null; isGuest?: boolean }[]>([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
   const joinedRef = React.useRef(false);
+  const requestPendingRef = React.useRef(false);
+  const [prepared, setPrepared] = React.useState(false);
+  const [joinChoices, setJoinChoices] = React.useState<MeetJoinChoices>({ mic: false, camera: false });
+  const [endedReason, setEndedReason] = React.useState<string | null>(null);
 
   const tokenKey = `meet-guest-${code}`;
 
@@ -54,6 +63,8 @@ export default function SuprahMeetGuestPage() {
   // while the meeting hasn't started. Refresh-safe: the guest pass is kept in
   // sessionStorage and re-sent, so the same waiting-room spot is reused.
   const request = React.useCallback(async (guestName: string, guestEmail: string) => {
+    if (requestPendingRef.current || joinedRef.current) return;
+    requestPendingRef.current = true;
     try {
       const stored = sessionStorage.getItem(tokenKey);
       const res = await apiClient.post(
@@ -63,9 +74,10 @@ export default function SuprahMeetGuestPage() {
       );
       const d = res.data?.data ?? {};
       if (d.guestToken) sessionStorage.setItem(tokenKey, d.guestToken);
+      setFormError(null);
       if (d.title) setTitle(d.title);
       if (d.scheduledAt) setScheduledAt(d.scheduledAt);
-      if (d.ended) { setGate("over"); return; }
+      if (d.ended) { setEndedReason(d.endedReason ?? null); setGate("over"); return; }
       if (d.denied) { setGate("denied"); return; }
       if (d.admitted && d.live) {
         setGate("ready");
@@ -73,22 +85,41 @@ export default function SuprahMeetGuestPage() {
       }
       // Admitted but not started yet, or still in the waiting room → keep polling.
       setGate(d.admitted ? "notlive" : "waiting");
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { message?: string } } };
       setFormError(err?.response?.data?.message || "Could not reach the meeting. Check the link and try again.");
-      setGate("form");
-    }
-  }, [code, meet, tokenKey]);
+      // A transient failure must not throw a waiting guest back to the name form.
+      if ([400, 401, 403, 404].includes(err.response?.status ?? 0)) setGate("form");
+    } finally { requestPendingRef.current = false; }
+  }, [code, tokenKey]);
 
   React.useEffect(() => {
-    if (gate !== "waiting" && gate !== "notlive") return;
-    const t = setInterval(() => { void request(name, email); }, 3500);
-    return () => clearInterval(t);
-  }, [gate, request, name, email]);
+    if (!["waiting", "notlive", "ready", "checking"].includes(gate) || joinedRef.current) return;
+    const check = () => { if (document.visibilityState === "visible") void request(name, email); };
+    const t = setInterval(check, 3000);
+    const untilStart = scheduledAt ? new Date(scheduledAt).getTime() - Date.now() : 0;
+    const startTimer = untilStart > 0 && untilStart <= 2_147_483_647 ? setTimeout(check, untilStart) : null;
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("online", check);
+    return () => {
+      clearInterval(t);
+      if (startTimer) clearTimeout(startTimer);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("online", check);
+    };
+  }, [gate, request, name, email, scheduledAt]);
+
+  React.useEffect(() => {
+    if (gate !== "ready" || !prepared || joinedRef.current) return;
+    joinedRef.current = true;
+    setGate("in");
+    void joinMeeting(code, { token: sessionStorage.getItem(tokenKey) || "", startMic: joinChoices.mic, startCam: joinChoices.camera });
+  }, [gate, prepared, joinChoices, code, tokenKey, joinMeeting]);
 
   // Guest passes can read the public roster before the media connection is
   // created. Keep this optional so a roster failure never delays joining.
   React.useEffect(() => {
-    if (gate !== "ready") return;
+    if (!["ready", "waiting", "notlive"].includes(gate)) return;
     const token = sessionStorage.getItem(tokenKey);
     if (!token) return;
     let cancelled = false;
@@ -186,6 +217,13 @@ export default function SuprahMeetGuestPage() {
     );
   }
 
+  if (!prepared && (gate === "ready" || gate === "waiting" || gate === "notlive")) {
+    return <MeetPreJoin title={title ?? "Suprah Meet"} code={code}
+      onJoin={(choices) => { setJoinChoices(choices); setPrepared(true); }}
+      joinLabel={gate === "ready" ? "Join meeting" : "Continue to waiting room"}
+      participants={preJoinParticipants} />;
+  }
+
   if (gate === "waiting" || gate === "notlive") {
     const when = scheduledAt
       ? new Date(scheduledAt).toLocaleString("en-US", {
@@ -205,7 +243,7 @@ export default function SuprahMeetGuestPage() {
             <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Waiting automatically
           </div>
           <h1 className="mt-3 text-xl font-semibold">
-            {gate === "waiting" ? "Waiting for the host to admit you" : "Waiting for the host to start"}
+            {gate === "waiting" ? "Waiting for the host to admit you" : (scheduledAt ? "Waiting for the scheduled start" : "Waiting for the host")}
           </h1>
           <p className="mt-1 text-sm text-emerald-100/60">{title ?? "Suprah Meet"} · {code}</p>
           {when && (
@@ -223,9 +261,10 @@ export default function SuprahMeetGuestPage() {
             <div className="rounded-xl border border-emerald-400/15 bg-[#071410]/70 p-3">
               <Check className="mb-2 size-4 text-emerald-300" />
               <p className="font-medium">You won’t miss the start</p>
-              <p className="mt-1 text-xs text-emerald-100/50">You’ll move to device check as soon as access is ready.</p>
+              <p className="mt-1 text-xs text-emerald-100/50">Your device choices are saved. You will join automatically when access is ready.</p>
             </div>
           </div>
+          {formError && <p role="status" className="mt-3 text-xs text-amber-300">Connection interrupted. Retrying automatically...</p>}
           <p className="mt-4 text-xs text-emerald-100/40">Keep this page open. Refreshing is safe and keeps the same guest pass.</p>
         </div>
       </Shell>
@@ -244,33 +283,12 @@ export default function SuprahMeetGuestPage() {
     );
   }
 
-  if (gate === "ready") {
-    return (
-      <MeetPreJoin
-        title={title ?? "Suprah Meet"}
-        code={code}
-        onJoin={({ mic, camera }) => {
-          if (joinedRef.current) return;
-          joinedRef.current = true;
-          setGate("in");
-          void meet.join(code, {
-            token: sessionStorage.getItem(tokenKey) || "",
-            startMic: mic,
-            startCam: camera,
-          });
-        }}
-        joinLabel="Join meeting"
-        participants={preJoinParticipants}
-      />
-    );
-  }
-
   if (gate === "over" || meet.phase === "ended") {
     return (
       <Shell>
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">This meeting has ended</p>
-        {meet.endedReason && <p className="max-w-md text-sm text-emerald-200/60">{meet.endedReason}</p>}
+        {(endedReason || meet.endedReason) && <p className="max-w-md text-sm text-emerald-200/60">{endedReason || meet.endedReason}</p>}
         <p className="text-sm text-emerald-200/60">Thanks for joining{name ? `, ${name.split(" ")[0]}` : ""}. You can close this tab.</p>
       </Shell>
     );

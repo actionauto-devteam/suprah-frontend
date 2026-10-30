@@ -22,7 +22,7 @@ import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
 import { orderMeetPeople, pickMeetStage, splitMeetPeople } from "@/lib/meet-layout";
 import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/MeetCaptions';
-import { MeetPreJoin } from "@/components/suprah-meet/MeetPreJoin";
+import { MeetPreJoin, type MeetJoinChoices } from "@/components/suprah-meet/MeetPreJoin";
 import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
@@ -67,8 +67,12 @@ interface MeetDirectory { hostCrmUserId: string; people: MeetDirectoryPerson[]; 
 
 export default function SuprahMeetRoomPage() {
   const params = useParams<{ code: string }>();
-  const router = useRouter();
   const code = decodeURIComponent(String(params.code || "")).toUpperCase();
+  return <SuprahMeetRoom key={code} code={code} />;
+}
+
+function SuprahMeetRoom({ code }: { code: string }) {
+  const router = useRouter();
   // The meeting session lives in MeetSessionProvider (mounted in the CRM
   // layout), so navigating away minimizes the meeting instead of killing it.
   const { meet, activeCode, open } = useMeetSession();
@@ -97,58 +101,90 @@ export default function SuprahMeetRoomPage() {
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const [toast, setToast] = React.useState<string | null>(null);
   // Waiting room: "checking" until the backend says we may join.
-  const [gate, setGate] = React.useState<"checking" | "scheduled" | "admitted" | "waiting" | "denied" | "over">("checking");
+  const [gate, setGate] = React.useState<"checking" | "scheduled" | "admitted" | "waiting" | "denied" | "over" | "failed">("checking");
   const [readyToJoin, setReadyToJoin] = React.useState(false);
   const [meetingTitle, setMeetingTitle] = React.useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = React.useState<string | null>(null);
   const [hostCanStart, setHostCanStart] = React.useState(false);
-  const [hostPresent, setHostPresent] = React.useState(false);
+  const [joinChoices, setJoinChoices] = React.useState<MeetJoinChoices>({ mic: false, camera: false });
+  const [gateError, setGateError] = React.useState<string | null>(null);
+  const [endedReason, setEndedReason] = React.useState<string | null>(null);
+  const joinStartedRef = React.useRef(false);
   const [waitingList, setWaitingList] = React.useState<{ crmUserId: string; fullName: string; avatar: string | null }[]>([]);
   const [preJoinParticipants, setPreJoinParticipants] = React.useState<{ fullName: string; avatar?: string | null; isGuest?: boolean }[]>([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
-  // Waiting-room gate: hosts, admins/managers, and tagged attendees go straight
-  // in; anyone joining purely by code asks the host first and polls until
-  // admitted. Falls back to a direct join if the endpoint is unavailable.
+  // Device preparation is independent of admission. Prepared attendees enter
+  // automatically after the server opens the room or approves their request.
   React.useEffect(() => {
-    if (!code) return;
-    if (activeCode && activeCode !== code) return; // busy screen handles this
+    if (!code || (activeCode && activeCode !== code)) return;
+    if (activeCode === code) { setGate("admitted"); return; }
     let cancelled = false;
+    let pending = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const check = async () => {
+      if (pending || cancelled) return;
+      pending = true;
+      if (timer) clearTimeout(timer);
+      let delay = 3000;
+      let finished = false;
       try {
-        const res = await apiClient.post(`/api/crm/meet/meetings/${code}/request-join`);
+        const res = await apiClient.post(`/api/crm/meet/meetings/${code}/request-join`, {}, { timeout: 10_000 });
         const d = res.data?.data ?? {};
         if (cancelled) return;
+        setGateError(null);
         if (d.title) setMeetingTitle(d.title);
-        if (d.scheduledAt) setScheduledAt(d.scheduledAt);
+        setScheduledAt(d.scheduledAt ?? null);
         setHostCanStart(Boolean(d.canStart));
-        setHostPresent(d.hostPresent === true);
-        if (d.notStarted) {
-          setGate("scheduled");
-          timer = setTimeout(() => { void check(); }, 3000);
-          return;
+        if (d.scheduledAt) {
+          const untilStart = new Date(d.scheduledAt).getTime() - Date.now();
+          if (untilStart > 0) delay = Math.min(delay, Math.max(100, untilStart));
         }
-        if (d.admitted) { setGate("admitted"); return; }
-        if (d.denied) { setGate("denied"); return; }
-        if (d.ended) { setGate("over"); return; }
-        setGate("waiting");
-        timer = setTimeout(() => { void check(); }, 3000); // keep asking; refresh-safe
-      } catch {
-        // Older backend or transient error → let the normal join path decide
-        // (its error screen reports the real problem).
-        if (!cancelled) setGate("admitted");
+        if (d.ended) { setEndedReason(d.endedReason ?? null); setGate("over"); finished = true; }
+        else if (d.denied) { setGate("denied"); finished = true; }
+        else if (d.notStarted) setGate("scheduled");
+        else if (d.admitted) setGate("admitted");
+        else setGate("waiting");
+      } catch (error: unknown) {
+        if (cancelled) return;
+        const failure = error as { response?: { status?: number; data?: { message?: string } } };
+        if ([400, 401, 403, 404].includes(failure.response?.status ?? 0)) {
+          setGateError(failure.response?.data?.message || "This meeting could not be opened. Check your invite link or code.");
+          setGate("failed");
+          finished = true;
+        } else if (failure.response?.status === 410) {
+          setEndedReason(failure.response.data?.message ?? null);
+          setGate("over");
+          finished = true;
+        } else setGateError("Connection interrupted. Retrying automatically...");
+      } finally {
+        pending = false;
+        if (!cancelled && !finished) timer = setTimeout(() => { void check(); }, delay);
       }
     };
+    const resume = () => { if (document.visibilityState === "visible") void check(); };
     void check();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [code, open, activeCode]);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
+  }, [code, activeCode]);
+
+  React.useEffect(() => {
+    if (gate !== "admitted" || !readyToJoin || meet.phase !== "idle" || joinStartedRef.current) return;
+    joinStartedRef.current = true;
+    open(code, { startMic: joinChoices.mic, startCam: joinChoices.camera });
+  }, [gate, readyToJoin, meet.phase, open, code, joinChoices]);
 
   // The attendee connection has not started on the device-check screen, so
   // fetch the persisted roster separately. This is best-effort and never
   // blocks admission or joining.
   React.useEffect(() => {
-    if (gate !== "admitted" || meet.phase !== "idle") return;
+    if (gate === "checking" || gate === "denied" || gate === "over" || gate === "failed" || meet.phase !== "idle") return;
     let cancelled = false;
     const loadRoster = () => void apiClient.get(`/api/crm/meet/meetings/${code}`).then((res) => {
       if (cancelled) return;
@@ -186,7 +222,7 @@ export default function SuprahMeetRoomPage() {
   };
 
   // The server stores completed clock segments. The active segment ticks only
-  // while the host and someone else are in the room.
+  // while enough attendees are in the room. Scheduled calls do not require the host.
   React.useEffect(() => {
     if (meet.phase !== "in") return;
     const t = setInterval(() => setNowMs(Date.now()), 1000);
@@ -349,9 +385,26 @@ export default function SuprahMeetRoomPage() {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-6 text-center">
         <SuprahMeetLogo className="size-12 animate-pulse" />
-        <p className="text-sm text-muted-foreground">Checking access…</p>
+        <p className="text-sm text-muted-foreground">{gateError ?? "Checking access..."}</p>
       </div>
     );
+  }
+
+  if (gate === "failed") {
+    return <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+      <SuprahMeetLogo className="size-12" />
+      <h1 className="text-lg font-medium">Could not open this meeting</h1>
+      <p className="max-w-md text-sm text-muted-foreground">{gateError}</p>
+      <Button onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
+    </div>;
+  }
+
+  if (!readyToJoin && meet.phase === "idle" && gate !== "checking" && gate !== "denied" && gate !== "over") {
+    return <MeetPreJoin title={meet.meeting?.title ?? meetingTitle ?? "Suprah Meet"} code={code}
+      onJoin={(choices) => { setJoinChoices(choices); setReadyToJoin(true); }}
+      onCancel={() => router.push("/crm/suprah-meet")}
+      joinLabel={gate === "admitted" ? (hostCanStart ? "Start meeting" : "Join meeting") : "Continue to waiting room"}
+      participants={preJoinParticipants} />;
   }
 
   if (gate === "waiting") {
@@ -375,7 +428,7 @@ export default function SuprahMeetRoomPage() {
             <div className="rounded-xl border bg-background/60 p-3">
               <Check className="mb-2 size-4 text-emerald-500" />
               <p className="font-medium">Your place is saved</p>
-              <p className="mt-1 text-xs text-muted-foreground">You’ll move to device check as soon as the host admits you.</p>
+              <p className="mt-1 text-xs text-muted-foreground">You will join automatically as soon as the host admits you.</p>
             </div>
           </div>
           <Button className="mt-5" variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Leave waiting room</Button>
@@ -400,16 +453,18 @@ export default function SuprahMeetRoomPage() {
           <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
             <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" /> Waiting automatically
           </div>
-          <h1 className="mt-3 text-xl font-semibold">{hostPresent ? "The host is preparing the room" : "Waiting for the host"}</h1>
+          <h1 className="mt-3 text-xl font-semibold">{scheduledAt ? "Waiting for the scheduled start" : "Waiting for the host"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{meetingTitle ?? code}</p>
           <div className="mt-5 rounded-2xl border bg-background/60 p-4">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Scheduled time</p>
             <p className="mt-1 font-semibold text-emerald-600 dark:text-emerald-400">{when}</p>
           </div>
           <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
-            The meeting and its timer stay stopped until the host opens the room. You’ll move to camera and microphone check automatically when it is ready.
+            {scheduledAt
+              ? "Your camera and microphone choices are saved. You will join automatically at the scheduled time or when the host opens the room early."
+              : "Your camera and microphone choices are saved. You will join automatically when the host opens or returns to the room."}
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">Keep this page open or safely refresh—your access is checked every few seconds.</p>
+          <p className="mt-2 text-xs text-muted-foreground">{gateError ?? "Keep this page open. Access is checked automatically every few seconds."}</p>
           <Button className="mt-5" variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
         </div>
       </div>
@@ -436,29 +491,10 @@ export default function SuprahMeetRoomPage() {
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">This meeting has ended</p>
         <p className="max-w-md text-sm text-muted-foreground">
-          {code} finished before you were admitted.
+          {endedReason ?? `${code} finished before you joined.`}
         </p>
         <Button onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
       </div>
-    );
-  }
-
-  // Admission and joining are intentionally separate. This gives every
-  // internal attendee the same private device check before Chime receives
-  // their attendee connection; the mini-meet only appears after this step.
-  if (gate === "admitted" && !readyToJoin && meet.phase === "idle") {
-    return (
-      <MeetPreJoin
-        title={meet.meeting?.title ?? meetingTitle ?? "Suprah Meet"}
-        code={code}
-        onJoin={({ mic, camera }) => {
-          setReadyToJoin(true);
-          open(code, { startMic: mic, startCam: camera });
-        }}
-        onCancel={() => router.push("/crm/suprah-meet")}
-        joinLabel={hostCanStart ? "Start meeting" : "Join meeting"}
-        participants={preJoinParticipants}
-      />
     );
   }
 
@@ -545,8 +581,8 @@ export default function SuprahMeetRoomPage() {
         <div className="relative z-10 flex items-center gap-2 border-b border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100 md:px-4">
           <Hourglass className="size-3.5 shrink-0 text-amber-300" />
           {meet.meeting?.startedAt
-            ? "Meeting clock paused — waiting for the host and another attendee."
-            : "Meeting clock has not started — it begins when the host and another attendee are here."}
+            ? "Meeting clock paused while waiting for attendees."
+            : "Meeting clock has not started - it begins when enough attendees are here."}
         </div>
       )}
 

@@ -30,8 +30,8 @@ export function MeetAlerts() {
     meetSounds.alert();
     const when = kind === "live" ? "has an open room" : `starts at ${
       m.scheduledAt ? new Date(m.scheduledAt).toLocaleTimeString("en-US", {
-        timeZone: "America/Denver", hour: "numeric", minute: "2-digit",
-      }) + " MDT" : "soon"}`;
+        timeZone: "America/Denver", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+      }) : "soon"}`;
     toast(`Suprah Meet: ${m.title}`, {
       description: `Your meeting ${when} · ${m.code}`,
       duration: 60_000,

@@ -1,3 +1,5 @@
+import { formatMeetDateTime } from "./meet-schedule";
+
 export interface ShareableMeeting {
   code: string;
   title: string;
@@ -24,11 +26,7 @@ export type ShareTargetKey =
 export const meetGuestUrl = (code: string, origin = "") =>
   `${origin}/meet/${encodeURIComponent(code)}`;
 
-const mdtLabel = (iso: string) =>
-  new Date(iso).toLocaleString("en-US", {
-    timeZone: "America/Denver", weekday: "short", month: "short", day: "numeric",
-    hour: "numeric", minute: "2-digit",
-  }) + " MDT";
+const mdtLabel = formatMeetDateTime;
 
 export function buildMeetInvite(meetings: ShareableMeeting[], origin = ""): MeetInvite {
   const first = meetings[0];

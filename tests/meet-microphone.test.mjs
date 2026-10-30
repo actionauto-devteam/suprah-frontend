@@ -238,3 +238,35 @@ test('joining existing captions does not wait for a new start event during silen
   await Promise.resolve();
   assert.equal(meeting.render().captionStatus, 'on');
 });
+
+for (const options of [undefined, { token: 'guest-pass' }]) {
+  test(`${options ? 'guest room' : 'full room and Mini Meet'} receives the server closure reason on heartbeat expiry`, async () => {
+    const meeting = createMeeting();
+    await meeting.render().join('MEET-1234', options);
+    const originalPost = meeting.api.post;
+    meeting.api.post = async (url, ...args) => {
+      if (url.endsWith('/heartbeat')) throw { response: { status: 410, data: { message: 'This meeting closed because everyone left.' } } };
+      return originalPost(url, ...args);
+    };
+    meeting.presence('other', true, 'other#device');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(meeting.render().phase, 'ended');
+    assert.equal(meeting.render().endedReason, 'This meeting closed because everyone left.');
+  });
+}
+test('a delayed expiry response from the previous room cannot end a new session', async () => {
+  const meeting = createMeeting();
+  await meeting.render().join('MEET-1234');
+  const originalPost = meeting.api.post;
+  let rejectHeartbeat;
+  meeting.api.post = async (url, ...args) => {
+    if (url.endsWith('/heartbeat')) return new Promise((_resolve, reject) => { rejectHeartbeat = reject; });
+    return originalPost(url, ...args);
+  };
+  meeting.presence('other', true, 'other#device');
+  await meeting.render().join('MEET-5678');
+  rejectHeartbeat({ response: { status: 410 } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(meeting.render().phase, 'in');
+  assert.equal(meeting.render().endedReason, null);
+});
