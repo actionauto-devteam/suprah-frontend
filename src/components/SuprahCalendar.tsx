@@ -24,6 +24,8 @@ import {
   type Occurrence,
 } from "@/utils/calendar.utils";
 import { useCalendar } from "@/hooks/useCalendar";
+import { useShipmentCalendarItems } from "@/hooks/useShipmentCalendarItems";
+import { isShipmentItem, shipmentLoadHref } from "@/lib/calendar-shipments";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EventModal } from "@/components/EventModal";
 import { MySchedule } from "@/components/MySchedule";
@@ -141,6 +143,7 @@ export const TYPE_STYLES: Record<string, string> = {
   task: "border-transparent bg-amber-500 text-zinc-900",
   reminder: "border-transparent bg-violet-600 text-white",
   appointment: "border-transparent bg-teal-600 text-white",
+  shipment: "border-transparent bg-blue-700 text-white",
 };
 
 const TYPE_ROW_STYLES: Record<string, string> = {
@@ -149,6 +152,7 @@ const TYPE_ROW_STYLES: Record<string, string> = {
   task: "border-b-border border-l-amber-500 bg-card text-foreground hover:bg-accent",
   reminder: "border-b-border border-l-violet-600 bg-card text-foreground hover:bg-accent",
   appointment: "border-b-border border-l-teal-600 bg-card text-foreground hover:bg-accent",
+  shipment: "border-b-border border-l-blue-700 bg-card text-foreground hover:bg-accent",
 };
 
 export const TYPE_TIME_STYLES: Record<string, string> = {
@@ -157,6 +161,7 @@ export const TYPE_TIME_STYLES: Record<string, string> = {
   task: "text-zinc-900/75",
   reminder: "text-white/85",
   appointment: "text-white/85",
+  shipment: "text-white/85",
 };
 
 const TYPE_DURATION_STYLES: Record<string, string> = {
@@ -165,6 +170,7 @@ const TYPE_DURATION_STYLES: Record<string, string> = {
   task: "text-zinc-900/65",
   reminder: "text-white/70",
   appointment: "text-white/70",
+  shipment: "text-white/70",
 };
 
 const TYPE_GROUP_STYLES: Record<string, string> = {
@@ -173,6 +179,7 @@ const TYPE_GROUP_STYLES: Record<string, string> = {
   task: "border border-border border-l-4 border-l-amber-500 bg-card",
   reminder: "border border-border border-l-4 border-l-violet-600 bg-card",
   appointment: "border border-border border-l-4 border-l-teal-600 bg-card",
+  shipment: "border border-border border-l-4 border-l-blue-700 bg-card",
   mixed: "border border-border border-l-4 border-l-muted-foreground/50 bg-card",
 };
 
@@ -441,8 +448,14 @@ export default function SuprahCalendar() {
   }, [view, cursor]);
 
   // Grid math runs in Mountain Time wall-clock space; the API needs instants.
-  const { items: allItems, loading, error, createItem, updateItem, deleteItem } =
+  const { items: calendarItems, loading, error, createItem, updateItem, deleteItem } =
     useCalendar(fromZoned(rangeStart), fromZoned(rangeEnd));
+  // Transportation's read-only shipments (pickup windows, delivery deadlines).
+  const shipmentItems = useShipmentCalendarItems(fromZoned(rangeStart), fromZoned(rangeEnd));
+  const allItems = useMemo(
+    () => (shipmentItems.length ? [...calendarItems, ...shipmentItems] : calendarItems),
+    [calendarItems, shipmentItems],
+  );
 
   const [teamMembers, setTeamMembers] = useState<CrmUserLite[]>([]);
   const [teamFilter, setTeamFilter] = useState<string[]>([]);
@@ -551,6 +564,7 @@ export default function SuprahCalendar() {
   };
 
   const toggleSelected = (id: string) => {
+    if (isShipmentItem(id)) return; // shipments aren't calendar events
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -653,8 +667,15 @@ export default function SuprahCalendar() {
 
   const openCreate = (presetStart?: Date) =>
     setModal({ open: true, presetStart });
-  const openEdit = (item: CalendarItem) =>
+  const openEdit = (item: CalendarItem) => {
+    // Shipments are read-only here: they open the load in Transportation.
+    if (isShipmentItem(item)) {
+      const href = shipmentLoadHref(item);
+      if (href) router.push(href);
+      return;
+    }
     setModal({ open: true, editing: item });
+  };
 
   const handleSave = async (draft: EventDraft) => {
     // No toast.error here: on failure this rethrows into EventModal's own
