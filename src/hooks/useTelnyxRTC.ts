@@ -43,6 +43,24 @@ async function reportCall(body: Record<string, any>) {
   }
 }
 
+interface LoggedCall {
+  call?: { _id?: string; from?: string; lineLabel?: string };
+  correlation?: Record<string, unknown>;
+}
+
+async function startCallLog(body: Record<string, unknown>): Promise<LoggedCall | undefined> {
+  try {
+    const response = await apiClient.post("/api/crm/communications/calls/log", body);
+    return response.data?.data;
+  } catch (err) {
+    const failure = (err as { response?: { status?: number; data?: { message?: string } } })?.response;
+    if (failure?.status === 403 || failure?.status === 503) {
+      throw softphoneError("CALL_NOT_ALLOWED", failure.data?.message || "This call can't be placed right now.");
+    }
+    return undefined;
+  }
+}
+
 function handleNotification(notification: any) {
   if (notification.type !== "callUpdate" || !notification.call) return;
   const call = notification.call;
@@ -169,9 +187,10 @@ async function registerThisTab(): Promise<TelnyxRTC> {
   return ensureClient();
 }
 
-async function ensureMicrophone() {
+async function ensureMicrophone(outbound = false) {
+  const stillRinging = outbound ? "" : " The call is still ringing for your teammates.";
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-    throw softphoneError("MIC_UNAVAILABLE", "This browser can't use a microphone for calls. The call is still ringing for your teammates.");
+    throw softphoneError("MIC_UNAVAILABLE", `This browser can't use a microphone for calls.${stillRinging}`);
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -179,7 +198,7 @@ async function ensureMicrophone() {
   } catch {
     throw softphoneError(
       "MIC_BLOCKED",
-      "Allow microphone access for Suprah in your browser, then try again. The call is still ringing for your teammates."
+      `Allow microphone access for Suprah in your browser, then try again.${stillRinging}`
     );
   }
 }
@@ -193,7 +212,11 @@ export function useTelnyxRTC() {
   /** Outbound call from the customer profile. */
   const dial = useCallback(
     async (phoneNumber: string, opts?: { customerId?: string; leadId?: string; displayName?: string }) => {
-      const c = await ensureClient();
+      if (getCommState().activeCall) throw softphoneError("ALREADY_ON_CALL", "You're already on a call.");
+      await ensureMicrophone(true);
+      const c = await ensureClient().catch(() => {
+        throw softphoneError("SOFTPHONE_NOT_READY", "Your phone line couldn't connect. Check your internet connection and try again.");
+      });
       const clientCallId = newClientCallId();
 
       commActions.setActiveCall({
@@ -205,31 +228,44 @@ export function useTelnyxRTC() {
         clientCallId,
       });
 
-      const logged = await reportCall({
-        clientCallId,
-        event: "start",
-        toPhone: phoneNumber,
-        customerId: opts?.customerId,
-        leadId: opts?.leadId,
-      });
+      let logged: LoggedCall | undefined;
+      try {
+        logged = await startCallLog({
+          clientCallId,
+          event: "start",
+          toPhone: phoneNumber,
+          customerId: opts?.customerId,
+          leadId: opts?.leadId,
+        });
+      } catch (err) {
+        commActions.setActiveCall(null);
+        throw err;
+      }
 
-      if (logged?.call?._id) commActions.patchActiveCall({ callLogId: logged.call._id });
+      const fromNumber = logged?.call?.from || callerNumber;
+      if (logged?.call?._id) commActions.patchActiveCall({ callLogId: logged.call._id, fromNumber, lineLabel: logged.call.lineLabel });
 
-      const call = c.newCall({
-        destinationNumber: phoneNumber,
-        callerNumber: logged?.call?.from || callerNumber,
-        audio: true,
-        video: false,
-        ...(logged?.correlation ? { clientState: btoa(JSON.stringify({ kind: 'recording-outbound', ...logged.correlation })) } : {}),
-      });
-      (call as any).__clientCallId = clientCallId;
-      currentCall = call;
+      try {
+        const call = c.newCall({
+          destinationNumber: phoneNumber,
+          callerNumber: fromNumber,
+          audio: true,
+          video: false,
+          ...(logged?.correlation ? { clientState: btoa(JSON.stringify({ kind: 'recording-outbound', ...logged.correlation })) } : {}),
+        });
+        (call as any).__clientCallId = clientCallId;
+        currentCall = call;
+      } catch {
+        commActions.setActiveCall(null);
+        void reportCall({ clientCallId, event: "failed", hangupCause: "call-not-started" });
+        throw softphoneError("CALL_NOT_STARTED", "Couldn't start the call. Please try again.");
+      }
     },
     []
   );
 
   /** Claim + auto-answer an inbound ringing call. */
-  const answerInbound = useCallback(async (callLogId: string, meta: { phoneNumber: string; displayName?: string }) => {
+  const answerInbound = useCallback(async (callLogId: string, meta: { phoneNumber: string; displayName?: string; fromNumber?: string; lineLabel?: string }) => {
     if (getCommState().activeCall) throw softphoneError("ALREADY_ON_CALL", "You're already on a call.");
     commActions.setActiveCall({
       kind: "inbound",
@@ -238,6 +274,8 @@ export function useTelnyxRTC() {
       displayName: meta.displayName,
       muted: false,
       callLogId,
+      fromNumber: meta.fromNumber,
+      lineLabel: meta.lineLabel,
     });
     try {
       await ensureMicrophone();
@@ -295,11 +333,22 @@ export function useTelnyxRTC() {
     if (!currentCall) return false;
     try {
       hold ? currentCall.hold() : currentCall.unhold();
+      commActions.patchActiveCall({ onHold: hold });
       return true;
     } catch {
       return false;
     }
   }, []);
 
-  return { dial, answerInbound, hangup, toggleMute, toggleHold };
+  const sendDigit = useCallback((digit: string): boolean => {
+    if (!currentCall) return false;
+    try {
+      currentCall.dtmf(digit);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  return { dial, answerInbound, hangup, toggleMute, toggleHold, sendDigit };
 }

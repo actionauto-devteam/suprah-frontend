@@ -75,6 +75,7 @@ interface LeadDetailsPanelProps {
   onStatusChange: (status: string) => void;
   onAppointment: () => void;
   onRequestPayment: () => void;
+  onOpenDialer?: () => void;
   onCalculateQuote: () => void;
   onAddNote: (note: string) => void | Promise<void>;
   onUpdateDetails: (changes: LeadDetailsUpdate) => void | Promise<void>;
@@ -114,6 +115,7 @@ export function LeadDetailsPanel({
   onStatusChange,
   onAppointment,
   onRequestPayment,
+  onOpenDialer,
   onCalculateQuote,
   onAddNote,
   onUpdateDetails,
@@ -240,9 +242,8 @@ export function LeadDetailsPanel({
     [lead, sourceEmail, onAssign],
   );
 
-  const leadName = [lead?.firstName, lead?.lastName].filter(Boolean).join(" ").trim() || undefined;
   const { items: timelineItems } = useCustomerTimeline(lead?._id);
-  const { dial } = useTelnyxRTC();
+  useTelnyxRTC();
 
   const activities = React.useMemo(
     () => toWorkspaceActivities(timelineItems),
@@ -253,7 +254,7 @@ export function LeadDetailsPanel({
     () =>
       leadQuickActions({
         onCall: () => {
-          if (dialablePhone) dial(dialablePhone, { leadId: lead?._id, displayName: leadName });
+          if (dialablePhone) onOpenDialer?.();
         },
         onPayment: onRequestPayment,
         onAppointment,
@@ -261,7 +262,7 @@ export function LeadDetailsPanel({
         onNote: () => setNoteIntent((value) => value + 1),
         hasPhone: Boolean(dialablePhone),
       }),
-    [dialablePhone, dial, lead?._id, leadName, onAppointment, onCalculateQuote, onRequestPayment],
+    [dialablePhone, onOpenDialer, onAppointment, onCalculateQuote, onRequestPayment],
   );
 
   const saveContact = async () => {

@@ -23,6 +23,8 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/hooks/useLeads"
+import { ACTIVE_CALLS_KEY, useActiveCalls } from "@/hooks/useActiveCalls"
+import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import { useQueryClient } from "@tanstack/react-query"
 import { initializeSocket, onSocketChange } from "@/lib/socket.client"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
@@ -429,6 +431,8 @@ export function LeadsTab({
   const { counts: leadStatusCounts } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
   const queryClient = useQueryClient();
+  const activeCalls = useActiveCalls();
+  const [dialerOpen, setDialerOpen] = React.useState(false);
   const refreshLeadCounts = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads", "status-counts"] });
     void queryClient.invalidateQueries({ queryKey: ["leads", "location-counts"] });
@@ -1134,8 +1138,14 @@ export function LeadsTab({
         refetch();
         scheduleSelectedRefresh(data?.leadId || data?._id);
       });
-      listen("comm:call:incoming", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
-      listen("comm:call:update", (data?: LiveLeadEvent) => scheduleSelectedRefresh(data?.call?.leadId));
+      listen("comm:call:incoming", (data?: LiveLeadEvent) => {
+        void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
+        scheduleSelectedRefresh(data?.call?.leadId);
+      });
+      listen("comm:call:update", (data?: LiveLeadEvent) => {
+        void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
+        scheduleSelectedRefresh(data?.call?.leadId);
+      });
       listen("lead:review", () => {
         getLeadReviewCount().then(setReviewSummary).catch(() => undefined);
       });
@@ -1263,7 +1273,7 @@ export function LeadsTab({
         registered.forEach(([event, handler]) => socket.off(event, handler));
       }
     };
-  }, [getToken, currentPage, refetch, refreshLeadCounts]);
+  }, [getToken, currentPage, refetch, refreshLeadCounts, queryClient]);
 
   // 3. Central Status Fetch
   React.useEffect(() => {
@@ -1637,6 +1647,20 @@ export function LeadsTab({
   React.useEffect(() => {
     fetchThreadRef.current = fetchThread;
   }, [fetchThread]);
+
+  const callLeadId = selectedLead?._id || "";
+  const selectedCall = callLeadId ? activeCalls.get(callLeadId) : undefined;
+  const selectedCallKey = selectedCall ? `${selectedCall.callId}:${selectedCall.status}` : "";
+  const lastCallKeyRef = React.useRef({ leadId: "", key: "" });
+
+  React.useEffect(() => {
+    const previous = lastCallKeyRef.current;
+    lastCallKeyRef.current = { leadId: callLeadId, key: selectedCallKey };
+    if (!selectedLeadRef.current || previous.leadId !== callLeadId || previous.key === selectedCallKey) return;
+    void fetchThreadRef.current?.(selectedLeadRef.current)?.finally(() => {
+      window.dispatchEvent(new Event("crm-leads:keep-conversation-bottom"));
+    });
+  }, [callLeadId, selectedCallKey]);
 
   React.useEffect(() => {
     if (!selectedLead) return;
@@ -2704,6 +2728,7 @@ export function LeadsTab({
               }}
             >
               <LeadsList
+                activeCalls={activeCalls}
                 title="Inquiries & Leads"
                 subtitle="Lead Inbox"
                 leads={leads}
@@ -2953,6 +2978,7 @@ export function LeadsTab({
                     onClose={() => setSelectedLead(null)}
                     onBack={viewportMode !== "wide" ? () => setSelectedLead(null) : undefined}
                     onShowDetails={!showLeadDetails ? () => setShowLeadDetails(true) : undefined}
+                    onCall={() => setDialerOpen(true)}
                     sourceEmail={LEADS_SOURCE_EMAIL}
                     siblingCount={
                       (selectedLead.vehicle as any)?.stock
@@ -3212,6 +3238,7 @@ export function LeadsTab({
               )}
             >
               <LeadDetailsPanel
+                onOpenDialer={() => setDialerOpen(true)}
                 lead={selectedLead}
                 sourceEmail={LEADS_SOURCE_EMAIL}
                 onClose={() =>
@@ -3249,6 +3276,13 @@ export function LeadsTab({
       )}
 
       <AddLeadModal isOpen={addLeadOpen} onOpenChange={setAddLeadOpen} />
+      <DialPadDialog
+        open={dialerOpen}
+        onOpenChange={setDialerOpen}
+        phone={selectedLead?.phone}
+        name={[selectedLead?.firstName, selectedLead?.lastName].filter(Boolean).join(" ").trim() || undefined}
+        leadId={selectedLead?._id}
+      />
       <LeadReviewDialog
         open={reviewOpen}
         onOpenChange={setReviewOpen}

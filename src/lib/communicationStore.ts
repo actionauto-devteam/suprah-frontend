@@ -56,8 +56,11 @@ export interface ActiveCallState {
   displayName?: string;
   startedAt?: number; // ms epoch when answered — drives the timer
   muted: boolean;
+  onHold?: boolean;
   clientCallId?: string;
   callLogId?: string;
+  fromNumber?: string;
+  lineLabel?: string;
 }
 
 interface CommState {
@@ -234,6 +237,10 @@ export const commActions = {
     saveDismissedCalls();
     ringingReceivedAt.delete(callId);
     setState({ incomingCalls: state.incomingCalls.filter((c) => c._id !== callId) });
+  },
+
+  showCallNotice(callNotice: string) {
+    setState({ callNotice });
   },
 
   clearCallNotice() {

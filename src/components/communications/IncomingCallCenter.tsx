@@ -2,25 +2,97 @@
 
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Phone, PhoneOff, Mic, MicOff, PhoneIncoming, Loader2 } from "lucide-react";
-import { useCommStore, commActions } from "@/lib/communicationStore";
+import { Grid3x3, Phone, PhoneOff, Mic, MicOff, Pause, Play, PhoneIncoming, Loader2 } from "lucide-react";
+import { useCommStore, commActions, type ActiveCallState } from "@/lib/communicationStore";
 import { useTelnyxRTC } from "@/hooks/useTelnyxRTC";
+import { formatSmsRecipient } from "@/lib/api/leadComposer";
+import { DIAL_KEYS } from "@/lib/phoneDialing";
 import { CallRecordingControls } from './CallRecordingControls';
+import { CallTimer } from './CallTimer';
 
-function CallTimer({ startedAt }: { startedAt?: number }) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  if (!startedAt) return <span className="tabular-nums">00:00</span>;
-  const sec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
-  const ss = String(sec % 60).padStart(2, "0");
+function CallControl({ label, active, disabled, onClick, children }: { label: string; active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <span className="tabular-nums">
-      {mm}:{ss}
-    </span>
+    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} className="flex min-w-0 flex-col items-center gap-1 text-[11px] font-medium text-slate-200 disabled:opacity-40">
+      <span className={`flex h-11 w-11 items-center justify-center rounded-full border transition ${active ? "border-amber-400/50 bg-amber-500/20 text-amber-300" : "border-white/15 bg-white/5 hover:bg-white/10"}`}>
+        {children}
+      </span>
+      {label}
+    </button>
+  );
+}
+
+function CallWindow({ call, onHangup, onMute, onHold, onDigit }: { call: ActiveCallState; onHangup: () => void; onMute: () => void; onHold: (hold: boolean) => boolean; onDigit: (digit: string) => boolean }) {
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [digits, setDigits] = useState("");
+  const live = call.phase === "active";
+  const heading = live ? "Active call" : call.kind === "inbound" ? "Connecting call" : "Calling";
+  const line = [call.lineLabel, call.fromNumber ? formatSmsRecipient(call.fromNumber) || call.fromNumber : ""].filter(Boolean).join(" · ");
+  const number = formatSmsRecipient(call.phoneNumber) || call.phoneNumber;
+  const showNumber = Boolean(call.displayName) && call.displayName !== call.phoneNumber;
+  const press = (digit: string) => {
+    if (onDigit(digit)) setDigits((value) => `${value}${digit}`.slice(-24));
+  };
+  return (
+    <div className="fixed inset-x-3 bottom-[calc(var(--mobile-bottom-nav-offset,0px)+0.75rem)] z-[9991] sm:inset-x-auto sm:bottom-4 sm:right-24 sm:w-80">
+      <section aria-label="Call window" className="max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-cyan-400/30 bg-slate-950/95 p-4 text-white shadow-2xl shadow-cyan-500/20 backdrop-blur">
+        <p className="break-words text-xs font-semibold text-slate-300">
+          {heading}{line ? ` on ${line}` : ""}
+        </p>
+        <div className="mt-3 flex items-center gap-3">
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${live ? "bg-gradient-to-br from-emerald-500 to-cyan-500" : "bg-slate-700"}`}>
+            <Phone className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{call.displayName || number}</p>
+            {showNumber && <p className="truncate text-xs text-slate-300">{number}</p>}
+            <p className="text-xs text-slate-400" role="status">
+              {live ? (
+                <>
+                  {call.onHold ? "On hold · " : ""}
+                  <CallTimer startedAt={call.startedAt} />
+                </>
+              ) : call.phase === "ringing" ? (
+                "Ringing..."
+              ) : (
+                "Connecting..."
+              )}
+            </p>
+          </div>
+        </div>
+        {keypadOpen && (
+          <div className="mt-3">
+            <p aria-label="Digits sent" className="min-h-5 text-center text-sm font-semibold tabular-nums tracking-widest">{digits}</p>
+            <div className="mx-auto mt-1 grid w-fit grid-cols-3 gap-2">
+              {DIAL_KEYS.map((key) => (
+                <button key={key.digit} type="button" onClick={() => press(key.digit)} aria-label={`Send ${key.digit}`} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/5 text-base font-semibold hover:bg-white/10">
+                  {key.digit}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          <CallControl label={call.onHold ? "Resume" : "Hold"} active={call.onHold} disabled={!live} onClick={() => onHold(!call.onHold)}>
+            {call.onHold ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+          </CallControl>
+          <CallControl label="Keypad" active={keypadOpen} disabled={!live} onClick={() => setKeypadOpen((open) => !open)}>
+            <Grid3x3 className="h-4 w-4" />
+          </CallControl>
+          <CallControl label={call.muted ? "Unmute" : "Mute"} active={call.muted} onClick={onMute}>
+            {call.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </CallControl>
+          <button type="button" onClick={onHangup} aria-label="End call" className="flex min-w-0 flex-col items-center gap-1 text-[11px] font-medium text-slate-200">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500 text-white shadow-md shadow-red-500/40 transition hover:bg-red-400">
+              <PhoneOff className="h-4 w-4" />
+            </span>
+            End call
+          </button>
+        </div>
+        <div className="mt-3">
+          <CallRecordingControls callId={call.callLogId} />
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -29,7 +101,7 @@ export default function IncomingCallCenter() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
   const { incomingCalls, activeCall, callNotice } = useCommStore();
-  const { answerInbound, hangup, toggleMute } = useTelnyxRTC();
+  const { answerInbound, hangup, toggleMute, toggleHold, sendDigit } = useTelnyxRTC();
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -47,6 +119,8 @@ export default function IncomingCallCenter() {
       await answerInbound(call._id, {
         phoneNumber: call.from,
         displayName: call.customerName || call.from,
+        fromNumber: call.to,
+        lineLabel: call.lineLabel,
       });
     } catch (err: any) {
       const code = err?.response?.status;
@@ -141,60 +215,7 @@ export default function IncomingCallCenter() {
         ))}
       </div>
 
-      {/* ------------------------- active call bar ------------------------ */}
-      {activeCall && (
-        <div className="fixed inset-x-0 bottom-4 z-[9991] flex justify-center px-4">
-          <div className="flex w-full max-w-md flex-wrap items-center gap-3 rounded-2xl border border-cyan-400/30 bg-slate-950/95 px-4 py-3 text-white shadow-2xl shadow-cyan-500/20 backdrop-blur">
-            <span
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                activeCall.phase === "active"
-                  ? "bg-gradient-to-br from-emerald-500 to-cyan-500"
-                  : "bg-slate-700"
-              }`}
-            >
-              <Phone className="h-4 w-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
-                {activeCall.displayName || activeCall.phoneNumber}
-              </p>
-              <p className="text-xs text-slate-300">
-                {activeCall.phase === "active" ? (
-                  <CallTimer startedAt={activeCall.startedAt} />
-                ) : activeCall.phase === "ringing" ? (
-                  "Ringing…"
-                ) : (
-                  "Connecting…"
-                )}
-                <span className="ml-1.5 text-slate-400">
-                  · {activeCall.kind === "inbound" ? "inbound" : "outbound"}
-                </span>
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={toggleMute}
-              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 ${
-                activeCall.muted
-                  ? "border-amber-400/50 bg-amber-500/20 text-amber-300"
-                  : "border-white/15 bg-white/5 text-slate-200 hover:bg-white/10"
-              }`}
-              aria-label={activeCall.muted ? "Unmute microphone" : "Mute microphone"}
-            >
-              {activeCall.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={hangup}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-md shadow-red-500/40 transition hover:bg-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
-              aria-label="End call"
-            >
-              <PhoneOff className="h-4 w-4" />
-            </button>
-            <CallRecordingControls callId={activeCall.callLogId} />
-          </div>
-        </div>
-      )}
+      {activeCall && <CallWindow key={activeCall.clientCallId || activeCall.callLogId || activeCall.phoneNumber} call={activeCall} onHangup={hangup} onMute={toggleMute} onHold={toggleHold} onDigit={sendDigit} />}
 
       <style jsx global>{`
         @keyframes commRing {

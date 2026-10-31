@@ -7,7 +7,7 @@
  */
 
 import * as React from "react";
-import { Search, ChevronLeft, ChevronRight, Inbox, CheckSquare, TriangleAlert } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Inbox, CheckSquare, Phone, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "./atomic/Avatar";
 import { STATUS_CONFIG } from "./atomic/StatusPill";
@@ -15,6 +15,7 @@ import { SupraLeoReadButton } from "@/components/supra-leo-ai/SupraLeoReadButton
 import { useTeamMembers } from "@/hooks/useTeamPulse";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { MDT_TZ, isTodayMDT } from "@/lib/timezone";
+import type { ActiveLeadCall } from "@/hooks/useActiveCalls";
 
 interface LeadsListProps {
   leads: any[];
@@ -40,6 +41,7 @@ interface LeadsListProps {
   headerAction?: React.ReactNode;
   topContent?: React.ReactNode;
   focusLeadId?: string | null;
+  activeCalls?: Map<string, ActiveLeadCall>;
 }
 
 const listTime = (value: any) => {
@@ -195,6 +197,7 @@ export const LeadsList = React.memo(
     headerAction,
     topContent,
     focusLeadId = null,
+    activeCalls,
   }: LeadsListProps) => {
     const rangeStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const rangeEnd = Math.min(currentPage * itemsPerPage, total);
@@ -400,6 +403,13 @@ export const LeadsList = React.memo(
                             title={identifier}
                           >
                             {identifier}
+                          </p>
+                        )}
+
+                        {activeCalls?.has(lead._id) && (
+                          <p className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            <Phone className="h-3 w-3 shrink-0 motion-safe:animate-pulse" />
+                            Call in Progress...
                           </p>
                         )}
 

@@ -304,7 +304,7 @@ export function PhoneNumbersPanel() {
         </p>
       ) : (
         <>
-          {suggestion && !editing && (
+          {suggestion && !hasMain && !editing && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
               <p className="min-w-0 text-sm">
                 Your current Suprah number <span className="font-semibold">{formatSmsRecipient(suggestion.number) || suggestion.number}</span>{" "}isn&apos;t in this list yet.

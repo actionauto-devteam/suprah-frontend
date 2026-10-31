@@ -422,8 +422,8 @@ export function InboundCallsTab() {
       await dial(number, { displayName: name })
       setCallMode("outbound")
       addToast("success", `Dialing ${name || number}`)
-    } catch {
-      addToast("error", "Couldn't start the call")
+    } catch (error) {
+      addToast("error", (error as { userMessage?: string })?.userMessage || "Couldn't start the call")
     }
   }
 

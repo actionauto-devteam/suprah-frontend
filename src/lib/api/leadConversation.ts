@@ -13,7 +13,23 @@ export interface ConversationItem {
   subject?: string;
   author: { name: string; kind: "customer" | "staff" | "ai" | "system"; userId?: string | null };
   status?: { code: DeliveryCode; label: string; failureMessage?: string; errorDetail?: string };
-  call?: { status: string; label: string; durationSec?: number | null; answeredBy?: string | null };
+  call?: {
+    id: string;
+    status: string;
+    label: string;
+    live: boolean;
+    durationSec?: number | null;
+    answeredBy?: string | null;
+    placedBy?: string | null;
+    number?: string | null;
+    customerNumber?: string | null;
+    lineLabel?: string | null;
+    selectedOption?: string | null;
+    startedAt?: string | null;
+    answeredAt?: string | null;
+    endedAt?: string | null;
+    recording?: { id: string; state: string } | null;
+  };
   inquiry?: {
     isOriginal: boolean;
     kind: string;

@@ -16,15 +16,13 @@ import {
   Link2,
   MessageCircle,
   Paperclip,
-  PhoneIncoming,
-  PhoneOutgoing,
-  PhoneMissed,
   RefreshCw,
   ShieldAlert,
 } from "lucide-react";
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
+import { CallCard } from "./CallCard";
 import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
 import { CombineNotice, EarlierConversations } from "./EarlierConversations";
@@ -46,6 +44,7 @@ interface ConversationViewProps {
   onCombineUndone?: () => void;
   onBack?: () => void;
   onShowDetails?: () => void;
+  onCall?: () => void;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -64,13 +63,6 @@ const channelOf = (
   if (message?.fromTimeline) return "";
   const leadChannel = String(lead?.channel || "").toLowerCase();
   return leadChannel === "webchat" ? "webchat" : "";
-};
-
-const formatDuration = (seconds?: number | null) => {
-  if (!seconds || seconds <= 0) return "";
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return minutes ? `${minutes} min${rest ? ` ${rest} sec` : ""}` : `${rest} sec`;
 };
 
 interface InquiryField {
@@ -589,6 +581,7 @@ export function ConversationView({
   onCombineUndone,
   onBack,
   onShowDetails,
+  onCall,
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -685,12 +678,28 @@ export function ConversationView({
     </button>
   );
 
+  const callButton = onCall && lead?.phone && (
+    <button
+      type="button"
+      onClick={onCall}
+      className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-500/20 dark:text-emerald-300"
+      title={`Call ${getLeadName(lead)}`}
+      aria-label={`Call ${getLeadName(lead)}`}
+    >
+      <Phone className="h-4 w-4" />
+      <span className="max-sm:hidden">Call</span>
+    </button>
+  );
+
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
-      {hideConversationChrome && (backButton || detailsButton) && (
+      {hideConversationChrome && (backButton || detailsButton || callButton) && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-40 flex items-start justify-between gap-2">
           <div className="pointer-events-auto shrink-0">{backButton}</div>
-          <div className="pointer-events-auto shrink-0">{detailsButton}</div>
+          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+            {callButton}
+            {detailsButton}
+          </div>
         </div>
       )}
       {!hideConversationChrome && (
@@ -744,6 +753,7 @@ export function ConversationView({
             </button>
           )}
 
+          {callButton}
           {detailsButton}
 
           {!onBack && (
@@ -889,31 +899,17 @@ export function ConversationView({
                   message?.messageId ||
                   `${lead?._id}-${index}`;
 
-                if (message?.timelineKind === "call") {
-                  const missed = ["missed", "failed", "canceled"].includes(String(message?.call?.status || ""));
-                  const CallIcon = missed ? PhoneMissed : outbound ? PhoneOutgoing : PhoneIncoming;
-                  const duration = formatDuration(message?.call?.durationSec);
+                if (message?.timelineKind === "call" && message?.call) {
                   return (
                     <React.Fragment key={key}>
                       {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                      <div className="flex justify-center">
-                        <div
-                          className={cn(
-                            "flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[12px]",
-                            missed
-                              ? "border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300"
-                              : "border-slate-200 bg-white text-slate-600 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300",
-                          )}
-                        >
-                          <CallIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {outbound ? "Outgoing call" : "Incoming call"} · {message?.call?.label || "Call"}
-                            {duration ? ` · ${duration}` : ""}
-                            {message?.call?.answeredBy ? ` · ${message.call.answeredBy}` : ""}
-                          </span>
-                          <span className="shrink-0 text-[11px] opacity-70">{formatTimestamp(stamp)}</span>
-                        </div>
-                      </div>
+                      <CallCard
+                        call={message.call}
+                        outbound={outbound}
+                        customerName={getLeadName(lead)}
+                        timeLabel={formatTimestamp(stamp)}
+                        onChanged={onRetryLoad}
+                      />
                     </React.Fragment>
                   );
                 }

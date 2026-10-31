@@ -180,7 +180,9 @@ export default function CommunicationPanel({
 
   const startCall = () => {
     if (!customerPhone || activeCall) return;
-    dial(customerPhone, { customerId, displayName: customerName });
+    dial(customerPhone, { customerId, displayName: customerName }).catch((err) => {
+      commActions.showCallNotice(err?.userMessage || "Couldn't start the call.");
+    });
   };
 
   /* ------------------------------ day groups ----------------------------- */
