@@ -89,6 +89,12 @@ const latestActivity = (lead: LeadActivitySource) => {
   return latest > created + 60000 ? latest : 0;
 };
 
+const lastCustomerTime = (lead: LeadActivitySource) => {
+  const created = new Date(lead?.createdAt || 0).getTime();
+  const customer = new Date(lead?.followUp?.lastCustomerActivityAt || 0).getTime();
+  return Number.isFinite(customer) && customer > created ? customer : lead?.createdAt;
+};
+
 const leadName = (lead: any) =>
   [lead?.firstName, lead?.lastName].filter(Boolean).join(" ") ||
   lead?.senderName ||
@@ -385,7 +391,7 @@ export const LeadsList = React.memo(
                             {leadName(lead)}
                           </p>
                           <time className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
-                            {listTime(lead?.createdAt)}
+                            {listTime(lastCustomerTime(lead))}
                           </time>
                         </div>
 

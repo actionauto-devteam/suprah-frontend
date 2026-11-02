@@ -562,6 +562,8 @@ function CalendarNotificationsGate({ children }: { children: React.ReactNode }) 
   );
 }
 
+const RINGING_RECHECK_MS = 4000;
+
 function CommunicationSocketGate({
   enabled,
   children,
@@ -584,9 +586,16 @@ function CommunicationSocketGate({
     const stopRecovery = onCommunicationReconnect(recoverRingingCalls);
     const stopWatching = onSocketChange((next) => connectCommunicationSocket(next, orgId));
     if (socket) connectCommunicationSocket(socket, orgId);
+    const recheckWhenVisible = () => {
+      if (document.visibilityState === "visible") recoverRingingCalls();
+    };
+    const recheck = window.setInterval(recheckWhenVisible, RINGING_RECHECK_MS);
+    document.addEventListener("visibilitychange", recheckWhenVisible);
     return () => {
       stopRecovery();
       stopWatching();
+      window.clearInterval(recheck);
+      document.removeEventListener("visibilitychange", recheckWhenVisible);
     };
   }, [enabled, socket, orgId]);
 

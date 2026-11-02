@@ -85,6 +85,8 @@ import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
 import { ReschedulePickerDialog } from "@/components/leads/ReschedulePickerDialog";
 import { Appointment } from "@/types/appointment";
 import { AddLeadModal } from "@/components/leads/AddLeadModal";
+import { NewLeadMenu, type NewLeadAction } from "@/components/leads/NewLeadMenu";
+import { BulkTextDialog } from "@/components/leads/BulkTextDialog";
 import { ClosedLeadComposer } from "@/components/leads/ClosedLeadComposer";
 import { LeadReviewDialog } from "@/components/leads/LeadReviewDialog";
 import { LinkLeadDialog } from "@/components/leads/LinkLeadDialog";
@@ -236,10 +238,11 @@ const isEmailLead = (lead: Lead | null | undefined): boolean => {
   return Boolean(lead.email);
 };
 
-type LeadSortOption = "newest" | "oldest" | "waiting_longest";
+type LeadSortOption = "latest_activity" | "newest" | "oldest" | "waiting_longest";
 
-const LEAD_SORT_STORAGE_KEY = "crm-leads-sort";
+const LEAD_SORT_STORAGE_KEY = "crm-leads-sort-activity";
 const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
+  { value: "latest_activity", label: "Recent" },
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
   { value: "waiting_longest", label: "Longest waiting" },
@@ -330,11 +333,11 @@ export function LeadsTab({
   // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
   const [activeStatusCategory, setActiveStatusCategory] = React.useState<LeadStatusCategory | null>(null);
-  const [sortBy, setSortBy] = React.useState<LeadSortOption>("newest");
+  const [sortBy, setSortBy] = React.useState<LeadSortOption>("latest_activity");
   React.useEffect(() => {
     try {
       const saved = window.sessionStorage.getItem(LEAD_SORT_STORAGE_KEY);
-      if (saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
+      if (saved === "newest" || saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
     } catch {}
   }, []);
   React.useEffect(() => {
@@ -802,6 +805,8 @@ export function LeadsTab({
   const [isSending, setIsSending] = React.useState(false);
   const [apptOpen, setApptOpen] = React.useState(false);
   const [addLeadOpen, setAddLeadOpen] = React.useState(false);
+  const [newAction, setNewAction] = React.useState<NewLeadAction | null>(null);
+  const [addLeadMode, setAddLeadMode] = React.useState<"scan" | "message">("scan");
   const [isLoadingReschedule, setIsLoadingReschedule] = React.useState(false);
   const [reschedulePickerOpen, setReschedulePickerOpen] = React.useState(false);
   const [rescheduleCandidates, setRescheduleCandidates] = React.useState<Appointment[]>([]);
@@ -1787,6 +1792,25 @@ export function LeadsTab({
     else setPendingLeadId(leadId);
   };
 
+  const handleNewAction = (action: NewLeadAction) => {
+    if (action === "scan" || action === "sms") {
+      setAddLeadMode(action === "scan" ? "scan" : "message");
+      setAddLeadOpen(true);
+      return;
+    }
+    setNewAction(action);
+  };
+
+  const closeNewAction = (open: boolean) => {
+    if (!open) setNewAction(null);
+  };
+
+  const openLeadInChannel = (leadId: string, channel: ComposerChannel) => {
+    chooseReplyChannel(leadId, channel);
+    openLeadById(leadId);
+    void refetch();
+  };
+
   const handleSend = async (
     attachments: File[] = [],
   ) => {
@@ -2455,12 +2479,12 @@ export function LeadsTab({
           },
         }]
       : []),
-    ...(isMobile && sortBy !== "newest"
+    ...(isMobile && sortBy !== "latest_activity"
       ? [{
           key: "sort",
           label: `Sort: ${LEAD_SORT_OPTIONS.find((option) => option.value === sortBy)?.label || sortBy}`,
           onRemove: () => {
-            setSortBy("newest");
+            setSortBy("latest_activity");
             setCurrentPage(1);
           },
         }]
@@ -2474,7 +2498,7 @@ export function LeadsTab({
     handleClearDateFilter();
     setLocationFilter(null);
     setAssigneeFilterId(null);
-    if (isMobile) setSortBy("newest");
+    if (isMobile) setSortBy("latest_activity");
     setCurrentPage(1);
     setSelectedLead(null);
   };
@@ -2592,15 +2616,7 @@ export function LeadsTab({
               />
             </div>
 
-            <button
-              onClick={() => setAddLeadOpen(true)}
-              className="ss4-pill-btn flex h-9 w-9 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-8 lg:w-auto lg:gap-1.5 lg:px-2.5"
-              title="Add Lead"
-              aria-label="Add Lead"
-            >
-              <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden lg:inline">Add Lead</span>
-            </button>
+            <NewLeadMenu onSelect={handleNewAction} />
 
             {((reviewSummary?.pending || 0) > 0 || reviewSummary?.canResolve) && (
               <button
@@ -2886,7 +2902,7 @@ export function LeadsTab({
                             }}
                             sort={{
                               value: sortBy,
-                              defaultValue: "newest",
+                              defaultValue: "latest_activity",
                               options: LEAD_SORT_OPTIONS,
                               onChange: (value) => {
                                 setSortBy(value as LeadSortOption);
@@ -2914,9 +2930,11 @@ export function LeadsTab({
                               }}
                               aria-label="Sort conversations"
                             >
-                              <option value="newest">Newest</option>
-                              <option value="oldest">Oldest</option>
-                              <option value="waiting_longest">Longest waiting</option>
+                              {LEAD_SORT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
                             </select>
                             <ChevronDown
                               className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
@@ -2982,7 +3000,6 @@ export function LeadsTab({
                     onClose={() => setSelectedLead(null)}
                     onBack={viewportMode !== "wide" ? () => setSelectedLead(null) : undefined}
                     onShowDetails={!showLeadDetails ? () => setShowLeadDetails(true) : undefined}
-                    onCall={() => setDialerOpen(true)}
                     sourceEmail={LEADS_SOURCE_EMAIL}
                     siblingCount={
                       (selectedLead.vehicle as any)?.stock
@@ -3279,7 +3296,15 @@ export function LeadsTab({
         </ConversationWorkspace>
       )}
 
-      <AddLeadModal isOpen={addLeadOpen} onOpenChange={setAddLeadOpen} />
+      <AddLeadModal
+        isOpen={addLeadOpen}
+        onOpenChange={setAddLeadOpen}
+        startWithScan={addLeadMode === "scan"}
+        mode={addLeadMode === "message" ? "message" : "add"}
+        onOpenLead={openLeadInChannel}
+      />
+      <DialPadDialog open={newAction === "call"} onOpenChange={closeNewAction} />
+      <BulkTextDialog open={newAction === "bulk"} onOpenChange={closeNewAction} onSent={() => void refetch()} />
       <DialPadDialog
         open={dialerOpen}
         onOpenChange={setDialerOpen}

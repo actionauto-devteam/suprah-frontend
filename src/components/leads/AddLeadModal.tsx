@@ -18,11 +18,22 @@ import { useAuth } from "@/providers/AuthProvider"
 import { Loader2, ScanBarcode } from "lucide-react"
 import { isAxiosError } from "axios"
 import { DriverLicenseScanDialog, type LicenseAppliedValues } from "@/components/leads/DriverLicenseScanDialog"
+import { formatSmsRecipient, type ComposerChannel } from "@/lib/api/leadComposer"
+import { last10 } from "@/lib/phoneDialing"
 
 interface AddLeadModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  startWithScan?: boolean
+  mode?: "add" | "message"
+  onOpenLead?: (leadId: string, channel: ComposerChannel) => void
 }
+
+type ContactLead = { _id: string; firstName?: string; lastName?: string; phone?: string; email?: string; status?: string }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const contactName = (lead: ContactLead) => [lead.firstName, lead.lastName].filter(Boolean).join(" ").trim() || "No name"
 
 type PossibleMatch = {
   kind: "lead" | "customer"
@@ -38,7 +49,7 @@ type PossibleMatch = {
 const matchLabel = (match: PossibleMatch) =>
   match.sameAddress === true ? "Same name and address" : match.sameAddress === false ? "Same name, different address" : "Same name"
 
-export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
+export function AddLeadModal({ isOpen, onOpenChange, startWithScan = false, mode = "add", onOpenLead }: AddLeadModalProps) {
   const { getToken } = useAuth()
 
   const [firstName, setFirstName] = React.useState("")
@@ -56,6 +67,8 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vehicleLocations, setVehicleLocations] = React.useState<string[]>([])
   const [matchResult, setMatchResult] = React.useState<{ key: string; matches: PossibleMatch[] } | null>(null)
+  const [contactResult, setContactResult] = React.useState<{ key: string; leads: ContactLead[] } | null>(null)
+  const messaging = mode === "message"
 
   const matchFirst = firstName.trim()
   const matchLast = lastName.trim()
@@ -115,6 +128,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         setScanOpen(false)
         setScanApplied(false)
         setMatchResult(null)
+        setContactResult(null)
         setVehicleYear("")
         setVehicleMake("")
         setVehicleModel("")
@@ -125,7 +139,53 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
     }
   }, [isOpen])
 
-  const isValid = firstName.trim() && (email.trim() || phone.trim())
+  React.useEffect(() => {
+    if (isOpen && startWithScan) setScanOpen(true)
+  }, [isOpen, startWithScan])
+
+  const trimmedEmail = email.trim()
+  const trimmedPhone = phone.trim()
+  const phoneDigits = trimmedPhone.replace(/\D/g, "")
+  const phoneOk = !trimmedPhone || phoneDigits.length === 10 || (phoneDigits.length === 11 && phoneDigits.startsWith("1"))
+  const emailOk = !trimmedEmail || EMAIL_PATTERN.test(trimmedEmail)
+  const hasContact = Boolean(trimmedEmail || trimmedPhone)
+  const isValid = Boolean(firstName.trim()) && hasContact && phoneOk && emailOk
+
+  const phoneKey = messaging && trimmedPhone && phoneOk ? last10(trimmedPhone) : ""
+  const emailKey = messaging && trimmedEmail && emailOk ? trimmedEmail.toLowerCase() : ""
+  const contactKey = `${phoneKey}|${emailKey}`
+  const contactMatches = contactResult?.key === contactKey ? contactResult.leads : []
+
+  React.useEffect(() => {
+    if (!isOpen || (!phoneKey && !emailKey)) return
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      const found = new Map<string, ContactLead>()
+      for (const key of [phoneKey, emailKey].filter(Boolean)) {
+        try {
+          const token = await getToken()
+          const res = await apiClient.get("/api/leads", {
+            params: { search: key, limit: 10, page: 1 },
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const leads: ContactLead[] = res.data?.data?.leads || []
+          leads
+            .filter((lead) => (key === phoneKey ? last10(lead.phone || "") === phoneKey : (lead.email || "").trim().toLowerCase() === emailKey))
+            .forEach((lead) => found.set(lead._id, lead))
+        } catch {}
+      }
+      if (!cancelled) setContactResult({ key: contactKey, leads: Array.from(found.values()).slice(0, 5) })
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [isOpen, phoneKey, emailKey, contactKey, getToken])
+
+  const openExisting = (lead: ContactLead) => {
+    onOpenChange(false)
+    onOpenLead?.(lead._id, phoneKey && last10(lead.phone || "") === phoneKey ? "sms" : "email")
+  }
 
   const applyLicenseScan = (values: LicenseAppliedValues) => {
     if (values.firstName !== undefined) setFirstName(values.firstName)
@@ -140,7 +200,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
 
     try {
       const token = await getToken()
-      await apiClient.post(
+      const res = await apiClient.post(
         "/api/leads/",
         {
           firstName: firstName.trim(),
@@ -159,6 +219,8 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
       )
       toast.success("Lead added")
       onOpenChange(false)
+      const createdId: string | undefined = res.data?.data?._id
+      if (messaging && createdId) onOpenLead?.(createdId, trimmedPhone ? "sms" : "email")
     } catch (err: unknown) {
       const msg = (isAxiosError<{ message?: string }>(err) ? err.response?.data?.message : undefined) || "Something went wrong. Please try again."
       toast.error(msg)
@@ -171,8 +233,12 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-md max-h-[calc(90dvh)] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Lead</DialogTitle>
-          <DialogDescription>Manually add a customer to the CRM.</DialogDescription>
+          <DialogTitle>{messaging ? "Message a customer" : "Add Lead"}</DialogTitle>
+          <DialogDescription>
+            {messaging
+              ? "Add the customer's details, then write your message in their conversation."
+              : "Manually add a customer to the CRM."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
@@ -232,7 +298,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="add-lead-first-name">First name</Label>
+              <Label htmlFor="add-lead-first-name">First name *</Label>
               <Input
                 id="add-lead-first-name"
                 value={firstName}
@@ -252,25 +318,79 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="add-lead-email">Email</Label>
+            <Label htmlFor="add-lead-email">{trimmedPhone ? "Email (optional)" : "Email *"}</Label>
             <Input
               id="add-lead-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="jordan@example.com"
+              aria-invalid={!emailOk}
             />
+            {!emailOk && (
+              <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                Enter a full email address.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="add-lead-phone">Phone</Label>
+            <Label htmlFor="add-lead-phone">{trimmedEmail ? "Phone (optional)" : "Phone *"}</Label>
             <Input
               id="add-lead-phone"
+              type="tel"
+              inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(801) 555-0100"
+              aria-invalid={!phoneOk}
             />
+            {!phoneOk && (
+              <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                Enter a 10-digit phone number.
+              </p>
+            )}
+            {!hasContact && (
+              <p className="text-xs text-muted-foreground">Add a phone number, an email, or both.</p>
+            )}
           </div>
+
+          {contactMatches.length > 0 && (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-500/40 dark:bg-amber-950/30"
+            >
+              <p className="font-semibold text-amber-900 dark:text-amber-200">Already in your leads</p>
+              <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+                Open their conversation instead of adding them again.
+              </p>
+              <ul aria-label="Matching leads" className="mt-2 space-y-1.5">
+                {contactMatches.map((lead) => (
+                  <li
+                    key={lead._id}
+                    className="flex items-center justify-between gap-2 rounded-md bg-white/80 px-2.5 py-2 dark:bg-black/20"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">
+                        {contactName(lead)}
+                        {lead.status && <span className="font-normal text-muted-foreground"> · {lead.status}</span>}
+                      </p>
+                      <p className="truncate text-muted-foreground">
+                        {[formatSmsRecipient(lead.phone) || lead.phone, lead.email].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openExisting(lead)}
+                      className="inline-flex h-9 shrink-0 items-center rounded-md border bg-background px-3 font-medium text-foreground hover:bg-muted"
+                    >
+                      Open conversation
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="add-lead-address">Address</Label>
@@ -341,7 +461,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         </div>
 
         <Button onClick={handleSubmit} disabled={!isValid || isSubmitting} className="w-full">
-          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Lead"}
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : messaging ? "Add lead and open conversation" : "Add Lead"}
         </Button>
 
         <DriverLicenseScanDialog
@@ -349,7 +469,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
           onOpenChange={setScanOpen}
           current={{ firstName, lastName, address }}
           onApply={applyLicenseScan}
-          saveHint="Nothing is saved until you press Add Lead."
+          saveHint={messaging ? "Nothing is saved until you press Add lead and open conversation." : "Nothing is saved until you press Add Lead."}
         />
       </DialogContent>
     </Dialog>

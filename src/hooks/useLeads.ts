@@ -100,7 +100,7 @@ interface UseLeadsOptions {
   search?: string
   status?: string | null
   statusGroup?: string | null
-  sortBy?: "newest" | "oldest" | "waiting_longest"
+  sortBy?: "latest_activity" | "newest" | "oldest" | "waiting_longest"
   assignedTo?: string | null
   location?: string | null
   source?: string | null
@@ -123,7 +123,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   search = '',
   status = null,
   statusGroup = null,
-  sortBy = 'newest',
+  sortBy = 'latest_activity',
   assignedTo = null,
   location = null,
   source = null,
