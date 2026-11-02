@@ -32,6 +32,7 @@ const TYPE_DOT_COLORS: Record<string, string> = {
   task: "bg-amber-500",
   reminder: "bg-violet-600",
   appointment: "bg-teal-600",
+  shipment: "bg-blue-700",
 };
 
 /**

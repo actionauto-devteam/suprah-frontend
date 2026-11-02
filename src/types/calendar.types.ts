@@ -3,7 +3,10 @@ export type CalendarItemType =
   | "task"
   | "reminder"
   | "meeting"
-  | "appointment";
+  | "appointment"
+  // Transportation's read-only pickup windows and delivery deadlines (see
+  // lib/calendar-shipments). Not offered when creating or filtering events.
+  | "shipment";
 
 /** Single source of truth for type labels — used by both the toolbar's Type filter and My Schedule's chip row so they can't drift out of sync. */
 export const CALENDAR_TYPE_OPTIONS: { value: CalendarItemType; label: string }[] = [
@@ -25,7 +28,7 @@ export interface CrmUserLite {
 
 export interface CalendarItem {
   id: string;
-  source: "calendarEvent" | "appointment";
+  source: "calendarEvent" | "appointment" | "shipment";
   type: CalendarItemType;
   title: string;
   description?: string;
@@ -47,7 +50,7 @@ export interface CalendarItem {
 
 export interface EventDraft {
   id?: string;
-  type: Exclude<CalendarItemType, "appointment">;
+  type: Exclude<CalendarItemType, "appointment" | "shipment">;
   title: string;
   description: string;
   start: string;
