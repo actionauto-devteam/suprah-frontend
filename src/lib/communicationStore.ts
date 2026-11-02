@@ -104,6 +104,7 @@ function saveDismissedCalls() {
   }
 }
 const ringingReceivedAt = new Map<string, number>();
+const ringingClosedAt = new Map<string, number>();
 
 const CALL_ENDED_NOTICES: Record<string, string> = {
   missed: "The call couldn't connect to your browser, so it was marked as missed.",
@@ -183,9 +184,11 @@ export const commActions = {
     let incoming = state.incomingCalls.filter((c) => c._id !== call._id);
     if (call.status === "ringing" && call.direction === "inbound" && !dismissedCalls.has(call._id)) {
       incoming = [call, ...incoming];
+      ringingClosedAt.delete(call._id);
       if (!ringingReceivedAt.has(call._id)) ringingReceivedAt.set(call._id, Date.now());
     } else {
       ringingReceivedAt.delete(call._id);
+      ringingClosedAt.set(call._id, Date.now());
     }
 
     // per-customer history
@@ -214,8 +217,15 @@ export const commActions = {
   },
 
   replaceRinging(calls: CommCall[], requestedAt: number) {
+    Array.from(ringingClosedAt.entries()).forEach(([id, at]) => {
+      if (Date.now() - at > 120_000) ringingClosedAt.delete(id);
+    });
     const fromServer = calls.filter(
-      (call) => call.status === "ringing" && call.direction === "inbound" && !dismissedCalls.has(call._id)
+      (call) =>
+        call.status === "ringing" &&
+        call.direction === "inbound" &&
+        !dismissedCalls.has(call._id) &&
+        (ringingClosedAt.get(call._id) || 0) < requestedAt
     );
     const serverIds = new Set(fromServer.map((call) => call._id));
     const arrivedDuringRequest = state.incomingCalls.filter(
@@ -236,6 +246,13 @@ export const commActions = {
     dismissedCalls.add(callId);
     saveDismissedCalls();
     ringingReceivedAt.delete(callId);
+    setState({ incomingCalls: state.incomingCalls.filter((c) => c._id !== callId) });
+  },
+
+  removeIncoming(callId: string) {
+    ringingReceivedAt.delete(callId);
+    ringingClosedAt.set(callId, Date.now());
+    if (!state.incomingCalls.some((c) => c._id === callId)) return;
     setState({ incomingCalls: state.incomingCalls.filter((c) => c._id !== callId) });
   },
 
@@ -304,7 +321,7 @@ export function connectCommunicationSocket(socket: any, orgId: string) {
       if (mine(data) && data?.call) commActions.upsertCall(data.call);
     },
     "comm:call:removed": (data: { orgId?: string; callId?: string }) => {
-      if (mine(data) && data.callId) commActions.dismissIncoming(data.callId);
+      if (mine(data) && data.callId) commActions.removeIncoming(data.callId);
     },
     connect: () => {
       reconnectListeners.forEach((listener) => listener());

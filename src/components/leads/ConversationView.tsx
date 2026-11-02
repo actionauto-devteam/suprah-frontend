@@ -44,7 +44,6 @@ interface ConversationViewProps {
   onCombineUndone?: () => void;
   onBack?: () => void;
   onShowDetails?: () => void;
-  onCall?: () => void;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -581,7 +580,6 @@ export function ConversationView({
   onCombineUndone,
   onBack,
   onShowDetails,
-  onCall,
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -678,26 +676,12 @@ export function ConversationView({
     </button>
   );
 
-  const callButton = onCall && lead?.phone && (
-    <button
-      type="button"
-      onClick={onCall}
-      className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-500/20 dark:text-emerald-300"
-      title={`Call ${getLeadName(lead)}`}
-      aria-label={`Call ${getLeadName(lead)}`}
-    >
-      <Phone className="h-4 w-4" />
-      <span className="max-sm:hidden">Call</span>
-    </button>
-  );
-
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
-      {hideConversationChrome && (backButton || detailsButton || callButton) && (
+      {hideConversationChrome && (backButton || detailsButton) && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-40 flex items-start justify-between gap-2">
           <div className="pointer-events-auto shrink-0">{backButton}</div>
           <div className="pointer-events-auto flex shrink-0 items-center gap-2">
-            {callButton}
             {detailsButton}
           </div>
         </div>
@@ -753,7 +737,6 @@ export function ConversationView({
             </button>
           )}
 
-          {callButton}
           {detailsButton}
 
           {!onBack && (

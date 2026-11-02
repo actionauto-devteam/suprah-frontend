@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Grid3x3, Phone, PhoneOff, Mic, MicOff, Pause, Play, PhoneIncoming, Loader2 } from "lucide-react";
 import { useCommStore, commActions, type ActiveCallState } from "@/lib/communicationStore";
@@ -102,6 +102,13 @@ export default function IncomingCallCenter() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const { incomingCalls, activeCall, callNotice } = useCommStore();
   const { answerInbound, hangup, toggleMute, toggleHold, sendDigit } = useTelnyxRTC();
+  const onCall = Boolean(activeCall);
+  const focusRinging = useCallback(
+    (node: HTMLElement | null) => {
+      if (node && !onCall) node.focus({ preventScroll: true });
+    },
+    [onCall]
+  );
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -138,11 +145,7 @@ export default function IncomingCallCenter() {
 
   return createPortal(
     <>
-      {/* ------------------------- ringing toasts ------------------------- */}
-      <div
-        className="pointer-events-none fixed inset-x-0 top-4 z-[9990] flex flex-col items-center gap-2 px-4 sm:items-end sm:pr-6"
-        aria-live="polite"
-      >
+      <div className="pointer-events-none fixed inset-x-0 top-4 z-[9992] flex flex-col items-center gap-2 px-4" aria-live="polite">
         {claimError && (
           <div className="pointer-events-auto max-w-sm rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 shadow-lg dark:bg-amber-950/80 dark:text-amber-300" role="alert">
             {claimError}
@@ -154,66 +157,73 @@ export default function IncomingCallCenter() {
             {callNotice}
           </div>
         )}
-
-        {incomingCalls.map((call) => (
-          <div
-            key={call._id}
-            className="pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border border-emerald-400/30 bg-white shadow-2xl shadow-emerald-500/20 motion-safe:animate-[commRing_1.6s_ease-in-out_infinite] dark:border-emerald-400/25 dark:bg-slate-950/95 dark:backdrop-blur"
-            role="alertdialog"
-            aria-label={`Incoming call from ${call.customerName || call.from}`}
-          >
-            <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-emerald-500" />
-            <div className="flex items-center gap-3 p-4">
-              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/30">
-                <PhoneIncoming className="h-5 w-5" />
-                <span className="absolute inset-0 rounded-full border-2 border-emerald-400/50 motion-safe:animate-ping" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                  Incoming call
-                </p>
-                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {call.customerName || "Unknown caller"}
-                </p>
-                <p className="truncate text-xs text-slate-500 dark:text-slate-400">{call.from}</p>
-                {call.lineLabel && (
-                  <p className="break-words text-xs font-medium text-cyan-700 dark:text-cyan-400">Called {call.lineLabel}</p>
-                )}
-                {call.routing?.selectedLabel && (
-                  <p className="break-words text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                    {call.routing.selectedLabel}{call.routing.stage === 'reception' && call.routing.type !== 'language' ? ' - Reception' : ''}
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => answer(call)}
-                  disabled={claiming === call._id || Boolean(activeCall)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/40 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 disabled:opacity-50"
-                  aria-label="Answer call"
-                  title={activeCall ? "You're already on a call" : "Answer"}
-                >
-                  {claiming === call._id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Phone className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => commActions.dismissIncoming(call._id)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-                  aria-label="Dismiss (keep ringing for teammates)"
-                  title="Dismiss for me"
-                >
-                  <PhoneOff className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
+
+      {incomingCalls.length > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-[9990] flex items-center justify-center p-4">
+          {!onCall && <div aria-hidden="true" className="pointer-events-auto absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]" />}
+          <div className="relative flex max-h-full w-full max-w-sm flex-col gap-3 overflow-y-auto">
+            {incomingCalls.map((call, index) => {
+              const number = formatSmsRecipient(call.from) || call.from;
+              const name = call.customerName && call.customerName !== call.from ? call.customerName : "";
+              return (
+                <section
+                  key={call._id}
+                  ref={index === 0 ? focusRinging : undefined}
+                  tabIndex={-1}
+                  role="alertdialog"
+                  aria-modal={!onCall}
+                  aria-label={`Incoming call from ${name || number}`}
+                  className="pointer-events-auto shrink-0 overflow-hidden rounded-3xl border border-emerald-400/30 bg-white text-center shadow-2xl shadow-emerald-500/20 outline-none motion-safe:animate-[commRing_1.6s_ease-in-out_infinite] dark:border-emerald-400/25 dark:bg-slate-950"
+                >
+                  <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-emerald-500" />
+                  <div className="flex flex-col items-center px-6 pb-6 pt-7">
+                    <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/30">
+                      <PhoneIncoming className="h-7 w-7" />
+                      <span className="absolute inset-0 rounded-full border-2 border-emerald-400/50 motion-safe:animate-ping" />
+                    </span>
+                    <p className="mt-4 text-[11px] font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Incoming call</p>
+                    <p className="mt-1 max-w-full break-words text-xl font-semibold text-slate-900 dark:text-slate-100">{name || "Unknown caller"}</p>
+                    <p className="max-w-full break-words text-sm text-slate-500 dark:text-slate-400">{number}</p>
+                    {call.lineLabel && (
+                      <p className="mt-2 max-w-full break-words text-xs font-medium text-cyan-700 dark:text-cyan-400">Called {call.lineLabel}</p>
+                    )}
+                    {call.routing?.selectedLabel && (
+                      <p className="mt-1 max-w-full break-words text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        {call.routing.selectedLabel}{call.routing.stage === 'reception' && call.routing.type !== 'language' ? ' - Reception' : ''}
+                      </p>
+                    )}
+                    <div className="mt-6 grid w-full grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => commActions.dismissIncoming(call._id)}
+                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-red-500 px-4 text-sm font-semibold text-white shadow-md shadow-red-500/30 transition hover:bg-red-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                        aria-label="Decline call (keeps ringing for teammates)"
+                        title="Decline for me"
+                      >
+                        <PhoneOff className="h-4 w-4" />
+                        Decline
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => answer(call)}
+                        disabled={claiming === call._id || onCall}
+                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 text-sm font-semibold text-white shadow-md shadow-emerald-500/40 transition hover:bg-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 disabled:opacity-50"
+                        aria-label="Answer call"
+                        title={onCall ? "You're already on a call" : "Answer"}
+                      >
+                        {claiming === call._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                        Answer
+                      </button>
+                    </div>
+                    {onCall && <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">You&apos;re already on a call.</p>}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {activeCall && <CallWindow key={activeCall.clientCallId || activeCall.callLogId || activeCall.phoneNumber} call={activeCall} onHangup={hangup} onMute={toggleMute} onHold={toggleHold} onDigit={sendDigit} />}
 
