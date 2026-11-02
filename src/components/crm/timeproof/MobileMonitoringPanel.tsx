@@ -5,6 +5,7 @@ import { Anchor, Gauge, MapPin, Radio, Smartphone } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { fmtHuman, toMDTDate } from "@/components/crm/timeproof/shared"
+import { denverTzAbbr } from "@/lib/timezone"
 
 interface PhonePeriod {
   start: string
@@ -152,7 +153,7 @@ export function MobileMonitoringPanel({ userId, dateStr }: MobileMonitoringPanel
         <div className="flex items-center gap-2 border-b border-border/20 px-4 py-4 sm:px-5">
           <Smartphone className="h-4 w-4 text-teal-600" />
           <h2 className="text-[13px] font-black uppercase tracking-[0.18em] text-foreground">Phone Monitoring Periods</h2>
-          <span className="ml-auto text-[10px] text-muted-foreground/40">MDT</span>
+          <span className="ml-auto text-[10px] text-muted-foreground/40">{denverTzAbbr()}</span>
         </div>
         {periods.length === 0 ? (
           <div className="px-4 py-8 text-center text-[13px] text-muted-foreground sm:px-5">

@@ -34,6 +34,7 @@ export type NotificationType =
   | 'ai_technical_failures_alert'
   | 'lead_note_mention'
   | 'missed_call'
+  | 'lead_message'
   | 'new_lead'
   | 'lead_new_inquiry'
   | 'lead_inquiry_review'

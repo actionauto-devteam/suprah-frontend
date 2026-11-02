@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { apiClient } from "@/lib/api-client"
+import { toMDT } from "@/lib/timezone"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 
 // PART 1 - Department definitions + color tokens
@@ -65,7 +66,6 @@ export const DEPARTMENTS = [
 export type DepartmentKey = typeof DEPARTMENTS[number]["key"]
 type DayPulseAttachmentSection = "accomplishment" | "blockers" | "inProgress"
 const DAYPULSE_SECTION_MAX_LENGTH = 10000
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 type DayPulseTextFormat = "bold" | "italic" | "list" | "quote" | "code"
 type DayPulseFormatState = Record<DayPulseTextFormat, boolean>
 
@@ -159,7 +159,7 @@ const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 // retained only as an automatic retry path if the create response reports a
 // transient synchronization failure.
 const DAYPULSE_REPORT_ENDPOINT = '/api/supraspace/daypulse-report'
-const toMDTDate = (date: Date) => new Date(date.getTime() + MDT_OFFSET_MS)
+const toMDTDate = (date: Date) => toMDT(date)
 
 function toMDTDateKey(date: Date): string {
   const mdt = toMDTDate(date)

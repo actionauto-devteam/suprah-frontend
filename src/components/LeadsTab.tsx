@@ -1142,6 +1142,7 @@ export function LeadsTab({
 
       listen("lead:update", (data?: LiveLeadEvent) => {
         refetch();
+        void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
         scheduleSelectedRefresh(data?.leadId || data?._id);
       });
       listen("comm:call:incoming", (data?: LiveLeadEvent) => {

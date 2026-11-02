@@ -32,6 +32,7 @@ import { DashboardNotifications } from "@/components/crm/DashboardNotifications"
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { cn, resolveImageUrl } from "@/lib/utils";
+import { toMDT } from "@/lib/timezone";
 
 interface CrmUserData {
   _id: string;
@@ -43,8 +44,6 @@ interface CrmUserData {
   role: string;
 }
 
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000;
-const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS);
 
 function getGreeting(name: string) {
   const h = toMDT(new Date()).getUTCHours();

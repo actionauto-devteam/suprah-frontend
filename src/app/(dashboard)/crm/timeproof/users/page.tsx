@@ -22,6 +22,7 @@ import {
   Archive,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { toMDT } from "@/lib/timezone"
 import { useCrmUser } from "@/hooks/useCrmUser"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { initializeSocket } from "@/lib/socket.client"
@@ -149,11 +150,9 @@ const DEPARTMENT_KEY_BY_LABEL: Record<string, string> = {
   "Price Check": "PriceCheckTeam",
 }
 
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-
 const fmtTimeMDT = (iso: string | null | undefined) => {
   if (!iso) return "——"
-  return new Date(new Date(iso).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", {
+  return toMDT(iso).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,

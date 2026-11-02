@@ -37,6 +37,7 @@ import {
 import { Button } from "@/components/ui/button"
 import type { AxiosRequestConfig } from "axios"
 import { apiClient } from "@/lib/api-client"
+import { toMDT } from "@/lib/timezone"
 import { getActiveTrayToken, openTrayConnect, openTrayViaProtocol, openTrayWake, pushTokenToTray } from "@/lib/trayConnection"
 import { finishTrayConnection, recoverTray, type TrayRecoveryDeps, type TrayRecoveryPhase } from "@/lib/trayRecovery"
 import { useOrg } from "@/hooks/useOrg"
@@ -128,8 +129,7 @@ type ApiError = {
 type GaugeAccent = "emerald" | "amber" | "red" | "zinc"
 type LocatorSharingState = "sharing" | "paused_break" | "paused_manual" | "declined_permission" | "off_duty"
 
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
+const toMDTDate = (d: Date) => toMDT(d)
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000
 const OTHER_REASON_MIN_CHARS = 10

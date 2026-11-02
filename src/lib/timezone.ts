@@ -1,5 +1,30 @@
-export const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 export const MDT_TZ = 'America/Denver' as const
+
+export function denverOffsetMs(v: Date | string | number): number {
+  const date = v instanceof Date ? v : new Date(v)
+  const ms = date.getTime()
+  const values: Record<string, string> = {}
+  for (const part of mountainPartsFormatter.formatToParts(date)) {
+    if (part.type !== 'literal') values[part.type] = part.value
+  }
+  const wallClockAsUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour) % 24,
+    Number(values.minute),
+    Number(values.second),
+    0,
+  )
+  return wallClockAsUtc - (ms - (((ms % 1000) + 1000) % 1000))
+}
+
+const denverTzNameFormatter = new Intl.DateTimeFormat('en-US', { timeZone: MDT_TZ, timeZoneName: 'short' })
+
+export function denverTzAbbr(v: Date | string | number = new Date()): string {
+  const date = v instanceof Date ? v : new Date(v)
+  return denverTzNameFormatter.formatToParts(date).find((p) => p.type === 'timeZoneName')?.value ?? 'MT'
+}
 
 /**
  * Shifts a Date so its UTC clock equals the MDT wall-clock time.
@@ -7,9 +32,9 @@ export const MDT_TZ = 'America/Denver' as const
  * Do NOT use with date-fns format() — that function uses the browser's local
  * timezone and will produce wrong results.
  */
-export function toMDT(d: Date | string): Date {
-  const date = typeof d === 'string' ? new Date(d) : d
-  return new Date(date.getTime() + MDT_OFFSET_MS)
+export function toMDT(d: Date | string | number): Date {
+  const date = d instanceof Date ? d : new Date(d)
+  return new Date(date.getTime() + denverOffsetMs(date))
 }
 
 // ── MDT-correct locale helpers (work regardless of browser timezone) ──────────

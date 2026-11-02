@@ -28,7 +28,7 @@ export interface ConversationItem {
     startedAt?: string | null;
     answeredAt?: string | null;
     endedAt?: string | null;
-    recording?: { id: string; state: string } | null;
+    recording?: { id: string; state: string; employeeId?: string | null; kind?: "call" | "voicemail"; listenerIds?: string[]; openToAllStaff?: boolean; summaryReady?: boolean } | null;
   };
   inquiry?: {
     isOriginal: boolean;
