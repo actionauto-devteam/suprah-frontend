@@ -17,6 +17,8 @@ interface VehicleDetailsModalProps {
   onInquiryClick: (vehicle: Vehicle) => void;
   onApplyNow: (vehicle: Vehicle) => void;
   onCreateLoad?: (vehicle: Vehicle) => void;
+  /** Extra staff actions in the details (Inventory's Change status). */
+  staffActions?: React.ReactNode;
   shippingQuote?: number | null;
   onBookTestDrive?: () => void;
   isComparing?: boolean;
@@ -51,6 +53,7 @@ export function VehicleDetailsModal({
   onInquiryClick,
   onApplyNow,
   onCreateLoad,
+  staffActions,
   shippingQuote,
   onBookTestDrive,
   isComparing,
@@ -280,6 +283,7 @@ export function VehicleDetailsModal({
             onInquiryClick={onInquiryClick}
             onApplyNow={onApplyNow}
             onCreateLoad={onCreateLoad}
+            staffActions={staffActions}
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}
             compactHeader
@@ -332,6 +336,7 @@ export function VehicleDetailsModal({
             onInquiryClick={onInquiryClick}
             onApplyNow={onApplyNow}
             onCreateLoad={onCreateLoad}
+            staffActions={staffActions}
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}
             compactHeader

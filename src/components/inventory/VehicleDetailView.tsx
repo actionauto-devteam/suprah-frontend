@@ -58,6 +58,8 @@ interface VehicleDetailViewProps {
   onBookTestDrive?: () => void;
   isComparing?: boolean;
   onToggleCompare?: (vehicleId: string) => void;
+  /** Extra staff actions shown after Create Managed Load (Inventory's Change status). */
+  staffActions?: React.ReactNode;
 }
 
 function cleanDescription(text: string, v?: Vehicle): string {
@@ -589,6 +591,7 @@ export function VehicleDetailView({
   onBookTestDrive,
   isComparing,
   onToggleCompare,
+  staffActions,
 }: VehicleDetailViewProps) {
   const { userRole, isSuperAdmin, organization } = useOrg();
   const isAdmin =
@@ -984,6 +987,7 @@ export function VehicleDetailView({
                   Create Managed Load
                 </Button>
               )}
+              {staffActions}
               {onQuoteClick && (
                 <Button
                   variant="outline"
@@ -1614,6 +1618,7 @@ export function VehicleDetailView({
                   <TruckIcon className="h-4 w-4" /> Create Managed Load
                 </Button>
               )}
+              {staffActions}
               {onQuoteClick && (
                 <Button
                   size="lg"

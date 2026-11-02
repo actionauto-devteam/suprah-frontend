@@ -7,6 +7,8 @@ import { CarInventoryCard, preloadInventoryVehicleImages } from "@/components/ca
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
 import { DeferredInventoryModal } from "@/components/inventory/DeferredInventoryModal";
 import { VehicleShippingTag } from "@/components/inventory/VehicleShippingTag";
+import { VehicleStatusControl } from "@/components/inventory/VehicleStatusControl";
+import { isVehicleOnTheWay } from "@/lib/vehicle-status";
 import { getVehicleShipping } from "@/lib/api/vehicleShipping";
 import { checkableVins, inventoryShippingStates, type VehicleShippingResult } from "@/lib/vehicle-shipping";
 import { toast } from "sonner";
@@ -1453,6 +1455,22 @@ function InventoryContent() {
           onInquiryClick={handleCheckAvailability}
           onApplyNow={handleApplyNow}
           onCreateLoad={handleCreateLoad}
+          staffActions={
+            // Archived cars stay off the marketplace whatever their status, so no change here.
+            !isCustomer && selectedVehicle && inventoryView !== "archived" ? (
+              <VehicleStatusControl
+                key={selectedVehicle.id}
+                vehicle={selectedVehicle}
+                onTheWay={isVehicleOnTheWay(shippingStates.get(selectedVehicle.id))}
+                className="min-h-10 h-auto whitespace-normal px-2 py-2 text-xs font-semibold"
+                onChanged={(status) => {
+                  // Shows the new status in the open window, then refreshes the list.
+                  handleVehicleClick({ ...selectedVehicle, status });
+                  void fetchVehicles(false);
+                }}
+              />
+            ) : undefined
+          }
           shippingQuote={
             selectedVehicle ? shippingRates[selectedVehicle.id] : null
           }
