@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, RefreshCw, Download, TrendingUp, Lock } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useCrmUser } from "@/hooks/useCrmUser"
-import { fmtHHMM, toDateStr, MDT_OFFSET_MS } from "@/components/crm/timeproof/shared"
+import { fmtHHMM, toDateStr, toMDTDate } from "@/components/crm/timeproof/shared"
 import { cn } from "@/lib/utils"
 
 interface OvertimeRow {
@@ -22,7 +22,7 @@ interface OvertimeRow {
 // the real "now" instant so toDateStr only shifts once, not twice.
 function getDefaultWeekStart(): string {
   const now = new Date()
-  const mdtNow = new Date(now.getTime() + MDT_OFFSET_MS)
+  const mdtNow = toMDTDate(now)
   const dayOfWeek = mdtNow.getUTCDay() // 0 = Sunday
   const sundayReal = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000)
   return toDateStr(sundayReal)

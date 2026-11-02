@@ -10,6 +10,8 @@ import { DIAL_KEYS } from "@/lib/phoneDialing";
 import { CallRecordingControls } from './CallRecordingControls';
 import { CallTimer } from './CallTimer';
 
+const RINGTONE_SRC = "/sounds/ringtone.wav";
+
 function CallControl({ label, active, disabled, onClick, children }: { label: string; active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} className="flex min-w-0 flex-col items-center gap-1 text-[11px] font-medium text-slate-200 disabled:opacity-40">
@@ -110,7 +112,21 @@ export default function IncomingCallCenter() {
     [onCall]
   );
 
+  const ringing = incomingCalls.length > 0 && !onCall;
+
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (!ringing) return;
+    const tone = new Audio(RINGTONE_SRC);
+    tone.loop = true;
+    tone.volume = 0.7;
+    void tone.play().catch(() => undefined);
+    return () => {
+      tone.pause();
+      tone.removeAttribute("src");
+      tone.load();
+    };
+  }, [ringing]);
   useEffect(() => {
     if (!callNotice) return;
     const timer = setTimeout(() => commActions.clearCallNotice(), 6000);

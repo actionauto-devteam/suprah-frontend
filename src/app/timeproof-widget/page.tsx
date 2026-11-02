@@ -7,15 +7,11 @@ import { isMobileMonitoringDept } from "@/lib/departments"
 import { cn } from "@/lib/utils"
 import { useAlert } from "@/components/AlertDialog"
 import { geolocation } from "@/lib/geolocation";
+import { toMDT } from "@/lib/timezone"
 
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000 // company timezone, matches backend COMPANY_TZ_OFFSET_MINUTES
-
 function fmtMdtTime(iso: string) {
-  // Shift into MDT, then format with timeZone: "UTC" so the shifted value is
-  // displayed as-is regardless of the viewer's own device timezone — mirrors
-  // fmt()/toMDTDate() in the main timeproof-clock page.
-  const mdt = new Date(new Date(iso).getTime() + MDT_OFFSET_MS)
+  const mdt = toMDT(iso)
   return mdt.toLocaleTimeString("en-US", {
     hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC",
   })

@@ -6,9 +6,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-const toMDT = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
+import { toMDT } from "@/lib/timezone"
 
 export function LiveClock() {
   const [now, setNow] = React.useState(new Date())

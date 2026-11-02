@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, AlertTriangle, ImageOff, Download, VideoOff } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import type { IdlePeriod } from "@/components/crm/timeproof/shared"
+import { toMDT } from "@/lib/timezone"
 
 interface Screenshot {
   _id: string
@@ -22,8 +23,7 @@ interface IdleRecording {
   url: string
 }
 
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
+const toMDTDate = (d: Date) => toMDT(d)
 const fmtTime = (iso: string) =>
   toMDTDate(new Date(iso)).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "UTC" })
 

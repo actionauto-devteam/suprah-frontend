@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { geolocation } from "@/lib/geolocation";
+import { toMDT, denverTzAbbr } from "@/lib/timezone"
 import {
   ArrowLeft,
   Camera,
@@ -98,9 +99,8 @@ interface DailyActivityLog {
 
 const TIMELINE_GAP_THRESHOLD_MS = 25 * 60 * 1000
 
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 const fmtTime = (iso: string) =>
-  new Date(new Date(iso).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", {
+  toMDT(iso).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -566,7 +566,7 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate, userId 
                 <div className="px-5 py-4 border-b border-border/20 flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-blue-500" />
                   <p className="text-xs font-black tracking-tight">Movement &amp; Places</p>
-                  <span className="ml-auto text-[10px] text-muted-foreground/40">GPS-verified · MDT</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground/40">GPS-verified · {denverTzAbbr()}</span>
                 </div>
                 <div className="divide-y divide-border/10">
                   {[
@@ -630,7 +630,7 @@ function LotTechDayView({ dateStr, totalSecondsFromParam, formattedDate, userId 
                 <div className="px-5 py-4 border-b border-border/20 flex items-center gap-2">
                   <Shield className="h-4 w-4 text-emerald-600" />
                   <p className="text-xs font-black tracking-tight">Activity Log</p>
-                  <span className="ml-auto text-[10px] text-muted-foreground/40">Server-verified timestamps · MDT</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground/40">Server-verified timestamps · {denverTzAbbr()}</span>
                 </div>
 
                 <div className="divide-y divide-border/10">
@@ -1194,9 +1194,9 @@ export default function ScreenshotGalleryPage() {
               >
                 <div className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
                 <span className="text-[11px] font-mono text-muted-foreground/60 flex-1">
-                  {new Date(new Date(b.from).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
+                  {toMDT(b.from).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
                   <span className="mx-1.5 text-muted-foreground/30">–</span>
-                  {new Date(new Date(b.to).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
+                  {toMDT(b.to).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
                 </span>
                 <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
                   {fmtDuration(b.duration)}

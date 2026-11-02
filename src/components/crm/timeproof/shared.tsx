@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toMDT } from "@/lib/timezone"
 
 /* ─────────────────────────────────────────────────────────────────────────
    Shared types/utilities/components between the employee TimeProof clock
@@ -17,8 +18,7 @@ export interface DayData {
   weekTotalSeconds?: number
 }
 
-export const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-export const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
+export const toMDTDate = (d: Date) => toMDT(d)
 
 export const toDateStr = (d: Date) => {
   const m = toMDTDate(d)

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Download, Headphones, Loader2, PhoneIncoming, PhoneMissed, PhoneOutgoing, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Headphones, Loader2, PhoneIncoming, PhoneMissed, PhoneOutgoing, Trash2, Voicemail } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CallTimer } from "@/components/communications/CallTimer";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
@@ -34,7 +34,7 @@ export const callDuration = (seconds?: number | null) => {
 export const callLine = (call: ConversationCall) =>
   [call.lineLabel, call.number ? formatSmsRecipient(call.number) || call.number : ""].filter(Boolean).join(" · ");
 
-export function useRecordingPermissions(enabled = true): RecordingPermission[] {
+export function useRecordingAccess(enabled = true): RecordingAccess | undefined {
   const { request, orgId, authKey } = useCallRecordingApi();
   const query = useQuery({
     queryKey: ["call-recording-access", orgId, authKey],
@@ -43,19 +43,44 @@ export function useRecordingPermissions(enabled = true): RecordingPermission[] {
     staleTime: 60_000,
     queryFn: () => request<RecordingAccess>("get", "/recording-access"),
   });
-  return query.data?.permissions || [];
+  return query.data;
 }
+
+export function useRecordingPermissions(enabled = true): RecordingPermission[] {
+  return useRecordingAccess(enabled)?.permissions || [];
+}
+
+export function useRecordingInsights(recording: ConversationCall["recording"] | undefined, enabled: boolean) {
+  const { request, orgId, authKey } = useCallRecordingApi();
+  return useQuery({
+    queryKey: ["call-recording-insights", orgId, authKey, recording?.id, Boolean(recording?.summaryReady)],
+    enabled: Boolean(recording?.id) && enabled,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: () => request<{ recording: Recording }>("get", `/recordings/${recording?.id}`),
+  });
+}
+
+export const canListenTo = (access: RecordingAccess | undefined, recording?: ConversationCall["recording"]) => {
+  if (access?.permissions.includes("view")) return true;
+  const me = access?.principalId;
+  if (!me || !recording) return false;
+  if (recording.employeeId === me) return true;
+  return recording.kind === "voicemail" && Boolean(recording.openToAllStaff || recording.listenerIds?.includes(me));
+};
 
 function useCallRecording(call: ConversationCall, onChanged?: () => void) {
   const recording = call.recording;
   const { request, mediaUrl, orgId, authKey } = useCallRecordingApi();
-  const permissions = useRecordingPermissions(Boolean(recording));
+  const access = useRecordingAccess(Boolean(recording));
+  const permissions = access?.permissions || [];
+  const canListen = canListenTo(access, recording);
   const [source, setSource] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const live = useQuery({
     queryKey: ["conversation-call-recording", orgId, authKey, call.id],
-    enabled: permissions.includes("view") && SETTLING_STATES.includes(recording?.state || ""),
+    enabled: canListen && SETTLING_STATES.includes(recording?.state || ""),
     retry: false,
     refetchInterval: (current) => (current.state.data?.recording?.state === "ready" ? false : 5000),
     queryFn: () => request<{ recording: Recording | null }>("get", `/calls/${call.id}/recording`),
@@ -106,15 +131,18 @@ function useCallRecording(call: ConversationCall, onChanged?: () => void) {
     }
   };
 
-  return { permissions, state: live.data?.recording?.state || recording?.state || "", source, setError, busy, error, open, remove };
+  return { permissions, canListen, state: live.data?.recording?.state || recording?.state || "", source, setError, busy, error, open, remove };
 }
 
 export function CallCard({ call, outbound, customerName, timeLabel, onChanged }: { call: ConversationCall; outbound: boolean; customerName: string; timeLabel: string; onChanged?: () => void }) {
   const [detailsOpen, setDetailsOpen] = React.useState(false);
-  const { permissions, state, source, setError, busy, error, open, remove } = useCallRecording(call, onChanged);
+  const { permissions, canListen, state, source, setError, busy, error, open, remove } = useCallRecording(call, onChanged);
+  const insights = useRecordingInsights(call.recording, Boolean(call.recording) && canListen && state === "ready" && !call.live);
+  const headline = insights.data?.recording?.summaryPoints?.[0] || "";
   const failed = FAILED_STATUSES.includes(call.status);
   const line = callLine(call);
-  const Icon = failed ? PhoneMissed : outbound ? PhoneOutgoing : PhoneIncoming;
+  const voicemail = call.recording?.kind === "voicemail";
+  const Icon = voicemail ? Voicemail : failed ? PhoneMissed : outbound ? PhoneOutgoing : PhoneIncoming;
 
   if (call.live) {
     const since = new Date(call.answeredAt || call.startedAt || 0).getTime() || undefined;
@@ -137,7 +165,6 @@ export function CallCard({ call, outbound, customerName, timeLabel, onChanged }:
   }
 
   const duration = callDuration(call.durationSec);
-  const canListen = permissions.includes("view");
   const canDownload = permissions.includes("download");
   const canDelete = permissions.includes("delete");
   const ready = Boolean(call.recording) && canListen && state === "ready";
@@ -145,9 +172,9 @@ export function CallCard({ call, outbound, customerName, timeLabel, onChanged }:
     <div className={cn("flex", outbound ? "justify-end" : "justify-start")}>
       <div className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-emerald-400/15 dark:bg-[#0f1f19]">
         <div className="flex items-center gap-3">
-          <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white", failed ? "bg-red-500" : "bg-blue-600")}><Icon className="h-5 w-5" /></span>
+          <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white", voicemail ? "bg-violet-600" : failed ? "bg-red-500" : "bg-blue-600")}><Icon className="h-5 w-5" /></span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{ENDED_TITLES[call.status] || call.label}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{voicemail ? "Voicemail" : ENDED_TITLES[call.status] || call.label}</p>
             <p className="break-words text-xs text-slate-500 dark:text-slate-400">{[duration, line].filter(Boolean).join(" · ")}</p>
           </div>
         </div>
@@ -161,6 +188,7 @@ export function CallCard({ call, outbound, customerName, timeLabel, onChanged }:
             Play recording
           </button>
         ))}
+        {headline && <p className="mt-2 line-clamp-3 text-xs text-slate-600 dark:text-slate-300">{headline}</p>}
         {error && <p role="alert" className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
         <div className="mt-2.5 flex items-stretch overflow-hidden rounded-lg border">
           <button type="button" onClick={() => setDetailsOpen(true)} className="min-h-10 min-w-0 flex-1 px-3 text-xs font-semibold hover:bg-muted">View call details</button>

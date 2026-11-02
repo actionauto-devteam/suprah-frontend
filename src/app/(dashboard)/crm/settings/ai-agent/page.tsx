@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Bot, Loader2 } from "lucide-react"
+import { ArrowLeft, Bot, Loader2, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,6 +31,7 @@ import { AI_AGENT_NAME_REQUIRED_MESSAGE, aiAgentDisplayName, configuredAiAgentNa
 const HUB_TABS = [
   { value: "overview", label: "Overview" },
   { value: "modes", label: "Modes & Settings" },
+  { value: "automation", label: "Automation" },
   { value: "drafts", label: "Shadow Drafts" },
   { value: "training", label: "Training Rules" },
   { value: "knowledge", label: "Knowledge Base" },
@@ -253,6 +254,12 @@ function AiAgentHubContent() {
                       setFallbackGroupId(next.fallbackGroupId)
                     }}
                   />
+                </TabsContent>
+
+                <TabsContent value="automation">
+                  <HubCard title="Automation" description="Automatic replies the system sends to customers." icon={<Zap className="h-4 w-4 text-primary" />}>
+                    <p className="text-xs text-muted-foreground">Automatic replies will be set up here soon.</p>
+                  </HubCard>
                 </TabsContent>
 
                 <TabsContent value="drafts">

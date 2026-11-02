@@ -24,6 +24,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { toMDT, parseDatetimeLocalAsMdt } from "@/lib/timezone"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { resolveImageUrl } from "@/lib/utils"
@@ -166,8 +167,7 @@ async function fetchTimeprofData(userId: string, token: string): Promise<Timepro
   }
 }
 
-const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
-const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
+const toMDTDate = (d: Date) => toMDT(d)
 
 const ini = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
@@ -401,9 +401,7 @@ export default function AdminUserTimeprofPage() {
     setOverrideSubmitting(true)
     setOverrideError("")
     try {
-      // Explicit -06:00 (MDT) — same reasoning as handleSubmitCorrection above: parsing in the
-      // admin's own browser timezone can silently land the timestamp hours off from intended.
-      const timestamp = overrideTime ? new Date(`${overrideDate}T${overrideTime}:00-06:00`).toISOString() : undefined
+      const timestamp = overrideTime ? parseDatetimeLocalAsMdt(`${overrideDate}T${overrideTime}`)?.toISOString() : undefined
       await apiClient.adminTimeOverride(
         {
           userId, date: overrideDate, action: overrideAction,
@@ -438,14 +436,8 @@ export default function AdminUserTimeprofPage() {
     setCorrectError("")
     setCorrectSuccess("")
     try {
-      // Explicit -06:00 (company/MDT offset — see COMPANY_TZ_OFFSET_MINUTES
-      // on the backend) is required here. Without it, `new Date(...)` parses
-      // the date/time string in the ADMIN'S OWN BROWSER TIMEZONE — for an
-      // admin not physically in MDT, "5:00 PM" typed here silently became a
-      // completely different MDT instant (e.g. the middle of the night),
-      // which could land before that day's time-in and corrupt both the
-      // rendered hours and which screenshots counted as "after" it.
-      const correctedTimeOut = new Date(`${correctDate}T${correctTime}:00-06:00`).toISOString()
+      const correctedTimeOut = parseDatetimeLocalAsMdt(`${correctDate}T${correctTime}`)?.toISOString()
+      if (!correctedTimeOut) throw new Error("Invalid date or time")
       await apiClient.correctTimeLog(
         { userId, date: correctDate, correctedTimeOut, reason: correctReason.trim() },
         { headers: { Authorization: `Bearer ${token}` } },
