@@ -1,6 +1,7 @@
 /**
  * The note staff see on a quote card about its inventory vehicle: a customer
- * request closed because the car left the marketplace, or a car that was sold
+ * request closed because the car left the marketplace or the customer
+ * withdrew it, or a car that was sold
  * or removed from inventory. Null when there's nothing to say.
  */
 export function quoteVehicleNotice(quote: {
@@ -10,6 +11,9 @@ export function quoteVehicleNotice(quote: {
 }): { label: string; tone: "stopped" | "info" } | null {
   if (String(quote.status ?? "").toLowerCase() === "rejected" && quote.closedReason === "vehicle_unavailable") {
     return { label: "Closed: vehicle no longer available", tone: "stopped" }
+  }
+  if (String(quote.status ?? "").toLowerCase() === "rejected" && quote.closedReason === "customer_withdrew") {
+    return { label: "Closed: withdrawn by the customer", tone: "stopped" }
   }
   if (quote.vehicleState === "removed") return { label: "No longer in inventory", tone: "stopped" }
   if (quote.vehicleState === "sold") return { label: "Vehicle sold", tone: "info" }

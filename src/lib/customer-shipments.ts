@@ -51,6 +51,11 @@ export const SHIPMENT_STAGE_META: Record<CustomerShipmentStage, ShipmentStageMet
     description: "This vehicle is no longer available, so the request was closed.",
     tone: "stopped",
   },
+  withdrawn: {
+    label: "Withdrawn",
+    description: "You withdrew this request. The dealership has been told.",
+    tone: "stopped",
+  },
   cancelled: {
     label: "Cancelled",
     description: "The dealership cancelled this shipment. Contact them if you have questions.",
@@ -72,6 +77,7 @@ const STEP_ORDER: Record<CustomerShipmentStage, number> = {
   accepted: 0,
   declined: 0,
   unavailable: 0,
+  withdrawn: 0,
   booked: 1,
   cancelled: 1,
   picked_up: 2,

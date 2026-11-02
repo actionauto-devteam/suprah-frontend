@@ -19,7 +19,7 @@ function loadLib(name) {
 const { SHIPMENT_STAGE_META, shipmentSteps, formatShipmentPrice, formatShipmentDate, formatExpectedByDate } = loadLib('customer-shipments');
 const { quoteVehicleNotice } = loadLib('quote-vehicle');
 
-const STAGES = ['waiting', 'accepted', 'declined', 'unavailable', 'booked', 'picked_up', 'on_the_way', 'delivered', 'cancelled'];
+const STAGES = ['waiting', 'accepted', 'declined', 'unavailable', 'withdrawn', 'booked', 'picked_up', 'on_the_way', 'delivered', 'cancelled'];
 
 test('every status has plain wording', () => {
   for (const stage of STAGES) {
@@ -28,6 +28,8 @@ test('every status has plain wording', () => {
     assert.doesNotMatch(meta.description, /driver/i, stage);
   }
   assert.equal(SHIPMENT_STAGE_META.unavailable.label, 'No longer available');
+  assert.equal(SHIPMENT_STAGE_META.withdrawn.label, 'Withdrawn');
+  assert.equal(SHIPMENT_STAGE_META.withdrawn.description, 'You withdrew this request. The dealership has been told.');
 });
 
 test('the progress line follows the shipment', () => {
@@ -37,7 +39,7 @@ test('the progress line follows the shipment', () => {
   assert.deepEqual(states('booked'), ['done', 'current', 'upcoming', 'upcoming']);
   assert.deepEqual(states('on_the_way'), ['done', 'done', 'current', 'upcoming']);
   assert.deepEqual(states('delivered'), ['done', 'done', 'done', 'done']);
-  for (const stage of ['declined', 'unavailable', 'cancelled']) {
+  for (const stage of ['declined', 'unavailable', 'withdrawn', 'cancelled']) {
     assert.equal(shipmentSteps({ stage, requestedAt: null, shipment: null }), null, stage);
   }
 });

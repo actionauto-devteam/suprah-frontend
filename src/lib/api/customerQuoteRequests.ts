@@ -40,6 +40,7 @@ export type CustomerShipmentStage =
   | "accepted"
   | "declined"
   | "unavailable"
+  | "withdrawn"
   | "booked"
   | "picked_up"
   | "on_the_way"
@@ -80,4 +81,14 @@ export async function getMyShipments(token: string | null): Promise<CustomerShip
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   return Array.isArray(response.data?.data) ? (response.data.data as CustomerShipment[]) : [];
+}
+
+/** Withdraws the customer's own request while it's still waiting. Returns the confirmation to show. */
+export async function withdrawShippingRequest(requestId: string, token: string | null): Promise<string> {
+  const response = await apiClient.post(
+    `/api/quote-requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  );
+  return String(response.data?.message || "Your request was withdrawn. The dealership has been told.");
 }
