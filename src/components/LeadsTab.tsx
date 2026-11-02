@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  AlertTriangle,
   ArrowRight,
   ArrowUpDown,
   CheckSquare,
@@ -114,6 +115,7 @@ import {
 } from "@/components/leads/BulkReplyModal";
 
 // External Components
+import { userErrorMessage } from "@/lib/user-error";
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
 import { resolveCustomerEmail, resolveReplyRecipientEmail } from "@/components/conversation-workspace/customer-email";
@@ -888,6 +890,9 @@ export function LeadsTab({
   const [shippingOpen, setShippingOpen] = React.useState(false);
   const [paymentOpen, setPaymentOpen] = React.useState(false);
   const [isCreatingPayment, setIsCreatingPayment] = React.useState(false);
+  // Why the last payment request failed, shown inside its window (a toast
+  // would sit behind the window's backdrop).
+  const [paymentError, setPaymentError] = React.useState<string | null>(null);
   const [paymentForm, setPaymentForm] =
     React.useState<LeadPaymentForm>(EMPTY_PAYMENT_FORM);
 
@@ -2150,11 +2155,13 @@ export function LeadsTab({
         ? `Created from CRM lead ${selectedLead._id}`
         : "Created from CRM Leads",
     });
+    setPaymentError(null);
     setPaymentOpen(true);
   };
 
   const handleCreateAndRequestPayment = async () => {
     if (isCreatingPayment) return;
+    setPaymentError(null);
 
     const customerName = paymentForm.customerName.trim();
     const customerEmail = paymentForm.customerEmail.trim();
@@ -2162,10 +2169,7 @@ export function LeadsTab({
     const amount = Number(paymentForm.amount);
 
     if (!customerName || !customerEmail || !description || amount <= 0) {
-      addToast(
-        "error",
-        "Customer name, email, amount, and description are required",
-      );
+      setPaymentError("Add the customer's name and email, an amount and a description, then try again.");
       return;
     }
 
@@ -2173,7 +2177,7 @@ export function LeadsTab({
 
     try {
       const token = await getToken();
-      if (!token) throw new Error("Authentication required");
+      if (!token) throw new Error("Your session has ended. Please sign in again.");
 
       const createResponse = await apiClient.post(
         "/api/payments",
@@ -2234,14 +2238,9 @@ export function LeadsTab({
 
       setPaymentOpen(false);
       setPaymentForm(EMPTY_PAYMENT_FORM);
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.data?.message ||
-        error?.message ||
-        "Failed to create payment";
-
-      addToast("error", message);
+    } catch (error: unknown) {
+      // The window stays open with what was typed, and says what to fix.
+      setPaymentError(userErrorMessage(error, "create this payment request"));
     } finally {
       setIsCreatingPayment(false);
     }
@@ -2251,7 +2250,7 @@ export function LeadsTab({
     try {
       const token = await getToken();
       if (!token) {
-        throw new Error("Authentication required");
+        throw new Error("Your session has ended. Please sign in again.");
       }
 
       const leadVehicle = selectedLead?.vehicle as any;
@@ -2321,14 +2320,9 @@ export function LeadsTab({
       if (selectedLead?._id) announceLeadShipmentsChanged(selectedLead._id);
       addToast("success", "Shipping Quote Calculated & Saved");
       setShippingOpen(false);
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.data?.message ||
-        error?.message ||
-        "Failed to calculate quote";
-
-      addToast("error", message);
+    } catch (error: unknown) {
+      // The quote window shows this inside itself and keeps what was typed.
+      throw new Error(userErrorMessage(error, "create this shipping quote"));
     }
   };
 
@@ -3391,6 +3385,7 @@ export function LeadsTab({
         }}
         onFormChange={setPaymentForm}
         onSubmit={() => void handleCreateAndRequestPayment()}
+        error={paymentError}
       />
 
       <ShippingQuoteModal
@@ -3439,6 +3434,7 @@ function LeadPaymentDialog({
   onOpenChange,
   onFormChange,
   onSubmit,
+  error,
 }: {
   open: boolean;
   form: LeadPaymentForm;
@@ -3446,6 +3442,8 @@ function LeadPaymentDialog({
   onOpenChange: (open: boolean) => void;
   onFormChange: (form: LeadPaymentForm) => void;
   onSubmit: () => void;
+  /** Why the last try failed, in plain English. */
+  error?: string | null;
 }) {
   const fieldClass =
     "w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none ring-offset-background transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
@@ -3577,6 +3575,16 @@ function LeadPaymentDialog({
               />
             </PaymentField>
           </section>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">{error}</span>
+            </div>
+          )}
 
           <button
             type="button"
