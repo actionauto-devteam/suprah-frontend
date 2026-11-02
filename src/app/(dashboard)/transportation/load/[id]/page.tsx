@@ -7,12 +7,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy, Ban, Link2 } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy, Ban, Link2, CarFront } from "lucide-react"
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
 import { CancelLoadDialog } from "@/components/transportation/CancelLoadDialog"
+import { AddToGarageDialog } from "@/components/transportation/AddToGarageDialog"
+import { garageStatusNote } from "@/lib/load-garage"
 import { isCancellableLoadStatus } from "@/lib/load-status"
 import { cancellationReasonLabel } from "@/lib/load-cancellation"
 import { useAuth, useUser } from "@/providers/AuthProvider"
@@ -481,6 +483,7 @@ export default function LoadDetailsPage() {
   const [tripHistoryOpen, setTripHistoryOpen] = React.useState(false)
   const [markDeliveredOpen, setMarkDeliveredOpen] = React.useState(false)
   const [cancelOpen, setCancelOpen] = React.useState(false)
+  const [garageOpen, setGarageOpen] = React.useState(false)
   const queryClient = useQueryClient()
   const { userId, orgId, orgRole, getToken } = useAuth()
   const { user: currentUser } = useUser()
@@ -695,6 +698,7 @@ export default function LoadDetailsPage() {
     (!load.assignedDriverId || canManageDriverLoad)
   const cancellation = load.status === "Cancelled" ? load.cancellation : undefined
   const originLead = linkedLead(load.quoteOrigin?.lead)
+  const garageNote = garageStatusNote(load.garage)
 
   return (
     <div
@@ -752,8 +756,24 @@ export default function LoadDetailsPage() {
               )}
             </p>
           )}
+          {garageNote && (
+            <p className="text-xs sm:text-sm text-muted-foreground flex items-start gap-1.5 min-w-0 break-words">
+              <CarFront className="size-3.5 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <span>{garageNote}</span>
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {load.garage?.state === "available" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-background flex-1 sm:flex-initial"
+              onClick={() => setGarageOpen(true)}
+            >
+              <CarFront className="size-4 mr-2 text-emerald-600 dark:text-emerald-400" aria-hidden="true" /> Add to customer&apos;s garage
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol}><FileText className="size-4 mr-2 text-muted-foreground" /> Print BOL</Button>
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setHistoryOpen(true)}><History className="size-4 mr-2 text-muted-foreground" /> Assignment history</Button>
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setTripHistoryOpen(true)}><Route className="size-4 mr-2 text-muted-foreground" /> Trip history</Button>
@@ -1390,6 +1410,16 @@ export default function LoadDetailsPage() {
         onOpenChange={setHistoryOpen}
         loadId={load._id}
       />
+      {load.garage?.state === "available" && (
+        <AddToGarageDialog
+          open={garageOpen}
+          onOpenChange={setGarageOpen}
+          loadId={load._id}
+          customerName={load.garage.customerName}
+          vehicleLabel={load.garage.vehicleLabel}
+          onAdded={() => void queryClient.invalidateQueries({ queryKey: ["transportation-load-detail", id] })}
+        />
+      )}
       <MarkDeliveredDialog
         open={markDeliveredOpen}
         onOpenChange={setMarkDeliveredOpen}

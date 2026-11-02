@@ -1,5 +1,6 @@
 import type { ConditionReport, DeliverySignature } from "@/lib/condition-report";
 import type { QuoteLeadRef } from "@/lib/quote-lead";
+import type { LoadGarageState } from "@/lib/load-garage";
 
 export interface LoadLocation {
   locationType?: string;
@@ -82,6 +83,8 @@ export interface Load {
     customerName: string;
     lead: QuoteLeadRef | null;
   } | null;
+  /** Delivered customer requests only: whether the car can go to the customer's My Garage. */
+  garage?: LoadGarageState | null;
   loadNumber: string;
   postType: "load-board" | "assign-carrier";
   status: LoadStatus;
