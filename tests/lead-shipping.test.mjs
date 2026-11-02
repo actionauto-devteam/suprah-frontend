@@ -15,7 +15,16 @@ function loadLib(name) {
   return cjs.exports;
 }
 
-const { quoteStatusWords, quotePriceWords, leadIdFromShipmentsEvent, announceLeadShipmentsChanged } = loadLib('lead-shipping');
+const { quoteStatusWords, quotePriceWords, leadIdFromShipmentsEvent, announceLeadShipmentsChanged, withFocusedQuote } = loadLib('lead-shipping');
+
+test('moves the quote a link pointed to to the top', () => {
+  const list = [{ quoteId: 'q3' }, { quoteId: 'q2' }, { quoteId: 'q1' }];
+  assert.deepEqual(withFocusedQuote(list, 'q1'), { shipments: [{ quoteId: 'q1' }, { quoteId: 'q3' }, { quoteId: 'q2' }], focused: true });
+  assert.deepEqual(withFocusedQuote(list, 'q3').shipments.map((s) => s.quoteId), ['q3', 'q2', 'q1']);
+  // A quote that isn't this lead's, or no quote, leaves the list as it is.
+  assert.deepEqual(withFocusedQuote(list, 'other'), { shipments: list, focused: false });
+  assert.deepEqual(withFocusedQuote(list, ''), { shipments: list, focused: false });
+});
 
 test("words a lead's quotes the way the Quotes tab does", () => {
   assert.equal(quoteStatusWords('pending'), 'Pending');

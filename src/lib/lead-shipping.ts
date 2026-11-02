@@ -10,6 +10,8 @@ export interface LeadShipment {
   status: string
   source: string
   vehicleName: string
+  /** The quoted car's VIN ("" when unknown; missing before it was added). */
+  vin?: string
   rate: number | null
   createdAt: string | null
   load: { _id: string; loadNumber: string; status: string } | null
@@ -30,6 +32,21 @@ export function quoteStatusWords(status: string): string {
 /** "$950" for a quote's price, or "" when there's none. */
 export function quotePriceWords(rate: number | null | undefined): string {
   return typeof rate === "number" && Number.isFinite(rate) && rate > 0 ? `$${Math.round(rate).toLocaleString("en-US")}` : ""
+}
+
+/**
+ * The lead's quotes with the one a link pointed to (the quoteId in the lead
+ * link) moved to the top. `focused` is false when the link's quote isn't one
+ * of this lead's.
+ */
+export function withFocusedQuote(
+  shipments: LeadShipment[],
+  quoteId: string | null | undefined,
+): { shipments: LeadShipment[]; focused: boolean } {
+  const id = String(quoteId ?? "").trim()
+  const index = id ? shipments.findIndex((shipment) => shipment.quoteId === id) : -1
+  if (index < 0) return { shipments, focused: false }
+  return { shipments: [shipments[index], ...shipments.slice(0, index), ...shipments.slice(index + 1)], focused: true }
 }
 
 /** Sent after a quote is made from a lead, so that lead's Shipping list refreshes. */
