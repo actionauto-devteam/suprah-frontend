@@ -118,6 +118,7 @@ import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
 import { resolveCustomerEmail, resolveReplyRecipientEmail } from "@/components/conversation-workspace/customer-email";
 import { smsPhoneProblem } from "@/lib/smsPhone";
+import { announceLeadShipmentsChanged } from "@/lib/lead-shipping";
 
 
 // Constants
@@ -2309,12 +2310,15 @@ export function LeadsTab({
           Number(quoteVehicle?.price || leadVehicle?.price) || undefined,
         toZip: formData.zipCode,
         toAddress: formData.fullAddress,
+        // Links the quote to this exact lead, not another lead with the same email.
+        ...(selectedLead?._id ? { leadId: selectedLead._id } : {}),
       };
 
       await apiClient.post("/api/quotes", payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (selectedLead?._id) announceLeadShipmentsChanged(selectedLead._id);
       addToast("success", "Shipping Quote Calculated & Saved");
       setShippingOpen(false);
     } catch (error: any) {

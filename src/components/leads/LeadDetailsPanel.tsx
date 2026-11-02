@@ -19,6 +19,7 @@ import { AiAgentTasksSection } from "./AiAgentTasksSection";
 import { VehicleOfInterestCard } from "./VehicleOfInterestCard";
 import { DriverLicenseScanDialog, type LicenseAppliedValues } from "./DriverLicenseScanDialog";
 import { CustomerRecordLink } from "./CustomerRecordLink";
+import { LeadShippingCard } from "@/components/transportation/LeadShippingCard";
 
 function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
   if (item.id.endsWith(":created") && item.id.startsWith("lead:")) return "inquiry";
@@ -339,6 +340,8 @@ export function LeadDetailsPanel({
           <div className="space-y-2">
             <CustomerRecordLink lead={lead} />
             <VehicleOfInterestCard key={lead._id} lead={lead} />
+            {/* Transportation's part: shipping quotes for this lead. */}
+            <LeadShippingCard key={`shipping-${lead._id}`} lead={lead} />
           </div>
         ) : null
       }
