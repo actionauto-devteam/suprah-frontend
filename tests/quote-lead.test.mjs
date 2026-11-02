@@ -35,3 +35,12 @@ test('unlinked quotes show nothing', () => {
 test('opens the lead on the CRM leads page', () => {
   assert.equal(leadPageHref('64b0000000000000000000ab'), '/crm/leads?leadId=64b0000000000000000000ab');
 });
+
+test('opens the lead at the quote it came from, when there is one', () => {
+  assert.equal(
+    leadPageHref('64b0000000000000000000ab', '64b0000000000000000000cd'),
+    '/crm/leads?leadId=64b0000000000000000000ab&quoteId=64b0000000000000000000cd',
+  );
+  assert.equal(leadPageHref('64b0000000000000000000ab', ' '), '/crm/leads?leadId=64b0000000000000000000ab');
+  assert.equal(leadPageHref('64b0000000000000000000ab', null), '/crm/leads?leadId=64b0000000000000000000ab');
+});

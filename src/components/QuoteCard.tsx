@@ -518,9 +518,9 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                                             <span className="font-bold text-foreground">{lead.name}</span>
                                                         ) : (
                                                             <Link
-                                                                href={leadPageHref(lead.id)}
+                                                                href={leadPageHref(lead.id, quote._id)}
                                                                 className="font-bold text-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-                                                                title="Open this customer's lead in the CRM"
+                                                                title="Open this customer's lead in the CRM, at this quote and its car"
                                                             >
                                                                 {lead.name}
                                                             </Link>

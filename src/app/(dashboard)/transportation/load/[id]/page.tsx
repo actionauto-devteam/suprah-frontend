@@ -745,9 +745,9 @@ export default function LoadDetailsPage() {
                     <span className="font-semibold text-foreground">{originLead.name}</span>
                   ) : (
                     <Link
-                      href={leadPageHref(originLead.id)}
+                      href={leadPageHref(originLead.id, load.quoteOrigin?.quoteId)}
                       className="font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-                      title="Open this customer's lead in the CRM"
+                      title="Open this customer's lead in the CRM, at this shipment's quote and car"
                     >
                       {originLead.name}
                     </Link>

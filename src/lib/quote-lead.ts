@@ -15,7 +15,12 @@ export function linkedLead(leadId: QuoteLeadRef | string | null | undefined): { 
   return { id: String(leadId._id), name: name || "View lead" };
 }
 
-/** Where the lead opens in the CRM (the website only; the iPhone app has no CRM pages). */
-export function leadPageHref(id: string): string {
-  return `/crm/leads?leadId=${encodeURIComponent(id)}`;
+/**
+ * Where the lead opens in the CRM (the website only; the iPhone app has no CRM
+ * pages). With a quote, the lead's Shipping section highlights that quote and
+ * its car: a customer's lead can show an earlier car they asked about.
+ */
+export function leadPageHref(id: string, quoteId?: string | null): string {
+  const quote = String(quoteId ?? "").trim();
+  return `/crm/leads?leadId=${encodeURIComponent(id)}${quote ? `&quoteId=${encodeURIComponent(quote)}` : ""}`;
 }
