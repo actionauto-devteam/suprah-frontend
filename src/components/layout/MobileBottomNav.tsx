@@ -387,6 +387,12 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
         [items],
     );
 
+    // The customer portal works the same way as the Driver Portal.
+    const isCustomerShell = React.useMemo(
+        () => items.some((item) => item.href === "/customer"),
+        [items],
+    );
+
     const inventoryWorkspaceItems = React.useMemo<BottomNavItem[]>(() => {
         // Reuse the app shell's real CRM icon/route when available so this stays
         // aligned with the existing CRM navigation configuration.
@@ -535,9 +541,9 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
             ? inventoryWorkspaceItems
             : items;
 
-    // The dealership shell always uses the moving active-circle treatment,
-    // including Pulse. Non-dealership shells keep the legacy behavior.
-    const useMovingActiveTreatment = isDealershipShell || isDriverShell
+    // The dealership, driver and customer shells always use the moving
+    // active-circle treatment, including Pulse. Other shells keep the legacy behavior.
+    const useMovingActiveTreatment = isDealershipShell || isDriverShell || isCustomerShell
         ? true
         : inventoryWorkspace || isDashboardOrCrmRoute(pathname);
 
@@ -750,8 +756,9 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
         if (isDealershipShell) {
             return currentDealershipItem?.href === item.href;
         }
-        // Driver tabs match their own /driver pages ("Dashboard" is /driver here, not /).
-        if (isDriverShell) return isActive(item.href);
+        // Driver and customer tabs match their own pages ("Dashboard" is /driver
+        // and "Home" is /customer here, not /).
+        if (isDriverShell || isCustomerShell) return isActive(item.href);
 
         const label = item.label.trim().toLowerCase();
         if (label === "dashboard") return pathname === "/";
@@ -761,7 +768,7 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
         if (label === "driver tracker") return pathname === "/driver-tracker" || pathname.startsWith("/driver-tracker/");
 
         return isActive(item.href);
-    }, [currentDealershipItem, isDealershipShell, isDriverShell, pathname, isActive]);
+    }, [currentDealershipItem, isDealershipShell, isDriverShell, isCustomerShell, pathname, isActive]);
 
     const beginClientNavigation = React.useCallback((href: string) => {
         setPendingHref(href);
