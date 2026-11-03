@@ -32,6 +32,8 @@ export interface CreateLoadPayload {
   additionalInfo: LoadAdditionalInfo;
   contract: LoadContract;
   trailerType: string;
+  /** The car is sold to the person receiving it, so it's marked Sold at delivery. */
+  soldOnDelivery?: boolean;
   // pricePerMile: dispatcher's $/mi rate from the Pricing step — persisted
   // on the load (pricing.pricePerMile) so cards/detail views can show it.
   pricing?: {
@@ -239,6 +241,7 @@ export async function createLoad(payload: CreateLoadPayload): Promise<CreateLoad
       additionalInfo: payload.additionalInfo,
       contract: payload.contract,
       trailerType: payload.trailerType,
+      soldOnDelivery: payload.soldOnDelivery,
       // pricePerMile rides through here — createLoadSchema (backend zod)
       // must include it in the pricing shape or it gets stripped server-side.
       pricing: payload.pricing,
