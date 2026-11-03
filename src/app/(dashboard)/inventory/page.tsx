@@ -1123,9 +1123,9 @@ function InventoryContent() {
       );
       setShippingOpen(false);
     } catch (error) {
-      console.error("[Quote] Error creating quote:", error);
       // The server says what to fix, for example a ZIP code it can't find.
-      toast.error(userErrorMessage(error, "create this quote"));
+      // The quote window shows it and keeps what was typed.
+      throw new Error(userErrorMessage(error, "create this quote"));
     }
   };
 

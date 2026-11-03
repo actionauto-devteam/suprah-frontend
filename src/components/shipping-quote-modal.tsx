@@ -9,6 +9,7 @@ import {
   MapPinned,
   Package,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -18,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { userErrorMessage } from "@/lib/user-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -115,6 +117,13 @@ export function ShippingQuoteModal({
   const [errors, setErrors] = React.useState<
     Partial<Record<keyof ShippingQuoteFormData, string>>
   >({});
+  // Why the last try failed, shown inside the window: a toast would sit
+  // behind this window's backdrop, out of sight.
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (open) setSubmitError(null);
+  }, [open]);
 
   React.useEffect(() => {
     if (open) {
@@ -230,6 +239,7 @@ export function ShippingQuoteModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
 
     const trimmedFormData: ShippingQuoteFormData = {
       ...formData,
@@ -299,7 +309,8 @@ export function ShippingQuoteModal({
       setSelectedVehicle(null);
       setErrors({});
     } catch (error) {
-      console.error("Error submitting quote:", error);
+      // Keeps the window open with everything typed, and says what to fix.
+      setSubmitError(userErrorMessage(error, "create this shipping quote"));
     } finally {
       setIsCalculating(false);
     }
@@ -940,6 +951,16 @@ export function ShippingQuoteModal({
             </div>
           </div>
           </section>
+
+          {submitError && (
+            <div
+              role="alert"
+              className="mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">{submitError}</span>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-4">

@@ -436,9 +436,9 @@ function ShopVehiclesContent() {
       toast.success(shippingRequestSentMessage(message, request.rate));
       setShippingOpen(false);
     } catch (error) {
-      toast.error(userErrorMessage(error, "send your shipping quote request"));
-      // Keeps the form open with what the customer typed.
-      throw error;
+      // The quote window shows this inside itself and keeps what the
+      // customer typed (a toast would sit behind the window).
+      throw new Error(userErrorMessage(error, "send your shipping quote request"));
     }
   };
 

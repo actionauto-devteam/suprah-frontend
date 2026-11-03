@@ -463,11 +463,8 @@ function TransportationPageInner() {
       setIsQuoteModalOpen(false);
       setIsQuoteResultModalOpen(true);
     } catch (error) {
-      showAlert({
-        type: "error",
-        title: "Quote Not Created",
-        message: userErrorMessage(error, "create this quote"),
-      });
+      // The quote window shows this inside itself and keeps what was typed.
+      throw new Error(userErrorMessage(error, "create this quote"));
     }
   };
 
