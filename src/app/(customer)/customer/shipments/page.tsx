@@ -2,11 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, Car, CheckCircle2, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { AlertTriangle, CalendarClock, Car, CheckCircle2, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/providers/AuthProvider";
-import { getMyShipments, type CustomerShipment } from "@/lib/api/customerQuoteRequests";
+import { getMyShipments, withdrawShippingRequest, type CustomerShipment } from "@/lib/api/customerQuoteRequests";
 import {
   SHIPMENT_STAGE_META,
   formatExpectedByDate,
@@ -144,9 +155,83 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
             )}
             {entry.requestedAt && <span>Requested {formatShipmentDate(entry.requestedAt)}</span>}
           </div>
+
+          {entry.stage === "waiting" && <WithdrawRequestButton entry={entry} />}
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * Withdraws a request that's still waiting for the dealership, after the
+ * customer confirms. Once the dealership has answered, the server explains
+ * that they need to contact the dealership instead.
+ */
+function WithdrawRequestButton({ entry }: { entry: CustomerShipment }) {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const withdraw = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const message = await withdrawShippingRequest(entry.id, await getToken());
+      setOpen(false);
+      toast.success(message);
+    } catch (err) {
+      setError(userErrorMessage(err, "withdraw this request"));
+    } finally {
+      setBusy(false);
+      // Shows the latest either way, for example if the dealership just answered.
+      void queryClient.invalidateQueries({ queryKey: ["customer-shipments"] });
+    }
+  };
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy) return;
+        setOpen(next);
+        if (next) setError(null);
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-9 w-full gap-1.5 rounded-xl text-xs font-semibold sm:w-auto">
+          <Undo2 className="size-3.5" aria-hidden="true" />
+          Withdraw request
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Withdraw this shipping request?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Your request for the {entry.vehicleName || "vehicle"} will be closed, and {entry.dealerName || "the dealership"} will be told. You
+            can ask for a new quote anytime.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{error}</span>
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Keep request</AlertDialogCancel>
+          <Button type="button" variant="destructive" onClick={() => void withdraw()} disabled={busy} className="gap-1.5">
+            {busy && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            Withdraw request
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
