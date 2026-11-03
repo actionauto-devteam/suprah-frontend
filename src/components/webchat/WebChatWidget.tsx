@@ -37,6 +37,18 @@ interface WebChatWidgetProps {
    *  reports its own pixel size to the parent page so the loader script can
    *  resize the iframe to match (closed bubble vs. open panel). */
   embedMode?: boolean
+  /** The customer portal: who is chatting, so they aren't asked again. */
+  prefill?: { name?: string; email?: string; phone?: string }
+  /** The panel's title, e.g. "Chat with Anna" (defaults to "Chat with us"). */
+  title?: string
+  /** The customer portal's draggable launcher (see useDraggableWidget). */
+  launcher?: {
+    setNode: (node: HTMLButtonElement | null) => void
+    style: React.CSSProperties
+    handleProps: { onPointerDown: React.PointerEventHandler; onClickCapture: React.MouseEventHandler; style: React.CSSProperties }
+    /** Where it sits before the customer moves it. */
+    className?: string
+  }
 }
 
 function postEmbedState(open: boolean) {
@@ -96,15 +108,17 @@ function PoweredBySuprah({ className = "" }: { className?: string }) {
   )
 }
 
-export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: WebChatWidgetProps) {
+export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, prefill, title, launcher }: WebChatWidgetProps) {
   const storageKey = `${STORAGE_PREFIX}${orgKey ? `org:${orgKey}` : `vehicle:${vehicleId}`}`
 
   const [open, setOpen] = React.useState(false)
   const [session, setSession] = React.useState<StoredSession | null>(null)
   const [messages, setMessages] = React.useState<WebChatVisitorMessage[]>([])
   const [unread, setUnread] = React.useState(0)
-  const [name, setName] = React.useState("")
-  const [contact, setContact] = React.useState("")
+  const [name, setName] = React.useState(prefill?.name?.trim() ?? "")
+  const [contact, setContact] = React.useState(prefill?.email?.trim() || prefill?.phone?.trim() || "")
+  // A signed-in customer isn't asked for their name and contact again.
+  const knownVisitor = Boolean(prefill?.name?.trim() && (prefill?.email?.trim() || prefill?.phone?.trim()))
   const [draft, setDraft] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState("")
@@ -224,7 +238,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
     const text = draft.trim()
 
     if (!trimmedName || !trimmedContact || !text) {
-      setError("Please add your name, a phone number or email, and a message.")
+      setError(knownVisitor ? "Type your message, then send it." : "Please add your name, a phone number or email, and a message.")
       return
     }
 
@@ -298,13 +312,21 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
     return (
       <button
         type="button"
+        ref={launcher?.setNode}
         onClick={handleOpen}
-        aria-label="Open chat"
+        onPointerDown={launcher?.handleProps.onPointerDown}
+        onClickCapture={launcher?.handleProps.onClickCapture}
+        aria-label={title ? `Open ${title.charAt(0).toLowerCase()}${title.slice(1)}` : "Open chat"}
+        title={title}
         className={cn(
           "flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          embedMode ? "relative" : "fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6",
+          embedMode ? "relative" : launcher?.className ?? "fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6",
         )}
-        style={embedMode ? undefined : { marginBottom: "env(safe-area-inset-bottom)" }}
+        style={
+          embedMode
+            ? undefined
+            : { marginBottom: "env(safe-area-inset-bottom)", ...launcher?.handleProps.style, ...launcher?.style }
+        }
       >
         <MessageCircle className="h-6 w-6" />
         {unread > 0 && (
@@ -319,7 +341,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
   return (
     <div
       role="dialog"
-      aria-label="Chat with us"
+      aria-label={title ?? "Chat with us"}
       className={cn(
         "flex flex-col bg-background",
         embedMode
@@ -329,7 +351,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
     >
       <div className="flex items-center justify-between gap-3 bg-primary px-4 py-3 text-primary-foreground sm:rounded-t-2xl">
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight">Chat with us</p>
+          <p className="text-sm font-semibold leading-tight">{title ?? "Chat with us"}</p>
           <p className="truncate text-xs opacity-80">
             {contextLabel ? `About the ${contextLabel}` : "Ask us anything"}
           </p>
@@ -449,6 +471,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
             </p>
           )}
 
+          {!knownVisitor && (
+          <>
           <div className="space-y-1.5">
             <label htmlFor="webchat-name" className="text-xs font-medium">
               Your name
@@ -473,6 +497,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
               maxLength={120}
             />
           </div>
+          </>
+          )}
 
           <div className="space-y-1.5">
             <label htmlFor="webchat-message" className="text-xs font-medium">
