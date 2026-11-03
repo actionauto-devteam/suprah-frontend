@@ -116,7 +116,7 @@ export function PhotoSlotUploader({
         {required && (
           <span
             className={cn(
-              "text-[9px] font-bold uppercase tracking-wider",
+              "text-[11px] font-bold uppercase tracking-wider",
               resolved ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400",
             )}
           >

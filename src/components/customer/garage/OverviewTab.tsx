@@ -487,7 +487,7 @@ export function OverviewTab() {
                     <item.icon className="h-5 w-5" />
                   </div>
                   {(item as any).badge && (
-                    <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-wider rounded-full px-2">
+                    <Badge variant="secondary" className="text-[11px] font-black uppercase tracking-wider rounded-full px-2">
                       {(item as any).badge}
                     </Badge>
                   )}
