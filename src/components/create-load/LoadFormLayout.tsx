@@ -32,7 +32,7 @@ import {
   emptyAdditionalInfo,
   emptyDates,
 } from "./types"
-import { validateAll, validateAssignment } from "./validation"
+import { SOLD_ON_DELIVERY_REQUIRED, validateAll, validateAssignment } from "./validation"
 import { LocationSection } from "./LocationSection"
 import { VehicleSection } from "./VehicleSection"
 import { SameVehicleWarning, useSameVinLoads } from "./SameVehicleWarning"
@@ -47,6 +47,7 @@ import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility"
 import { DriverLoadCompatibilityReviewDialog } from "@/components/driver-tracker/DriverLoadCompatibilityReviewDialog"
 import { scheduleDateKey } from "@/utils/calendar.utils"
 import { userErrorMessage } from "@/lib/user-error";
+import { SoldOnDeliveryQuestion } from "./SoldOnDeliveryQuestion"
 
 
 // ─── Create / Edit Load: form orchestrator ───────────────────────────────────
@@ -295,6 +296,13 @@ export function LoadFormLayout({
       : { agreedToTerms: false, signatureDataUrl: null, signerName: "" },
   )
 
+  // Asked for every load not made from a quote (a quote load is always a
+  // sale): Yes marks the Inventory car Sold at delivery, No puts it back on sale.
+  const fromQuote = isEdit && Boolean(initialLoad!.quoteId)
+  const [soldOnDelivery, setSoldOnDelivery] = React.useState<boolean | null>(() =>
+    isEdit ? initialLoad!.soldOnDelivery === true : null,
+  )
+
   // ── Inspect step: create mode holds Files client-side (no load._id yet) ──
   const [pendingPhotos, setPendingPhotos] = React.useState<Record<string, File>>({})
 
@@ -376,8 +384,10 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         makeAvailable: postType === "assign-carrier" && !isEdit ? makeAvailable : false,
         // Editing has no Driver step, so it never asks for a driver.
         requireDriver: !isEdit,
+        askSoldOnDelivery: !fromQuote,
+        soldOnDelivery,
       }),
-    [postType, pickup, delivery, vehicles, trailerType, dates, contract, pricing, selectedDriverId, makeAvailable, isEdit],
+    [postType, pickup, delivery, vehicles, trailerType, dates, contract, pricing, selectedDriverId, makeAvailable, isEdit, fromQuote, soldOnDelivery],
   )
 
   // A load converted from a quote starts as a Draft: drivers can't see it and
@@ -426,6 +436,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
           additionalInfo: additionalInfo as any,
           contract: contract as any,
           pricing: pricing as any,
+          ...(!fromQuote && soldOnDelivery !== null ? { soldOnDelivery } : {}),
           ...(isDraft && options?.post ? { status: "Posted" as const } : {}),
           expectedUpdatedAt: initialLoad!.updatedAt,
         })
@@ -460,6 +471,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         contract,
         trailerType,
         pricing,
+        soldOnDelivery: soldOnDelivery ?? undefined,
       })
 
       if (warning) toast.warning(warning)
@@ -662,6 +674,12 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
               trailerType={trailerType}
             />
             <SameVehicleWarning matches={sameVinLoads} />
+            <SoldOnDeliveryQuestion
+              value={soldOnDelivery}
+              onChange={setSoldOnDelivery}
+              fromQuote={fromQuote}
+              error={showValidationErrors && !fromQuote && soldOnDelivery === null ? SOLD_ON_DELIVERY_REQUIRED : undefined}
+            />
           </div>
         )}
 

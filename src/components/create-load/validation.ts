@@ -224,6 +224,14 @@ export function validateAssignment(
   return ok();
 }
 
+export const SOLD_ON_DELIVERY_REQUIRED = "Choose whether the car is sold to the person receiving it.";
+
+/** Create Managed Load asks whether the car is sold to the person receiving it. */
+export function validateSoldOnDelivery(ask: boolean, value: boolean | null | undefined): StepValidation {
+  if (!ask || typeof value === "boolean") return ok();
+  return { valid: false, issues: [{ field: "vehicles.soldOnDelivery", message: SOLD_ON_DELIVERY_REQUIRED }], warnings: [] };
+}
+
 export function validateAll(input: {
   postType: PostType;
   pickup: LocationBlock;
@@ -240,6 +248,9 @@ export function validateAll(input: {
    * (drivers are assigned from Driver Tracker), so it can't require one.
    */
   requireDriver?: boolean;
+  /** Ask whether the car is sold to the person receiving it (not for a load made from a quote). */
+  askSoldOnDelivery?: boolean;
+  soldOnDelivery?: boolean | null;
 }): StepValidation {
   const parts = [
     validateLocation(input.pickup, "pickup"),
@@ -248,6 +259,7 @@ export function validateAll(input: {
     validateDates(input.dates),
     validateContract(input.contract),
     validatePricing(input.postType, input.pricing),
+    validateSoldOnDelivery(input.askSoldOnDelivery === true, input.soldOnDelivery),
     input.requireDriver === false
       ? ok()
       : validateAssignment(

@@ -77,6 +77,8 @@ export interface Load {
   createdBy: string;
   /** The quote this load was converted from, if any. */
   quoteId?: string | null;
+  /** Asked in Create Managed Load: the car is sold to the person receiving it (Sold at delivery). */
+  soldOnDelivery?: boolean;
   /** That quote's customer and linked CRM lead (load details only). */
   quoteOrigin?: {
     quoteId: string;
