@@ -28,6 +28,11 @@ interface ShopInventoryFiltersProps {
   resultCount?: number;
   /** Optional local-sort feedback; existing callers remain unchanged. */
   isSorting?: boolean;
+  /**
+   * The customer Shop: hides Status (the marketplace only lists Ready for Sale
+   * cars) and Price Last Updated (staff only). Inventory is unchanged.
+   */
+  marketplace?: boolean;
 }
 
 
@@ -178,6 +183,7 @@ export function ShopInventoryFilters({
   sortOptions,
   resultCount,
   isSorting = false,
+  marketplace = false,
 }: ShopInventoryFiltersProps) {
   const { getToken } = useAuth();
   const [filterOptions, setFilterOptions] = React.useState<FilterOptions | null>(null);
@@ -194,40 +200,57 @@ export function ShopInventoryFilters({
   React.useEffect(() => { if (!filters.minMileage) setMileMin(""); }, [filters.minMileage]);
   React.useEffect(() => { if (!filters.maxMileage) setMileMax(""); }, [filters.maxMileage]);
 
-  // Range filters are intentionally applied on every keystroke. The Inventory
-  // page filters the already-loaded vehicle collection locally, so there is no
-  // network request or loading state to wait for here. This keeps the range
-  // controls feeling immediate while preserving their local input values.
+  // Range filters apply on every keystroke in Inventory, which filters the
+  // already-loaded cars locally. The customer Shop asks the marketplace for
+  // each change, so there they apply after a short pause in typing instead.
+  const rangeTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  React.useEffect(() => {
+    const timers = rangeTimersRef.current;
+    return () => Object.values(timers).forEach(clearTimeout);
+  }, []);
+  const applyRange = React.useCallback(
+    (key: "minPrice" | "maxPrice" | "minMileage" | "maxMileage", rawValue: string) => {
+      const value = rawValue === "" ? undefined : Number(rawValue);
+      if (!marketplace) {
+        onFilterChange(key, value);
+        return;
+      }
+      clearTimeout(rangeTimersRef.current[key]);
+      rangeTimersRef.current[key] = setTimeout(() => onFilterChange(key, value), 600);
+    },
+    [marketplace, onFilterChange],
+  );
+
   const handleMinPriceChange = React.useCallback(
     (rawValue: string) => {
       setPriceMin(rawValue);
-      onFilterChange("minPrice", rawValue === "" ? undefined : Number(rawValue));
+      applyRange("minPrice", rawValue);
     },
-    [onFilterChange],
+    [applyRange],
   );
 
   const handleMaxPriceChange = React.useCallback(
     (rawValue: string) => {
       setPriceMax(rawValue);
-      onFilterChange("maxPrice", rawValue === "" ? undefined : Number(rawValue));
+      applyRange("maxPrice", rawValue);
     },
-    [onFilterChange],
+    [applyRange],
   );
 
   const handleMinMileageChange = React.useCallback(
     (rawValue: string) => {
       setMileMin(rawValue);
-      onFilterChange("minMileage", rawValue === "" ? undefined : Number(rawValue));
+      applyRange("minMileage", rawValue);
     },
-    [onFilterChange],
+    [applyRange],
   );
 
   const handleMaxMileageChange = React.useCallback(
     (rawValue: string) => {
       setMileMax(rawValue);
-      onFilterChange("maxMileage", rawValue === "" ? undefined : Number(rawValue));
+      applyRange("maxMileage", rawValue);
     },
-    [onFilterChange],
+    [applyRange],
   );
 
   React.useEffect(() => {
@@ -533,12 +556,14 @@ export function ShopInventoryFilters({
                 onValueChange={(value) => onFilterChange("year", value === "all" ? undefined : Number(value))}
                 options={yearOptions}
               />
-              <MobileFilterSelect
-                label="Status"
-                value={filters.status && filters.status !== "all" ? filters.status : "all"}
-                onValueChange={(value) => onFilterChange("status", value === "all" ? "all" : value)}
-                options={statusOptions}
-              />
+              {!marketplace && (
+                <MobileFilterSelect
+                  label="Status"
+                  value={filters.status && filters.status !== "all" ? filters.status : "all"}
+                  onValueChange={(value) => onFilterChange("status", value === "all" ? "all" : value)}
+                  options={statusOptions}
+                />
+              )}
               <MobileFilterSelect
                 label="Location"
                 value={filters.location || "all"}
@@ -553,12 +578,14 @@ export function ShopInventoryFilters({
               />
             </div>
 
-            <MobileFilterSelect
-              label="Price Last Updated"
-              value={filters.priceUpdated || "all"}
-              onValueChange={(value) => onFilterChange("priceUpdated", value === "all" ? "all" : value)}
-              options={PRICE_UPDATED_OPTIONS}
-            />
+            {!marketplace && (
+              <MobileFilterSelect
+                label="Price Last Updated"
+                value={filters.priceUpdated || "all"}
+                onValueChange={(value) => onFilterChange("priceUpdated", value === "all" ? "all" : value)}
+                options={PRICE_UPDATED_OPTIONS}
+              />
+            )}
 
             <div className="rounded-xl border border-border/50 bg-muted/20 p-3 dark:bg-zinc-950/35">
               <div className="mb-2.5 flex items-center gap-2">
@@ -640,13 +667,15 @@ export function ShopInventoryFilters({
               ariaLabel="Filter by body style"
               options={bodyStyleOptions}
             />
-            <PillSelect
-              value={filters.status && filters.status !== "all" ? filters.status : "all"}
-              onValueChange={(value) => onFilterChange("status", value === "all" ? "all" : value)}
-              active={!!(filters.status && filters.status !== "all")}
-              ariaLabel="Filter by status"
-              options={statusOptions}
-            />
+            {!marketplace && (
+              <PillSelect
+                value={filters.status && filters.status !== "all" ? filters.status : "all"}
+                onValueChange={(value) => onFilterChange("status", value === "all" ? "all" : value)}
+                active={!!(filters.status && filters.status !== "all")}
+                ariaLabel="Filter by status"
+                options={statusOptions}
+              />
+            )}
             <PillSelect
               value={filters.location || "all"}
               onValueChange={(value) => onFilterChange("location", value === "all" ? undefined : value)}
@@ -654,13 +683,15 @@ export function ShopInventoryFilters({
               ariaLabel="Filter by location"
               options={locationOptions}
             />
-            <PillSelect
-              value={filters.priceUpdated || "all"}
-              onValueChange={(value) => onFilterChange("priceUpdated", value === "all" ? "all" : value)}
-              active={!!filters.priceUpdated && filters.priceUpdated !== "all"}
-              ariaLabel="Filter by price last updated"
-              options={PRICE_UPDATED_OPTIONS}
-            />
+            {!marketplace && (
+              <PillSelect
+                value={filters.priceUpdated || "all"}
+                onValueChange={(value) => onFilterChange("priceUpdated", value === "all" ? "all" : value)}
+                active={!!filters.priceUpdated && filters.priceUpdated !== "all"}
+                ariaLabel="Filter by price last updated"
+                options={PRICE_UPDATED_OPTIONS}
+              />
+            )}
 
             <button
               type="button"

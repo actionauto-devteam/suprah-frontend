@@ -13,6 +13,14 @@ import { useAuth } from "@/providers/AuthProvider";
 import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
 import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
 import { userErrorMessage } from "@/lib/user-error";
+import {
+  EMPTY_SHOP_FILTERS,
+  SHOP_SEARCH_DELAY_MS,
+  shopFiltersFromParams,
+  shopPagingFromParams,
+  shopQueryString,
+  type ShopFilters,
+} from "@/lib/shop-filters";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
 import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
@@ -36,6 +44,7 @@ import { useInventoryViewPreference } from "@/hooks/useInventoryViewPreference";
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
 type SortOption =
+  | "recent-desc"
   | "price-asc"
   | "price-desc"
   | "mileage-asc"
@@ -44,10 +53,10 @@ type SortOption =
   | "year-asc"
   | "make-asc"
   | "make-desc"
-  | "demand-desc"
-  | "low-performing-desc";
+  | "demand-desc";
 
 const SHOP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
+  { value: "recent-desc", label: "Newest Listings" },
   { value: "price-asc", label: "Price: Low to High" },
   { value: "price-desc", label: "Price: High to Low" },
   { value: "year-desc", label: "Year: Newest First" },
@@ -276,36 +285,36 @@ function ShopVehiclesContent() {
     handleGetQuote,
   } = useInventoryActions();
 
-  const [page, setPage] = React.useState(Number(searchParams.get("page")) || 1);
-  const [limit, setLimit] = React.useState(Number(searchParams.get("limit")) || 12);
+  // Filters come from the page address, so the sidebar's Shop shortcuts and
+  // shared links work even while Shop is already open (see shop-filters).
+  const [page, setPage] = React.useState(() => shopPagingFromParams(new URLSearchParams(searchParams.toString())).page);
+  const [limit, setLimit] = React.useState(() => shopPagingFromParams(new URLSearchParams(searchParams.toString())).limit);
   const resultsTopRef = React.useRef<HTMLDivElement | null>(null);
   const [total, setTotal] = React.useState(0);
   const [totalPages, setTotalPages] = React.useState(1);
 
-  const [filters, setFilters] = React.useState<any>({
-    search: searchParams.get("search") || "",
-    make: searchParams.get("make") || undefined,
-    model: searchParams.get("model") || undefined,
-    status: searchParams.get("status") || "all",
-    year: searchParams.get("year") ? Number(searchParams.get("year")) : undefined,
-    minPrice: searchParams.get("minPrice") ? Number(searchParams.get("minPrice")) : undefined,
-    maxPrice: searchParams.get("maxPrice") ? Number(searchParams.get("maxPrice")) : undefined,
-    minMileage: searchParams.get("minMileage") ? Number(searchParams.get("minMileage")) : undefined,
-    maxMileage: searchParams.get("maxMileage") ? Number(searchParams.get("maxMileage")) : undefined,
-    bodyStyle: searchParams.get("bodyStyle") || undefined,
-    location: searchParams.get("location") || undefined,
-    highDemand: searchParams.get("highDemand") === "true" ? true : undefined,
-    lowPerforming: searchParams.get("lowPerforming") === "true" ? true : undefined,
-    sortBy: searchParams.get("sortBy") || "",
-    sortOrder: searchParams.get("sortOrder") || "",
-  });
+  const [filters, setFilters] = React.useState<ShopFilters>(() =>
+    shopFiltersFromParams(new URLSearchParams(searchParams.toString())),
+  );
 
+  // The search runs once the customer stops typing, not on every key, and a
+  // new search starts from the first page.
   const [debouncedSearch, setDebouncedSearch] = React.useState(filters.search);
-
   React.useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(filters.search), 500);
+    const timer = setTimeout(() => {
+      setDebouncedSearch((previous) => {
+        if (previous !== filters.search) setPage(1);
+        return filters.search;
+      });
+    }, SHOP_SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
   }, [filters.search]);
+
+  // One string for what's being asked, so typing alone never sends a request.
+  const requestQuery = React.useMemo(
+    () => shopQueryString({ ...filters, search: debouncedSearch }, page, limit),
+    [filters, debouncedSearch, page, limit],
+  );
 
   const fetchVehicles = React.useCallback(async () => {
     const currentSequence = ++fetchSequenceRef.current;
@@ -315,7 +324,7 @@ function ShopVehiclesContent() {
       const token = await getToken();
       const response = await apiClient.get("/api/vehicles/marketplace", {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page, limit, ...filters, search: debouncedSearch },
+        params: Object.fromEntries(new URLSearchParams(requestQuery)),
         timeout: 15000,
       });
 
@@ -341,46 +350,41 @@ function ShopVehiclesContent() {
       setLastUpdated(new Date());
     } catch (err) {
       if (currentSequence !== fetchSequenceRef.current) return;
-      const axiosError = err as AxiosError;
-      if (axiosError.code !== "ERR_CANCELED") {
-        const status = axiosError.response?.status;
-        if (status === 401 || status === 403) {
-          setError("Your session has expired. Please sign in again.");
-        } else {
-          setError(
-            (axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Failed to load vehicles",
-          );
-        }
+      if ((err as AxiosError).code !== "ERR_CANCELED") {
+        // Says what happened and what to do (sign in again, wait, or contact support).
+        setError(userErrorMessage(err, "load vehicles"));
       }
     } finally {
       if (currentSequence === fetchSequenceRef.current) setIsLoading(false);
     }
-  }, [debouncedSearch, filters, getToken, limit, page]);
+  }, [getToken, limit, requestQuery]);
+
+  // Addresses Shop wrote itself, so a change from outside (a sidebar
+  // shortcut, the back button) can be told apart from Shop's own updates.
+  const writtenQueriesRef = React.useRef<string[]>([]);
 
   React.useEffect(() => {
-    const params = new URLSearchParams();
-    params.set("page", page.toString());
-    params.set("limit", limit.toString());
-    Object.keys(filters).forEach((key) => {
-      if (filters[key] !== undefined && filters[key] !== "" && filters[key] !== "all") {
-        params.set(key, filters[key]);
-      }
-    });
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    fetchVehicles();
-  }, [
-    page, limit, debouncedSearch,
-    filters.make, filters.model, filters.status, filters.year,
-    filters.minPrice, filters.maxPrice, filters.minMileage, filters.maxMileage,
-    filters.bodyStyle, filters.location, filters.highDemand, filters.lowPerforming,
-    filters.sortBy, filters.sortOrder,
-    fetchVehicles,
-  ]);
+    writtenQueriesRef.current = [...writtenQueriesRef.current.slice(-9), requestQuery];
+    if (window.location.search.replace(/^\?/, "") !== requestQuery) {
+      router.replace(`${pathname}?${requestQuery}`, { scroll: false });
+    }
+    void fetchVehicles();
+  }, [requestQuery, fetchVehicles, router, pathname]);
 
   React.useEffect(() => {
-    const interval = setInterval(() => fetchVehicles(), 5 * 60 * 1000);
+    const current = searchParams.toString();
+    if (writtenQueriesRef.current.length === 0 || writtenQueriesRef.current.includes(current)) return;
+    const params = new URLSearchParams(current);
+    const next = shopFiltersFromParams(params);
+    const paging = shopPagingFromParams(params);
+    setFilters(next);
+    setDebouncedSearch(next.search);
+    setPage(paging.page);
+    setLimit(paging.limit);
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => void fetchVehicles(), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchVehicles]);
 
@@ -407,22 +411,26 @@ function ShopVehiclesContent() {
         });
         const data = response.data?.data || response.data;
         if (data) handleVehicleClick(data as Vehicle);
-      } catch { }
+      } catch {
+        toast.error("That vehicle is no longer listed. Browse Shop to see what's available now.");
+      }
     })();
   }, [vehicles, isLoading, getToken, handleVehicleClick]);
 
-  const handleFilterChange = (key: string, value: any) => {
-    setFilters((prev: any) => ({ ...prev, [key]: value }));
+  const handleFilterChange = (key: string, value: unknown) => {
+    if (key === "search") {
+      // The search itself waits for a pause in typing (see above).
+      setFilters((prev) => ({ ...prev, search: String(value ?? "") }));
+      return;
+    }
+    const cleared = value === undefined || value === null || value === "" || value === "all";
+    setFilters((prev) => ({ ...prev, [key]: cleared ? undefined : value }));
     setPage(1);
   };
 
   const handleClearFilters = () => {
-    setFilters({
-      search: "", make: undefined, model: undefined, status: "all", year: undefined,
-      minPrice: undefined, maxPrice: undefined, minMileage: undefined, maxMileage: undefined,
-      bodyStyle: undefined, location: undefined, highDemand: undefined, lowPerforming: undefined,
-      sortBy: "", sortOrder: "",
-    });
+    setFilters({ ...EMPTY_SHOP_FILTERS });
+    setDebouncedSearch("");
     setPage(1);
   };
 
@@ -444,6 +452,7 @@ function ShopVehiclesContent() {
 
   const handleSortChange = (value: string) => {
     const sortMap: Record<string, { sortBy: string; sortOrder: string }> = {
+      "recent-desc": { sortBy: "recent", sortOrder: "desc" },
       "price-asc": { sortBy: "price", sortOrder: "asc" },
       "price-desc": { sortBy: "price", sortOrder: "desc" },
       "mileage-asc": { sortBy: "mileage", sortOrder: "asc" },
@@ -453,10 +462,10 @@ function ShopVehiclesContent() {
       "make-asc": { sortBy: "make", sortOrder: "asc" },
       "make-desc": { sortBy: "make", sortOrder: "desc" },
       "demand-desc": { sortBy: "demand", sortOrder: "desc" },
-      "low-performing-desc": { sortBy: "low-performing", sortOrder: "desc" },
     };
     const mapped = sortMap[value] ?? { sortBy: "", sortOrder: "" };
-    setFilters((prev: any) => ({ ...prev, ...mapped }));
+    setFilters((prev) => ({ ...prev, ...mapped }));
+    setPage(1);
   };
 
   const currentSortValue = React.useMemo((): SortOption | "" => {
@@ -466,8 +475,10 @@ function ShopVehiclesContent() {
       "mileage-asc": "mileage-asc", "mileage-desc": "mileage-desc",
       "year-desc": "year-desc", "year-asc": "year-asc",
       "make-asc": "make-asc", "make-desc": "make-desc",
-      "demand-desc": "demand-desc", "low-performing-desc": "low-performing-desc",
+      "demand-desc": "demand-desc", "recent-desc": "recent-desc",
     };
+    // No sort chosen means the marketplace default: newest listings first.
+    if (!filters.sortBy) return "recent-desc";
     return aliases[key] ?? "";
   }, [filters.sortBy, filters.sortOrder]);
 
@@ -645,6 +656,7 @@ function ShopVehiclesContent() {
           onSortChange={handleSortChange}
           sortOptions={SHOP_SORT_OPTIONS}
           resultCount={total}
+          marketplace
         />
         <p className="hidden md:block text-xs text-muted-foreground px-0.5">
           <span className="font-bold text-foreground tabular-nums">{total}</span>{" "}
