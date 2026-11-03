@@ -35,6 +35,7 @@ export type NotificationType =
   | 'lead_note_mention'
   | 'missed_call'
   | 'lead_message'
+  | 'automation_alert'
   | 'new_lead'
   | 'lead_new_inquiry'
   | 'lead_inquiry_review'
