@@ -2097,6 +2097,8 @@ function AgendaView({
                 const owner = item.assignees?.[0] ?? item.createdBy;
 
                 const selected = selectedIds?.has(item.id) ?? false;
+                // Shipments are read-only, so bulk actions skip them.
+                const lockedInSelect = selectMode && isShipmentItem(item.id);
 
                 return (
                   <button
@@ -2105,10 +2107,11 @@ function AgendaView({
                     onClick={() =>
                       selectMode ? onToggleSelected?.(item.id) : onItemClick(item)
                     }
-                    title={`${item.title} — ${timeLabel}`}
-                    className={`group flex min-h-13 w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
+                    disabled={lockedInSelect}
+                    title={lockedInSelect ? `${item.title} — shipments can't be selected` : `${item.title} — ${timeLabel}`}
+                    className={`group flex min-h-13 w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
                   >
-                    {selectMode && (
+                    {selectMode && !lockedInSelect && (
                       <Checkbox
                         checked={selected}
                         onCheckedChange={() => onToggleSelected?.(item.id)}
