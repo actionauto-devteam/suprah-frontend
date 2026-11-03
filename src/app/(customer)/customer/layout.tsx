@@ -7,6 +7,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
+import { CustomerAgentChat } from "@/components/customer/CustomerAgentChat";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
 
@@ -175,6 +176,8 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
           </main>
           <MobileBottomNav items={customerNav} />
         </SidebarInset>
+        {/* The dealership AI Agent chat, on every customer page. */}
+        <CustomerAgentChat />
       </div>
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>

@@ -30,7 +30,6 @@ import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import ShopAssistant from "@/components/ShopAssistant";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchSavedVehicles, saveVehicle, removeSavedVehicle } from "@/lib/api/savedVehicles";
 import { ComparisonTray } from "@/components/customer/ComparisonTray";
@@ -776,12 +775,6 @@ function ShopVehiclesContent() {
           <SavedVehiclesFloatingButton
             savedVehicles={savedVehiclesData as Vehicle[]}
             liftForTray={comparedVehicles.length > 0}
-          />
-
-          <ShopAssistant
-            mode="float"
-            vehicleHrefBase="/shop"
-            mobileBottomOffset={comparedVehicles.length > 0 ? 100 : 0}
           />
 
           <ComparisonTray
