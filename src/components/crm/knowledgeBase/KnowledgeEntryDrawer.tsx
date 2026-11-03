@@ -100,6 +100,9 @@ function ApprovalPanel({ detail, locations }: { detail: KbEntryDetail; locations
       {approval.invalidation && <p>Reason: {KB_INVALIDATION_LABELS[approval.invalidation.reason] || approval.invalidation.reason} ({formatKbDate(approval.invalidation.at)})</p>}
       {suspendedNames.length > 0 && <p>Suspended at: {suspendedNames.join(", ")}. A fresh review is needed before it applies there again.</p>}
       {approval.needsReapproval && <p className="font-semibold">Submit it for re-approval. Another manager or admin must approve it.</p>}
+      {entry.amountApproval && (
+        <p>Money amounts allowed: {entry.amountApproval.amounts.join(", ")}{entry.amountApproval.by?.name ? ` by ${entry.amountApproval.by.name}` : ""}{entry.amountApproval.at ? ` · ${formatKbDate(entry.amountApproval.at)}` : ""}</p>
+      )}
       <p className="text-muted-foreground">Knowledge Base content is not used by the AI Agent yet, even when approved.</p>
     </section>
   )
@@ -124,16 +127,19 @@ export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey 
   const [note, setNote] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [actionIssues, setActionIssues] = React.useState<KbIssue[]>([])
+  const [allowAmounts, setAllowAmounts] = React.useState(false)
 
   React.useEffect(() => {
     setPending(null)
     setNote("")
+    setAllowAmounts(false)
     setViewing(null)
     setActionIssues([])
   }, [entryId])
 
   const data = detail.data
   const entry = data?.entry
+  const amounts = data?.check.amounts || []
 
   const run = async (action: KbAction) => {
     if (!entry) return
@@ -148,6 +154,7 @@ export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey 
       const body: Record<string, unknown> = {}
       if (config.version) body.expectedVersion = entry.currentVersion
       if (note.trim()) body.note = note.trim()
+      if (action === "approve" && allowAmounts) body.allowAmounts = true
       await knowledgeRequest(getToken, "post", `/entries/${entry.id}/${action}`, body)
       toast.success(config.done)
       setPending(null)
@@ -245,6 +252,7 @@ export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey 
                           disabled={busy || (button.action === "approve" && entry.isMine)}
                           onClick={() => {
                             setNote("")
+                            setAllowAmounts(false)
                             if (ACTIONS[button.action].note === "none") void run(button.action)
                             else setPending(button.action)
                           }}
@@ -261,9 +269,19 @@ export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey 
                           {ACTIONS[pending].label}: note{ACTIONS[pending].note === "required" ? "" : " (optional)"}
                         </label>
                         <Textarea id="kb-action-note" rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} disabled={busy} />
+                        {pending === "approve" && amounts.length > 0 && (
+                          <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                            <p className="font-semibold">This answer includes money amounts: {amounts.join(", ")}</p>
+                            <p>If you allow them, the AI agent can tell customers these exact amounts once Knowledge Base answers are turned on for it. It still can&apos;t say any other amount or make promises.</p>
+                            <label className="flex items-start gap-2 font-semibold">
+                              <input type="checkbox" className="mt-0.5" checked={allowAmounts} onChange={(event) => setAllowAmounts(event.target.checked)} disabled={busy} />
+                              Allow the AI agent to say these amounts
+                            </label>
+                          </div>
+                        )}
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button size="sm" variant="outline" onClick={() => setPending(null)} disabled={busy}>Cancel</Button>
-                          <Button size="sm" variant={ACTIONS[pending].destructive ? "destructive" : "default"} onClick={() => void run(pending)} disabled={busy}>
+                          <Button size="sm" variant={ACTIONS[pending].destructive ? "destructive" : "default"} onClick={() => void run(pending)} disabled={busy || (pending === "approve" && amounts.length > 0 && !allowAmounts)}>
                             {busy && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
                             Confirm {ACTIONS[pending].label.toLowerCase()}
                           </Button>

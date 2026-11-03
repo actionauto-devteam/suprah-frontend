@@ -170,6 +170,7 @@ export interface KbEntrySummary {
   lastReview?: { action: string; note?: string; by?: KbActorRef; at: string }
   approvedBy?: KbActorRef
   approvedAt?: string
+  amountApproval?: { amounts: string[]; by?: KbActorRef; at?: string }
   disabledAt?: string
   archivedAt?: string
   restoredAt?: string
@@ -207,7 +208,7 @@ export interface KbEntryDetail {
   entry: KbEntrySummary
   current: KbVersion | null
   approved?: KbVersion
-  check: { errors: KbIssue[]; warnings: KbIssue[] }
+  check: { errors: KbIssue[]; warnings: KbIssue[]; amounts?: string[] }
   duplicates: Array<{ id: string; status: KbStatusValue; lifecycle: KbLifecycle }>
   conflicts: string[]
   permissions: {

@@ -18,6 +18,7 @@ interface CoachingRule {
   instruction: string;
   createdByName?: string;
   updatedAt?: string;
+  amountApproval?: { amounts?: string[]; approvedByName?: string };
 }
 
 const errorMessageOf = (error: unknown, fallback: string) => {
@@ -25,6 +26,12 @@ const errorMessageOf = (error: unknown, fallback: string) => {
   return typeof candidate.response?.data?.message === "string"
     ? candidate.response.data.message
     : fallback;
+};
+
+const amountsToAllow = (error: unknown): string[] | null => {
+  const candidate = error as { response?: { data?: { errors?: Array<{ code?: unknown; amounts?: unknown }> } } };
+  const issue = candidate.response?.data?.errors?.find((entry) => entry?.code === "amounts_need_approval");
+  return issue && Array.isArray(issue.amounts) ? issue.amounts.map(String) : null;
 };
 
 export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverProps) {
@@ -36,6 +43,7 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
   const [isLoadingRules, setIsLoadingRules] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  const [amountsToConfirm, setAmountsToConfirm] = React.useState<string[] | null>(null);
   const canManage = user?.role === "admin" || user?.role === "manager";
 
   const authHeaders = React.useCallback(async () => {
@@ -64,16 +72,17 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
     if (open) void loadRules();
   }, [open, loadRules]);
 
-  const submit = async () => {
+  const submit = async (allowAmounts = false) => {
     const text = instruction.trim();
     if (!text || isSubmitting) return;
     setIsSubmitting(true);
     setMessage(null);
+    setAmountsToConfirm(null);
     try {
       const headers = await authHeaders();
       const response = await apiClient.post(
         "/api/crm/ai-coaching",
-        { leadId, messageId, channel, instruction: text },
+        { leadId, messageId, channel, instruction: text, ...(allowAmounts ? { allowAmounts: true } : {}) },
         { headers },
       );
       const created = response.data?.data || response.data;
@@ -85,7 +94,9 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
         setMessage("Saved for future AI Agent replies.");
       }
     } catch (error: unknown) {
-      setMessage(errorMessageOf(error, "Could not save coaching."));
+      const amounts = allowAmounts ? null : amountsToAllow(error);
+      if (amounts) setAmountsToConfirm(amounts);
+      else setMessage(errorMessageOf(error, "Could not save coaching."));
     } finally {
       setIsSubmitting(false);
     }
@@ -136,7 +147,10 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
 
           <textarea
             value={instruction}
-            onChange={(event) => setInstruction(event.target.value)}
+            onChange={(event) => {
+              setInstruction(event.target.value);
+              setAmountsToConfirm(null);
+            }}
             placeholder="Next time, ask for the customer's preferred appointment time before offering a schedule."
             maxLength={800}
             className="min-h-24 w-full resize-none rounded-lg border border-amber-300 bg-white px-3 py-2 text-[13px] outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-amber-400/30 dark:border-amber-400/30 dark:bg-black/20 dark:placeholder:text-amber-100/40"
@@ -152,7 +166,7 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
             </button>
             <button
               type="button"
-              onClick={submit}
+              onClick={() => void submit()}
               disabled={!instruction.trim() || isSubmitting}
               className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -160,6 +174,37 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
               Submit feedback
             </button>
           </div>
+
+          {amountsToConfirm && (
+            <div
+              role="alertdialog"
+              aria-label="Confirm money amounts"
+              className="mt-2 space-y-2 rounded-lg border border-amber-400 bg-white/80 p-2.5 text-[12px] dark:border-amber-400/40 dark:bg-black/20"
+            >
+              <p className="font-bold">This coaching includes money amounts: {amountsToConfirm.join(", ")}</p>
+              <p className="text-[11px] text-amber-800 dark:text-amber-100/80">
+                If you allow them, the AI agent can tell customers these exact amounts. It still can&apos;t say any other amount or make promises.
+              </p>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAmountsToConfirm(null)}
+                  className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-amber-800 transition hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-white/10"
+                >
+                  Go back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submit(true)}
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  Allow and save
+                </button>
+              </div>
+            </div>
+          )}
 
           {message && (
             <p className="mt-2 rounded-lg bg-amber-100 px-2.5 py-1.5 text-[11px] text-amber-800 dark:bg-white/10 dark:text-amber-100">
@@ -181,6 +226,12 @@ export function CoachAiPopover({ leadId, messageId, channel }: CoachAiPopoverPro
                 {rules.slice(0, 8).map((rule) => (
                   <div key={rule.id} className="rounded-lg bg-white/70 p-2 text-[12px] dark:bg-black/15">
                     <p className="whitespace-pre-wrap break-words leading-relaxed">{rule.instruction}</p>
+                    {rule.amountApproval?.amounts?.length ? (
+                      <p className="mt-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        Amounts allowed: {rule.amountApproval.amounts.join(", ")}
+                        {rule.amountApproval.approvedByName ? ` by ${rule.amountApproval.approvedByName}` : ""}
+                      </p>
+                    ) : null}
                     <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-amber-700 dark:text-amber-200/75">
                       <span className="truncate">{rule.createdByName || "Team member"}</span>
                       {canManage && (
