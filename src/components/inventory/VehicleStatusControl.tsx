@@ -88,7 +88,7 @@ export function VehicleStatusControl({
     >
       <AlertDialogTrigger asChild>
         <Button type="button" variant="outline" className={cn("gap-1.5 border-border/60", className)}>
-          <Tag className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+          <Tag className="h-3.5 w-3.5 shrink-0 text-emerald-500 lg:h-4 lg:w-4" aria-hidden="true" />
           Change status
         </Button>
       </AlertDialogTrigger>

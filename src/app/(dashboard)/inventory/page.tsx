@@ -1462,7 +1462,9 @@ function InventoryContent() {
                 key={selectedVehicle.id}
                 vehicle={selectedVehicle}
                 onTheWay={isVehicleOnTheWay(shippingStates.get(selectedVehicle.id))}
-                className="min-h-10 h-auto whitespace-normal px-2 py-2 text-xs font-semibold"
+                // Matches the buttons around it: the phone grid, then the
+                // full-width buttons of the side panel on wide screens.
+                className="min-h-10 h-auto whitespace-normal px-2 py-2 text-xs font-semibold lg:h-11 lg:min-h-0 lg:w-full lg:gap-2 lg:px-4 lg:text-sm"
                 onChanged={(status) => {
                   // Shows the new status in the open window, then refreshes the list.
                   handleVehicleClick({ ...selectedVehicle, status });
