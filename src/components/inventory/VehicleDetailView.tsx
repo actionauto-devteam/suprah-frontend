@@ -20,7 +20,7 @@ import {
   Hash,
   Palette,
   Cog,
-  Phone,
+  MessageSquare,
   CheckCircle2,
   TruckIcon,
   Sparkles,
@@ -962,20 +962,9 @@ export function VehicleDetailView({
                   className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-xs font-semibold"
                   onClick={() => onInquiryClick(vehicle)}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                  Check Availability
-                </Button>
-              )}
-              {!mobileInspector && (
-                <Button
-                  variant="outline"
-                  className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-xs font-semibold"
-                  asChild
-                >
-                  <a href="tel:8017666137">
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                    Call (801) 766-6137
-                  </a>
+                  {/* Goes to the car's own dealership (cars come from many dealerships). */}
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                  Ask the dealership
                 </Button>
               )}
               {onCreateLoad && (
@@ -1488,23 +1477,10 @@ export function VehicleDetailView({
                   className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-[11px] font-semibold"
                   onClick={() => onInquiryClick(vehicle)}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                  Availability
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                  Ask the dealership
                 </Button>
               )}
-              <Button
-                variant="outline"
-                className={cn(
-                  "min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-[11px] font-semibold",
-                  !onInquiryClick && "col-span-2",
-                )}
-                asChild
-              >
-                <a href="tel:8017666137">
-                  <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  Call (801) 766-6137
-                </a>
-              </Button>
             </div>
           </section>
         )}
@@ -1579,8 +1555,8 @@ export function VehicleDetailView({
                   className="h-11 w-full gap-2 border-border/60 font-semibold"
                   onClick={() => onInquiryClick(vehicle)}
                 >
-                  <CheckCircle2 className="h-4 w-4 text-blue-500" /> Check
-                  Availability
+                  <MessageSquare className="h-4 w-4 text-blue-500" /> Ask the
+                  dealership
                 </Button>
               )}
               {onBookTestDrive && (
@@ -1630,17 +1606,6 @@ export function VehicleDetailView({
                   Quote
                 </Button>
               )}
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-11 w-full gap-2 border-border/60 font-semibold"
-                asChild
-              >
-                <a href="tel:8017666137">
-                  <Phone className="h-4 w-4 text-emerald-500" /> Call (801)
-                  766-6137
-                </a>
-              </Button>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="ghost"
