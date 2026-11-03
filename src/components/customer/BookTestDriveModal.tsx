@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { parseDatetimeLocalAsMdt } from "@/lib/timezone"
+import { mountainTomorrow } from "@/lib/booking-time"
 import { useUser } from "@/providers/AuthProvider"
 import { submitTestDriveBooking } from "@/lib/api/publicBooking"
 import { Calendar, Clock, CheckCircle2, Loader2 } from "lucide-react"
@@ -26,9 +28,7 @@ interface BookTestDriveModalProps {
 }
 
 function getTomorrowISO(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return d.toISOString().split("T")[0]
+  return mountainTomorrow()
 }
 
 export function BookTestDriveModal({
@@ -89,10 +89,16 @@ export function BookTestDriveModal({
 
   const handleSubmit = async () => {
     if (!isValid || isSubmitting) return
+    // The dealership's clock, whatever the customer's own says: 10:00 on the
+    // 5th is 10:00 AM Mountain Time on the 5th.
+    const startTime = parseDatetimeLocalAsMdt(`${date}T${time}`)
+    if (!startTime) {
+      toast.error("Pick a date and a time for your test drive, then try again.")
+      return
+    }
     setIsSubmitting(true)
 
     try {
-      const startTime = new Date(`${date}T${time}:00`)
       await submitTestDriveBooking({
         vehicleId: vehicle.id,
         firstName: firstName.trim(),
@@ -193,6 +199,7 @@ export function BookTestDriveModal({
                   onChange={e => setTime(e.target.value)}
                   className="h-11"
                 />
+                <p className="text-xs text-muted-foreground">Mountain Time</p>
               </div>
             </div>
 

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { createCustomerAppointment } from "@/lib/api/appointments"
+import { mountainTomorrow, pickedDayLabel, pickedTimeLabel, serviceSlotStart } from "@/lib/booking-time"
 import { fetchAvailableSlots } from "@/lib/api/serviceSlots"
 import { Calendar, Clock, MapPin, CheckCircle2, Loader2, ChevronLeft } from "lucide-react"
 import { userErrorMessage } from "@/lib/user-error";
@@ -34,22 +35,8 @@ const SERVICE_TYPES = [
   { value: "other", label: "Other / General Service" },
 ]
 
-function parseTimeLabel(dateStr: string, label: string): Date {
-  const [time, period] = label.split(" ")
-  const [hourStr, minuteStr] = time.split(":")
-  let hour = parseInt(hourStr, 10)
-  const minute = minuteStr ? parseInt(minuteStr, 10) : 0
-  if (period === "PM" && hour !== 12) hour += 12
-  if (period === "AM" && hour === 12) hour = 0
-  const d = new Date(dateStr)
-  d.setHours(hour, minute, 0, 0)
-  return d
-}
-
 function getTomorrowISO(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return d.toISOString().split("T")[0]
+  return mountainTomorrow()
 }
 
 interface Location {
@@ -123,10 +110,14 @@ export function BookAppointmentModal({
 
   const handleSubmit = async () => {
     if (!user || !serviceType || !date || !timeSlot) return
+    const startTime = serviceSlotStart(date, timeSlot)
+    if (!startTime) {
+      toast.error("Pick a date and an available time, then try again.")
+      return
+    }
     setIsSubmitting(true)
 
     try {
-      const startTime = parseTimeLabel(date, timeSlot)
       const endTime = new Date(startTime.getTime() + 60 * 60 * 1000)
 
       const result = await createCustomerAppointment({
@@ -230,6 +221,7 @@ export function BookAppointmentModal({
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" /> Available Times
+                <span className="text-xs font-normal text-muted-foreground">(Mountain Time)</span>
               </Label>
 
               {slotsLoading ? (
@@ -297,15 +289,11 @@ export function BookAppointmentModal({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Date</span>
-                <span className="font-semibold">
-                  {new Date(date + "T12:00:00").toLocaleDateString("en-US", {
-                    weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver",
-                  })}
-                </span>
+                <span className="font-semibold">{pickedDayLabel(date)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Time</span>
-                <span className="font-semibold">{timeSlot}</span>
+                <span className="font-semibold">{pickedTimeLabel(date, timeSlot)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Location</span>
@@ -383,10 +371,7 @@ export function BookAppointmentModal({
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Date & Time</span>
                 <span className="font-semibold">
-                  {new Date(date + "T12:00:00").toLocaleDateString("en-US", {
-                    weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver",
-                  })}{" "}
-                  · {timeSlot}
+                  {pickedDayLabel(date)} · {pickedTimeLabel(date, timeSlot)}
                 </span>
               </div>
               <div className="flex justify-between">
