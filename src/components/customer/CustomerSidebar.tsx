@@ -153,9 +153,9 @@ const navSections = [
 
 const SHOP_SUB_ITEMS = [
   { title: "Browse All", url: "/customer/shop", icon: Car, params: "" },
-  { title: "New Arrivals", url: "/customer/shop", icon: Sparkles, params: "?sortBy=year&sortOrder=desc" },
+  // Newest listings first (not newest model year).
+  { title: "New Arrivals", url: "/customer/shop", icon: Sparkles, params: "?sortBy=recent&sortOrder=desc" },
   { title: "Special Deals", url: "/customer/shop", icon: Tag, params: "?sortBy=price&sortOrder=asc" },
-  { title: "In Transit", url: "/customer/shop", icon: Truck, params: "?status=In+Transit" },
 ];
 
 export function CustomerSidebar() {
@@ -196,7 +196,7 @@ export function CustomerSidebar() {
             <div className="flex items-center gap-1 mt-1.5">
               <Zap className="w-2.5 h-2.5 text-green-500 fill-green-500" />
               <span className="text-[9px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest leading-none">
-                Powered by Suprah.AI
+                Powered by Suprah AI
               </span>
             </div>
           </div>
