@@ -38,8 +38,9 @@ export function CustomerAgentChat() {
         setNode,
         style,
         handleProps,
-        // Starts above the phone menu and the page numbers; customers can move it.
-        className: "fixed bottom-24 right-4 z-40 sm:right-6",
+        // Starts above the phone menu (and its raised circle, which can be on
+        // the right-hand tab) and the page numbers; customers can move it.
+        className: "fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-4 z-40 sm:right-6 md:bottom-24",
       }}
     />
   );
