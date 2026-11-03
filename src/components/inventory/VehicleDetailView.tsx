@@ -596,6 +596,8 @@ export function VehicleDetailView({
   const { userRole, isSuperAdmin, organization } = useOrg();
   const isAdmin =
     userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
+  // Days on lot is the dealership's own number, shown to staff only.
+  const isStaffViewer = isAdmin || userRole === "employee";
 
   const allImages = React.useMemo(() => {
     const raw = [vehicle.image, ...(vehicle.images || [])]
@@ -1135,7 +1137,7 @@ export function VehicleDetailView({
                       icon={Calendar}
                       label="Days on Lot"
                       value={
-                        vehicle.daysOnLot
+                        isStaffViewer && vehicle.daysOnLot
                           ? `${vehicle.daysOnLot} days`
                           : undefined
                       }
@@ -1270,13 +1272,17 @@ export function VehicleDetailView({
                           ? `${vehicle.mileage.toLocaleString()} mi`
                           : undefined,
                       },
-                      {
-                        icon: Calendar,
-                        label: "Days on Lot",
-                        value: vehicle.daysOnLot
-                          ? `${vehicle.daysOnLot} days`
-                          : undefined,
-                      },
+                      ...(isStaffViewer
+                        ? [
+                            {
+                              icon: Calendar,
+                              label: "Days on Lot",
+                              value: vehicle.daysOnLot
+                                ? `${vehicle.daysOnLot} days`
+                                : undefined,
+                            },
+                          ]
+                        : []),
                       {
                         icon: Calendar,
                         label: "Date Added",
