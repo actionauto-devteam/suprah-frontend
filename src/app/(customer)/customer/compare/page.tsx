@@ -11,7 +11,7 @@ import { FinanceApplicationModal } from "@/components/finance-application-modal"
 import { Button } from "@/components/ui/button";
 import { SUPPORT_EMAIL } from "@/lib/support-contact";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
 import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
@@ -209,7 +209,7 @@ function CompareContent() {
               <div className="space-y-2">
                 <div className="relative overflow-hidden rounded-xl aspect-4/3 bg-muted">
                   <img
-                    src={vehicle.image || FALLBACK}
+                    src={resolveImageUrl(vehicle.image) || FALLBACK}
                     alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
                     className="absolute inset-0 h-full w-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK; }}

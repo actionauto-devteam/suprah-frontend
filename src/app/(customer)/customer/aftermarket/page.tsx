@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { userErrorMessage } from "@/lib/user-error";
 
@@ -150,7 +150,7 @@ function ProductCard({
           isVideo ? (
             <video src={product.media.url} className="w-full h-full object-cover" muted />
           ) : (
-            <img src={product.media.url} alt={product.name} className="w-full h-full object-cover" />
+            <img src={resolveImageUrl(product.media.url)} alt={product.name} className="w-full h-full object-cover" />
           )
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -249,7 +249,7 @@ function CartSheet({
               <div key={l.product._id} className="flex gap-3 rounded-[10px] border border-border p-3">
                 <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden shrink-0">
                   {l.product.media?.url ? (
-                    <img src={l.product.media.url} alt={l.product.name} className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(l.product.media.url)} alt={l.product.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center"><Package className="h-4 w-4 text-muted-foreground/40" /></div>
                   )}
