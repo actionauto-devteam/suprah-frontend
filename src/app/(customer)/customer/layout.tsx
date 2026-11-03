@@ -76,11 +76,11 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
       <div
         data-theme={theme}
         style={{ colorScheme: theme }}
-        className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-50 overflow-hidden"
+        className="flex h-dvh w-full bg-zinc-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-50 overflow-hidden"
       >
         <CustomerSidebar />
         <SidebarInset className="flex-1 flex flex-col min-w-0 bg-transparent">
-          <header className="flex h-14 shrink-0 items-center justify-between px-4 lg:px-5 border-b border-border/50 bg-background/90 backdrop-blur-xl z-10 sticky top-0">
+          <header className="flex min-h-14 shrink-0 items-center pt-[env(safe-area-inset-top)] justify-between px-4 lg:px-5 border-b border-border/50 bg-background/90 backdrop-blur-xl z-10 sticky top-0">
             <div className="flex items-center gap-2.5">
               <SidebarTrigger className="-ml-1 h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all" />
               <div className="hidden sm:flex items-center gap-2.5">
@@ -171,7 +171,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="flex-1 overflow-auto p-4 lg:p-8 pb-24 md:pb-8">
+          <main className="flex-1 overflow-auto p-4 lg:p-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
             <div className="w-full">{children}</div>
           </main>
           <MobileBottomNav items={customerNav} />
