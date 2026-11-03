@@ -56,11 +56,10 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import {
   dealershipNav,
   dealershipMobileModules,
-  nativeAppNav,
-  nativeAppModules,
 } from "@/components/layout/mobile-nav-config";
-// Native iOS app (Capacitor shell) — inside the app the bottom nav swaps to
-// the dedicated five-tab v1 nav and browser web-push UI is suppressed.
+// Native iOS app (Capacitor shell) — feature restrictions lifted Nov 2026:
+// the app shows the full platform and the same bottom nav as the mobile
+// website. isNativeApp still gates genuinely web-only UI (browser push).
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
@@ -114,20 +113,14 @@ function DashboardLayoutContent({
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { avatarUrl } = useProfileContext();
-  // Native iOS app: swap the bottom nav for the dedicated five-tab v1 nav
-  // (Dashboard, Clock, Meet, Rides, Tracker) instead of filtering the web
-  // nav — filtering can only remove items, and most v1 features were never
-  // in dealershipNav. False on the website and during SSR/first paint, so
-  // web behavior is unchanged.
+  // Restrictions lifted (Nov 2026): the native iOS app uses the same bottom
+  // nav as the mobile website — full platform access. nativeAppNav /
+  // nativeAppModules remain in mobile-nav-config for a possible future
+  // re-scoping. isNativeApp is still needed below to suppress the browser
+  // web-push prompt inside the app shell.
   const isNativeApp = useIsNativeApp();
-  const bottomNavItems = React.useMemo(
-    () => (isNativeApp ? nativeAppNav : dealershipNav),
-    [isNativeApp],
-  );
-  const bottomNavModules = React.useMemo(
-    () => (isNativeApp ? nativeAppModules : dealershipMobileModules),
-    [isNativeApp],
-  );
+  const bottomNavItems = dealershipNav;
+  const bottomNavModules = dealershipMobileModules;
   useCrmWebPush();
   usePresence();
   usePresenceSocket();
