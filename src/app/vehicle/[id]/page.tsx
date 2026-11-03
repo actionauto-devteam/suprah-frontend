@@ -109,10 +109,9 @@ export default function VehiclePage() {
                     </div>
                 </div>
 
+                {/* Asking the dealership and financing need the customer portal, so they aren't offered here. */}
                 <VehicleDetailView
                     vehicle={vehicle}
-                    onInquiryClick={() => {}}
-                    onApplyNow={() => {}}
                     onBookTestDrive={() => setBookingOpen(true)}
                     isPublic={!isSignedIn}
                 />

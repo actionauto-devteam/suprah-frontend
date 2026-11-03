@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { userErrorMessage } from "@/lib/user-error";
 import type { Vehicle } from "@/types/inventory";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -121,7 +122,7 @@ export function VehicleInquiryModal({
 
   const onSubmit = async (data: InquiryData) => {
     if (!isSignedIn) {
-      toast.error("Please sign in to submit an inquiry");
+      toast.error("Sign in to send your question to the dealership, then try again.");
       return;
     }
 
@@ -144,11 +145,8 @@ export function VehicleInquiryModal({
         onClose();
         setIsSuccess(false);
       }, 3000);
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-        "Failed to send inquiry. Please try again.",
-      );
+    } catch (error: unknown) {
+      toast.error(userErrorMessage(error, "send your question to the dealership"));
     } finally {
       setIsSubmitting(false);
     }
@@ -167,12 +165,12 @@ export function VehicleInquiryModal({
       >
         <DialogHeader className="bg-zinc-900 text-white px-4 py-3 md:p-6 shrink-0">
           <DialogTitle className="text-xl md:text-2xl font-bold text-center tracking-tight">
-            Check Availability
+            Ask the dealership
           </DialogTitle>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close availability inquiry"
+            aria-label="Close"
             className="absolute right-4 top-4 text-zinc-400 hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
