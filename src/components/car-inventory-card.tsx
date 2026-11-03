@@ -522,7 +522,7 @@ export function CarInventoryCard({
           vehicle={vehicle}
           statusCfg={statusCfg}
           showStatusDot
-          showDaysOnLot
+          showDaysOnLot={showInventoryMeta}
           mobileDaysOnLotTopRight={mobileOptimized}
           onClick={() => onVehicleClick?.(vehicle)}
           className={cn("shrink-0 rounded-l-2xl", mobileOptimized ? "w-24 xs:w-28 sm:w-44" : "w-28 sm:w-44")} 
@@ -700,7 +700,7 @@ export function CarInventoryCard({
         vehicle={vehicle}
         statusCfg={statusCfg}
         showStatusBadge
-        showDaysOnLot
+        showDaysOnLot={showInventoryMeta}
         mobileDaysOnLotTopRight={mobileOptimized}
         onClick={() => onVehicleClick?.(vehicle)}
         className={cn("w-full", mobileOptimized ? "aspect-[16/9] sm:aspect-5/3" : "aspect-5/3")}
@@ -914,7 +914,17 @@ export function CarInventoryCard({
             }
           >
             <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-            {onCheckAvailability ? "Availability" : "Details"}
+            {!onCheckAvailability ? (
+              "Details"
+            ) : showInventoryMeta ? (
+              "Availability"
+            ) : (
+              // Customers ask the car's own dealership (see the car details).
+              <>
+                <span className="hidden xxs:inline">Ask the dealership</span>
+                <span className="xxs:hidden">Ask</span>
+              </>
+            )}
           </Button>
 
           <Button
@@ -995,7 +1005,7 @@ export function CarInventoryCard({
           onClick={() => onCheckAvailability?.(vehicle)}
         >
           <MessageSquare className="h-3.5 w-3.5" />
-          {mobileOptimized ? "Availability" : "Inquire"}
+          {!showInventoryMeta ? "Ask the dealership" : mobileOptimized ? "Availability" : "Inquire"}
         </Button>
         <Button
           size="sm"
