@@ -18,6 +18,7 @@ import {
   Paperclip,
   RefreshCw,
   ShieldAlert,
+  Zap,
 } from "lucide-react";
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
@@ -965,6 +966,7 @@ export function ConversationView({
                     : "";
                 const attachments: string[] = Array.isArray(message?.attachments) ? message.attachments : [];
                 const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
+                const isAutomationMessage = outbound && message?.sentBy?.userId === "system" && String(message?.sentBy?.name || "").startsWith("Automation - ");
                 const aiMessageChannel =
                   message?.channel === "webchat" ||
                   String(lead?.channel || "").toLowerCase() === "webchat"
@@ -1106,14 +1108,18 @@ export function ConversationView({
 
                       {outbound && (
                         <div className="flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-[10px] font-bold text-white shadow-sm">
-                          {(message?.sentBy?.name ||
-                            message?.senderName ||
-                            "AA")
-                            .split(" ")
-                            .map((part: string) => part[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase()}
+                          {isAutomationMessage ? (
+                            <Zap className="h-3.5 w-3.5" aria-label="Automation" />
+                          ) : (
+                            (message?.sentBy?.name ||
+                              message?.senderName ||
+                              "AA")
+                              .split(" ")
+                              .map((part: string) => part[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()
+                          )}
                         </div>
                       )}
                     </div>

@@ -296,6 +296,11 @@ export async function automationRequest<T>(
 
 export type AutomationRunStatus = "filtered" | "waiting" | "running" | "completed" | "stopped" | "failed"
 
+export type MonitorStatus = "message_sent" | "processed" | "scheduled" | "filtered" | "failed"
+export type MonitorRange = "today" | "last_7_days" | "last_30_days" | "month_to_date" | "last_month"
+export type MonitorGroup = "day" | "week" | "month"
+export type LogStatus = "sent" | "test" | "skipped" | "failed" | "done"
+
 export interface AutomationRunRow {
   id: string
   automationId: string
@@ -303,43 +308,138 @@ export interface AutomationRunRow {
   mode: "live" | "test"
   event: string
   status: AutomationRunStatus
+  display: MonitorStatus
+  step: string
+  channel: string
   reason: string | null
   contact: { leadId: string | null; name: string; firstName: string; phone: string; email: string }
   triggerAt: string
   nextRunAt: string | null
   createdAt: string
-  log: Array<{ type: string; status: "sent" | "test" | "skipped" | "failed" | "done"; detail: string; at: string }>
+  log: Array<{ type: string; status: LogStatus; detail: string; at: string }>
+}
+
+export interface MonitorRangeInfo {
+  key: MonitorRange
+  from: string
+  to: string
 }
 
 export interface AutomationActivityPage {
   mode: "live" | "test"
   engineEnabled: boolean
-  counts: Record<AutomationRunStatus, number>
+  range: MonitorRangeInfo
   page: number
   pages: number
   total: number
   items: AutomationRunRow[]
 }
 
-export const RUN_STATUS_LABELS: Record<AutomationRunStatus, string> = {
+export interface AutomationActivitySummary {
+  mode: "live" | "test"
+  engineEnabled: boolean
+  range: MonitorRangeInfo
+  group: MonitorGroup
+  buckets: Array<{ from: string; to: string; counts: Record<MonitorStatus, number>; total: number }>
+  counts: Record<MonitorStatus, number>
+  total: number
+  dayToDate: number
+  monthToDate: number
+}
+
+export interface AutomationLogRow {
+  id: string
+  runId: string
+  automationId: string
+  automationName: string
+  contact: AutomationRunRow["contact"]
+  type: string
+  step: string
+  status: LogStatus
+  channel: string
+  detail: string
+  at: string
+}
+
+export interface AutomationLogPage {
+  mode: "live" | "test"
+  range: MonitorRangeInfo
+  page: number
+  pages: number
+  total: number
+  items: AutomationLogRow[]
+}
+
+export interface ReengagementSummary {
+  range: { from: string; to: string }
+  enabled: boolean
+  windowDays: number
+  days: Array<{ day: string; sent: number; engaged: number; booked: number }>
+  totals: { sent: number; engaged: number; booked: number }
+}
+
+export const MONITOR_STATUS_ORDER: MonitorStatus[] = ["message_sent", "processed", "scheduled", "filtered", "failed"]
+
+export const MONITOR_STATUS_LABELS: Record<MonitorStatus, string> = {
+  message_sent: "Message Sent",
+  processed: "Processed",
+  scheduled: "Scheduled",
   filtered: "Filtered",
-  waiting: "Waiting",
-  running: "Running",
-  completed: "Completed",
-  stopped: "Stopped",
   failed: "Failed",
 }
 
-export const RUN_STATUS_STYLES: Record<AutomationRunStatus, string> = {
-  filtered: "border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-500/40 dark:bg-zinc-400/10 dark:text-zinc-300",
-  waiting: "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-400/40 dark:bg-sky-400/10 dark:text-sky-300",
-  running: "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-400/40 dark:bg-sky-400/10 dark:text-sky-300",
-  completed: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-300",
-  stopped: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300",
+export const MONITOR_STATUS_HELP: Record<MonitorStatus, string> = {
+  message_sent: "The automation ran and sent at least one text or email (in Test Mode: would have sent).",
+  processed: "The automation ran but sent no text or email. For example it only notified the team, or the contact replied before the first message.",
+  scheduled: "The automation started and is waiting for its next step.",
+  filtered: "The event did not match the locations, audience or repeat rule, so nothing ran. The reason column says why.",
+  failed: "A step could not be done, for example a text could not be sent.",
+}
+
+export const MONITOR_STATUS_STYLES: Record<MonitorStatus, string> = {
+  message_sent: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-300",
+  processed: "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-400/40 dark:bg-sky-400/10 dark:text-sky-300",
+  scheduled: "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-400/40 dark:bg-violet-400/10 dark:text-violet-300",
+  filtered: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-300",
   failed: "border-red-300 bg-red-50 text-red-700 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-300",
 }
 
-export const LOG_STATUS_LABELS: Record<AutomationRunRow["log"][number]["status"], string> = {
+export const LOG_STATUS_STYLES: Record<LogStatus, string> = {
+  sent: MONITOR_STATUS_STYLES.message_sent,
+  test: MONITOR_STATUS_STYLES.processed,
+  skipped: "border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-500/40 dark:bg-zinc-400/10 dark:text-zinc-300",
+  failed: MONITOR_STATUS_STYLES.failed,
+  done: "border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-500/40 dark:bg-zinc-400/10 dark:text-zinc-300",
+}
+
+export const MONITOR_RANGE_LABELS: Record<MonitorRange, string> = {
+  today: "Today",
+  last_7_days: "Last 7 days",
+  last_30_days: "Last 30 days",
+  month_to_date: "Month to Date",
+  last_month: "Last month",
+}
+
+export const MONITOR_GROUP_LABELS: Record<MonitorGroup, string> = {
+  day: "By Day",
+  week: "By Week",
+  month: "By Month",
+}
+
+export function calendarDate(day: string, options: Intl.DateTimeFormatOptions): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", ...options })
+}
+
+export async function automationDownload(getToken: () => Promise<string | null>, path: string): Promise<{ blob: Blob; filename: string }> {
+  const token = await getToken()
+  if (!token) throw new Error("Please sign in again")
+  const res = await apiClient.get(`/api/crm/automations${path}`, { headers: { Authorization: `Bearer ${token}` }, responseType: "blob" })
+  const disposition = String(res.headers?.["content-disposition"] || "")
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] || "automation-activity.csv"
+  return { blob: res.data as Blob, filename }
+}
+
+export const LOG_STATUS_LABELS: Record<LogStatus, string> = {
   sent: "Sent",
   test: "Test only",
   skipped: "Skipped",
