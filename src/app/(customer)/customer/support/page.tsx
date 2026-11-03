@@ -191,11 +191,13 @@ function DateSep({ date }: { date: string }) {
   );
 }
 
+// Groups messages by Mountain Time day, the same day the separators show.
 function fmtDateKey(d: string) {
-  return new Date(d).toLocaleDateString([], {
+  return new Date(d).toLocaleDateString('en-US', {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: _TZ,
   });
 }
 

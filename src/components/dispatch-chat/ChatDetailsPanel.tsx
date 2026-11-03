@@ -3,6 +3,8 @@
 import * as React from "react";
 import { AlertTriangle, ChevronLeft, Download, FileText, Loader2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fmtDateMDT } from "@/lib/timezone";
+import { formatMountainDateTime } from "@/lib/mountain-time";
 
 /**
  * Suprah Space–style Details for a conversation on the driver's Dispatch Chat
@@ -51,14 +53,14 @@ function dateText(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? ""
-    : date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+    : fmtDateMDT(date);
 }
 
 function dateTimeText(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? ""
-    : date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    : formatMountainDateTime(value);
 }
 
 function EmptyNote({ children }: { children: React.ReactNode }) {

@@ -124,6 +124,7 @@ import { EQUIPMENT_PAGE_PATH } from "@/lib/trailer-setup";
 import { hasVehiclesOnBoard, isActiveLoadStatus, isGpsTrackingLoadStatus } from "@/lib/load-status";
 import { locationBlockedChip } from "@/lib/driver-location-messages";
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
+import { formatMountainDateTime } from "@/lib/mountain-time";
 
 function formatDashboardLoadLocation(
   location: { city?: string; state?: string; address?: string } | null | undefined,
@@ -3157,12 +3158,7 @@ export default function DriverDashboardPage() {
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs leading-relaxed text-muted-foreground">
                           Requested {pendingCurrentRequest.myRequestedAt
-                            ? new Date(pendingCurrentRequest.myRequestedAt).toLocaleString([], {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
+                            ? formatMountainDateTime(pendingCurrentRequest.myRequestedAt)
                             : "recently"}.
                         </p>
                         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">

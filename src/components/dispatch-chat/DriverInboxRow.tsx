@@ -3,15 +3,15 @@
 import * as React from "react";
 import { ChevronLeft, Loader2, Pin, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fmtDateMDT, fmtTimeMDT, mdtDateKey } from "@/lib/timezone";
 
 export function inboxListTime(value: string | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const sameDay = date.toDateString() === new Date().toDateString();
-  return sameDay
-    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+  // Mountain Time, like the rest of Dispatch Chat.
+  const sameDay = mdtDateKey(date) === mdtDateKey(new Date());
+  return sameDay ? fmtTimeMDT(date) : fmtDateMDT(date, { year: undefined });
 }
 
 /** A rounded section label, like Suprah Space's ("PINNED", "DIRECT MESSAGES"). */
