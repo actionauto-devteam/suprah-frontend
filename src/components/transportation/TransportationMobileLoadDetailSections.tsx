@@ -21,7 +21,7 @@ import {
   User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { formatScheduleDate } from "@/utils/calendar.utils";
 import type { Load, LoadStatus, LoadVehicleItem } from "@/types/load";
 import {
@@ -591,7 +591,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
             >
               {vehicle.imageUrl ? (
                 <img
-                  src={vehicle.imageUrl}
+                  src={resolveImageUrl(vehicle.imageUrl)}
                   alt={getVehicleName(vehicle, index)}
                   loading="lazy"
                   className="h-36 w-full object-contain object-center transition-transform duration-300 group-hover/image:scale-[1.02]"

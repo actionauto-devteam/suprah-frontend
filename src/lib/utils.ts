@@ -67,6 +67,12 @@ export function resolveImageUrl(url?: string | null): string | undefined {
         ? avatarFileName(parsed.pathname.slice(1))
         : null;
       if (legacyAvatar) return `${API_BASE_URL}/api/crm/avatars/${encodeURIComponent(legacyAvatar)}`;
+      // Customer photos (garage cars, car listings, aftermarket products)
+      // saved with a public-bucket address load through the backend too.
+      const customerPhoto = parsed.hostname.endsWith('.r2.dev')
+        ? parsed.pathname.slice(1).match(/^(vehicles|auction-listings|aftermarket\/media)\/(\d{13}-\d{1,10}\.(?:[jJ][pP][eE]?[gG]|[pP][nN][gG]|[wW][eE][bB][pP]|[gG][iI][fF]))$/)
+        : null;
+      if (customerPhoto) return `${API_BASE_URL}/api/photos/${customerPhoto[1].replace('/', '-')}/${customerPhoto[2]}`;
     } catch {
       return undefined;
     }

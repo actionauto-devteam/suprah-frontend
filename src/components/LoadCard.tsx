@@ -43,7 +43,7 @@ import { Load, LoadStatus } from "@/types/load"
 import { useRouter } from "next/navigation"
 import { useOrg } from "@/hooks/useOrg"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
-import { cn } from "@/lib/utils"
+import { cn, resolveImageUrl } from "@/lib/utils"
 import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy"
 import { cancellationReasonLabel } from "@/lib/load-cancellation"
 import { formatScheduleDate } from "@/utils/calendar.utils"
@@ -382,7 +382,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
   // No stock-photo fallback: an unrelated vehicle photo is worse than an
   // honest placeholder in a dispatch tool.
   const primaryVehicle = vehicles.find((v: LoadVehicleItem) => Boolean(v.imageUrl)) ?? vehicles[0]
-  const heroImage = !imageFailed ? primaryVehicle?.imageUrl : undefined
+  const heroImage = !imageFailed ? resolveImageUrl(primaryVehicle?.imageUrl) : undefined
   const extraImageCount = vehicles.filter((v: LoadVehicleItem) => Boolean(v.imageUrl)).length - (heroImage ? 1 : 0)
 
   const theme = getStatusTheme(load.status)
@@ -817,7 +817,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                           <div className="relative overflow-hidden border-b border-slate-300/85 bg-muted/30 dark:border-white/15 sm:border-b-0 sm:border-r">
                             {vehicle.imageUrl ? (
                               <img
-                                src={vehicle.imageUrl}
+                                src={resolveImageUrl(vehicle.imageUrl)}
                                 alt={getVehicleName(vehicle, index)}
                                 loading="lazy"
                                 className="h-44 w-full object-contain object-center sm:h-full sm:min-h-44"

@@ -30,7 +30,6 @@ function normalizeImageSrc(raw?: string): string | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
 
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return resolveImageUrl(trimmed)?.trim() || undefined;
 }
 
