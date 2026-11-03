@@ -28,6 +28,8 @@ import { ACTIVE_CALLS_KEY, useActiveCalls } from "@/hooks/useActiveCalls"
 import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import { useQueryClient } from "@tanstack/react-query"
 import { initializeSocket, onSocketChange } from "@/lib/socket.client"
+import { toast } from "sonner"
+import { playMessageSound } from "@/lib/notification-sound"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
 import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
 import { useTeamMembers } from "@/hooks/useTeamPulse"
@@ -405,7 +407,7 @@ export function LeadsTab({
   const {
     leads,
     isLoading,
-    isFetching,
+    isPlaceholderData,
     isError: leadsLoadFailed,
     total,
     pages,
@@ -438,6 +440,7 @@ export function LeadsTab({
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
   const queryClient = useQueryClient();
   const activeCalls = useActiveCalls();
+  const [liveUpdates, setLiveUpdates] = React.useState<boolean | null>(null);
   const [dialerOpen, setDialerOpen] = React.useState(false);
   const refreshLeadCounts = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads", "status-counts"] });
@@ -1109,6 +1112,7 @@ export function LeadsTab({
     let socket: any = null;
     let cancelled = false;
     let stopWatchingSocket: (() => void) | null = null;
+    let connectTimer: number | null = null;
     const registered: Array<[string, (...args: never[]) => void]> = [];
     const listen = (event: string, handler: (...args: never[]) => void) => {
       registered.push([event, handler]);
@@ -1118,9 +1122,34 @@ export function LeadsTab({
       const token = await getToken();
       if (!token || cancelled) return;
       socket = initializeSocket(token);
+      if (socket.connected) setLiveUpdates(true);
+      connectTimer = window.setTimeout(() => {
+        if (!cancelled && !socket?.connected) setLiveUpdates(false);
+      }, 5000);
+      listen("connect", () => setLiveUpdates(true));
+      listen("disconnect", () => setLiveUpdates(false));
+      listen("connect_error", () => setLiveUpdates(false));
+
+      const announceNewLead = (newLead: { _id?: string; firstName?: string; lastName?: string; phone?: string; email?: string; source?: string }) => {
+        const digits = String(newLead?.phone || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+        const phone = digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : newLead?.phone;
+        const name = [newLead?.firstName, newLead?.lastName]
+          .filter((part) => part && !/^unknown$/i.test(part.trim()))
+          .join(" ").trim()
+          || phone || newLead?.email || "a new customer";
+        playMessageSound();
+        toast.success(`New lead: ${name}`, {
+          id: `lead-new-${newLead?._id || name}`,
+          description: newLead?.source ? `From ${newLead.source}` : undefined,
+          action: newLead?._id
+            ? { label: "Open", onClick: () => setPendingLeadId(String(newLead._id)) }
+            : undefined,
+        });
+      };
 
       listen("lead:new", (newLead: any) => {
         refreshLeadCounts();
+        announceNewLead(newLead);
         if (currentPage === 1) {
           refetch();
           setHighlightedLeadIds((prev) => new Set(prev).add(newLead._id));
@@ -1131,7 +1160,6 @@ export function LeadsTab({
               return next;
             });
           }, 10000);
-          addToast("success", "New lead received!");
         }
       });
       const scheduleSelectedRefresh = (leadId?: string | null) => {
@@ -1269,6 +1297,7 @@ export function LeadsTab({
         registered.forEach(([event, handler]) => socket.off(event, handler));
         socket = next;
         registered.forEach(([event, handler]) => socket.on(event, handler));
+        setLiveUpdates(Boolean(next.connected));
         refetch();
         refreshLeadCounts();
       });
@@ -1277,6 +1306,7 @@ export function LeadsTab({
     return () => {
       cancelled = true;
       stopWatchingSocket?.();
+      if (connectTimer) window.clearTimeout(connectTimer);
       if (liveThreadRefreshTimerRef.current) {
         window.clearTimeout(liveThreadRefreshTimerRef.current);
         liveThreadRefreshTimerRef.current = null;
@@ -2544,6 +2574,24 @@ export function LeadsTab({
                     {total}
                   </span>
                 )}
+
+                {liveUpdates !== null && (
+                  <span
+                    role="status"
+                    aria-label={liveUpdates ? "Live updates on" : "Reconnecting live updates"}
+                    title={liveUpdates
+                      ? "New leads and messages show up here as they arrive."
+                      : "Reconnecting. New leads still show within 30 seconds."}
+                    className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold"
+                    style={{ color: liveUpdates ? "var(--accent-text)" : "#d97706" }}
+                  >
+                    <span
+                      className={cn("h-1.5 w-1.5 rounded-full", !liveUpdates && "animate-pulse")}
+                      style={{ background: liveUpdates ? "var(--accent)" : "#f59e0b" }}
+                    />
+                    <span className="max-[420px]:sr-only">{liveUpdates ? "Live updates" : "Reconnecting…"}</span>
+                  </span>
+                )}
               </div>
 
               {/* Compact status on phones */}
@@ -2941,7 +2989,7 @@ export function LeadsTab({
                       <LeadsActiveFilters chips={activeFilterChips} onClearAll={clearAllFilters} />
                     </div>
 
-                    {isFetching && !isLoading ? (
+                    {isPlaceholderData && !isLoading ? (
                       <div
                         className="shrink-0 px-3 py-1 text-[11px]"
                         style={{ color: "var(--text-tertiary)" }}

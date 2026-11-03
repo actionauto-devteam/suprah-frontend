@@ -27,6 +27,7 @@ import { useOptionalCrmNotifications } from '@/hooks/useCrmNotifications';
 import { useCrmToken } from '@/hooks/useCrmToken';
 import { Notification } from '@/types/notification';
 import { NotificationItem } from './NotificationItem';
+import { DesktopNotificationsCard } from './DesktopNotificationsCard';
 import { NotificationDriverModal } from './NotificationDriverModal';
 import { NotificationDetailsModal } from './NotificationDetailsModal';
 import { NotificationErrorBoundary } from './NotificationErrorBoundary';
@@ -601,6 +602,8 @@ function NotificationDrawerBody({
             />
           </div>
         </div>
+
+        {crmToken && <DesktopNotificationsCard />}
 
         {hasError && (
           <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2.5 dark:border-red-900 dark:bg-red-950/20">
