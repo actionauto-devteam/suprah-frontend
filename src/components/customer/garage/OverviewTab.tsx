@@ -535,7 +535,7 @@ export function OverviewTab() {
                       {appt.startTime ? new Date(appt.startTime).toLocaleDateString('en-US', { month: "short", timeZone: "America/Denver" }) : "—"}
                     </span>
                     <span className="text-base font-black text-primary leading-none">
-                      {appt.startTime ? new Date(appt.startTime).getDate() : "—"}
+                      {appt.startTime ? new Date(appt.startTime).toLocaleDateString('en-US', { day: "numeric", timeZone: "America/Denver" }) : "—"}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
