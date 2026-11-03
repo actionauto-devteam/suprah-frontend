@@ -25,6 +25,7 @@ interface LegacyRule {
   createdByName?: string
   updatedAt?: string
   usageCount?: number
+  amountApproval?: { amounts?: string[]; approvedByName?: string }
 }
 
 function LegacyCoaching({ getToken }: { getToken: () => Promise<string | null> }) {
@@ -79,6 +80,11 @@ function LegacyCoaching({ getToken }: { getToken: () => Promise<string | null> }
                 <span className="ml-auto">{formatHubDate(rule.updatedAt)}</span>
               </div>
               <p className="whitespace-pre-wrap break-words text-xs">{rule.instruction}</p>
+              {rule.amountApproval?.amounts?.length ? (
+                <p className="mt-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  Amounts allowed: {rule.amountApproval.amounts.join(", ")}{rule.amountApproval.approvedByName ? ` by ${rule.amountApproval.approvedByName}` : ""}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
