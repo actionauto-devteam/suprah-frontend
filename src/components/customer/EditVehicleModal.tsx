@@ -14,6 +14,7 @@ import { updateVehicle, uploadVehicleImage, OwnedVehicle } from "@/lib/api/vehic
 import { toast } from "sonner"
 import { CarFront, Loader2, Camera } from "lucide-react"
 import { resolveImageUrl, cn } from "@/lib/utils"
+import { userErrorMessage } from "@/lib/user-error";
 
 interface EditVehicleModalProps {
     vehicle: OwnedVehicle | null;
@@ -51,7 +52,7 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
             toast.success("Photo updated!")
         },
         onError: (error: any) => {
-            toast.error(error?.response?.data?.message || "Failed to upload photo.")
+            toast.error(userErrorMessage(error, "upload this photo"))
         }
     })
 
@@ -82,7 +83,7 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
             onOpenChange(false)
         },
         onError: (error: any) => {
-            toast.error(error?.response?.data?.message || "Failed to update vehicle.")
+            toast.error(userErrorMessage(error, "update this vehicle"))
         }
     })
 

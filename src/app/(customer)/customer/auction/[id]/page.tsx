@@ -42,6 +42,7 @@ import {
 import { ListingStatusBadge } from "@/components/customer/auction/ListingStatusBadge";
 import { ListingStatusTimeline } from "@/components/customer/auction/ListingStatusTimeline";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 function SpecGrid({ rows }: { rows: { label: string; value?: string }[] }) {
   const visible = rows.filter((r) => r.value);
@@ -91,7 +92,7 @@ export default function ListingDetailPage() {
       toast.success("Listing withdrawn");
     },
     onError: (error: any) =>
-      toast.error(error?.response?.data?.message || "Failed to withdraw listing"),
+      toast.error(userErrorMessage(error, "withdraw this listing")),
   });
 
   const resubmitMutation = useMutation({
@@ -101,7 +102,7 @@ export default function ListingDetailPage() {
       toast.success("Listing resubmitted for review!");
     },
     onError: (error: any) =>
-      toast.error(error?.response?.data?.message || "Failed to resubmit listing"),
+      toast.error(userErrorMessage(error, "resubmit this listing")),
   });
 
   const deleteMutation = useMutation({
@@ -112,7 +113,7 @@ export default function ListingDetailPage() {
       router.push("/customer?tab=sell");
     },
     onError: (error: any) =>
-      toast.error(error?.response?.data?.message || "Failed to delete listing"),
+      toast.error(userErrorMessage(error, "delete this listing")),
   });
 
   if (isLoading) {

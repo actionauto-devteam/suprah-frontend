@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ function InquiryModal({
       await apiClient.post(`/api/aftermarket/${product._id}/inquiries`, { question: question.trim() });
       setDone(true);
     } catch (e: any) {
-      setError(e?.response?.data?.message || "Could not send your inquiry.");
+      setError(userErrorMessage(e, "send your inquiry"));
     } finally {
       setSubmitting(false);
     }
@@ -344,7 +345,7 @@ export default function CustomerAftermarketPage() {
       const paymentId = r.data?.data?.paymentId;
       router.push(`/customer/payments?pay=${paymentId}`);
     } catch (e: any) {
-      setNotice(e?.response?.data?.message || "Could not start purchase.");
+      setNotice(userErrorMessage(e, "start this purchase"));
       setBuying(null);
     }
   };
@@ -360,7 +361,7 @@ export default function CustomerAftermarketPage() {
       setCartOpen(false);
       router.push("/customer/payments");
     } catch (e: any) {
-      setNotice(e?.response?.data?.message || "Checkout failed.");
+      setNotice(userErrorMessage(e, "finish checkout"));
     } finally {
       setCheckingOut(false);
     }

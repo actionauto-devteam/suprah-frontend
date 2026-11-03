@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { JitsiMeet } from "@/components/communications/JitsiMeet";
 import { initializeSocket } from "@/lib/socket.client";
 import type { Socket } from "socket.io-client";
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -531,8 +532,8 @@ export default function CustomerCallCenterPage() {
 
       const m = await apiClient.get("/api/customer-call/messages", { headers });
       setTimeline(m.data?.data || []);
-    } catch {
-      showNotice("error", "Could not connect to the call center. Please try again.");
+    } catch (err) {
+      showNotice("error", userErrorMessage(err, "connect you to the call center"));
     } finally {
       setLoading(false);
     }
@@ -604,8 +605,8 @@ export default function CustomerCallCenterPage() {
       await apiClient.post("/api/customer-call/request", { mode }, { headers });
       setStatus("requested");
       showNotice("info", "Your call request has been sent. The team will be with you shortly.");
-    } catch {
-      showNotice("error", "Could not send your call request. Please try again.");
+    } catch (err) {
+      showNotice("error", userErrorMessage(err, "send your call request"));
     } finally {
       setRequesting(false);
     }

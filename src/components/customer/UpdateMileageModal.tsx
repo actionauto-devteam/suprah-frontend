@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { updateVehicleMileage, OwnedVehicle } from "@/lib/api/vehicles"
 import { toast } from "sonner"
+import { userErrorMessage } from "@/lib/user-error";
 
 interface UpdateMileageModalProps {
     vehicle: OwnedVehicle | null;
@@ -37,7 +38,7 @@ export function UpdateMileageModal({ vehicle, isOpen, onOpenChange }: UpdateMile
             onOpenChange(false)
         },
         onError: (error: any) => {
-            toast.error(error?.response?.data?.message || "Failed to update mileage")
+            toast.error(userErrorMessage(error, "update the mileage"))
         }
     })
 
