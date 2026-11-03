@@ -29,6 +29,7 @@ import { StepConditionHistory } from "./StepConditionHistory";
 import { StepPhotos } from "./StepPhotos";
 import { StepPricing } from "./StepPricing";
 import { StepReview } from "./StepReview";
+import { userErrorMessage } from "@/lib/user-error";
 
 const STEPS = [
   { n: 1, label: "Vehicle" },
@@ -101,7 +102,7 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
       syncUrl(saved.id, n);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to save your progress");
+      toast.error(userErrorMessage(error, "save your progress"));
     } finally {
       setIsSaving(false);
     }
@@ -116,7 +117,7 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
       toast.success("Progress saved — finish anytime from your listings");
       router.push("/customer?tab=sell");
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to save your progress");
+      toast.error(userErrorMessage(error, "save your progress"));
       setIsSaving(false);
     }
   };
@@ -142,7 +143,7 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
         setStep(Math.min(...fields.map(stepForMissingField)));
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
-      toast.error(error?.response?.data?.message || "Failed to submit your listing");
+      toast.error(userErrorMessage(error, "submit your listing"));
       setIsSubmitting(false);
     }
   };

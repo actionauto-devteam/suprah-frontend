@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { decodeVin, fetchOwnedVehicles } from "@/lib/api/vehicles";
 import { cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 import {
   WizardForm,
   FormPatch,
@@ -96,7 +97,7 @@ export function StepVehicleInfo({ form, patch }: { form: WizardForm; patch: Form
       toast.success("Vehicle details filled from VIN");
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || "Could not decode this VIN. Please check it and try again.");
+      toast.error(userErrorMessage(error, "look up this VIN"));
     },
   });
 

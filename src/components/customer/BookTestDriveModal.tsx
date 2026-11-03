@@ -17,6 +17,7 @@ import { useUser } from "@/providers/AuthProvider"
 import { submitTestDriveBooking } from "@/lib/api/publicBooking"
 import { Calendar, Clock, CheckCircle2, Loader2 } from "lucide-react"
 import type { Vehicle } from "@/types/inventory"
+import { userErrorMessage } from "@/lib/user-error";
 
 interface BookTestDriveModalProps {
   vehicle: Vehicle | null
@@ -104,7 +105,7 @@ export function BookTestDriveModal({
       })
       setSubmitted(true)
     } catch (err: any) {
-      const msg = err?.response?.data?.message || "Something went wrong. Please try again."
+      const msg = userErrorMessage(err, "book this test drive")
       toast.error(msg)
     } finally {
       setIsSubmitting(false)

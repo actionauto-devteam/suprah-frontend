@@ -359,7 +359,7 @@ export default function ServiceNetworkPage() {
         setIsLocating(false)
         const { latitude, longitude } = pos.coords
         if (typeof latitude !== "number" || typeof longitude !== "number") {
-          setMapNotice("Could not determine your location. Please try again.")
+          setMapNotice("We couldn't find your location. Wait a moment, then try again.")
           return
         }
 
@@ -386,7 +386,7 @@ export default function ServiceNetworkPage() {
             ? "Your location is currently unavailable. Check your device's GPS/location settings and try again."
             : err.code === err.TIMEOUT
               ? "Locating timed out. Check your connection and try again."
-              : "Failed to get location. Please try again."
+              : "We couldn't find your location. Wait a moment, then try again."
         setMapNotice(message)
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }

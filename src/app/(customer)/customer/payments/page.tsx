@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { fmtDateMDT } from "@/lib/timezone";
 import { useAlert } from "@/components/AlertDialog";
+import { userErrorMessage } from "@/lib/user-error";
 
 // --- Types --------------------------------------------------------------------
 
@@ -230,7 +231,7 @@ function PaymentsView() {
           throw new Error("No checkout URL returned");
         }
       } catch (e: any) {
-        setBanner({ kind: "error", text: e?.response?.data?.message || "Could not start payment." });
+        setBanner({ kind: "error", text: userErrorMessage(e, "start this payment") });
         setPayingId(null);
       }
     },
@@ -246,7 +247,7 @@ function PaymentsView() {
         setBanner({ kind: "info", text: "Invoice cancelled." });
         refetch();
       } catch (e: any) {
-        setBanner({ kind: "error", text: e?.response?.data?.message || "Could not cancel this invoice." });
+        setBanner({ kind: "error", text: userErrorMessage(e, "cancel this invoice") });
         // If it was already paid, refetch so the UI reflects the real status.
         refetch();
       } finally {

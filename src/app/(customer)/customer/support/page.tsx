@@ -32,6 +32,7 @@ import { useAuth, useUser } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { initializeSocket } from "@/lib/socket.client";
 import type { Socket } from "socket.io-client";
+import { userErrorMessage } from "@/lib/user-error";
 import {
   AttachmentLightbox,
   type LightboxAttachment,
@@ -710,8 +711,8 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         setCases((p) =>
           p.map((c) => (c._id === caseId ? { ...c, unreadCount: 0 } : c)),
         );
-      } catch {
-        showNotice("error", "Could not load this conversation.");
+      } catch (err) {
+        showNotice("error", userErrorMessage(err, "load this conversation"));
       } finally {
         setLoading(false);
       }
@@ -736,10 +737,10 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         await fetchCases();
         await loadCase(newCase._id);
       }
-    } catch {
+    } catch (err) {
       showNotice(
         "error",
-        "Could not start a new conversation. Please try again.",
+        userErrorMessage(err, "start a new conversation"),
       );
     } finally {
       setCreatingCase(false);
@@ -756,8 +757,8 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
         if (data.length > 0) return loadCase(data[0]._id);
         setLoading(false);
       })
-      .catch(() => {
-        showNotice("error", "Could not connect to support. Please try again.");
+      .catch((err) => {
+        showNotice("error", userErrorMessage(err, "connect you to support"));
         setLoading(false);
       });
     setUnread(0);
@@ -878,9 +879,10 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
             : c,
         ),
       );
-    } catch {
+    } catch (err) {
+      // Puts the message back so it can be sent again.
       setInput(content);
-      showNotice("error", "Failed to send message. Please try again.");
+      showNotice("error", userErrorMessage(err, "send your message"));
     } finally {
       setSending(false);
     }

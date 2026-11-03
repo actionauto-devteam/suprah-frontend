@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { logServiceEvent, ServiceRecord } from "@/lib/api/services";
 import { OwnedVehicle } from "@/lib/api/vehicles";
 import { toast } from "sonner";
+import { userErrorMessage } from "@/lib/user-error";
 import {
     Select,
     SelectContent,
@@ -67,7 +68,7 @@ export function LogServiceModal({
             setNotes("");
         },
         onError: (error: any) => {
-            toast.error(error?.response?.data?.message || "Failed to log service");
+            toast.error(userErrorMessage(error, "log this service"));
         },
     });
 

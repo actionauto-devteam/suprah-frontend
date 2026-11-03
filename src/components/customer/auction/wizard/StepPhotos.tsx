@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/auctionListings";
 import { PhotoSlotUploader } from "../PhotoSlotUploader";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 export function StepPhotos({ listing }: { listing: AuctionListing }) {
   const queryClient = useQueryClient();
@@ -42,7 +43,7 @@ export function StepPhotos({ listing }: { listing: AuctionListing }) {
     try {
       applyUpdate(await uploadListingPhoto(listing.id, slot, file));
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to upload photo. Please try again.");
+      toast.error(userErrorMessage(error, "upload this photo"));
     } finally {
       setBusy(null);
     }
@@ -53,7 +54,7 @@ export function StepPhotos({ listing }: { listing: AuctionListing }) {
     try {
       applyUpdate(await deleteListingPhoto(listing.id, slot, url));
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to remove photo. Please try again.");
+      toast.error(userErrorMessage(error, "remove this photo"));
     } finally {
       setBusy(null);
     }

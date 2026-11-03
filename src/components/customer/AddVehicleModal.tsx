@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Search, CarFront, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 interface AddVehicleModalProps {
     isOpen: boolean;
@@ -93,8 +94,7 @@ export function AddVehicleModal({
         },
         onError: (error: any) => {
             toast.error(
-                error?.response?.data?.message ||
-                "Could not decode this VIN. Please check it and try again.",
+                userErrorMessage(error, "look up this VIN"),
             );
         },
     });
@@ -122,8 +122,7 @@ export function AddVehicleModal({
         },
         onError: (error: any) => {
             toast.error(
-                error?.response?.data?.message ||
-                "Failed to save vehicle. You might have already added this VIN.",
+                userErrorMessage(error, "save this vehicle"),
             );
         },
     });

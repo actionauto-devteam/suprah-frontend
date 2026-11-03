@@ -24,6 +24,7 @@ import { toast } from "sonner"
 import { createCustomerAppointment } from "@/lib/api/appointments"
 import { fetchAvailableSlots } from "@/lib/api/serviceSlots"
 import { Calendar, Clock, MapPin, CheckCircle2, Loader2, ChevronLeft } from "lucide-react"
+import { userErrorMessage } from "@/lib/user-error";
 
 const SERVICE_TYPES = [
   { value: "oil_change", label: "Oil Change" },
@@ -151,7 +152,7 @@ export function BookAppointmentModal({
       setBookedAppointment(result)
       setStep(3)
     } catch (err: any) {
-      const msg = err?.response?.data?.message || "Booking failed. Please try again."
+      const msg = userErrorMessage(err, "book this appointment")
       toast.error(msg)
     } finally {
       setIsSubmitting(false)
