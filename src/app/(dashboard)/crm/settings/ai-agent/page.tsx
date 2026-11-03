@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Bot, Loader2, Zap } from "lucide-react"
+import { ArrowLeft, Bot, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,6 +22,7 @@ import { TrainingRulesPanel } from "@/components/crm/aiHub/TrainingRulesPanel"
 import { TestingLabPanel } from "@/components/crm/aiHub/TestingLabPanel"
 import { KnowledgeBasePanel } from "@/components/crm/knowledgeBase/KnowledgeBasePanel"
 import { AgentSettingsPanel, normalizeFollowUpHours } from "@/components/crm/aiHub/AgentSettingsPanel"
+import { AutomationPanel } from "@/components/crm/aiHub/automation/AutomationPanel"
 import { useTrainingStatus } from "@/hooks/useAiTraining"
 import { canViewAiHub, SHADOW_DRAFT_STATUSES } from "@/lib/aiShadowDrafts"
 import { AI_CHANNELS } from "@/lib/aiOperatingModes"
@@ -257,9 +258,7 @@ function AiAgentHubContent() {
                 </TabsContent>
 
                 <TabsContent value="automation">
-                  <HubCard title="Automation" description="Automatic replies the system sends to customers." icon={<Zap className="h-4 w-4 text-primary" />}>
-                    <p className="text-xs text-muted-foreground">Automatic replies will be set up here soon.</p>
-                  </HubCard>
+                  <AutomationPanel getToken={getHubToken} />
                 </TabsContent>
 
                 <TabsContent value="drafts">
