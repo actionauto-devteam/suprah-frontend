@@ -151,7 +151,7 @@ export function StepReview({
                   alt={PHOTO_SLOT_META[p.slot].label}
                   className="h-16 w-24 rounded-lg border border-border/50 object-cover"
                 />
-                <p className="text-center text-[9px] font-medium text-muted-foreground">{PHOTO_SLOT_META[p.slot].label}</p>
+                <p className="text-center text-[11px] font-medium text-muted-foreground">{PHOTO_SLOT_META[p.slot].label}</p>
               </div>
             ))}
           </div>
