@@ -9,6 +9,7 @@ import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { Button } from "@/components/ui/button";
+import { SUPPORT_EMAIL } from "@/lib/support-contact";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -142,12 +143,20 @@ function CompareContent() {
       </div>
     );
   }
-// ---
+  // Cars that are no longer listed (sold or taken off the marketplace) drop out.
+  const missingCount = Math.max(0, ids.length - vehicles.length);
+
   if (isError || vehicles.length < 2) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-        <p className="text-muted-foreground">Failed to load vehicles for comparison.</p>
-        <Button variant="outline" onClick={() => router.back()}>Go Back</Button>
+      <div role="alert" className="flex flex-col items-center justify-center gap-4 px-4 py-24 text-center">
+        <p className="max-w-md text-muted-foreground">
+          {isError
+            ? `We couldn't load these vehicles. Check your internet connection and try again. If it keeps happening, contact Suprah AI support at ${SUPPORT_EMAIL}.`
+            : "Some of the vehicles you picked are no longer listed, so there aren't two to compare. Pick other vehicles in Shop."}
+        </p>
+        <Link href="/customer/shop">
+          <Button variant="outline">Back to Shop</Button>
+        </Link>
       </div>
     );
   }
@@ -168,6 +177,13 @@ function CompareContent() {
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight uppercase leading-none text-foreground">
             Compare <span className="text-primary">Vehicles</span>
           </h1>
+          {missingCount > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {missingCount === 1
+                ? "One vehicle you picked is no longer listed, so it isn't shown."
+                : `${missingCount} vehicles you picked are no longer listed, so they aren't shown.`}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={() => router.back()} className="gap-1.5">
