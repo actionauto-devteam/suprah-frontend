@@ -1,4 +1,4 @@
-import { fmtDateMDT, fmtTimeMDT, todayStrMDT } from "@/lib/timezone"
+import { fmtDateMDT, fmtTimeMDT, parseDatetimeLocalAsMdt, todayStrMDT } from "@/lib/timezone"
 import { getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils"
 
 // Mountain Time (America/Denver, MDT/MST) helpers shared by Transportation,
@@ -14,6 +14,31 @@ export function formatMountainTime(iso: string): string {
 /** "Oct 13, 9:05 AM MDT": a moment in Mountain Time. */
 export function formatMountainDateTime(iso: string): string {
   return `${fmtDateMDT(new Date(iso), { year: undefined })}, ${formatMountainTime(iso)}`
+}
+
+const mountainFieldParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Denver",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+})
+
+/** "2026-11-05T09:00": a saved moment in Mountain Time, for a date-and-time field. */
+export function mountainDateTimeInput(iso?: string | null): string {
+  if (!iso) return ""
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return ""
+  const parts: Record<string, string> = {}
+  for (const part of mountainFieldParts.formatToParts(date)) parts[part.type] = part.value
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
+
+/** The moment a date-and-time field means, read as Mountain Time on any device ("" when empty). */
+export function mountainDateTimeValue(input: string): string {
+  return input ? parseDatetimeLocalAsMdt(input)?.toISOString() ?? "" : ""
 }
 
 /**

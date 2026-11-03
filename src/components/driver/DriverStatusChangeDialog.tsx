@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import type { DriverStatusRequestSnapshot } from "@/hooks/useDriverWorkEligibility";
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 import { userErrorMessage } from "@/lib/user-error";
+import { mountainDateTimeInput, mountainDateTimeValue } from "@/lib/mountain-time";
 
 type RequestedStatus = "on_leave" | "maintenance";
 type Priority = "standard" | "emergency";
@@ -123,8 +124,8 @@ export function DriverStatusChangeDialog({
     setRequestPriority(currentRequest?.priority ?? priority);
     setReason(currentRequest?.reason ?? "");
     setMessage(currentRequest?.message ?? "");
-    setEffectiveAt(currentRequest?.effectiveAt?.slice(0, 16) ?? "");
-    setEstimatedReturnAt(currentRequest?.estimatedReturnAt?.slice(0, 16) ?? "");
+    setEffectiveAt(mountainDateTimeInput(currentRequest?.effectiveAt));
+    setEstimatedReturnAt(mountainDateTimeInput(currentRequest?.estimatedReturnAt));
     setFiles([]);
   }, [open, requestedStatus, priority, currentRequest]);
 
@@ -229,8 +230,9 @@ export function DriverStatusChangeDialog({
       }
       if (reason) form.append("reason", reason);
       if (message.trim()) form.append("message", message.trim());
-      if (effectiveAt) form.append("effectiveAt", effectiveAt);
-      if (estimatedReturnAt) form.append("estimatedReturnAt", estimatedReturnAt);
+      // The fields are Mountain Time, whatever the driver's phone clock says.
+      if (effectiveAt) form.append("effectiveAt", mountainDateTimeValue(effectiveAt));
+      if (estimatedReturnAt) form.append("estimatedReturnAt", mountainDateTimeValue(estimatedReturnAt));
       files.slice(0, 5).forEach((file) => form.append("attachments", file));
 
       if (isUpdate) {
@@ -377,6 +379,7 @@ export function DriverStatusChangeDialog({
                   <Input type="datetime-local" value={estimatedReturnAt} onChange={(event) => setEstimatedReturnAt(event.target.value)} />
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">Times are Mountain Time.</p>
 
               <div className="space-y-2">
                 <div>

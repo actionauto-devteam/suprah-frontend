@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatMountainDateTime } from "@/lib/mountain-time";
 import {
   Dialog,
   DialogContent,
@@ -51,12 +52,7 @@ function requestedAtLabel(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Pending request";
 
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatMountainDateTime(value);
 }
 
 export function PendingLoadRequestAssignmentDialog({
