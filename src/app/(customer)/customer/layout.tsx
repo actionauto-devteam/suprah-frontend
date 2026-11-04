@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerAgentChat } from "@/components/customer/CustomerAgentChat";
+import { InDevelopmentNotice } from "@/components/customer/InDevelopmentNotice";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
 
@@ -172,7 +173,11 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="flex-1 overflow-auto p-4 lg:p-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
-            <div className="w-full">{children}</div>
+            <div className="w-full">
+              {/* Sections that aren't finished yet say so, and what works now. */}
+              <InDevelopmentNotice />
+              {children}
+            </div>
           </main>
           <MobileBottomNav items={customerNav} />
         </SidebarInset>

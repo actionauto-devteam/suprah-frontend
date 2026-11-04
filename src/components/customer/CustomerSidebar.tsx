@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useProfileContext } from "@/context/ProfileContext";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { IN_DEVELOPMENT_LABEL, inDevelopmentFor } from "@/lib/customer-in-development";
 
 const navSections = [
   {
@@ -339,6 +340,15 @@ export function CustomerSidebar() {
                       );
                     }
 
+                    // Sections that aren't finished yet carry a badge (see lib/customer-in-development).
+                    const inDevelopment = Boolean(inDevelopmentFor(item.url));
+                    const collapsedTitle = inDevelopment ? `${item.title} (${IN_DEVELOPMENT_LABEL.toLowerCase()})` : item.title;
+                    const devBadge = inDevelopment ? (
+                      <span className="ml-auto shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[11px] font-semibold leading-tight text-emerald-700 dark:text-emerald-300 group-data-[collapsible=icon]:hidden">
+                        {IN_DEVELOPMENT_LABEL}
+                      </span>
+                    ) : null;
+
                     return (
                       <SidebarMenuItem key={item.title} className="relative">
                         {isActive && (
@@ -350,12 +360,13 @@ export function CustomerSidebar() {
                               <SidebarMenuButton
                                 asChild
                                 isActive={isActive}
-                                tooltip={item.title}
+                                tooltip={collapsedTitle}
                                 className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
                               >
                                 <Link href={item.url}>
                                   <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
                                   <span className="text-[13px]">{item.title}</span>
+                                  {devBadge}
                                 </Link>
                               </SidebarMenuButton>
                             </TooltipTrigger>
@@ -367,18 +378,24 @@ export function CustomerSidebar() {
                               <p className="text-[11px] text-muted-foreground leading-snug">
                                 {"hoverTooltip" in item ? String(item.hoverTooltip) : ""}
                               </p>
+                              {inDevelopment && (
+                                <p className="mt-1 text-[11px] font-semibold leading-snug text-emerald-600 dark:text-emerald-400">
+                                  Still under development: open it to see what works now.
+                                </p>
+                              )}
                             </TooltipContent>
                           </Tooltip>
                         ) : (
                           <SidebarMenuButton
                             asChild
                             isActive={isActive}
-                            tooltip={item.title}
+                            tooltip={collapsedTitle}
                             className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
                           >
                             <Link href={item.url}>
                               <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
                               <span className="text-[13px]">{item.title}</span>
+                              {devBadge}
                             </Link>
                           </SidebarMenuButton>
                         )}
