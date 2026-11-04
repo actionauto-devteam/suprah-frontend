@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Eye,
   Loader2, Shield, Upload, Trash2, FileText, AlertTriangle, CheckCircle2, Clock,
   Lock, ShieldCheck, X, Camera, Paperclip, Ban, ChevronRight, ClipboardCheck, Scale,
   FileCheck, CreditCard, Building2,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { Stepper, type StepperStep } from './Stepper';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
+import { CUSTOMER_SEES_DRIVER_NOTICE } from '@/lib/driver-privacy';
 
 const APPLICATION_STEPS: readonly StepperStep[] = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -484,6 +486,11 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                 <p>By checking the acceptance box below, Driver acknowledges they have read this Agreement in its entirety and their electronic acceptance constitutes a legally binding signature under the E-SIGN Act and UETA.</p>
               </div>
             </div>
+
+            <p className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 px-3.5 py-3 text-xs text-muted-foreground">
+              <Eye className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+              <span>{CUSTOMER_SEES_DRIVER_NOTICE}</span>
+            </p>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">Last 4 Digits of SSN *</Label>

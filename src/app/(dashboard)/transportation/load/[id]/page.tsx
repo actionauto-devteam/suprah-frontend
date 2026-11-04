@@ -12,6 +12,7 @@ import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAss
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
+import { PortalShareLine } from "@/components/transportation/PortalShareLine"
 import { CancelLoadDialog } from "@/components/transportation/CancelLoadDialog"
 import { AddToGarageDialog } from "@/components/transportation/AddToGarageDialog"
 import { garageStatusNote } from "@/lib/load-garage"
@@ -755,6 +756,13 @@ export default function LoadDetailsPage() {
                 </span>
               )}
             </p>
+          )}
+          {load.quoteOrigin?.portalCustomer && (
+            <PortalShareLine
+              quoteId={load.quoteOrigin.quoteId}
+              portalCustomer={load.quoteOrigin.portalCustomer}
+              className="text-xs sm:text-sm"
+            />
           )}
           {garageNote && (
             <p className="text-xs sm:text-sm text-muted-foreground flex items-start gap-1.5 min-w-0 break-words">

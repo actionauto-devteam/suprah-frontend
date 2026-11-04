@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, CalendarClock, Car, CheckCircle2, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, Car, CheckCircle2, ChevronDown, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -20,18 +20,24 @@ import { useAuth } from "@/providers/AuthProvider";
 import { getMyShipments, withdrawShippingRequest, type CustomerShipment } from "@/lib/api/customerQuoteRequests";
 import {
   SHIPMENT_STAGE_META,
+  currentShipmentStep,
+  driverInitials,
   formatExpectedByDate,
   formatShipmentDate,
   formatShipmentPrice,
   shipmentSteps,
   type ShipmentStageMeta,
+  type ShipmentStep,
 } from "@/lib/customer-shipments";
+import type { CustomerShipmentDriver } from "@/lib/api/customerQuoteRequests";
 import { userErrorMessage } from "@/lib/user-error";
 import { cn, resolveImageUrl } from "@/lib/utils";
 
 // ─── My Shipments ─────────────────────────────────────────────────────────────
-// The shipping requests this customer sent from Shop, Wishlist or Compare, and
-// how each shipment is going. No driver details or location are shown.
+// The shipping requests this customer sent from Shop, Wishlist or Compare, the
+// shipments a dealership booked for them, and how each one is going: every
+// step with its time, and the driver (full name, photo and truck) once they
+// accept. Never the driver's phone, email or location.
 
 const TONE_CLASSES: Record<ShipmentStageMeta["tone"], string> = {
   waiting: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
@@ -40,9 +46,112 @@ const TONE_CLASSES: Record<ShipmentStageMeta["tone"], string> = {
   stopped: "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-300",
 };
 
+const STEP_BAR_CLASSES: Record<ShipmentStep["state"], string> = {
+  done: "bg-emerald-500",
+  current: "bg-sky-500",
+  upcoming: "bg-muted-foreground/20",
+};
+
+/**
+ * The progress bar, the latest step with its time, and every step on request.
+ * One layout for every screen size, so seven steps never squeeze into a row.
+ */
+function ShipmentProgress({ id, steps }: { id: string; steps: ShipmentStep[] }) {
+  const [open, setOpen] = React.useState(false);
+  const current = currentShipmentStep(steps);
+  if (!current) return null;
+  const listId = `shipment-steps-${id}`;
+  const at = formatShipmentDate(current.step.at);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1" aria-hidden="true">
+        {steps.map((step) => (
+          <span key={step.key} className={cn("h-1.5 flex-1 rounded-full", STEP_BAR_CLASSES[step.state])} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="min-w-0 text-sm text-foreground">
+          <span className="font-bold">{current.step.label}</span>
+          {at && <span className="text-muted-foreground"> · {at}</span>}
+          <span className="text-muted-foreground">
+            {" "}
+            (step {current.position} of {current.total})
+          </span>
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((value) => !value)}
+          className="h-9 gap-1 rounded-xl px-2 text-xs font-semibold"
+        >
+          {open ? "Hide steps" : "Show all steps"}
+          <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
+        </Button>
+      </div>
+      {open && (
+        <ol id={listId} className="space-y-2 rounded-xl border border-border/40 bg-muted/30 p-3" aria-label="Shipment steps">
+          {steps.map((step) => (
+            <li key={step.key} className="flex items-start gap-2">
+              {step.state === "done" ? (
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              ) : step.state === "current" ? (
+                <CircleDot className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+              ) : (
+                <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+              )}
+              <div className="min-w-0">
+                <p className={cn("text-sm font-semibold", step.state === "upcoming" ? "text-muted-foreground" : "text-foreground")}>
+                  {step.label}
+                  <span className="sr-only">
+                    {step.state === "done" ? " (done)" : step.state === "current" ? " (latest step)" : " (not yet)"}
+                  </span>
+                </p>
+                {step.at && <p className="text-xs text-muted-foreground">{formatShipmentDate(step.at)}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** The driver carrying the car: full name, photo and truck. No way to reach them here. */
+function DriverCard({ driver }: { driver: CustomerShipmentDriver }) {
+  const [photoFailed, setPhotoFailed] = React.useState(false);
+  const photo = driver.photoUrl && !photoFailed ? resolveImageUrl(driver.photoUrl) : undefined;
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-muted/30 p-3">
+      <div className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-500/15 text-sm font-black text-emerald-700 dark:text-emerald-300">
+        {photo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- the driver's profile photo, loaded through the backend
+          <img src={photo} alt="" className="h-full w-full object-cover" onError={() => setPhotoFailed(true)} />
+        ) : (
+          <span aria-hidden="true">{driverInitials(driver.name)}</span>
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Your driver</p>
+        <p className="break-words text-sm font-bold text-foreground">{driver.name}</p>
+        {driver.truck && (
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Truck className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="break-words">{driver.truck}</span>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ShipmentCard({ entry }: { entry: CustomerShipment }) {
   const meta = SHIPMENT_STAGE_META[entry.stage];
   const steps = shipmentSteps(entry);
+  const bookedForYou = entry.kind === "shared";
   const price = formatShipmentPrice(entry.rate);
   const eta = entry.eta && entry.eta.min > 0 ? `${entry.eta.min}–${entry.eta.max} days` : "";
   const expectedBy = formatExpectedByDate(entry.shipment?.expectedBy);
@@ -107,41 +216,12 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
             <p className="break-words text-sm text-red-800 dark:text-red-300">Reason: {entry.declineReason}</p>
           )}
 
-          {steps && (
-            <ol className="grid grid-cols-4 gap-1" aria-label="Shipment progress">
-              {steps.map((step) => (
-                <li key={step.key} className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    {step.state === "done" ? (
-                      <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                    ) : step.state === "current" ? (
-                      <CircleDot className="size-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
-                    ) : (
-                      <Circle className="size-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-                    )}
-                    <span
-                      className={cn(
-                        "truncate text-[11px] font-bold sm:text-xs",
-                        step.state === "upcoming" ? "text-muted-foreground" : "text-foreground",
-                      )}
-                    >
-                      {step.label}
-                      <span className="sr-only">
-                        {step.state === "done" ? " (done)" : step.state === "current" ? " (current step)" : " (not yet)"}
-                      </span>
-                    </span>
-                  </div>
-                  {step.at && (
-                    <p className="mt-0.5 truncate pl-5 text-[10px] text-muted-foreground sm:text-[11px]">
-                      {formatShipmentDate(step.at)}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          )}
+          {entry.driver && <DriverCard driver={entry.driver} />}
+
+          {steps && <ShipmentProgress id={entry.id} steps={steps} />}
 
           <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border/40 pt-2 text-xs text-muted-foreground">
+            {bookedForYou && <span>Booked for you by {entry.dealerName || "the dealership"}</span>}
             {price && (
               <span>
                 Estimated shipping <span className="font-bold text-foreground">{price}</span>
@@ -263,8 +343,8 @@ export default function MyShipmentsPage() {
               My <span className="text-emerald-500">Shipments</span>
             </h1>
             <p className="max-w-xl text-sm text-muted-foreground">
-              The shipping quotes you asked for and how each shipment is going. You&apos;ll also get a notification at
-              every step.
+              The shipping quotes you asked for, the shipments a dealership booked for you, and how each one is going.
+              You&apos;ll get a notification at every step.
             </p>
           </div>
           <Button
@@ -300,9 +380,10 @@ export default function MyShipmentsPage() {
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/60 bg-card px-6 py-10 text-center">
           <Truck className="size-8 text-emerald-500" aria-hidden="true" />
           <div>
-            <p className="text-base font-bold text-foreground">No shipping requests yet</p>
+            <p className="text-base font-bold text-foreground">No shipments yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ask for a shipping quote on any vehicle in Shop, and you can follow it here.
+              Ask for a shipping quote on any vehicle in Shop, and you can follow it here. Shipments a dealership books
+              for you show up here too, under the email you signed up with.
             </p>
           </div>
           <Button asChild className="h-10 gap-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">

@@ -30,6 +30,7 @@ import {
   type VehicleImageLightboxItem,
 } from "@/components/transportation/VehicleImageLightbox";
 import { CustomerRequestActions } from "@/components/transportation/CustomerRequestActions";
+import { PortalShareLine } from "@/components/transportation/PortalShareLine";
 
 export type TransportationMobileQuoteTab = "overview" | "vehicle" | "financials";
 
@@ -322,6 +323,9 @@ export function TransportationMobileQuoteCard({
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     Linked lead: <span className="font-bold text-foreground">{lead.name}</span>
                   </p>
+                )}
+                {quote.source !== "customer_portal" && quote.portalCustomer && (
+                  <PortalShareLine quoteId={quote._id} portalCustomer={quote.portalCustomer} className="mt-1" />
                 )}
               </div>
 
