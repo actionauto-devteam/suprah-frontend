@@ -104,6 +104,26 @@ export async function getMyShipments(token: string | null): Promise<CustomerShip
   return Array.isArray(response.data?.data) ? (response.data.data as CustomerShipment[]) : [];
 }
 
+/** The live map for one shipment, from pickup until delivery. Mirrors the server's CustomerTrackingView. */
+export interface CustomerShipmentTracking {
+  /** False before pickup and after delivery or cancellation. */
+  live: boolean;
+  driver: { position: { lat: number; lng: number }; measuredAt: string; approximate: boolean } | null;
+  delivery: { lat: number; lng: number } | null;
+  /** Null while road routes are off or no route could be worked out. */
+  eta: { arrivalAt: string; runningLate: boolean; updatedAt: string } | null;
+  /** The road from the driver to the delivery, as [lng, lat] points. */
+  route: Array<[number, number]> | null;
+}
+
+/** Where the driver carrying the customer's car is, for the live map. */
+export async function getShipmentTracking(shipmentId: string, token: string | null): Promise<CustomerShipmentTracking> {
+  const response = await apiClient.get(`/api/quote-requests/${encodeURIComponent(shipmentId)}/tracking`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return response.data?.data as CustomerShipmentTracking;
+}
+
 /** Withdraws the customer's own request while it's still waiting. Returns the confirmation to show. */
 export async function withdrawShippingRequest(requestId: string, token: string | null): Promise<string> {
   const response = await apiClient.post(

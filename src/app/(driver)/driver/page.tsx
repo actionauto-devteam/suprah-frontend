@@ -125,6 +125,7 @@ import { hasVehiclesOnBoard, isActiveLoadStatus, isGpsTrackingLoadStatus } from 
 import { locationBlockedChip } from "@/lib/driver-location-messages";
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { formatMountainDateTime } from "@/lib/mountain-time";
+import { WHO_SEES_DRIVER_LOCATION } from "@/lib/driver-privacy";
 
 function formatDashboardLoadLocation(
   location: { city?: string; state?: string; address?: string } | null | undefined,
@@ -1298,8 +1299,7 @@ export default function DriverDashboardPage() {
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load accepted — required location sharing is starting", {
-          description:
-            "Only the dispatcher responsible for this accepted active load can view your live location.",
+          description: WHO_SEES_DRIVER_LOCATION,
         });
         setAcceptDialogLoad(null);
         await fetchData();

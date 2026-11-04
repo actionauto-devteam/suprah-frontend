@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/providers/AuthProvider";
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
+import { WHO_SEES_DRIVER_LOCATION } from "@/lib/driver-privacy";
 
 interface DriverAcceptLoadDialogProps {
   open: boolean;
@@ -223,7 +224,7 @@ export function DriverAcceptLoadDialog({
                 <div className="min-w-0 space-y-1">
                   <p className="font-bold text-foreground">Location Sharing Requirement</p>
                   <p className="break-words [overflow-wrap:anywhere]">
-                    Accepting this load automatically starts required location sharing. Your live location is available only to the dispatcher responsible for your accepted active load and remains required until delivery, Dispatch-approved release, cancellation, or reassignment.
+                    Accepting this load automatically starts required location sharing, which remains required until delivery, Dispatch-approved release, cancellation, or reassignment. {WHO_SEES_DRIVER_LOCATION}
                   </p>
                 </div>
               </div>
