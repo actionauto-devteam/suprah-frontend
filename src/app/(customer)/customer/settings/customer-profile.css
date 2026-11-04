@@ -1,0 +1,90 @@
+/* Customer portal profile (Settings): the profile card uses the Driver
+   Portal's compact layout (see (driver)/driver-portal.css): photo on the left,
+   name and badge beside it, the email under them, status and Share on one row,
+   and the details in two columns, so the card's space is used on phones.
+   Scoped to this page: the shared ProfileHeader and the staff profile page
+   keep their own layout. The header is the profile view's first child. */
+
+.customer-profile-page > div > div:first-child {
+  margin-bottom: 0;
+  border-radius: 1rem;
+}
+.customer-profile-page > div > div:first-child .truncate,
+.customer-profile-page > div > div:first-child [class~="sm:truncate"] {
+  white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip;
+}
+.customer-profile-page > div > div:first-child [data-slot="badge"] {
+  height: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 6.5rem;
+  grid-template-rows: auto auto auto;
+  align-items: start;
+  gap: .5rem .875rem;
+  padding: 1rem;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > [class~="group/avatar"] {
+  grid-column: 1; grid-row: 1 / 3; align-self: start;
+}
+.customer-profile-page > div > div:first-child [class~="group/avatar"] > .relative {
+  width: 4rem; height: 4rem;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 {
+  display: contents;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 > :first-child {
+  grid-column: 2 / -1; grid-row: 1; display: flex; flex-direction: row;
+  flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: .375rem .625rem;
+  min-width: 0; margin: 0; text-align: left;
+}
+.customer-profile-page > div > div:first-child h1 {
+  font-size: clamp(1.25rem, 2vw, 1.75rem); line-height: 1.2; margin: 0;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 > p {
+  grid-column: 2 / -1; grid-row: 2; margin: 0; min-width: 0;
+  text-align: left; overflow-wrap: anywhere; word-break: normal; line-height: 1.5;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 > div:last-child {
+  grid-column: 1 / 3; grid-row: 3; margin: .5rem 0 0; min-width: 0;
+  display: flex; justify-content: flex-start; gap: .5rem;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 > div:last-child > button {
+  width: 100%; min-height: 2.75rem; justify-content: flex-start;
+  padding: .625rem .75rem; border-radius: .75rem; box-shadow: none;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 > div:last-child > button > span {
+  max-width: none; min-width: 0; text-align: left; line-height: 1.4;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .shrink-0:not([class~="group/avatar"]) {
+  grid-column: 3; grid-row: 3; align-self: start; margin-top: .5rem;
+  width: 100%; justify-content: stretch; gap: .5rem;
+}
+.customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .shrink-0:not([class~="group/avatar"]) > button {
+  width: 100%; min-height: 2.75rem; height: auto; border-radius: .75rem;
+  margin: 0; padding: .625rem .75rem; justify-content: center; box-shadow: none;
+}
+.customer-profile-page > div > div:first-child > .grid {
+  padding: .875rem 1rem; gap: .875rem 1rem; align-items: start;
+}
+
+@media (max-width: 639px) {
+  .customer-profile-page > div > div:first-child > .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) {
+    grid-template-columns: 5rem minmax(0, 1fr) 12rem;
+  }
+  .customer-profile-page > div > div:first-child [class~="group/avatar"] > .relative {
+    width: 5rem; height: 5rem;
+  }
+  .customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .flex-1 > div:last-child {
+    grid-column: 2;
+  }
+  .customer-profile-page > div > div:first-child > .relative.w-full:not(.grid) > .shrink-0:not([class~="group/avatar"]) {
+    flex-wrap: nowrap;
+  }
+}

@@ -29,6 +29,21 @@ function getVehicleId(vehicle: OwnedVehicle | null | undefined) {
 
 const TAB_VALUES = ["overview", "vehicles", "sell", "history"];
 
+/**
+ * My Garage's tabs. On phones they're four equal columns with the icon above
+ * a short name (like the Driver Portal's profile tabs); from sm up, one row
+ * with the full names. Nothing spills out of the bar at any width.
+ */
+const GARAGE_TABS = [
+  { value: "overview", icon: LayoutDashboard, short: "Overview", label: "Overview", tip: "Snapshot of your garage activity" },
+  { value: "vehicles", icon: CarFront, short: "Vehicles", label: "My Vehicles", tip: "Vehicles registered to your account" },
+  { value: "sell", icon: Tag, short: "Listing", label: "Auction Listing", tip: "List your car for sale" },
+  { value: "history", icon: ClipboardList, short: "Service", label: "Service Log", tip: "History of services on your vehicles" },
+] as const;
+
+const GARAGE_TAB_CLASS =
+  "min-w-0 h-auto flex-col sm:flex-row sm:flex-none rounded-xl px-1 sm:px-4 py-2 gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all";
+
 function CustomerDashboardContent() {
   const { user } = useUser();
   const { avatarUrl } = useProfileContext();
@@ -150,62 +165,27 @@ function CustomerDashboardContent() {
           </div>
 
           <TooltipProvider>
-            <TabsList className="flex w-full sm:w-fit gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1 h-auto dark:bg-zinc-900/60 dark:border-zinc-800">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <TabsTrigger
-                    value="overview"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
-                  >
-                    <LayoutDashboard className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">Overview</span>
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Snapshot of your garage activity</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <TabsTrigger
-                    value="vehicles"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
-                  >
-                    <CarFront className="h-3.5 w-3.5" />
-                    <span>
-                      <span className="hidden xs:inline">My </span>Vehicles
-                    </span>
-                    {vehicles && vehicles.length > 0 && (
-                      <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 text-primary text-[9px] font-black px-1">
-                        {vehicles.length}
+            <TabsList className="grid w-full grid-cols-4 gap-1 rounded-2xl border border-border/50 bg-muted/40 p-1 h-auto sm:flex sm:w-fit dark:bg-zinc-900/60 dark:border-zinc-800">
+              {GARAGE_TABS.map((tab) => (
+                <Tooltip key={tab.value}>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value={tab.value} className={GARAGE_TAB_CLASS}>
+                      <tab.icon className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+                      <span className="flex min-w-0 max-w-full items-center justify-center gap-1">
+                        <span className="truncate sm:hidden">{tab.short}</span>
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        {tab.value === "vehicles" && vehicles && vehicles.length > 0 && (
+                          <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 text-[9px] font-black text-primary">
+                            {vehicles.length}
+                            <span className="sr-only"> vehicles</span>
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Vehicles registered to your account</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <TabsTrigger
-                    value="sell"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
-                  >
-                    <Tag className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">Auction </span>Listing
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent>List your car for sale</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <TabsTrigger
-                    value="history"
-                    className="flex-1 sm:flex-none rounded-xl px-3 sm:px-4 py-2 text-xs font-bold gap-1.5 aria-selected:bg-background aria-selected:shadow-sm aria-selected:text-foreground text-muted-foreground transition-all"
-                  >
-                    <ClipboardList className="h-3.5 w-3.5" />
-                    <span className="hidden xs:inline">Service </span>Log
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent>History of services on your vehicles</TooltipContent>
-              </Tooltip>
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>{tab.tip}</TooltipContent>
+                </Tooltip>
+              ))}
             </TabsList>
           </TooltipProvider>
         </div>
