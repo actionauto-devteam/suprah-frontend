@@ -76,14 +76,14 @@ function VersionContent({ version, locations, heading }: { version: KbVersion; l
   )
 }
 
-function ApprovalPanel({ detail, locations }: { detail: KbEntryDetail; locations: KbLocation[] }) {
+function ApprovalPanel({ detail, locations, repliesOn }: { detail: KbEntryDetail; locations: KbLocation[]; repliesOn: boolean }) {
   const entry = detail.entry
   const approval = entry.approval
   const display = approvalDisplay(approval)
   if (!approval || !display) {
     return (
       <div className="rounded-xl border border-border/40 bg-muted/20 p-3 text-[11px] text-muted-foreground">
-        Not approved yet. Approved entries are still not used by the AI Agent until runtime publishing exists.
+        Not approved yet. The AI Agent only uses approved answers.
       </div>
     )
   }
@@ -103,13 +103,20 @@ function ApprovalPanel({ detail, locations }: { detail: KbEntryDetail; locations
       {entry.amountApproval && (
         <p>Money amounts allowed: {entry.amountApproval.amounts.join(", ")}{entry.amountApproval.by?.name ? ` by ${entry.amountApproval.by.name}` : ""}{entry.amountApproval.at ? ` · ${formatKbDate(entry.amountApproval.at)}` : ""}</p>
       )}
-      <p className="text-muted-foreground">Knowledge Base content is not used by the AI Agent yet, even when approved.</p>
+      <p className="text-muted-foreground">
+        {!repliesOn
+          ? "The AI Agent is not using Knowledge Base answers right now. An admin can turn on AI Agent replies at the top of the Knowledge Base."
+          : entry.lifecycle !== "active" || approval.state === "invalidated" || approval.state === "suspended"
+            ? "The AI Agent does not use this answer until it is active and approved again."
+            : `The AI Agent can use the approved version for ${entry.channels.map((channel) => KB_CHANNEL_LABELS[channel] || channel).filter((label) => !/email/i.test(label)).join(" and ") || "no reply channel yet"} replies when it fits the customer's question.`}
+      </p>
     </section>
   )
 }
 
-export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey = 0, onClose, onEdit, onChanged }: {
+export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey = 0, repliesOn = false, onClose, onEdit, onChanged }: {
   entryId: string | null
+  repliesOn?: boolean
   refreshKey?: number
   getToken: () => Promise<string | null>
   locations: KbLocation[]
@@ -204,7 +211,7 @@ export function KnowledgeEntryDrawer({ entryId, getToken, locations, refreshKey 
                   <span className="text-[10px] text-muted-foreground">By {entry.createdBy?.name || "Team member"} · updated {formatKbDate(entry.updatedAt)}</span>
                 </div>
 
-                <ApprovalPanel detail={data} locations={locations} />
+                <ApprovalPanel detail={data} locations={locations} repliesOn={repliesOn} />
 
                 {entry.lastReview && (
                   <p className="rounded-lg border border-border/40 p-3 text-[11px]">

@@ -70,6 +70,8 @@ export const KB_AUDIT_LABELS: Record<string, string> = {
   location_suspended: "Location suspended",
   knowledge_base_enabled: "Knowledge Base turned on",
   knowledge_base_disabled: "Knowledge Base turned off",
+  knowledge_replies_enabled: "AI agent started using approved answers",
+  knowledge_replies_disabled: "AI agent stopped using approved answers",
   detail_proposed: "Verified detail proposed",
   detail_updated: "Verified detail changed",
   detail_approved: "Verified detail approved",
@@ -117,6 +119,7 @@ export interface KbAvailability {
   canReview: boolean
   canManageSettings: boolean
   affectsAlex: boolean
+  repliesEnabled?: boolean
 }
 
 export interface KbLocationScope {
@@ -309,7 +312,7 @@ export function approvalDisplay(approval?: KbApproval): KbDisplay | null {
   if (!approval) return null
   switch (approval.state) {
     case "valid":
-      return { label: "Approved", tone: "emerald", note: "Approved for every location it covers. Not used by the AI Agent yet." }
+      return { label: "Approved", tone: "emerald", note: "Approved for every location it covers." }
     case "partial":
       return { label: "Approved · suspended at some locations", tone: "amber", note: "Not valid at the suspended locations until it is reviewed again." }
     case "suspended":

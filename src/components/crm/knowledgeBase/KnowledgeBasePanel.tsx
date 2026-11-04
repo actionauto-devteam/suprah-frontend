@@ -63,8 +63,24 @@ function AvailabilityStrip({ availability, getToken, onChange }: {
   onChange: (next: KbAvailability) => void
 }) {
   const [confirming, setConfirming] = React.useState<boolean | null>(null)
+  const [confirmingReplies, setConfirmingReplies] = React.useState<boolean | null>(null)
   const [busy, setBusy] = React.useState(false)
   const canToggle = availability.serverEnabled && availability.canManageSettings
+  const canToggleReplies = canToggle && availability.orgEnabled
+
+  const saveReplies = async (enabled: boolean) => {
+    setBusy(true)
+    try {
+      const next = await knowledgeRequest<KbAvailability>(getToken, "patch", "/settings", { setting: "ai_replies", enabled })
+      onChange(next)
+      toast.success(enabled ? "The AI agent can now use approved answers" : "The AI agent stopped using Knowledge Base answers")
+      setConfirmingReplies(null)
+    } catch (err) {
+      toast.error("Could not change the setting", { description: knowledgeErrorMessage(err, "Please try again.") })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const save = async (enabled: boolean) => {
     setBusy(true)
@@ -96,15 +112,48 @@ function AvailabilityStrip({ availability, getToken, onChange }: {
         </AvailabilityItem>
         <AvailabilityItem
           label={"AI Agent replies"}
-          value={availability.affectsAlex ? "Uses approved content" : "Not using Knowledge Base content yet"}
-          tone="info"
-        />
+          value={availability.affectsAlex
+            ? "Uses approved answers"
+            : availability.repliesEnabled
+              ? "On, but the Knowledge Base is off"
+              : "Not using Knowledge Base answers"}
+          tone={availability.affectsAlex ? "on" : "off"}
+        >
+          {canToggleReplies && (
+            <Switch
+              checked={Boolean(availability.repliesEnabled)}
+              disabled={busy}
+              onCheckedChange={(checked) => setConfirmingReplies(checked)}
+              aria-label="AI agent uses approved answers"
+            />
+          )}
+        </AvailabilityItem>
       </div>
+      {confirmingReplies !== null && (
+        <div role="alertdialog" aria-label="Confirm AI agent replies setting" className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px]">
+          {confirmingReplies ? (
+            <>
+              <p className="font-semibold">Let the AI agent use approved answers?</p>
+              <p>It uses an approved answer only when it fits what the customer is asking, on the channels and at the locations the answer was approved for. Drafts, inactive and unapproved entries are never used. Amounts a manager allowed can be said exactly as approved.</p>
+              <p>To test first, keep the AI agent in Training mode for texts and webchat: it writes drafts with these answers but sends nothing.</p>
+            </>
+          ) : (
+            <p>Stop using Knowledge Base answers? The AI agent goes back to replying without them right away. Entries are kept.</p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirmingReplies(null)}>Cancel</Button>
+            <Button size="sm" variant={confirmingReplies ? "default" : "destructive"} disabled={busy} onClick={() => void saveReplies(confirmingReplies)}>
+              {busy && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              {confirmingReplies ? "Start using answers" : "Stop using answers"}
+            </Button>
+          </div>
+        </div>
+      )}
       {confirming !== null && (
         <div role="alertdialog" aria-label="Confirm Knowledge Base setting" className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px]">
           <p>
             {confirming
-              ? "Turn the Knowledge Base on for this organization? Reps can write drafts and managers can review them. The AI Agent still won't use any of it."
+              ? "Turn the Knowledge Base on for this organization? Reps can write drafts and managers can review them. The AI Agent uses approved answers only after an admin turns on AI Agent replies."
               : "Turn the Knowledge Base off for this organization? Entries and history are kept, but nobody can manage them until an admin turns it back on."}
           </p>
           <div className="flex flex-wrap justify-end gap-2">
@@ -276,7 +325,7 @@ export function KnowledgeBasePanel({ getToken }: { getToken: () => Promise<strin
   return (
     <HubCard
       title="Knowledge Base"
-      description="Approved dealership answers and business information. Managing it here does not change what the AI Agent says."
+      description="Approved dealership answers and business information. The AI Agent uses approved answers only after an admin turns on AI Agent replies below."
       icon={<BookOpen className="h-4 w-4 text-primary" />}
     >
       <HubState loading={status.loading && !status.data} error={status.error} onRetry={status.reload}>
@@ -340,6 +389,7 @@ export function KnowledgeBasePanel({ getToken }: { getToken: () => Promise<strin
         <>
           <KnowledgeEntryDrawer
             entryId={openEntryId}
+            repliesOn={Boolean(availability?.affectsAlex)}
             getToken={getToken}
             locations={locations}
             refreshKey={refreshKey}
