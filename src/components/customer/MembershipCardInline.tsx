@@ -47,7 +47,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
       onClick={onClick}
       disabled={!onClick}
       aria-label={onClick ? "View full membership card" : undefined}
-      className="relative w-full overflow-hidden rounded-xl text-white shrink-0 mb-4 select-none text-left disabled:cursor-default touch-manipulation transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+      className="relative w-full min-h-min overflow-hidden rounded-xl text-white shrink-0 mb-4 select-none text-left disabled:cursor-default touch-manipulation transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
       style={{
         background: "linear-gradient(140deg, #060d10 0%, #0b1a14 40%, #071210 100%)",
         boxShadow: "0 12px 28px -8px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.06)",
@@ -75,15 +75,15 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
         }}
       />
 
-      <div className="relative z-10 h-full flex flex-col justify-between px-3.5 py-3">
+      <div className="relative z-10 h-full flex flex-col justify-between gap-2 px-3.5 py-3">
 
         {/* Top row */}
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[9.5px] font-black tracking-[0.25em] uppercase text-white leading-none">
+            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white leading-none">
               {dealerName}
             </p>
-            <p className="text-[7.5px] tracking-[0.2em] uppercase mt-0.5" style={{ color: `${tierPrimary}cc` }}>
+            <p className="text-[10px] tracking-[0.16em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
               Jiffy Lube Partner
             </p>
           </div>
@@ -117,44 +117,44 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
               </linearGradient>
             </defs>
           </svg>
-          <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>{tierName} Member</span>
-          <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wide text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>{tierName} Member</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
         </div>
 
         {/* Cardholder */}
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[6.5px] uppercase tracking-[0.2em] text-white/60 mb-0.5">Cardholder</p>
-            <p className="text-[10.5px] font-bold tracking-widest uppercase text-white leading-none truncate max-w-32.5">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Cardholder</p>
+            <p className="text-xs font-bold tracking-widest uppercase text-white leading-tight truncate max-w-44">
               {memberName}
             </p>
-            <p className="font-mono text-[9px] font-semibold tracking-[0.12em] mt-0.5" style={{ color: `${tierPrimary}e6` }}>
+            <p className="font-mono text-[11px] font-semibold tracking-[0.12em] mt-0.5" style={{ color: `${tierPrimary}e6` }}>
               {memberId}
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[6.5px] uppercase tracking-[0.2em] text-white/60 mb-0.5">Since</p>
-            <p className="font-mono text-white/80 text-[9px] font-semibold">{sinceYear}</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Since</p>
+            <p className="font-mono text-white/85 text-[11px] font-semibold">{sinceYear}</p>
           </div>
         </div>
 
         {/* Representative section */}
         <div
-          className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+          className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5${onClick ? " pr-28" : ""}`}
           style={{
             background: "rgba(255,255,255,0.04)",
             borderTop: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           <div
-            className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-black text-white"
+            className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white"
             style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
           >
             JS
           </div>
           <div className="min-w-0">
-            <p className="text-[8.5px] font-bold text-white/90 leading-none">{dealerName} Customer Benefit</p>
-            <p className="text-[7px] text-white/60 leading-snug mt-0.5 truncate">
+            <p className="text-[11px] font-bold text-white/90 leading-tight">{dealerName} Customer Benefit</p>
+            <p className="text-[10px] text-white/70 leading-snug mt-0.5">
               {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services at participating locations
             </p>
           </div>
@@ -163,7 +163,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
       </div>
 
       {onClick && (
-        <span className="absolute bottom-2 right-2.5 z-10 rounded-full bg-black/45 px-1.5 py-0.5 text-[6.5px] font-bold uppercase tracking-[0.15em] text-white/70 backdrop-blur-sm">
+        <span className="absolute bottom-2 right-2.5 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/85 backdrop-blur-sm">
           Tap to view
         </span>
       )}

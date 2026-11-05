@@ -69,7 +69,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
         className="w-[calc(100vw-2rem)] max-w-sm p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white/80 [&>button]:top-3 [&>button]:left-3 [&>button]:right-auto [&>button]:z-50">
 
         <div
-          className="relative overflow-hidden rounded-2xl text-white select-none"
+          className="relative min-h-min overflow-hidden rounded-2xl text-white select-none"
           style={{
             background: "linear-gradient(140deg, #060d10 0%, #0b1a14 40%, #071210 100%)",
             boxShadow: "0 32px 64px -12px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.08)",
@@ -100,14 +100,14 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
             }}
           />
 
-          <div className="relative z-10 h-full flex flex-col justify-between px-5 py-4 sm:px-6 sm:py-5">
+          <div className="relative z-10 h-full flex flex-col justify-between gap-2 px-5 py-4 sm:px-6 sm:py-5">
 
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[11px] font-black tracking-[0.28em] uppercase text-white leading-none">
+                <p className="text-xs font-black tracking-[0.22em] uppercase text-white leading-none">
                   {dealerName}
                 </p>
-                <p className="text-[8.5px] tracking-[0.22em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
+                <p className="text-[10px] tracking-[0.18em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
                   Jiffy Lube Partner
                 </p>
               </div>
@@ -146,7 +146,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 className="flex items-center gap-1 rounded-full px-2.5 py-1 border"
                 style={{ background: `${tierPrimary}1a`, borderColor: `${tierPrimary}50` }}
               >
-                <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>
+                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>
                   {tierName} Member
                 </span>
               </div>
@@ -155,13 +155,13 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 className="rounded-full border px-2.5 py-1"
                 style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.14)" }}
               >
-                <span className="text-[9px] font-black uppercase tracking-wider text-white">
+                <span className="text-[11px] font-black uppercase tracking-wider text-white">
                   {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off services
                 </span>
               </div>
 
               {lifetimePts > 0 && (
-                <span className="text-[9px] font-semibold text-white/70 ml-auto">
+                <span className="text-[11px] font-semibold text-white/80 ml-auto">
                   {lifetimePts.toLocaleString()} pts
                 </span>
               )}
@@ -169,16 +169,16 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
             <div className="flex items-end justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/60 mb-1">Cardholder</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/70 mb-1">Cardholder</p>
                 <p className="text-sm font-bold tracking-[0.12em] uppercase text-white leading-none truncate max-w-40">
                   {memberName}
                 </p>
-                <p className="font-mono text-[11px] font-semibold tracking-[0.14em] mt-1" style={{ color: `${tierPrimary}e6` }}>
+                <p className="font-mono text-xs font-semibold tracking-[0.14em] mt-1" style={{ color: `${tierPrimary}e6` }}>
                   {memberId}
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[7.5px] uppercase tracking-[0.22em] text-white/60 mb-1">Since</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/70 mb-1">Since</p>
                 <p className="font-mono text-white/85 text-xs font-semibold">{sinceYear}</p>
               </div>
             </div>
@@ -187,17 +187,16 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
               className="rounded-xl px-3 py-2"
               style={{ background: "rgba(255,255,255,0.04)", borderTop: "1px solid rgba(255,255,255,0.07)" }}
             >
-              <p className="text-[10px] font-bold text-white/90 leading-none">
+              <p className="text-xs font-bold text-white/90 leading-tight">
                 {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services
               </p>
-              <p className="text-[8px] text-white/65 leading-snug mt-0.5">
+              <p className="text-[11px] text-white/75 leading-snug mt-0.5">
                 Verify {dealerName} customer status with {ACTION_AUTO_BENEFITS_REP.name}.
               </p>
             </div>
 
           </div>
         </div>
-        909090909090909090909090909090909090909090GVBGVBGVBGVBGVBGVBGVBGVBGVBGVBGVBGVBGVBRFTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTSW
         <div className="mt-3 grid gap-2">
           <Button
             onClick={handleShare}
