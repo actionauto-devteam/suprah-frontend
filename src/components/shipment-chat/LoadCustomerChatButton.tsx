@@ -72,11 +72,17 @@ export function LoadCustomerChatButton({ loadId, className }: { loadId: string; 
   if (!chat?.available) return null;
 
   if (!chat.isParticipant) {
-    if (!chat.handledBy) return null;
+    // Other staff see who handles it; with nobody to take it, what to fix.
+    const line = chat.handledBy
+      ? `Customer chat: handled by ${chat.handledBy}, this load's dispatcher.`
+      : chat.note
+        ? `Customer chat: ${chat.note}`
+        : "";
+    if (!line) return null;
     return (
-      <p className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
-        <UserRound className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 break-words">Customer chat: handled by {chat.handledBy}, this load&apos;s dispatcher.</span>
+      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <UserRound className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 break-words">{line}</span>
       </p>
     );
   }

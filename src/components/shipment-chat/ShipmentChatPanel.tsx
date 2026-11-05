@@ -152,6 +152,15 @@ export function ShipmentChatPanel({ source, fallbackName, onActivity }: Shipment
   const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
   const [confirmClose, setConfirmClose] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
+  const inputRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // The message box grows with what's typed, up to about five lines.
+  React.useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+  }, [draft]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey,
@@ -485,6 +494,7 @@ export function ShipmentChatPanel({ source, fallbackName, onActivity }: Shipment
                 Message {otherName}
               </label>
               <textarea
+                ref={inputRef}
                 id={`chat-input-${queryKey.join("-")}`}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
