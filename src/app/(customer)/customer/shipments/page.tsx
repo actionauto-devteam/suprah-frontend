@@ -30,6 +30,8 @@ import {
   type ShipmentStep,
 } from "@/lib/customer-shipments";
 import type { CustomerShipmentDriver } from "@/lib/api/customerQuoteRequests";
+import { LIVE_MAP_STAGES } from "@/lib/customer-shipment-tracking";
+import { ShipmentLiveMap } from "@/components/customer/ShipmentLiveMap";
 import { userErrorMessage } from "@/lib/user-error";
 import { cn, resolveImageUrl } from "@/lib/utils";
 
@@ -37,7 +39,8 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 // The shipping requests this customer sent from Shop, Wishlist or Compare, the
 // shipments a dealership booked for them, and how each one is going: every
 // step with its time, and the driver (full name, photo and truck) once they
-// accept. Never the driver's phone, email or location.
+// accept, and from pickup until delivery the live map (where the driver is,
+// and the arrival time once road routes are on). Never the driver's phone or email.
 
 const TONE_CLASSES: Record<ShipmentStageMeta["tone"], string> = {
   waiting: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
@@ -217,6 +220,8 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
           )}
 
           {entry.driver && <DriverCard driver={entry.driver} />}
+
+          {LIVE_MAP_STAGES.has(entry.stage) && <ShipmentLiveMap shipmentId={entry.id} />}
 
           {steps && <ShipmentProgress id={entry.id} steps={steps} />}
 
