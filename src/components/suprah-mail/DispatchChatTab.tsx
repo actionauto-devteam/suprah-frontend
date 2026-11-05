@@ -28,6 +28,10 @@ import { useDispatchChannels } from "@/hooks/useDispatchChannels";
 import { ChannelListRow } from "@/components/dispatch-channels/ChannelList";
 import { ChannelConversation } from "@/components/dispatch-channels/ChannelConversation";
 import { CreateChannelDialog } from "@/components/dispatch-channels/CreateChannelDialog";
+import { CustomerChatPane } from "@/components/shipment-chat/CustomerChatPane";
+import { useCustomerChatInbox } from "@/hooks/useCustomerChatInbox";
+import { customerChatAbout, customerChatMatches, customerChatPreview } from "@/lib/shipment-chat";
+import type { CustomerChatInboxItem } from "@/lib/api/shipmentChat";
 
 type DriverFilter = "all" | "active-load" | "sharing" | "offline";
 type DriverOperationalStatus = "active" | "on_leave" | "maintenance";
@@ -335,6 +339,89 @@ function DriverRow({
   );
 }
 
+/** One customer chat in the Customers section (the dispatcher's chats with customers of their loads). */
+function CustomerChatRow({
+  chat,
+  selected,
+  onSelect,
+}: {
+  chat: CustomerChatInboxItem;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const unread = Math.max(0, Number(chat.unread ?? 0));
+  const name = chat.customerName || "Customer";
+  const about = customerChatAbout(chat, false);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "sm5-conv-row group flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 text-left",
+        selected && "sm5-conv-active",
+        unread > 0 && "bg-emerald-500/5",
+      )}
+      aria-pressed={selected}
+    >
+      <Avatar className="size-9 shrink-0 border border-sky-500/25 transition-transform duration-150 group-hover:scale-[1.04]">
+        <AvatarFallback className="bg-sky-500/10 text-[10px] font-black text-sky-700 dark:text-sky-300">
+          {initials(name)}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p
+            className={cn("sm5-title-sm truncate", unread > 0 ? "font-bold" : "font-semibold")}
+            style={{ fontSize: 13.5, color: "var(--text-primary)" }}
+          >
+            {name}
+          </p>
+          {!chat.open && (
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
+              Closed
+            </span>
+          )}
+        </div>
+        {about && (
+          <p className="mt-0.5 truncate text-[10.5px] font-medium" style={{ color: "var(--text-tertiary)" }}>
+            {about}
+          </p>
+        )}
+        <p
+          className="sm5-supporting mt-0.5 truncate"
+          style={{
+            fontSize: 11.5,
+            fontWeight: unread > 0 ? 600 : 400,
+            color: unread > 0 ? "var(--text-primary)" : "var(--text-tertiary)",
+          }}
+        >
+          {customerChatPreview(chat)}
+        </p>
+      </div>
+
+      <div className="ml-1 flex shrink-0 flex-col items-end gap-1.5 self-stretch py-0.5">
+        <span
+          className="sm5-mono min-h-4 whitespace-nowrap font-semibold"
+          style={{ fontSize: 11.5, color: "var(--text-secondary)" }}
+        >
+          {chat.lastMessageAt ? fmtListDate(new Date(chat.lastMessageAt).getTime()) : ""}
+        </span>
+        {unread > 0 && (
+          <span
+            className="shrink-0 rounded-full text-center font-bold text-white"
+            style={{ fontSize: 9, minWidth: 18, height: 18, lineHeight: "18px", padding: "0 5px", background: "var(--accent)" }}
+            aria-label={`${unread} unread customer message${unread === 1 ? "" : "s"}`}
+          >
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 function NewDispatchChatModal({
   drivers,
   threadMetaByDriver,
@@ -569,6 +656,11 @@ export function DispatchChatTab({
   const channelList = useDispatchChannels(Boolean(isSignedIn));
   const [selectedChannelId, setSelectedChannelId] = React.useState<string | null>(openChannelId);
   const [createChannelOpen, setCreateChannelOpen] = React.useState(false);
+
+  // Customer chats: the load's customer (Customers section), by load.
+  const customerInbox = useCustomerChatInbox(Boolean(isSignedIn));
+  const refreshCustomerInbox = customerInbox.refresh;
+  const [selectedCustomerLoadId, setSelectedCustomerLoadId] = React.useState<string | null>(null);
   // A new link while this tab stays open (for example a second notification).
   const [linkedChannelId, setLinkedChannelId] = React.useState(openChannelId);
   if (openChannelId !== linkedChannelId) {
@@ -576,6 +668,7 @@ export function DispatchChatTab({
     if (openChannelId) {
       setSelectedChannelId(openChannelId);
       setSelectedId(null);
+      setSelectedCustomerLoadId(null);
     }
   }
 
@@ -1066,7 +1159,8 @@ export function DispatchChatTab({
     void fetchThreadMeta();
     void onUnreadRefresh();
     void lookUpDrivers([...extraDriversRef.current.keys()]);
-  }, [fetchDrivers, fetchThreadMeta, lookUpDrivers, onUnreadRefresh, refreshSignal]);
+    refreshCustomerInbox();
+  }, [fetchDrivers, fetchThreadMeta, lookUpDrivers, onUnreadRefresh, refreshCustomerInbox, refreshSignal]);
 
   React.useEffect(() => {
     if (!isSignedIn) {
@@ -1395,6 +1489,12 @@ export function DispatchChatTab({
     [drivers, filter, query],
   );
 
+  // Driver filters are about drivers, so customer chats show under All only.
+  const filteredCustomerChats = React.useMemo(
+    () => (filter === "all" ? customerInbox.chats.filter((chat) => customerChatMatches(chat, query)) : []),
+    [customerInbox.chats, filter, query],
+  );
+
   const selectedDriver = React.useMemo(
     () =>
       drivers.find((driver: DirectoryDriver) => driver.id === selectedId) ?? null,
@@ -1413,6 +1513,7 @@ export function DispatchChatTab({
       selectedIdRef.current = driverId;
       setSelectedId(driverId);
       setSelectedChannelId(null);
+      setSelectedCustomerLoadId(null);
       optimisticUnreadMessageIdsRef.current.delete(driverId);
 
       // Opening the exact conversation is an immediate read-intent. The
@@ -1432,9 +1533,18 @@ export function DispatchChatTab({
   const selectChannel = (channelId: string) => {
     selectedIdRef.current = null;
     setSelectedId(null);
+    setSelectedCustomerLoadId(null);
     setSelectedChannelId(channelId);
   };
-  const conversationOpen = Boolean(selectedDriver || selectedChannelId);
+  const selectCustomerChat = (loadId: string) => {
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    setSelectedChannelId(null);
+    setSelectedCustomerLoadId(loadId);
+  };
+  const conversationOpen = Boolean(selectedDriver || selectedChannelId || selectedCustomerLoadId);
+  // The pill counts customer chats too; the menu's Driver Tracker badge doesn't.
+  const pillUnread = unreadTotal + customerInbox.unreadTotal;
 
   const selectNewConversation = (driver: DirectoryDriver) => {
     if (!driversRef.current.some((known) => known.id === driver.id)) {
@@ -1472,7 +1582,7 @@ export function DispatchChatTab({
               ref={searchRef}
               value={query}
               onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-              placeholder="Search drivers, loads or routes…"
+              placeholder="Search drivers, customers, loads or routes…"
               className="sm5-input h-9 w-full pl-9 pr-3 text-xs"
             />
           </div>
@@ -1500,9 +1610,9 @@ export function DispatchChatTab({
               </button>
             ))}
 
-            {unreadTotal > 0 && (
+            {pillUnread > 0 && (
               <span className="ml-auto shrink-0 rounded-full bg-emerald-600 px-2 py-1 text-[9px] font-black text-white">
-                {unreadTotal > 99 ? "99+" : unreadTotal} unread
+                {pillUnread > 99 ? "99+" : pillUnread} unread
               </span>
             )}
           </div>
@@ -1556,7 +1666,37 @@ export function DispatchChatTab({
                 />
               ))
             )}
-            <p className="px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+            {filter === "all" && (
+              <div className="mt-1 border-t border-border/50">
+                <p className="px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                  Customers
+                </p>
+                {filteredCustomerChats.length > 0 ? (
+                  filteredCustomerChats.map((chat) => (
+                    <CustomerChatRow
+                      key={chat.loadId}
+                      chat={chat}
+                      selected={chat.loadId === selectedCustomerLoadId}
+                      onSelect={() => selectCustomerChat(chat.loadId)}
+                    />
+                  ))
+                ) : (
+                  <p className="px-3 pb-2.5 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                    {customerInbox.loading
+                      ? "Loading customer chats…"
+                      : customerInbox.error
+                        ? `Couldn't load your customer chats. ${customerInbox.error}`
+                        : query.trim()
+                          ? "No customer chats match your search."
+                          : "When a customer following one of your loads messages you, the chat shows up here. You can also start one from the load with Message customer."}
+                  </p>
+                )}
+              </div>
+            )}
+            <p
+              className="mt-1 border-t border-border/50 px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: "var(--text-tertiary)" }}
+            >
               Drivers
             </p>
           </div>
@@ -1659,7 +1799,19 @@ export function DispatchChatTab({
           conversationOpen ? "flex" : "hidden @lg:flex",
         )}
       >
-        {selectedChannelId ? (
+        {selectedCustomerLoadId ? (
+          <CustomerChatPane
+            key={selectedCustomerLoadId}
+            loadId={selectedCustomerLoadId}
+            item={customerInbox.chats.find((chat) => chat.loadId === selectedCustomerLoadId)}
+            loadHref={`/transportation/load/${encodeURIComponent(selectedCustomerLoadId)}`}
+            onBack={() => setSelectedCustomerLoadId(null)}
+            onActivity={() => {
+              refreshCustomerInbox();
+              void onUnreadRefresh();
+            }}
+          />
+        ) : selectedChannelId ? (
           <ChannelConversation
             key={selectedChannelId}
             channelId={selectedChannelId}
@@ -1688,10 +1840,10 @@ export function DispatchChatTab({
                 style={{ color: "var(--text-disabled)" }}
               />
               <p className="mt-3 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                Select a driver or channel
+                Select a driver, customer or channel
               </p>
               <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                Choose a driver to open your private conversation, or a channel to chat with a group of drivers and staff.
+                Choose a driver or a customer to open your private conversation, or a channel to chat with a group of drivers and staff.
               </p>
             </div>
           </div>

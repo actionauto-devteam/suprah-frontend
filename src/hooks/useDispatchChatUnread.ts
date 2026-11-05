@@ -6,7 +6,10 @@ import { initializeSocket } from "@/lib/socket.client";
 import { useAuth } from "@/providers/AuthProvider";
 
 type DispatchUnreadSnapshot = {
+  /** Unread dispatcher↔driver messages. */
   unreadTotal: number;
+  /** Unread customer chat messages (Dispatch Chat's Customers section). */
+  customerChatUnread: number;
   isLoading: boolean;
 };
 
@@ -44,6 +47,7 @@ function publishDispatchChatRealtime(
 
 const EMPTY_SNAPSHOT: DispatchUnreadSnapshot = {
   unreadTotal: 0,
+  customerChatUnread: 0,
   isLoading: false,
 };
 
@@ -69,6 +73,7 @@ const SOCKET_REFRESH_DEBOUNCE_MS = 80;
 function emitSharedSnapshot(next: DispatchUnreadSnapshot) {
   if (
     next.unreadTotal === sharedSnapshot.unreadTotal &&
+    next.customerChatUnread === sharedSnapshot.customerChatUnread &&
     next.isLoading === sharedSnapshot.isLoading
   ) {
     return;
@@ -81,6 +86,7 @@ function emitSharedSnapshot(next: DispatchUnreadSnapshot) {
 function updateSharedSnapshot(next: Partial<DispatchUnreadSnapshot>) {
   emitSharedSnapshot({
     unreadTotal: next.unreadTotal ?? sharedSnapshot.unreadTotal,
+    customerChatUnread: next.customerChatUnread ?? sharedSnapshot.customerChatUnread,
     isLoading: next.isLoading ?? sharedSnapshot.isLoading,
   });
 }
@@ -156,9 +162,13 @@ async function refreshSharedUnread(
         0,
         Number(response.data?.data?.unreadTotal ?? 0),
       );
+      const customerChatUnread = Math.max(
+        0,
+        Number(response.data?.data?.customerChatUnread ?? 0),
+      );
 
       sharedLastSuccessfulRefreshAt = Date.now();
-      updateSharedSnapshot({ unreadTotal });
+      updateSharedSnapshot({ unreadTotal, customerChatUnread });
     } catch {
       // Keep the last successful unread total during a temporary network/auth
       // failure. The next socket event, reconnect, or manual refresh retries it.
@@ -266,6 +276,13 @@ export function useDispatchChatUnread(options?: { enabled?: boolean }) {
       scheduleSharedRefresh(getToken, { force: true });
     };
 
+    // Customer chats (shipment-chat events) only change the customer count,
+    // so they don't go to the dispatcher↔driver listeners above.
+    const onCustomerChat = () => {
+      if (cancelled) return;
+      scheduleSharedRefresh(getToken, { force: true });
+    };
+
     const onConnect = () => {
       if (cancelled) return;
       publishDispatchChatRealtime({
@@ -285,6 +302,8 @@ export function useDispatchChatUnread(options?: { enabled?: boolean }) {
       socket = initializeSocket(token);
       socket.on("dispatch-chat:message", onMessage);
       socket.on("dispatch-chat:read", onRead);
+      socket.on("shipment-chat:message", onCustomerChat);
+      socket.on("shipment-chat:read", onCustomerChat);
       socket.on("connect", onConnect);
     };
 
@@ -294,6 +313,8 @@ export function useDispatchChatUnread(options?: { enabled?: boolean }) {
       cancelled = true;
       socket?.off("dispatch-chat:message", onMessage);
       socket?.off("dispatch-chat:read", onRead);
+      socket?.off("shipment-chat:message", onCustomerChat);
+      socket?.off("shipment-chat:read", onCustomerChat);
       socket?.off("connect", onConnect);
     };
   }, [enabled, getToken, isSignedIn]);
@@ -339,6 +360,7 @@ export function useDispatchChatUnread(options?: { enabled?: boolean }) {
   if (!enabled || !isSignedIn) {
     return {
       unreadTotal: 0,
+      customerChatUnread: 0,
       isLoading: false,
       refresh,
     };
@@ -346,6 +368,7 @@ export function useDispatchChatUnread(options?: { enabled?: boolean }) {
 
   return {
     unreadTotal: shared.unreadTotal,
+    customerChatUnread: shared.customerChatUnread,
     isLoading: shared.isLoading,
     refresh,
   };

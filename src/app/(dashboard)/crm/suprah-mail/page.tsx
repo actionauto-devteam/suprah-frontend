@@ -447,14 +447,15 @@ export default function SuprahMailPage() {
 
   const {
     unreadTotal: dispatchUnreadTotal,
+    customerChatUnread,
     refresh: refreshDispatchUnread,
   } = useDispatchChatUnread({
     enabled: dispatchChatEnabled,
   });
 
-  // The Dispatch Chat badge counts unread channel messages too.
+  // The Dispatch Chat badge counts unread channel and customer chat messages too.
   const { unreadTotal: channelUnreadTotal } = useDispatchChannels(dispatchChatEnabled);
-  const dispatchBadgeTotal = dispatchUnreadTotal + channelUnreadTotal;
+  const dispatchBadgeTotal = dispatchUnreadTotal + channelUnreadTotal + customerChatUnread;
 
   const focusedPane =
     panes.find((pane) => pane.id === focusedPaneId) ?? panes[0];

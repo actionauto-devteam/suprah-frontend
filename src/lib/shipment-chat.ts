@@ -1,4 +1,4 @@
-import type { ShipmentChatMessage } from "@/lib/api/shipmentChat"
+import type { CustomerChatInboxItem, ShipmentChatMessage } from "@/lib/api/shipmentChat"
 
 // ─── Shipment chats: words, times and photo checks ────────────────────────────
 // The customer's private chats with the driver carrying their car and with the
@@ -104,4 +104,37 @@ export function mergeChatMessages(existing: ShipmentChatMessage[], incoming: Shi
 /** The newest message's time, for "read up to". */
 export function newestMessageAt(messages: ShipmentChatMessage[]): string | null {
   return messages.length ? messages[messages.length - 1].createdAt : null
+}
+
+// ─── Dispatch Chat's Customers section ────────────────────────────────────────
+// Drivers and dispatchers see their customer chats in Dispatch Chat, in their
+// own section, apart from dispatcher↔driver chats and channels.
+
+type InboxChat = Pick<
+  CustomerChatInboxItem,
+  "customerName" | "vehicleName" | "loadNumber" | "dealerName" | "lastMessagePreview" | "lastMessageMine"
+>
+
+/** "2021 Toyota Camry · Load L-1001 · Action Auto Utah": what the chat is about. */
+export function customerChatAbout(chat: Pick<InboxChat, "vehicleName" | "loadNumber" | "dealerName">, withDealer = true): string {
+  return [chat.vehicleName, chat.loadNumber ? `Load ${chat.loadNumber}` : "", withDealer ? chat.dealerName : ""]
+    .map((part) => (part ?? "").trim())
+    .filter(Boolean)
+    .join(" · ")
+}
+
+/** The row's last line: "You: On my way" when you wrote last. */
+export function customerChatPreview(chat: Pick<InboxChat, "lastMessagePreview" | "lastMessageMine">): string {
+  const preview = (chat.lastMessagePreview ?? "").trim() || "No messages yet"
+  return chat.lastMessageMine ? `You: ${preview}` : preview
+}
+
+/** Search across the customer's name, the car, the load and the last message. */
+export function customerChatMatches(chat: InboxChat, query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return [chat.customerName, chat.vehicleName, chat.loadNumber, chat.dealerName, chat.lastMessagePreview]
+    .join(" ")
+    .toLowerCase()
+    .includes(needle)
 }

@@ -25,6 +25,9 @@ const {
   chatZoneNote,
   checkChatPhotos,
   closesAtLine,
+  customerChatAbout,
+  customerChatMatches,
+  customerChatPreview,
   mergeChatMessages,
   newestMessageAt,
   unreadLabel,
@@ -97,4 +100,23 @@ test('live updates are matched to the right chat', () => {
 test('drivers are told customers can message them, and until when', () => {
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /message you in a private chat on the load from when you accept until 24 hours after delivery/);
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /never see your phone number or email/);
+});
+
+test("Dispatch Chat's Customers section: what each row says and what search finds", () => {
+  const chat = {
+    customerName: 'Maria Lopez',
+    vehicleName: '2021 Toyota Camry',
+    loadNumber: 'L-1001',
+    dealerName: 'Action Auto Utah',
+    lastMessagePreview: 'Is it on the way?',
+    lastMessageMine: false,
+  };
+  assert.equal(customerChatAbout(chat), '2021 Toyota Camry · Load L-1001 · Action Auto Utah');
+  assert.equal(customerChatAbout(chat, false), '2021 Toyota Camry · Load L-1001');
+  assert.equal(customerChatAbout({ vehicleName: '', loadNumber: '', dealerName: ' ' }), '');
+  assert.equal(customerChatPreview(chat), 'Is it on the way?');
+  assert.equal(customerChatPreview({ ...chat, lastMessageMine: true }), 'You: Is it on the way?');
+  assert.equal(customerChatPreview({ lastMessagePreview: '  ', lastMessageMine: false }), 'No messages yet');
+  for (const query of ['', 'maria', 'CAMRY', 'l-1001', 'on the way']) assert.equal(customerChatMatches(chat, query), true, query);
+  assert.equal(customerChatMatches(chat, 'peterbilt'), false);
 });

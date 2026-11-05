@@ -11,15 +11,15 @@ import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
 
 /**
  * Driver menu entry for Dispatch Chat: private chats with dispatchers and
- * group channels on one page, with one unread count for both.
+ * customers, and group channels, on one page, with one unread count for all.
  */
 export function DriverDispatchInboxSidebarItem({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useUser();
   const pathname = usePathname();
   const isDriver = user?.role === "driver";
   const { unreadTotal: channelUnread } = useDispatchChannels(isDriver);
-  const { unreadTotal: chatUnread } = useDispatchChatUnread({ enabled: isDriver });
-  const unreadTotal = channelUnread + chatUnread;
+  const { unreadTotal: chatUnread, customerChatUnread } = useDispatchChatUnread({ enabled: isDriver });
+  const unreadTotal = channelUnread + chatUnread + customerChatUnread;
 
   return (
     <SidebarMenuItem>
