@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Eye,
   HelpCircle,
   User,
   Activity,
@@ -48,6 +49,7 @@ import { DriverOverviewTab } from "./DriverOverviewTab";
 import { driverStatusOptions } from "./driver-profile-constants";
 import { DriverProfile } from "@/types/driver-profile";
 import { userErrorMessage } from "@/lib/user-error";
+import { CUSTOMER_SEES_DRIVER_NOTICE } from "@/lib/driver-privacy";
 
 export const DriverProfileView: React.FC = () => {
   const { user: authUser } = useUser();
@@ -455,6 +457,11 @@ export const DriverProfileView: React.FC = () => {
           setEditingPersonalInfo(true);
         }}
       /></div>
+
+      <p className="flex items-start gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+        <Eye className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+        <span>{CUSTOMER_SEES_DRIVER_NOTICE}</span>
+      </p>
 
       <Tabs
         value={activeTab}

@@ -1,6 +1,7 @@
 import type { ConditionReport, DeliverySignature } from "@/lib/condition-report";
 import type { QuoteLeadRef } from "@/lib/quote-lead";
 import type { LoadGarageState } from "@/lib/load-garage";
+import type { PortalCustomerSummary } from "@/types/transportation";
 
 export interface LoadLocation {
   locationType?: string;
@@ -84,6 +85,8 @@ export interface Load {
     quoteId: string;
     customerName: string;
     lead: QuoteLeadRef | null;
+    /** The customer's portal account that follows this shipment, if any. */
+    portalCustomer?: PortalCustomerSummary | null;
   } | null;
   /** Delivered customer requests only: whether the car can go to the customer's My Garage. */
   garage?: LoadGarageState | null;

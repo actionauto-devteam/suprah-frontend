@@ -50,10 +50,25 @@ export interface Quote {
   declineReason?: string;
   /** Set when the quote's inventory vehicle was sold or removed. */
   vehicleState?: "sold" | "removed";
+  /**
+   * Staff quotes: the customer account whose verified email is this quote's
+   * email, which follows the shipment in its portal (shared) unless staff
+   * unlinked it. Null when no verified account uses the email.
+   */
+  portalCustomer?: PortalCustomerSummary | null;
   organization?: {
     name: string;
     logoUrl?: string;
   };
+}
+
+/** The customer's portal account that follows a shipment (see the backend's shipmentFollower). */
+export interface PortalCustomerSummary {
+  name: string;
+  /** False after staff unlinked it ("Link again" turns it back on). */
+  shared: boolean;
+  /** The customer asked for it from the portal, so it always shows there. */
+  fromRequest?: boolean;
 }
 
 export interface QuoteStructuredLocation {

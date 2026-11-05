@@ -42,14 +42,31 @@ export type CustomerShipmentStage =
   | "unavailable"
   | "withdrawn"
   | "booked"
+  | "finding_driver"
+  | "driver_accepted"
   | "picked_up"
   | "on_the_way"
+  | "arrived"
   | "delivered"
   | "cancelled";
 
-/** One request on "My Shipments" (no driver details or location). */
+/** The driver carrying the customer's car, once they accept (never their phone or email). */
+export interface CustomerShipmentDriver {
+  name: string;
+  /** A stored photo; load it with resolveImageUrl. */
+  photoUrl: string | null;
+  /** e.g. "2019 Peterbilt 389 · White". */
+  truck: string | null;
+}
+
+/**
+ * One shipment on "My Shipments": a request the customer sent ("request"), or
+ * a staff quote the dealership booked with their verified email ("shared").
+ */
 export interface CustomerShipment {
   id: string;
+  /** Older servers don't send it; treat that as "request". */
+  kind?: "request" | "shared";
   vehicleName: string;
   vehicleImage: string | null;
   dealerName: string;
@@ -61,11 +78,15 @@ export interface CustomerShipment {
   stage: CustomerShipmentStage;
   /** What the dealership wrote when declining (declined requests only). */
   declineReason?: string | null;
+  /** The driver, from the moment they accept. */
+  driver?: CustomerShipmentDriver | null;
   shipment: {
     number: string;
     bookedAt: string | null;
+    driverAcceptedAt?: string | null;
     pickedUpAt: string | null;
     onTheWayAt: string | null;
+    arrivedAt?: string | null;
     deliveredAt: string | null;
     cancelledAt: string | null;
     /** The reason's label only. */
@@ -75,7 +96,7 @@ export interface CustomerShipment {
   } | null;
 }
 
-/** The signed-in customer's own shipping requests, newest first. */
+/** The signed-in customer's shipments, newest first. */
 export async function getMyShipments(token: string | null): Promise<CustomerShipment[]> {
   const response = await apiClient.get("/api/quote-requests/mine", {
     headers: token ? { Authorization: `Bearer ${token}` } : {},

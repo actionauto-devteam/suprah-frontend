@@ -34,6 +34,7 @@ import { customerRequestAnswers, quoteDeleteConfirmation } from "@/lib/customer-
 import { userErrorMessage } from "@/lib/user-error"
 import { QuoteLoadRouteCompletionDialog } from "./QuoteLoadRouteCompletionDialog"
 import { CustomerRequestActions } from "./transportation/CustomerRequestActions"
+import { PortalShareLine } from "./transportation/PortalShareLine"
 
 interface QuoteCardProps {
     quote: Quote
@@ -527,6 +528,13 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                                         )}
                                                     </span>
                                                 </div>
+                                            )}
+                                            {quote.source !== "customer_portal" && quote.portalCustomer && (
+                                                <PortalShareLine
+                                                    quoteId={quote._id}
+                                                    portalCustomer={quote.portalCustomer}
+                                                    className="mt-2.5 pt-2.5 border-t border-border/40"
+                                                />
                                             )}
                                         </div>
                                     </div>
