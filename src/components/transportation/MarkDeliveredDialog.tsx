@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { AlertTriangle, Camera, CheckCircle2, ImageIcon, Loader2, PackageCheck, X } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/readable-toast"
 import { apiClient } from "@/lib/api-client"
 import { userErrorMessage } from "@/lib/user-error"
 import { useAuth } from "@/providers/AuthProvider"

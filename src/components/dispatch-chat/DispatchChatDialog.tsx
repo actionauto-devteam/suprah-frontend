@@ -42,7 +42,7 @@ import { apiClient } from "@/lib/api-client";
 import { resolveImageUrl } from "@/lib/utils";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
 import { CALENDAR_TZ, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import { userErrorMessage } from "@/lib/user-error";

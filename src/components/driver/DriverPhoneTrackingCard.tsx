@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CheckCircle2, Clock, Copy, ExternalLink, Loader2, Smartphone } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

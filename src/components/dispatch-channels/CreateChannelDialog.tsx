@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Hash, Loader2, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

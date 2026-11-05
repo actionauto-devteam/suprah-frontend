@@ -32,7 +32,7 @@ import {
   ShieldAlert,
   Undo2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 import { userErrorMessage } from "@/lib/user-error";
 

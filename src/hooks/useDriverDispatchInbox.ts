@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { useAuth } from "@/providers/AuthProvider";
 import { userErrorMessage } from "@/lib/user-error";
 import { subscribeToDispatchChatRealtime } from "@/hooks/useDispatchChatUnread";

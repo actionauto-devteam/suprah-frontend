@@ -35,7 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import type { Vehicle } from "@/types/inventory";
 import { useOrg } from "@/hooks/useOrg";
 import { resolveImageUrl, cn } from "@/lib/utils";

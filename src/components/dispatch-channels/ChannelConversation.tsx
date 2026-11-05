@@ -18,7 +18,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
