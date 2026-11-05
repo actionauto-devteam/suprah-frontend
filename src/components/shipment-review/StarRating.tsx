@@ -26,7 +26,7 @@ export function StarRatingInput({
   return (
     <fieldset className="space-y-1.5" disabled={disabled}>
       <legend className="text-sm font-semibold text-foreground">{legend}</legend>
-      <div className="flex items-center gap-1" onMouseLeave={() => setHover(null)}>
+      <div className="flex flex-wrap items-center gap-x-0.5 gap-y-1" onMouseLeave={() => setHover(null)}>
         {[1, 2, 3, 4, 5].map((stars) => (
           <label
             key={stars}
@@ -51,7 +51,7 @@ export function StarRatingInput({
             />
           </label>
         ))}
-        <span className="ml-1 text-xs text-muted-foreground" aria-live="polite">
+        <span className="w-full text-xs text-muted-foreground sm:ml-1 sm:w-auto" aria-live="polite">
           {value ? starsLabel(value) : "Not rated yet"}
         </span>
       </div>
