@@ -145,6 +145,9 @@ function filterInventoryVehicles(allVehicles: Vehicle[], filters: any, debounced
 
 type InventoryView = "active" | "archived";
 
+/** How often an open Inventory page picks up changes other staff make. */
+const INVENTORY_REFRESH_MS = 2 * 60_000;
+
 type SortOption =
   | "price-asc"
   | "price-desc"
@@ -690,6 +693,50 @@ function InventoryContent() {
     void fetchVehicles(!hasLoadedOnceRef.current);
     return () => requestControllerRef.current?.abort();
   }, [fetchVehicles, inventoryView]);
+
+  // Changes other staff make (a car sold, a new price, a new car) show without
+  // a reload: a quiet refresh when this page comes back into view and every
+  // two minutes while it's open. Filters, sorting and the page stay as they
+  // are, and lead counts already loaded are kept.
+  const quietRefreshRef = React.useRef(false);
+  const refreshQuietly = React.useCallback(async () => {
+    if (quietRefreshRef.current || !hasLoadedOnceRef.current || document.visibilityState !== "visible") return;
+    quietRefreshRef.current = true;
+    const sequence = requestSequenceRef.current;
+    try {
+      const fresh = await fetchVehicleDataset(inventoryView);
+      // The staff member changed view or reloaded meanwhile: theirs wins.
+      if (sequence !== requestSequenceRef.current) return;
+      setAllVehicles((current) => {
+        const leadCounts = new Map(current.map((vehicle) => [vehicle.id, vehicle.leadCount]));
+        return fresh.map((vehicle) =>
+          vehicle.leadCount === undefined && leadCounts.get(vehicle.id) !== undefined
+            ? { ...vehicle, leadCount: leadCounts.get(vehicle.id) }
+            : vehicle,
+        );
+      });
+      // The other view (active or archived) is fetched again when it's opened.
+      for (const view of Object.keys(inventoryViewCacheRef.current) as InventoryView[]) {
+        if (view !== inventoryView) inventoryViewCacheRef.current[view] = null;
+      }
+    } catch {
+      // Keep what's on screen; the next refresh tries again.
+    } finally {
+      quietRefreshRef.current = false;
+    }
+  }, [fetchVehicleDataset, inventoryView]);
+
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshQuietly();
+    };
+    const timer = window.setInterval(() => void refreshQuietly(), INVENTORY_REFRESH_MS);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshQuietly]);
 
   // Keep the currently rendered dataset warm, including later lead-count merges.
   React.useEffect(() => {
