@@ -22,7 +22,7 @@ function CampaignsPageContent() {
   const selectedTab: CampaignTab = requestedTab === "contacts" && !isAdmin ? "sms" : requestedTab
 
   const setTab = (tab: string) => {
-    router.replace(tab === "sms" ? "/crm/campaigns" : `/crm/campaigns?tab=${tab}`, { scroll: false })
+    window.history.replaceState(null, "", tab === "sms" ? "/crm/campaigns" : `/crm/campaigns?tab=${tab}`)
   }
 
   return (

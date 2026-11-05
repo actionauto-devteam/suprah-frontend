@@ -357,9 +357,13 @@ export function LeadsTab({
   const [isInboxSummaryExpanded, setIsInboxSummaryExpanded] =
     React.useState(false);
 
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
   React.useEffect(() => {
+    const inset = rootRef.current?.closest<HTMLElement>('[data-slot="sidebar-inset"]') || null;
     const updateViewportMode = () => {
-      const width = window.innerWidth;
+      const reserved = inset ? parseFloat(window.getComputedStyle(inset).paddingRight) || 0 : 0;
+      const width = window.innerWidth - reserved;
 
       if (width < 1024) {
         setViewportMode("narrow");
@@ -376,9 +380,12 @@ export function LeadsTab({
 
     updateViewportMode();
     window.addEventListener("resize", updateViewportMode);
+    const observer = inset && typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateViewportMode) : null;
+    if (inset) observer?.observe(inset);
 
     return () => {
       window.removeEventListener("resize", updateViewportMode);
+      observer?.disconnect();
     };
   }, []);
 
@@ -2536,6 +2543,7 @@ export function LeadsTab({
 
   return (
     <div
+      ref={rootRef}
       className={cn("ss4 flex h-full min-h-0 flex-col")}
       data-theme={theme}
       data-viewport-mode={viewportMode}
