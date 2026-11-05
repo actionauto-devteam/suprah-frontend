@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarClock, Car, CheckCircle2, ChevronDown, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck, Undo2 } from "lucide-react";
@@ -32,6 +33,10 @@ import {
 import type { CustomerShipmentDriver } from "@/lib/api/customerQuoteRequests";
 import { LIVE_MAP_STAGES } from "@/lib/customer-shipment-tracking";
 import { ShipmentLiveMap } from "@/components/customer/ShipmentLiveMap";
+import { ShipmentChatButtons } from "@/components/customer/ShipmentChatButtons";
+import { ShipmentChatSheet } from "@/components/shipment-chat/ShipmentChatSheet";
+import { SHIPMENT_CHAT_EVENTS, type ShipmentChatKind } from "@/lib/api/shipmentChat";
+import { initializeSocket } from "@/lib/socket.client";
 import { userErrorMessage } from "@/lib/user-error";
 import { cn, resolveImageUrl } from "@/lib/utils";
 
@@ -40,7 +45,8 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 // shipments a dealership booked for them, and how each one is going: every
 // step with its time, and the driver (full name, photo and truck) once they
 // accept, and from pickup until delivery the live map (where the driver is,
-// and the arrival time once road routes are on). Never the driver's phone or email.
+// and the arrival time once road routes are on). Never the driver's phone or
+// email: the customer messages the driver and the dispatcher in private chats.
 
 const TONE_CLASSES: Record<ShipmentStageMeta["tone"], string> = {
   waiting: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
@@ -123,7 +129,7 @@ function ShipmentProgress({ id, steps }: { id: string; steps: ShipmentStep[] }) 
   );
 }
 
-/** The driver carrying the car: full name, photo and truck. No way to reach them here. */
+/** The driver carrying the car: full name, photo and truck (the chat is the way to reach them). */
 function DriverCard({ driver }: { driver: CustomerShipmentDriver }) {
   const [photoFailed, setPhotoFailed] = React.useState(false);
   const photo = driver.photoUrl && !photoFailed ? resolveImageUrl(driver.photoUrl) : undefined;
@@ -151,7 +157,7 @@ function DriverCard({ driver }: { driver: CustomerShipmentDriver }) {
   );
 }
 
-function ShipmentCard({ entry }: { entry: CustomerShipment }) {
+function ShipmentCard({ entry, onOpenChat }: { entry: CustomerShipment; onOpenChat: (kind: ShipmentChatKind) => void }) {
   const meta = SHIPMENT_STAGE_META[entry.stage];
   const steps = shipmentSteps(entry);
   const bookedForYou = entry.kind === "shared";
@@ -224,6 +230,8 @@ function ShipmentCard({ entry }: { entry: CustomerShipment }) {
           {LIVE_MAP_STAGES.has(entry.stage) && <ShipmentLiveMap shipmentId={entry.id} />}
 
           {steps && <ShipmentProgress id={entry.id} steps={steps} />}
+
+          <ShipmentChatButtons entry={entry} onOpen={onOpenChat} />
 
           <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border/40 pt-2 text-xs text-muted-foreground">
             {bookedForYou && <span>Booked for you by {entry.dealerName || "the dealership"}</span>}
@@ -320,8 +328,36 @@ function WithdrawRequestButton({ entry }: { entry: CustomerShipment }) {
   );
 }
 
+/** Passes on "?shipment=…&chat=driver|dispatcher" each time the address changes to one. */
+function ChatLinkWatcher({ onLink }: { onLink: (link: { key: string; shipmentId: string; kind: ShipmentChatKind }) => void }) {
+  const searchParams = useSearchParams();
+  const shipmentId = searchParams?.get("shipment") ?? "";
+  const kind = searchParams?.get("chat") ?? "";
+  const key = searchParams?.toString() ?? "";
+  React.useEffect(() => {
+    if (shipmentId && (kind === "driver" || kind === "dispatcher")) onLink({ key, shipmentId, kind });
+  }, [key, kind, onLink, shipmentId]);
+  return null;
+}
+
+/** Who a chat is with, as the sheet's title and subtitle. */
+function chatHeading(entry: CustomerShipment, kind: ShipmentChatKind) {
+  const vehicle = entry.vehicleName || "your vehicle";
+  if (kind === "driver") {
+    return {
+      title: entry.driver?.name || "Your driver",
+      subtitle: [`Your driver for the ${vehicle}`, entry.driver?.truck].filter(Boolean).join(" · "),
+    };
+  }
+  return {
+    title: entry.chats?.dispatcher.name || "Dispatcher",
+    subtitle: `Dispatcher${entry.dealerName ? ` at ${entry.dealerName}` : ""} · ${vehicle}`,
+  };
+}
+
 export default function MyShipmentsPage() {
   const { getToken } = useAuth();
+  const queryClient = useQueryClient();
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["customer-shipments"],
     queryFn: async () => getMyShipments(await getToken()),
@@ -330,7 +366,45 @@ export default function MyShipmentsPage() {
     refetchOnWindowFocus: true,
     retry: 1,
   });
-  const shipments = data ?? [];
+  const shipments = React.useMemo(() => data ?? [], [data]);
+
+  const [openChat, setOpenChat] = React.useState<{ shipmentId: string; kind: ShipmentChatKind } | null>(null);
+  const chatEntry = openChat ? shipments.find((entry) => entry.id === openChat.shipmentId) : undefined;
+  const refreshShipments = React.useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["customer-shipments"] });
+  }, [queryClient]);
+
+  // A notification link ("?shipment=…&chat=driver") opens that chat once the
+  // list is in, also when it's tapped while My Shipments is already open.
+  const [chatLink, setChatLink] = React.useState<{ key: string; shipmentId: string; kind: ShipmentChatKind } | null>(null);
+  const handledLink = React.useRef("");
+  React.useEffect(() => {
+    // While the list can't load, its own message and Try again show instead.
+    if (!chatLink || handledLink.current === chatLink.key || isLoading || isError) return;
+    handledLink.current = chatLink.key;
+    const entry = shipments.find((item) => item.id === chatLink.shipmentId);
+    if (entry?.chats?.[chatLink.kind].readable) setOpenChat({ shipmentId: chatLink.shipmentId, kind: chatLink.kind });
+    else if (entry) toast.info(entry.chats?.[chatLink.kind].note || "This chat isn't available yet.");
+    else toast.info("We couldn't find that shipment in your account. It may have been unlinked; your shipments are below.");
+  }, [chatLink, isError, isLoading, shipments]);
+
+  // New messages update the counts on the chat buttons right away.
+  React.useEffect(() => {
+    let active = true;
+    let socket: ReturnType<typeof initializeSocket> | null = null;
+    void (async () => {
+      const token = await getToken();
+      if (!token || !active) return;
+      socket = initializeSocket(token);
+      socket.on(SHIPMENT_CHAT_EVENTS.message, refreshShipments);
+      socket.on(SHIPMENT_CHAT_EVENTS.changed, refreshShipments);
+    })();
+    return () => {
+      active = false;
+      socket?.off(SHIPMENT_CHAT_EVENTS.message, refreshShipments);
+      socket?.off(SHIPMENT_CHAT_EVENTS.changed, refreshShipments);
+    };
+  }, [getToken, refreshShipments]);
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col space-y-4 sm:space-y-5">
@@ -349,7 +423,7 @@ export default function MyShipmentsPage() {
             </h1>
             <p className="max-w-xl text-sm text-muted-foreground">
               The shipping quotes you asked for, the shipments a dealership booked for you, and how each one is going.
-              You&apos;ll get a notification at every step.
+              You&apos;ll get a notification at every step, and you can message your driver and the dispatcher.
             </p>
           </div>
           <Button
@@ -401,9 +475,25 @@ export default function MyShipmentsPage() {
       ) : (
         <ul className="space-y-3" aria-label="Your shipments">
           {shipments.map((entry) => (
-            <ShipmentCard key={entry.id} entry={entry} />
+            <ShipmentCard key={entry.id} entry={entry} onOpenChat={(kind) => setOpenChat({ shipmentId: entry.id, kind })} />
           ))}
         </ul>
+      )}
+
+      <React.Suspense fallback={null}>
+        <ChatLinkWatcher onLink={setChatLink} />
+      </React.Suspense>
+
+      {openChat && chatEntry && (
+        <ShipmentChatSheet
+          open
+          onOpenChange={(next) => {
+            if (!next) setOpenChat(null);
+          }}
+          target={{ side: "customer", shipmentId: openChat.shipmentId, kind: openChat.kind }}
+          {...chatHeading(chatEntry, openChat.kind)}
+          onActivity={refreshShipments}
+        />
       )}
     </div>
   );

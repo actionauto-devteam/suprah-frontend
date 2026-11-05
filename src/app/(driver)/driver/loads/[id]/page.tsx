@@ -30,6 +30,7 @@ import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import type { DriverLoadCompatibility } from '@/types/driver-tracking';
 import { EQUIPMENT_PAGE_PATH, trailerFitProblem } from '@/lib/trailer-setup';
 import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
+import { LoadCustomerChatButton } from '@/components/shipment-chat/LoadCustomerChatButton';
 import { initializeSocket } from '@/lib/socket.client';
 import { userErrorMessage } from "@/lib/user-error";
 import { formatScheduleDate } from "@/utils/calendar.utils";
@@ -452,6 +453,7 @@ export default function LoadDetailPage() {
         <div className="flex flex-wrap gap-2">
           {isAssigned && <OpenInGoogleMapsButton load={data} />}
           {isAssigned && <VehicleConditionButton load={data} className="w-auto" />}
+          {isAccepted && <LoadCustomerChatButton loadId={String(data._id ?? loadId)} className="w-auto" />}
           {canAccept && (
             <Button onClick={() => handleAction('accept-load')} disabled={!!actionLoading} className="h-11 gap-2 rounded-xl">
               {actionLoading === 'accept-load' ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Accept Load
