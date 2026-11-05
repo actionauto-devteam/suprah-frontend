@@ -31,7 +31,7 @@ import {
   type ShipmentStep,
 } from "@/lib/customer-shipments";
 import type { CustomerShipmentDriver } from "@/lib/api/customerQuoteRequests";
-import { LIVE_MAP_STAGES } from "@/lib/customer-shipment-tracking";
+import { LIVE_MAP_STAGES, isShipmentNotification } from "@/lib/customer-shipment-tracking";
 import { ShipmentLiveMap } from "@/components/customer/ShipmentLiveMap";
 import { ShipmentChatButtons } from "@/components/customer/ShipmentChatButtons";
 import { ShipmentReceivedSection } from "@/components/customer/ShipmentReceivedSection";
@@ -376,6 +376,16 @@ export default function MyShipmentsPage() {
   const refreshShipments = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["customer-shipments"] });
   }, [queryClient]);
+  // A shipment step (booked, driver accepted, picked up, delivered…) also
+  // refreshes the live map, which appears at pickup and goes at delivery.
+  const refreshAfterStep = React.useCallback(
+    (notification: { metadata?: { route?: unknown } | null } | null | undefined) => {
+      if (!isShipmentNotification(notification)) return;
+      refreshShipments();
+      void queryClient.invalidateQueries({ queryKey: ["shipment-tracking"] });
+    },
+    [queryClient, refreshShipments],
+  );
 
   // A notification link ("?shipment=…&chat=driver") opens that chat once the
   // list is in, also when it's tapped while My Shipments is already open.
@@ -391,7 +401,9 @@ export default function MyShipmentsPage() {
     else toast.info("We couldn't find that shipment in your account. It may have been unlinked; your shipments are below.");
   }, [chatLink, isError, isLoading, shipments]);
 
-  // New messages update the counts on the chat buttons right away.
+  // The page keeps itself current: every shipment step arrives as a
+  // notification, and new messages update the counts on the chat buttons.
+  // After a reconnect, the latest is fetched in case something was missed.
   React.useEffect(() => {
     let active = true;
     let socket: ReturnType<typeof initializeSocket> | null = null;
@@ -401,13 +413,19 @@ export default function MyShipmentsPage() {
       socket = initializeSocket(token);
       socket.on(SHIPMENT_CHAT_EVENTS.message, refreshShipments);
       socket.on(SHIPMENT_CHAT_EVENTS.changed, refreshShipments);
+      socket.on("notification:new", refreshAfterStep);
+      socket.on("notification:updated", refreshAfterStep);
+      socket.on("connect", refreshShipments);
     })();
     return () => {
       active = false;
       socket?.off(SHIPMENT_CHAT_EVENTS.message, refreshShipments);
       socket?.off(SHIPMENT_CHAT_EVENTS.changed, refreshShipments);
+      socket?.off("notification:new", refreshAfterStep);
+      socket?.off("notification:updated", refreshAfterStep);
+      socket?.off("connect", refreshShipments);
     };
-  }, [getToken, refreshShipments]);
+  }, [getToken, refreshAfterStep, refreshShipments]);
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col space-y-4 sm:space-y-5">
@@ -426,7 +444,7 @@ export default function MyShipmentsPage() {
             </h1>
             <p className="max-w-xl text-sm text-muted-foreground">
               The shipping quotes you asked for, the shipments a dealership booked for you, and how each one is going.
-              You&apos;ll get a notification at every step, and you can message your driver and the dispatcher.
+              This page updates by itself and you get a notification at every step, and you can message your driver and the dispatcher.
             </p>
           </div>
           <Button

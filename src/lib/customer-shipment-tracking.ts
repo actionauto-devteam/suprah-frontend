@@ -1,16 +1,26 @@
-import type { CustomerShipmentStage } from "@/lib/api/customerQuoteRequests"
+import type { CustomerShipmentStage, CustomerShipmentTracking } from "@/lib/api/customerQuoteRequests"
 
 // ─── My Shipments: the live map's words ──────────────────────────────────────
 // From pickup until delivery (decided 2026-11-05), the customer sees where the
-// driver carrying their car is, and the arrival time once road routes are on,
-// with "Running late" when the delivery deadline is at risk. Times are in
-// Mountain Time, the dealership's time zone.
+// driver carrying their car is, moving live, and the delivery point, plus the
+// arrival time once road routes are on, with "Running late" when the delivery
+// deadline is at risk. Times are in Mountain Time, the dealership's time zone.
 
 /** The stages that show the live map. */
 export const LIVE_MAP_STAGES: ReadonlySet<CustomerShipmentStage> = new Set(["picked_up", "on_the_way", "arrived"])
 
-/** How often the map asks for the driver's position while it's open. */
+/**
+ * How often the map also asks for the latest while it's open. The driver's
+ * position arrives live (CUSTOMER_LOCATION_EVENT); this catches anything
+ * missed and refreshes the arrival time.
+ */
 export const LIVE_MAP_REFRESH_MS = 60_000
+
+/** The driver's new position, sent to the customer the moment it arrives. */
+export const CUSTOMER_LOCATION_EVENT = "customer-shipment:location"
+
+/** Where every shipment notification links to. */
+export const MY_SHIPMENTS_ROUTE = "/customer/shipments"
 
 /** A position older than this is called out, so nobody trusts a frozen dot. */
 export const STALE_POSITION_MS = 30 * 60_000
@@ -80,7 +90,47 @@ export function positionLine(
     }
   }
   return {
-    text: `${minutes < 2 ? "Live location" : `Location from ${durationWords(minutes)} ago`}. It refreshes about every minute while this page is open.${approximate}`,
+    text: `${minutes < 2 ? "Live location" : `Location from ${durationWords(minutes)} ago`}. It moves on the map as your driver does, while this page is open.${approximate}`,
     stale: false,
   }
+}
+
+/** A live position update for one shipment (see CUSTOMER_LOCATION_EVENT). */
+export interface LivePositionUpdate {
+  quoteId: string
+  driver: NonNullable<CustomerShipmentTracking["driver"]>
+}
+
+const validPoint = (point: { lat?: unknown; lng?: unknown } | null | undefined) =>
+  Boolean(point) && Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng))
+
+/**
+ * The map's data with the driver's newer position from a live update. The
+ * same data when the update is for another shipment, older than what's shown,
+ * or broken, or when the map isn't live.
+ */
+export function withLivePosition(
+  view: CustomerShipmentTracking | undefined,
+  update: LivePositionUpdate | null | undefined,
+  shipmentId: string,
+): CustomerShipmentTracking | undefined {
+  if (!view?.live || !update || update.quoteId !== shipmentId || !validPoint(update.driver?.position)) return view
+  const next = new Date(update.driver.measuredAt).getTime()
+  if (!Number.isFinite(next)) return view
+  const shown = view.driver ? new Date(view.driver.measuredAt).getTime() : Number.NEGATIVE_INFINITY
+  if (Number.isFinite(shown) && next <= shown) return view
+  return {
+    ...view,
+    driver: {
+      position: { lat: Number(update.driver.position.lat), lng: Number(update.driver.position.lng) },
+      measuredAt: new Date(next).toISOString(),
+      approximate: Boolean(update.driver.approximate),
+    },
+  }
+}
+
+/** Whether a notification is about the customer's shipments (every shipment step sends one). */
+export function isShipmentNotification(notification: { metadata?: { route?: unknown } | null } | null | undefined): boolean {
+  const route = typeof notification?.metadata?.route === "string" ? notification.metadata.route : ""
+  return route === MY_SHIPMENTS_ROUTE || route.startsWith(`${MY_SHIPMENTS_ROUTE}?`)
 }

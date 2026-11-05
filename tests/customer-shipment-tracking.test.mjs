@@ -16,7 +16,7 @@ function loadLib(name) {
   return cjs.exports;
 }
 
-const { LIVE_MAP_STAGES, arrivalLine, positionLine, updatedAgo } = loadLib('customer-shipment-tracking');
+const { LIVE_MAP_STAGES, arrivalLine, isShipmentNotification, positionLine, updatedAgo, withLivePosition } = loadLib('customer-shipment-tracking');
 const { CUSTOMER_SEES_DRIVER_NOTICE, WHO_SEES_DRIVER_LOCATION } = loadLib('driver-privacy');
 
 // Thursday, Nov 5, 2026, 10:00 AM in Mountain Time (MST, UTC-7).
@@ -50,7 +50,7 @@ test("explains the driver's position plainly, including when it is old or rough"
     text: "Waiting for your driver's location. It shows here as soon as their phone shares it.",
     stale: true,
   });
-  assert.match(positionLine({ measuredAt: '2026-11-05T16:59:30Z', approximate: false }, NOW).text, /^Live location\. It refreshes about every minute/);
+  assert.match(positionLine({ measuredAt: '2026-11-05T16:59:30Z', approximate: false }, NOW).text, /^Live location\. It moves on the map as your driver does/);
   assert.match(positionLine({ measuredAt: '2026-11-05T16:50:00Z', approximate: false }, NOW).text, /^Location from 10 min ago\./);
   const old = positionLine({ measuredAt: '2026-11-05T15:00:00Z', approximate: false }, NOW);
   assert.equal(old.stale, true);
@@ -63,4 +63,39 @@ test('drivers are told customers see their location from pickup until delivery',
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /never see your phone number or email/);
   assert.match(WHO_SEES_DRIVER_LOCATION, /^Only the dispatcher responsible for your accepted load/);
   assert.match(WHO_SEES_DRIVER_LOCATION, /customer receiving the vehicle also sees where you are from pickup until delivery\.$/);
+});
+
+test('a live position moves the driver, but never backwards or onto another shipment', () => {
+  const view = {
+    live: true,
+    driver: { position: { lat: 40.5, lng: -105.08 }, measuredAt: '2026-11-05T16:59:00.000Z', approximate: false },
+    delivery: { lat: 39.75, lng: -104.99 },
+    eta: null,
+    route: null,
+  };
+  const update = (measuredAt, extra = {}) => ({
+    quoteId: 'q1',
+    driver: { position: { lat: 40.4, lng: -105.05 }, measuredAt, approximate: true, ...extra },
+  });
+  const moved = withLivePosition(view, update('2026-11-05T16:59:30Z'), 'q1');
+  assert.deepEqual(moved.driver, { position: { lat: 40.4, lng: -105.05 }, measuredAt: '2026-11-05T16:59:30.000Z', approximate: true });
+  assert.deepEqual(moved.delivery, view.delivery);
+  // Older than what's shown, another shipment, broken, or the map isn't live: unchanged.
+  assert.equal(withLivePosition(view, update('2026-11-05T16:58:00Z'), 'q1'), view);
+  assert.equal(withLivePosition(view, update('2026-11-05T16:59:30Z'), 'q2'), view);
+  assert.equal(withLivePosition(view, update('not a time'), 'q1'), view);
+  assert.equal(withLivePosition(view, update('2026-11-05T16:59:30Z', { position: { lat: 'x', lng: 1 } }), 'q1'), view);
+  const notLive = { ...view, live: false };
+  assert.equal(withLivePosition(notLive, update('2026-11-05T16:59:30Z'), 'q1'), notLive);
+  assert.equal(withLivePosition(undefined, update('2026-11-05T16:59:30Z'), 'q1'), undefined);
+  // The first position after "waiting for your driver's location".
+  assert.equal(withLivePosition({ ...view, driver: null }, update('2026-11-05T16:59:30Z'), 'q1').driver.position.lat, 40.4);
+});
+
+test('shipment notifications refresh My Shipments; others do not', () => {
+  assert.equal(isShipmentNotification({ metadata: { route: '/customer/shipments' } }), true);
+  assert.equal(isShipmentNotification({ metadata: { route: '/customer/shipments?shipment=q1&chat=driver' } }), true);
+  for (const other of [{ metadata: { route: '/customer/shipments-old' } }, { metadata: { route: '/transportation/load/1' } }, { metadata: {} }, {}, null]) {
+    assert.equal(isShipmentNotification(other), false, JSON.stringify(other));
+  }
 });
