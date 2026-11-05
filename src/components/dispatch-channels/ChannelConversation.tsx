@@ -905,7 +905,7 @@ export function ChannelConversation({
       )}
 
       <AlertDialog open={confirmDelete !== null} onOpenChange={(open) => !open && !deleting && setConfirmDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this message?</AlertDialogTitle>
             <AlertDialogDescription>

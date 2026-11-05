@@ -125,7 +125,7 @@ export function PortalShareLine({
           setConfirmOpen(next)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Stop sharing this shipment with {current.name}?</AlertDialogTitle>
             <AlertDialogDescription>

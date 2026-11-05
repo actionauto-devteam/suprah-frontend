@@ -92,7 +92,7 @@ export function VehicleStatusControl({
           Change status
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
         <AlertDialogHeader>
           <AlertDialogTitle>Change status</AlertDialogTitle>
           <AlertDialogDescription>

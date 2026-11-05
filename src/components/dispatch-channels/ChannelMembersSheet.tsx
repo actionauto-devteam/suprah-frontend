@@ -406,7 +406,7 @@ export function ChannelPeopleManager({
       )}
 
       <AlertDialog open={confirm !== null} onOpenChange={(next) => !next && setConfirm(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirm?.kind === "remove" ? `Remove ${confirm.member.name}?` : confirm?.kind === "leave" ? "Leave this channel?" : "Close this channel?"}

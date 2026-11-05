@@ -302,7 +302,7 @@ function WithdrawRequestButton({ entry }: { entry: CustomerShipment }) {
           Withdraw request
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
         <AlertDialogHeader>
           <AlertDialogTitle>Withdraw this shipping request?</AlertDialogTitle>
           <AlertDialogDescription>
