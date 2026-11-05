@@ -370,6 +370,15 @@ export interface AutomationLogPage {
   items: AutomationLogRow[]
 }
 
+export interface AutomationExportCount {
+  view: "events" | "logs"
+  mode: "live" | "test"
+  range: { from: string; to: string }
+  total: number
+  limit: number
+  rows: number
+}
+
 export interface ReengagementSummary {
   range: { from: string; to: string }
   enabled: boolean
@@ -428,6 +437,10 @@ export const MONITOR_GROUP_LABELS: Record<MonitorGroup, string> = {
 
 export function calendarDate(day: string, options: Intl.DateTimeFormatOptions): string {
   return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", ...options })
+}
+
+export function automationToday(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Denver" })
 }
 
 export async function automationDownload(getToken: () => Promise<string | null>, path: string): Promise<{ blob: Blob; filename: string }> {

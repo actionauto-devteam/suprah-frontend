@@ -31,6 +31,7 @@ import {
   type MonitorStatus,
 } from "@/lib/crmAutomations"
 import { HubState } from "../ShadowStatusBadge"
+import { AutomationExportDialog } from "./AutomationExportDialog"
 import { MonitorChart } from "./AutomationMonitorChart"
 import { ReengagementChart } from "./AutomationReengagementChart"
 
@@ -104,6 +105,7 @@ export function AutomationMonitor({ getToken, automations, options }: {
   const [listError, setListError] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState<string | null>(null)
   const [exporting, setExporting] = React.useState(false)
+  const [exportOpen, setExportOpen] = React.useState(false)
 
   const tags = React.useMemo(() => Array.from(new Set(automations.flatMap((item) => item.tags || []))).sort((a, b) => a.localeCompare(b)), [automations])
 
@@ -171,13 +173,21 @@ export function AutomationMonitor({ getToken, automations, options }: {
     void loadList()
   }
 
-  const exportCsv = async () => {
+  const exportQuery = React.useMemo(() => {
+    const params = new URLSearchParams(filters)
+    params.delete("range")
+    params.set("view", tab)
+    if (status) params.set("status", status)
+    if (search) params.set(SEARCH_PARAM[tab], search)
+    return params.toString()
+  }, [filters, search, status, tab])
+
+  const exportCsv = async (from: string, to: string) => {
     setExporting(true)
     try {
-      const params = new URLSearchParams(filters)
-      params.set("view", tab)
-      if (status) params.set("status", status)
-      if (search) params.set(SEARCH_PARAM[tab], search)
+      const params = new URLSearchParams(exportQuery)
+      params.set("from", from)
+      params.set("to", to)
       const { blob, filename } = await automationDownload(getToken, `/activity/export?${params.toString()}`)
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
@@ -188,6 +198,7 @@ export function AutomationMonitor({ getToken, automations, options }: {
       link.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 1000)
       toast.success(`Downloaded ${filename}`)
+      setExportOpen(false)
     } catch (err) {
       toast.error(automationError(err, "Could not export the automation activity"))
     } finally {
@@ -243,7 +254,7 @@ export function AutomationMonitor({ getToken, automations, options }: {
           <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={refresh} disabled={summaryLoading || listLoading} aria-label="Refresh">
             <RefreshCw className={cn("h-3.5 w-3.5", (summaryLoading || listLoading) && "animate-spin")} />
           </Button>
-          <Button type="button" size="sm" className="h-9 flex-1 sm:flex-none" onClick={() => void exportCsv()} disabled={exporting}>
+          <Button type="button" size="sm" className="h-9 flex-1 sm:flex-none" onClick={() => setExportOpen(true)} disabled={exporting}>
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             Export as CSV
           </Button>
@@ -377,6 +388,19 @@ export function AutomationMonitor({ getToken, automations, options }: {
       </div>
 
       <ReengagementChart getToken={getToken} />
+
+      {exportOpen && (
+        <AutomationExportDialog
+          view={tab}
+          query={exportQuery}
+          defaultFrom={summary?.range.from}
+          defaultTo={summary?.range.to}
+          exporting={exporting}
+          getToken={getToken}
+          onClose={() => setExportOpen(false)}
+          onExport={(from, to) => void exportCsv(from, to)}
+        />
+      )}
     </div>
   )
 }
