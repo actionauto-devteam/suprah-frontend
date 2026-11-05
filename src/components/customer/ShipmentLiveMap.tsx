@@ -2,12 +2,22 @@
 
 import * as React from "react"
 import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl"
-import { useQuery } from "@tanstack/react-query"
-import { AlertTriangle, Clock, Loader2, MapPin } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { AlertTriangle, Clock, Loader2, LocateFixed, MapPin } from "lucide-react"
 import { useAuth } from "@/providers/AuthProvider"
 import { useTheme } from "@/context/ThemeContext"
 import { getShipmentTracking, type CustomerShipmentTracking } from "@/lib/api/customerQuoteRequests"
-import { LIVE_MAP_REFRESH_MS, arrivalLine, positionLine, updatedAgo } from "@/lib/customer-shipment-tracking"
+import {
+  CUSTOMER_LOCATION_EVENT,
+  LIVE_MAP_REFRESH_MS,
+  arrivalLine,
+  positionLine,
+  updatedAgo,
+  withLivePosition,
+  type LivePositionUpdate,
+} from "@/lib/customer-shipment-tracking"
+import { withinTripRange } from "@/lib/driver-next-stop"
+import { initializeSocket } from "@/lib/socket.client"
 import { addMapboxRouteLayers, routeLineFeatures } from "@/lib/load-route-lines"
 import { logMapProblem } from "@/lib/map-messages"
 import { SUPPORT_EMAIL } from "@/lib/support-contact"
@@ -17,9 +27,11 @@ import { cn } from "@/lib/utils"
 /*
  * The live map on My Shipments, from pickup until delivery (decided
  * 2026-11-05): where the driver carrying the customer's car is, the delivery
- * spot, the road between them and the arrival time once road routes are on.
- * It refreshes about once a minute, and only while the page is open: React
- * Query pauses the refresh when the tab or app is in the background.
+ * point (a red "D", like Driver Tracker), the road between them and the
+ * arrival time once road routes are on. Until then a dashed line joins the
+ * driver to the delivery point, as Driver Tracker does with the next stop.
+ * The driver moves the moment their phone reports a new position; a refresh
+ * about once a minute, only while the page is open, catches anything missed.
  */
 
 const MAP_STYLE_BY_THEME = {
@@ -41,6 +53,15 @@ function markerElement(kind: keyof typeof COLORS, title: string) {
 
 type Point = { lat: number; lng: number }
 
+/** The driver, the delivery point and the road between them, for framing the map. */
+function framingBounds(view: CustomerShipmentTracking): [[number, number], [number, number]] | null {
+  const points = [view.driver?.position ?? null, view.delivery].filter((point): point is Point => Boolean(point))
+  const lngs = points.map((point) => point.lng).concat((view.route ?? []).map((pair) => pair[0]))
+  const lats = points.map((point) => point.lat).concat((view.route ?? []).map((pair) => pair[1]))
+  if (!lngs.length) return null
+  return [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]]
+}
+
 function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
   const { theme } = useTheme()
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim()
@@ -48,7 +69,8 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
   const mapRef = React.useRef<MapboxMap | null>(null)
   const markersRef = React.useRef<{ driver?: MapboxMarker; delivery?: MapboxMarker }>({})
   const latestRef = React.useRef(view)
-  const framedRef = React.useRef(false)
+  // How many of the driver and the delivery point the map was last framed on.
+  const framedPointsRef = React.useRef(0)
   const [ready, setReady] = React.useState(false)
   const [failed, setFailed] = React.useState(false)
   latestRef.current = view
@@ -58,9 +80,14 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
     if (!map || !map.isStyleLoaded()) return
     const current = latestRef.current
     const driver: Point | null = current.driver?.position ?? null
+    // Without a road route, a dashed line to the delivery point (on a trip scale only).
+    const directLine =
+      !current.route && driver && current.delivery && withinTripRange(driver, current.delivery)
+        ? [{ type: "Feature", properties: { kind: "route-later" }, geometry: { type: "LineString", coordinates: [[driver.lng, driver.lat], [current.delivery.lng, current.delivery.lat]] } }]
+        : []
     const data = {
       type: "FeatureCollection",
-      features: current.route ? routeLineFeatures({ ahead: current.route, later: null }, driver) : [],
+      features: current.route ? routeLineFeatures({ ahead: current.route, later: null }, driver) : directLine,
     } as never
     const source = map.getSource(SOURCE) as { setData: (value: never) => void } | undefined
     if (source) source.setData(data)
@@ -82,19 +109,22 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
       else markersRef.current[kind] = new mapboxgl.Marker({ element: markerElement(kind, title) }).setLngLat([position.lng, position.lat]).addTo(map)
     }
     place("driver", driver, "Your driver")
-    place("delivery", current.delivery, "Delivery")
+    place("delivery", current.delivery, "Delivery point")
 
-    // Framed once on the driver and the delivery; after that, the customer's own panning is left alone.
-    const points = [driver, current.delivery].filter((point): point is Point => Boolean(point))
-    if (!framedRef.current && points.length) {
-      framedRef.current = true
-      const lngs = points.map((point) => point.lng).concat((current.route ?? []).map((pair) => pair[0]))
-      const lats = points.map((point) => point.lat).concat((current.route ?? []).map((pair) => pair[1]))
-      map.fitBounds(
-        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-        { padding: 48, maxZoom: 13, duration: 0 },
-      )
+    // Framed on the driver and the delivery point when they first show (again
+    // if the delivery point arrives later); otherwise the customer's own
+    // panning is left alone, and "Show both" frames them again.
+    const known = [driver, current.delivery].filter(Boolean).length
+    const bounds = framingBounds(current)
+    if (bounds && known > framedPointsRef.current) {
+      framedPointsRef.current = known
+      map.fitBounds(bounds, { padding: 48, maxZoom: 13, duration: 0 })
     }
+  }, [])
+
+  const showBoth = React.useCallback(() => {
+    const bounds = framingBounds(latestRef.current)
+    if (bounds) mapRef.current?.fitBounds(bounds, { padding: 48, maxZoom: 13, duration: 600 })
   }, [])
 
   React.useEffect(() => {
@@ -163,14 +193,38 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
   }
 
   return (
-    <div className="relative h-56 min-w-0 overflow-hidden rounded-xl border border-border/60 bg-muted/20 sm:h-64">
-      <div ref={containerRef} className="h-full w-full" role="img" aria-label="Map showing where your driver is and the delivery address" />
-      {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/40 text-xs text-muted-foreground" role="status">
-          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-          Loading the map…
-        </div>
-      )}
+    <div className="space-y-1.5">
+      <div className="relative h-56 min-w-0 overflow-hidden rounded-xl border border-border/60 bg-muted/20 sm:h-64">
+        <div ref={containerRef} className="h-full w-full" role="img" aria-label="Map showing where your driver is and the delivery point" />
+        {!ready && (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/40 text-xs text-muted-foreground" role="status">
+            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+            Loading the map…
+          </div>
+        )}
+        {ready && (view.driver || view.delivery) && (
+          <button
+            type="button"
+            onClick={showBoth}
+            className="absolute bottom-2 right-2 z-10 flex min-h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-background/90 px-2.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-sm hover:bg-background max-sm:min-h-11"
+          >
+            <LocateFixed className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            {view.driver && view.delivery ? "Show both" : view.driver ? "Show driver" : "Show delivery point"}
+          </button>
+        )}
+      </div>
+      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Map key">
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="size-3 rounded-full border-2 border-white shadow-sm" style={{ background: COLORS.driver }} />
+          Your driver
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="flex size-4 items-center justify-center rounded-[4px] border-2 border-white text-[9px] font-black text-white shadow-sm" style={{ background: COLORS.delivery }}>
+            D
+          </span>
+          {view.delivery ? "Delivery point" : "Delivery point (not on the map yet)"}
+        </li>
+      </ul>
     </div>
   )
 }
@@ -178,9 +232,11 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
 /** The live map section of a shipment card, while the car is on the truck. */
 export function ShipmentLiveMap({ shipmentId }: { shipmentId: string }) {
   const { getToken } = useAuth()
+  const queryClient = useQueryClient()
   const [now, setNow] = React.useState(() => Date.now())
+  const queryKey = React.useMemo(() => ["shipment-tracking", shipmentId], [shipmentId])
   const { data, error, isLoading } = useQuery({
-    queryKey: ["shipment-tracking", shipmentId],
+    queryKey,
     queryFn: async () => getShipmentTracking(shipmentId, await getToken()),
     refetchInterval: LIVE_MAP_REFRESH_MS,
     // Only while the page is open: no refreshing in a background tab or app.
@@ -189,6 +245,31 @@ export function ShipmentLiveMap({ shipmentId }: { shipmentId: string }) {
     staleTime: 30_000,
     retry: 1,
   })
+
+  // The driver moves the moment their phone reports a new position; after a
+  // reconnect, the latest is fetched in case some were missed.
+  React.useEffect(() => {
+    let active = true
+    let socket: ReturnType<typeof initializeSocket> | null = null
+    const onPosition = (update: LivePositionUpdate) => {
+      if (update?.quoteId !== shipmentId) return
+      queryClient.setQueryData<CustomerShipmentTracking>(queryKey, (current) => withLivePosition(current, update, shipmentId))
+      setNow(Date.now())
+    }
+    const onReconnect = () => void queryClient.invalidateQueries({ queryKey })
+    void (async () => {
+      const token = await getToken()
+      if (!token || !active) return
+      socket = initializeSocket(token)
+      socket.on(CUSTOMER_LOCATION_EVENT, onPosition)
+      socket.on("connect", onReconnect)
+    })()
+    return () => {
+      active = false
+      socket?.off(CUSTOMER_LOCATION_EVENT, onPosition)
+      socket?.off("connect", onReconnect)
+    }
+  }, [getToken, queryClient, queryKey, shipmentId])
 
   // Keeps "4 min ago" current between refreshes.
   React.useEffect(() => {
