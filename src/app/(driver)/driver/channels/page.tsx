@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Hash, Loader2, MessageSquare, Pin, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Hash, Loader2, MessageSquare, Pin, Plus, RefreshCw, Search, Truck, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { userErrorMessage } from "@/lib/user-error";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useDispatchChannels } from "@/hooks/useDispatchChannels";
 import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
 import { useDriverDispatchInbox } from "@/hooks/useDriverDispatchInbox";
+import { useCustomerChatInbox } from "@/hooks/useCustomerChatInbox";
 import { useHideDriverBottomNav } from "@/hooks/useDriverBottomNav";
 import { ChannelConversation } from "@/components/dispatch-channels/ChannelConversation";
 import { ChannelLetterAvatar } from "@/components/dispatch-channels/ChannelLetterAvatar";
@@ -23,10 +24,14 @@ import {
 } from "@/components/dispatch-chat/DispatchChatDialog";
 import { DriverInboxRow, InboxPill, InboxSection, inboxListTime } from "@/components/dispatch-chat/DriverInboxRow";
 import { NewDispatchMessageDialog } from "@/components/dispatch-chat/NewDispatchMessageDialog";
+import { CustomerChatPane } from "@/components/shipment-chat/CustomerChatPane";
+import { customerChatMatches, customerChatPreview } from "@/lib/shipment-chat";
+import type { CustomerChatInboxItem } from "@/lib/api/shipmentChat";
 import type { ChannelSummary } from "@/lib/api/dispatch-channels";
 import type { DispatchContact } from "@/lib/api/driver-dispatch-inbox";
 
-type Selection = { kind: "thread" | "channel"; id: string } | null;
+/** A customer chat is selected by its load. */
+type Selection = { kind: "thread" | "channel" | "customer"; id: string } | null;
 
 type ThreadRow = {
   kind: "thread";
@@ -39,9 +44,10 @@ type ThreadRow = {
   pinned: boolean;
 };
 type ChannelRow = { kind: "channel"; key: string; channel: ChannelSummary; pinned: boolean };
-type Row = ThreadRow | ChannelRow;
+type CustomerRow = { kind: "customer"; key: string; chat: CustomerChatInboxItem };
+type Row = ThreadRow | ChannelRow | CustomerRow;
 type InboxFilter = "all" | "unread" | "read";
-type FoldableSection = "direct" | "channels";
+type FoldableSection = "direct" | "customers" | "channels";
 
 // The same quick filters as Suprah Space (it also has Mentions, which Dispatch Chat doesn't use).
 const FILTERS: Array<{ key: InboxFilter; label: string }> = [
@@ -50,13 +56,18 @@ const FILTERS: Array<{ key: InboxFilter; label: string }> = [
   { key: "read", label: "Read" },
 ];
 
-const rowUnread = (row: Row) => (row.kind === "channel" ? row.channel.unreadCount : row.thread?.unreadCount ?? 0);
+const rowUnread = (row: Row) =>
+  row.kind === "channel" ? row.channel.unreadCount : row.kind === "customer" ? row.chat.unread : row.thread?.unreadCount ?? 0;
+
+/** The URL parameter that opens each kind of chat. */
+const LINK_PARAM = { thread: "threadId", channel: "channelId", customer: "customerChat" } as const;
 
 const ignoreOpenChange = () => undefined;
 
-function selectionFromLink(threadId: string | null, channelId: string | null): Selection {
+function selectionFromLink(threadId: string | null, channelId: string | null, customerLoadId: string | null): Selection {
   if (threadId) return { kind: "thread", id: threadId };
   if (channelId) return { kind: "channel", id: channelId };
+  if (customerLoadId) return { kind: "customer", id: customerLoadId };
   return null;
 }
 
@@ -72,10 +83,19 @@ function DispatcherAvatar({ name, avatar }: { name: string; avatar?: string | nu
   );
 }
 
+function CustomerAvatar({ name }: { name: string }) {
+  return (
+    <Avatar className="size-9 shrink-0 border border-sky-500/25">
+      <AvatarFallback className="bg-sky-500/10 text-[10px] font-black text-sky-700 dark:text-sky-300">{nameInitials(name)}</AvatarFallback>
+    </Avatar>
+  );
+}
+
 /**
- * The driver's Dispatch Chat: private conversations with dispatchers and group
- * channels in one place, like Suprah Space. The dispatcher of a load the
- * driver has now is pinned automatically; drivers pin anything else they want.
+ * The driver's Dispatch Chat: private conversations with dispatchers, chats
+ * with the customers of their loads, and group channels in one place, like
+ * Suprah Space, each in its own section. The dispatcher of a load the driver
+ * has now is pinned automatically; drivers pin anything else they want.
  */
 function DriverDispatchChatView() {
   const router = useRouter();
@@ -84,15 +104,19 @@ function DriverDispatchChatView() {
   const isDriver = user?.role === "driver";
   const linkedThreadId = searchParams.get("threadId");
   const linkedChannelId = searchParams.get("channelId");
+  const linkedCustomerLoadId = searchParams.get("customerChat");
 
   const { channels, loading: channelsLoading, error: channelsError, unreadTotal: channelUnread, refresh: refreshChannels } =
     useDispatchChannels(isDriver);
   const { unreadTotal: chatUnread } = useDispatchChatUnread({ enabled: isDriver });
   const inbox = useDriverDispatchInbox(isDriver);
   const { setPinned, openFromLoad } = inbox;
-  const unreadTotal = channelUnread + chatUnread;
+  const customerInbox = useCustomerChatInbox(isDriver);
+  const unreadTotal = channelUnread + chatUnread + customerInbox.unreadTotal;
 
-  const [selection, setSelection] = React.useState<Selection>(() => selectionFromLink(linkedThreadId, linkedChannelId));
+  const [selection, setSelection] = React.useState<Selection>(() =>
+    selectionFromLink(linkedThreadId, linkedChannelId, linkedCustomerLoadId),
+  );
   // Like Suprah Space, an open conversation hides the phone's bottom navigation.
   useHideDriverBottomNav(selection !== null);
   const [query, setQuery] = React.useState("");
@@ -102,20 +126,18 @@ function DriverDispatchChatView() {
   const [openingLoadId, setOpeningLoadId] = React.useState<string | null>(null);
 
   // A notification link while the page is open selects that conversation.
-  const linkKey = `${linkedThreadId ?? ""}|${linkedChannelId ?? ""}`;
+  const linkKey = `${linkedThreadId ?? ""}|${linkedChannelId ?? ""}|${linkedCustomerLoadId ?? ""}`;
   const [lastLink, setLastLink] = React.useState(linkKey);
   if (linkKey !== lastLink) {
     setLastLink(linkKey);
-    const linked = selectionFromLink(linkedThreadId, linkedChannelId);
+    const linked = selectionFromLink(linkedThreadId, linkedChannelId, linkedCustomerLoadId);
     if (linked) setSelection(linked);
   }
 
   const select = React.useCallback(
     (next: Selection) => {
       setSelection(next);
-      const url = next
-        ? `/driver/channels?${next.kind === "thread" ? "threadId" : "channelId"}=${encodeURIComponent(next.id)}`
-        : "/driver/channels";
+      const url = next ? `/driver/channels?${LINK_PARAM[next.kind]}=${encodeURIComponent(next.id)}` : "/driver/channels";
       router.replace(url, { scroll: false });
     },
     [router],
@@ -208,10 +230,13 @@ function DriverDispatchChatView() {
       .filter((channel) => !used.has(`channel:${channel.id}`))
       .map((channel) => ({ kind: "channel", key: `channel:${channel.id}`, channel, pinned: false }));
 
+    const customerRows: Row[] = customerInbox.chats.map((chat) => ({ kind: "customer", key: `customer:${chat.loadId}`, chat }));
+
     const needle = query.trim().toLowerCase();
     const matches = (row: Row) => {
       if (filter === "unread" && rowUnread(row) === 0) return false;
       if (filter === "read" && rowUnread(row) > 0) return false;
+      if (row.kind === "customer") return customerChatMatches(row.chat, needle);
       if (!needle) return true;
       const text =
         row.kind === "channel"
@@ -225,12 +250,41 @@ function DriverDispatchChatView() {
     return {
       pinned: pinned.filter(matches),
       direct: direct.filter(matches),
+      customers: customerRows.filter(matches),
       channels: channelRows.filter(matches),
-      total: pinned.length + direct.length + channelRows.length,
+      total: pinned.length + direct.length + customerRows.length + channelRows.length,
     };
-  }, [channels, filter, inbox.contacts, inbox.pins, inbox.threads, query, selection]);
+  }, [channels, customerInbox.chats, filter, inbox.contacts, inbox.pins, inbox.threads, query, selection]);
 
   const renderRow = (row: Row) => {
+    if (row.kind === "customer") {
+      const { chat } = row;
+      return (
+        <DriverInboxRow
+          key={row.key}
+          selected={selection?.kind === "customer" && selection.id === chat.loadId}
+          onSelect={() => select({ kind: "customer", id: chat.loadId })}
+          avatar={<CustomerAvatar name={chat.customerName} />}
+          title={chat.customerName || "Customer"}
+          chips={
+            <>
+              {chat.loadNumber && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                  <Truck className="size-2.5" aria-hidden="true" /> {chat.loadNumber}
+                </span>
+              )}
+              {!chat.open && (
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">Closed</span>
+              )}
+            </>
+          }
+          subtitle={customerChatPreview(chat)}
+          time={inboxListTime(chat.lastMessageAt)}
+          unread={chat.unread}
+        />
+      );
+    }
+
     if (row.kind === "channel") {
       const { channel } = row;
       const closed = channel.status === "closed";
@@ -295,7 +349,11 @@ function DriverDispatchChatView() {
   const searching = query.trim().length > 0;
   const filtering = searching || filter !== "all";
   const nothingFound =
-    filtering && sections.pinned.length === 0 && sections.direct.length === 0 && sections.channels.length === 0;
+    filtering &&
+    sections.pinned.length === 0 &&
+    sections.direct.length === 0 &&
+    sections.customers.length === 0 &&
+    sections.channels.length === 0;
   const toggleSection = (key: FoldableSection) =>
     setFolded((current) => {
       const next = new Set(current);
@@ -328,7 +386,7 @@ function DriverDispatchChatView() {
           <h1 className="truncate font-black tracking-tight" style={{ fontSize: 16, lineHeight: 1.25 }}>
             Dispatch <span className="text-emerald-600 dark:text-emerald-400">Chat</span>
           </h1>
-          <p className="truncate text-[11px] text-muted-foreground">Private chats with dispatchers and your group channels</p>
+          <p className="truncate text-[11px] text-muted-foreground">Private chats with dispatchers and customers, and your group channels</p>
         </div>
         {unreadTotal > 0 && (
           <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
@@ -425,7 +483,7 @@ function DriverDispatchChatView() {
                 </div>
                 <p className="text-sm font-black">No chats yet</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Tap New to write to the dispatcher of your load. Channels a dispatcher adds you to show up here too.
+                  Tap New to write to the dispatcher of your load. Customers&apos; messages and channels a dispatcher adds you to show up here too.
                 </p>
               </div>
             ) : nothingFound ? (
@@ -445,7 +503,7 @@ function DriverDispatchChatView() {
                 )}
                 {(!filtering || sections.direct.length > 0) && (
                   <InboxSection
-                    label="Direct messages"
+                    label="Dispatchers"
                     icon={<MessageSquare className="size-2.5" />}
                     collapsed={folded.has("direct")}
                     onToggle={() => toggleSection("direct")}
@@ -457,6 +515,28 @@ function DriverDispatchChatView() {
                         {sections.pinned.length > 0
                           ? "Other private chats with dispatchers show up here."
                           : "Private chats with dispatchers show up here."}
+                      </p>
+                    )}
+                  </InboxSection>
+                )}
+                {(!filtering || sections.customers.length > 0) && (
+                  <InboxSection
+                    label="Customers"
+                    icon={<UserRound className="size-2.5" />}
+                    collapsed={folded.has("customers")}
+                    onToggle={() => toggleSection("customers")}
+                  >
+                    {sections.customers.length > 0 ? (
+                      <div className="space-y-0.5">{sections.customers.map(renderRow)}</div>
+                    ) : customerInbox.error ? (
+                      <p className="px-3 pb-2 text-[12px] leading-relaxed text-red-600 dark:text-red-400">
+                        Couldn&apos;t load your customer chats. {customerInbox.error}
+                      </p>
+                    ) : (
+                      <p className="px-3 pb-2 text-[12px] leading-relaxed text-muted-foreground">
+                        {customerInbox.loading
+                          ? "Loading customer chats…"
+                          : "When the customer receiving a car you carry messages you, the chat shows up here. You can also start one from the load with Message customer."}
                       </p>
                     )}
                   </InboxSection>
@@ -501,6 +581,15 @@ function DriverDispatchChatView() {
               initialThreadId={selection.id}
               onBack={() => select(null)}
             />
+          ) : selection?.kind === "customer" ? (
+            <CustomerChatPane
+              key={selection.id}
+              loadId={selection.id}
+              item={customerInbox.chats.find((chat) => chat.loadId === selection.id)}
+              loadHref={`/driver/loads/${encodeURIComponent(selection.id)}`}
+              onBack={() => select(null)}
+              onActivity={customerInbox.refresh}
+            />
           ) : selection?.kind === "channel" ? (
             <ChannelConversation
               key={selection.id}
@@ -520,7 +609,7 @@ function DriverDispatchChatView() {
                 </div>
                 <p className="text-sm font-black">Select a chat</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Choose a dispatcher or a channel to read and send messages, photos and files.
+                  Choose a dispatcher, a customer or a channel to read and send messages.
                 </p>
               </div>
             </div>

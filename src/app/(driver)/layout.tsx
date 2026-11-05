@@ -69,8 +69,10 @@ function DriverLayoutContent({
 
   // Unread Dispatch Chat messages (dispatchers and channels) on the bottom bar's Chat button.
   const { unreadTotal: channelUnread } = useDispatchChannels(guardPassed && user?.role === "driver");
-  const { unreadTotal: chatUnread } = useDispatchChatUnread({ enabled: guardPassed && user?.role === "driver" });
-  const dispatchChatUnread = channelUnread + chatUnread;
+  const { unreadTotal: chatUnread, customerChatUnread } = useDispatchChatUnread({
+    enabled: guardPassed && user?.role === "driver",
+  });
+  const dispatchChatUnread = channelUnread + chatUnread + customerChatUnread;
   const bottomNavItems = React.useMemo(
     () =>
       driverNav.map((item) => (item.href === "/driver/channels" ? { ...item, badgeCount: dispatchChatUnread } : item)),

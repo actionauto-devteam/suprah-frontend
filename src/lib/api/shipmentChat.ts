@@ -143,6 +143,40 @@ export async function markShipmentChatRead(source: ShipmentChatSource, readUpTo:
   await apiClient.post(`${basePath(source)}/read`, { readUpTo }, auth(token));
 }
 
+/** One chat in Dispatch Chat's Customers section (mirrors the server's CustomerChatInboxItem). */
+export interface CustomerChatInboxItem {
+  /** The load the chat is about: open the chat with `{ side: "load", loadId }`. */
+  loadId: string;
+  threadId: string;
+  /** "driver": you're the load's driver. "dispatcher": its dispatcher. */
+  kind: ShipmentChatKind;
+  customerName: string;
+  vehicleName: string;
+  loadNumber: string;
+  /** The load's dealership. */
+  dealerName: string;
+  lastMessageAt: string | null;
+  lastMessagePreview: string;
+  /** You sent the last message. */
+  lastMessageMine: boolean;
+  unread: number;
+  /** Messages can be sent (otherwise it can still be read). */
+  open: boolean;
+}
+
+export interface CustomerChatInbox {
+  chats: CustomerChatInboxItem[];
+  unreadTotal: number;
+}
+
+/** Your customer chats, newest first (drivers and dispatchers). */
+export async function getCustomerChatInbox(token: string | null): Promise<CustomerChatInbox> {
+  const response = await apiClient.get("/api/driver-tracking/customer-chats", auth(token));
+  const data = response.data?.data as Partial<CustomerChatInbox> | undefined;
+  const chats = Array.isArray(data?.chats) ? data.chats : [];
+  return { chats, unreadTotal: Math.max(0, Number(data?.unreadTotal ?? 0)) };
+}
+
 /** The dispatcher closes (or reopens) their chat with the customer. */
 export async function setLoadCustomerChatClosed(loadId: string, close: boolean, token: string | null): Promise<ShipmentChatView> {
   const response = await apiClient.post(`${basePath({ side: "load", loadId })}/${close ? "close" : "reopen"}`, {}, auth(token));
