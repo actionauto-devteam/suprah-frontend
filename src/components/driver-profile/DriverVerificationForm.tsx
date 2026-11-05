@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import { Stepper, type StepperStep } from './Stepper';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
-import { CUSTOMER_SEES_DRIVER_NOTICE } from '@/lib/driver-privacy';
+import { CUSTOMER_SEES_DRIVER_NOTICE, DISPATCH_SEES_DISTANCE_NOTICE } from '@/lib/driver-privacy';
 
 const APPLICATION_STEPS: readonly StepperStep[] = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -489,7 +489,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
 
             <p className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 px-3.5 py-3 text-xs text-muted-foreground">
               <Eye className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
-              <span>{CUSTOMER_SEES_DRIVER_NOTICE}</span>
+              <span>{CUSTOMER_SEES_DRIVER_NOTICE} {DISPATCH_SEES_DISTANCE_NOTICE}</span>
             </p>
 
             <div className="space-y-1.5">

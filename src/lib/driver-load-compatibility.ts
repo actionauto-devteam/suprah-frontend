@@ -316,3 +316,15 @@ export function extractCompatibilityFromError(
   );
   return entry?.compatibility ?? null;
 }
+
+/**
+ * The distance badge's words: "12 mi from pickup", or for a rounded distance
+ * (a driver's shared location or last delivery) "About 20 mi from pickup",
+ * and "Under 5 mi from pickup" when the server sends 0. Null when unknown.
+ */
+export function pickupDistanceText(miles: number | null | undefined, approximate = false): string | null {
+  if (typeof miles !== "number" || !Number.isFinite(miles)) return null;
+  const rounded = Math.max(0, Math.round(miles));
+  if (approximate) return rounded < 5 ? "Under 5 mi from pickup" : `About ${rounded.toLocaleString("en-US")} mi from pickup`;
+  return `${rounded.toLocaleString("en-US")} mi from pickup`;
+}

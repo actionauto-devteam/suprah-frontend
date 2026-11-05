@@ -5,6 +5,7 @@ import { MapPin, Navigation2, Route } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { DriverLoadCompatibility } from "@/types/driver-tracking";
 import { cn } from "@/lib/utils";
+import { pickupDistanceText } from "@/lib/driver-load-compatibility";
 
 interface Props {
   compatibility?: DriverLoadCompatibility | null;
@@ -28,7 +29,7 @@ function timeAgo(iso: string | null | undefined) {
 
 function proximitySourceLabel(source: string | null | undefined, lastSeenAt: string | null | undefined) {
   if (source === "live_gps") return " · Live GPS";
-  if (source === "shared_location") return " · Location shared by the driver";
+  if (source === "shared_location") return " · Sharing location";
   if (source === "last_delivery") {
     const ago = timeAgo(lastSeenAt);
     return ago ? ` · From last delivery, ${ago}` : " · From last delivery";
@@ -66,6 +67,7 @@ export function DriverLoadRecommendationBadges({
     lastSeenAt: null,
   };
   const distance = miles(proximity.distanceToPickupMiles);
+  const distanceText = pickupDistanceText(distance, Boolean(proximity.approximate));
 
   return (
     <div className={cn("flex flex-wrap gap-1.5", className)}>
@@ -137,14 +139,13 @@ export function DriverLoadRecommendationBadges({
         </Badge>
       )}
 
-      {distance != null ? (
+      {distanceText ? (
         <Badge
           variant="outline"
           className="border-blue-500/30 bg-blue-500/5 text-[10px] font-bold text-blue-700 dark:text-blue-400"
         >
           <Navigation2 className="mr-1 size-3 shrink-0" />
-          {proximity.approximate ? "About " : ""}
-          {distance.toLocaleString()} mi from pickup
+          {distanceText}
           {proximitySourceLabel(proximity.source, proximity.lastSeenAt)}
         </Badge>
       ) : showUnknown ? (

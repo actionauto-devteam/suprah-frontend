@@ -475,7 +475,9 @@ export function DriverPickerSection({
               <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
                 Drivers are ordered by eligibility, capacity, schedule, equipment,
                 service area, preferred route, and pickup proximity. Service area,
-                route preference, and distance are informational only.
+                route preference, and distance are informational only. A distance
+                from a driver&apos;s shared location or last delivery is rounded to
+                5 miles.
               </p>
             )}
           </div>
