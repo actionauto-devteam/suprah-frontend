@@ -59,6 +59,19 @@ export interface CustomerShipmentDriver {
   truck: string | null;
 }
 
+/** One of a shipment's two chats as the customer sees it (mirrors the server's CustomerChatSummary). */
+export interface CustomerShipmentChat {
+  /** Messages can be sent. */
+  open: boolean;
+  /** Someone is in the chat, so it can be opened (read-only when closed). */
+  readable: boolean;
+  unread: number;
+  /** Why it's closed, and what to do instead. */
+  note: string | null;
+  /** Dispatcher chat: the dispatcher's name. */
+  name: string | null;
+}
+
 /**
  * One shipment on "My Shipments": a request the customer sent ("request"), or
  * a staff quote the dealership booked with their verified email ("shared").
@@ -80,6 +93,8 @@ export interface CustomerShipment {
   declineReason?: string | null;
   /** The driver, from the moment they accept. */
   driver?: CustomerShipmentDriver | null;
+  /** The chats with the driver and the dispatcher, once booked (older servers don't send them). */
+  chats?: { driver: CustomerShipmentChat; dispatcher: CustomerShipmentChat } | null;
   shipment: {
     number: string;
     bookedAt: string | null;

@@ -13,6 +13,7 @@ import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHisto
 import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
 import { PortalShareLine } from "@/components/transportation/PortalShareLine"
+import { LoadCustomerChatButton } from "@/components/shipment-chat/LoadCustomerChatButton"
 import { CancelLoadDialog } from "@/components/transportation/CancelLoadDialog"
 import { AddToGarageDialog } from "@/components/transportation/AddToGarageDialog"
 import { garageStatusNote } from "@/lib/load-garage"
@@ -763,6 +764,9 @@ export default function LoadDetailsPage() {
               portalCustomer={load.quoteOrigin.portalCustomer}
               className="text-xs sm:text-sm"
             />
+          )}
+          {load.quoteOrigin?.portalCustomer?.shared && (
+            <LoadCustomerChatButton loadId={String(load._id)} className="h-10 bg-background text-sm" />
           )}
           {garageNote && (
             <p className="text-xs sm:text-sm text-muted-foreground flex items-start gap-1.5 min-w-0 break-words">
