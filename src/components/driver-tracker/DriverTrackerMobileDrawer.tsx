@@ -18,7 +18,9 @@ import {
   Wifi,
   WifiOff,
   X,
+  Star,
 } from "lucide-react";
+import { ratingSummary } from "@/lib/shipment-review";
 
 import { DispatchChatInlinePane } from "@/components/suprah-mail/DispatchChatInlinePane";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -756,6 +758,16 @@ export function DriverTrackerMobileDrawer({
                     }
                   />
                 </div>
+
+                {driver.customerRating && (
+                  <div className="mt-2.5 flex items-center justify-between gap-2 rounded-xl border border-border/45 bg-muted/[0.10] p-2.5 text-xs">
+                    <span className="font-bold text-muted-foreground">Customer rating</span>
+                    <span className="flex items-center gap-1 font-black">
+                      <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
+                      {ratingSummary(driver.customerRating)}
+                    </span>
+                  </div>
+                )}
 
                 {driver.equipment?.profileCompletionScore != null && (
                   <div className="mt-2.5 rounded-xl border border-border/45 bg-muted/[0.10] p-2.5">

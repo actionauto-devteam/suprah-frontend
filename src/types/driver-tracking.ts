@@ -134,6 +134,8 @@ export interface DriverTrackingItem {
     };
   };
   statusRequest?: DriverStatusRequestSummary | null;
+  /** Customers' star average from delivered shipments (drivers never see it). */
+  customerRating?: { average: number; count: number } | null;
   driver: {
     id: string;
     name: string;

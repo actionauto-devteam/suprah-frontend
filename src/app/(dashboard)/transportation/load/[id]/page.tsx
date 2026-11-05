@@ -14,6 +14,7 @@ import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
 import { PortalShareLine } from "@/components/transportation/PortalShareLine"
 import { LoadCustomerChatButton } from "@/components/shipment-chat/LoadCustomerChatButton"
+import { LoadCustomerReviewCard } from "@/components/transportation/LoadCustomerReviewCard"
 import { CancelLoadDialog } from "@/components/transportation/CancelLoadDialog"
 import { AddToGarageDialog } from "@/components/transportation/AddToGarageDialog"
 import { garageStatusNote } from "@/lib/load-garage"
@@ -880,6 +881,9 @@ export default function LoadDetailsPage() {
 
       {/* Live route and arrival time (Amazon Location); nothing until routes are switched on. */}
       <LoadRouteOverview loadId={String(load._id)} enabled={canSeeLiveRoute} refreshKey={load.status} />
+
+      {/* The portal customer's "Confirm received" and review, once delivered. */}
+      {load.status === "Delivered" && load.quoteOrigin?.portalCustomer && <LoadCustomerReviewCard loadId={String(load._id)} />}
 
       {/* ── Route Card ── */}
       <Card className="border-border shadow-sm overflow-hidden bg-card relative p-0">

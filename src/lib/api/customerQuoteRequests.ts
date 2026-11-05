@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 import type { ShippingQuoteFormData } from "@/types/inventory";
+import type { CustomerShipmentReceipt } from "@/lib/api/shipmentReview";
 
 /** What the customer sees about their own shipping request. */
 export interface CustomerQuoteRequest {
@@ -95,6 +96,11 @@ export interface CustomerShipment {
   driver?: CustomerShipmentDriver | null;
   /** The chats with the driver and the dispatcher, once booked (older servers don't send them). */
   chats?: { driver: CustomerShipmentChat; dispatcher: CustomerShipmentChat } | null;
+  /**
+   * Delivered shipments: whether the customer confirmed receipt and reviewed
+   * it (null: not yet; "unknown": couldn't be checked right now).
+   */
+  receipt?: CustomerShipmentReceipt | "unknown" | null;
   shipment: {
     number: string;
     bookedAt: string | null;

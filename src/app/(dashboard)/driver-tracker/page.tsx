@@ -282,6 +282,10 @@ function toDriverTrackingItem(item: any): DriverTrackingItem {
           submittedAt: item.statusRequest.submittedAt ?? null,
         }
       : null,
+    customerRating:
+      item.customerRating && Number(item.customerRating.count) > 0
+        ? { average: Number(item.customerRating.average), count: Number(item.customerRating.count) }
+        : null,
     driver: {
       id: item.id,
       name: item.name ?? "",
