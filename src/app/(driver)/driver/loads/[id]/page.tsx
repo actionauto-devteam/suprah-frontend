@@ -297,7 +297,7 @@ export default function LoadDetailPage() {
         break;
       case 'reject-assignment':
         title = 'Reject Assigned Load?';
-        description = 'Reject this dispatcher assignment? The load will be removed from your assigned loads and returned to the workflow it came from. The responsible dispatcher will be notified in Dispatch Chat.';
+        description = 'Reject this dispatcher assignment? The load will be removed from your assigned loads and returned to the workflow it came from. The responsible dispatcher will be notified.';
         variant = 'danger';
         break;
       case 'cancel-release-request':

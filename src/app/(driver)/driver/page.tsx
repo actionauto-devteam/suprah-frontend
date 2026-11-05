@@ -1341,7 +1341,7 @@ export default function DriverDashboardPage() {
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success('Load assignment rejected', {
-          description: 'The load was returned to its original available workflow and the responsible dispatcher was informed in Dispatch Chat.',
+          description: 'The load was returned to its original available workflow and the responsible dispatcher was told.',
         });
         setConfirmState((previous) => ({ ...previous, isOpen: false, load: null }));
         await fetchData();
@@ -1543,7 +1543,7 @@ export default function DriverDashboardPage() {
         break;
       case 'reject-assignment':
         title = 'Reject Assigned Load?';
-        description = `Reject ${getLoadReference(load)}? The assignment will be removed immediately, the load will return to its original available workflow, and the responsible dispatcher will be informed in Dispatch Chat.`;
+        description = `Reject ${getLoadReference(load)}? The assignment will be removed immediately, the load will return to its original available workflow, and the responsible dispatcher will be told.`;
         variant = 'danger';
         break;
       default:

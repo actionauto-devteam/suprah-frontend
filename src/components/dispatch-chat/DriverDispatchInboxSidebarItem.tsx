@@ -10,7 +10,7 @@ import { useDispatchChannels } from "@/hooks/useDispatchChannels";
 import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
 
 /**
- * Driver menu entry for Dispatch Chat: private chats with dispatchers and
+ * Driver menu entry for Messages (the driver's chats page): private chats with dispatchers and
  * customers, and group channels, on one page, with one unread count for all.
  */
 export function DriverDispatchInboxSidebarItem({ onNavigate }: { onNavigate?: () => void }) {
@@ -25,13 +25,13 @@ export function DriverDispatchInboxSidebarItem({ onNavigate }: { onNavigate?: ()
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
-        tooltip="Dispatch Chat"
+        tooltip="Messages"
         isActive={pathname?.startsWith("/driver/channels")}
         className="relative"
       >
         <Link href="/driver/channels" onClick={onNavigate}>
           <MessageSquare />
-          <span className="min-w-0 flex-1 truncate">Dispatch Chat</span>
+          <span className="min-w-0 flex-1 truncate">Messages</span>
           {unreadTotal > 0 && (
             <span
               aria-label={`${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}`}

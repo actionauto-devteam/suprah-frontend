@@ -185,8 +185,8 @@ const QUICK_PRESETS: Array<{
 }> = [
   {
     value: 'check_dispatch_chat',
-    label: 'Check Dispatch Chat',
-    preview: 'Dispatch needs your attention. Please check your Dispatch Chat.',
+    label: 'Check Messages',
+    preview: 'Dispatch needs your attention. Please check your Messages.',
   },
   {
     value: 'please_respond',

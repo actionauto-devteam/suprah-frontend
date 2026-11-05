@@ -126,8 +126,8 @@ export const driverNav: BottomNavItem[] = [
     // No fixed center tab: the open page's tab becomes the circle (MobileBottomNav).
     { label: "Available", href: "/driver/available-loads", icon: Package },
     { label: "Schedule", href: "/driver/schedule", icon: Calendar },
-    // The Dispatch Chat page (dispatchers and channels); short label to fit the bar.
-    { label: "Chat", href: "/driver/channels", icon: MessageSquare },
+    // Messages: the driver's chats with dispatchers and customers, and channels.
+    { label: "Messages", href: "/driver/channels", icon: MessageSquare },
     { label: "Profile", href: "/driver/profile", icon: User },
 ];
 
