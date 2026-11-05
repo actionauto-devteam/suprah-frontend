@@ -482,16 +482,16 @@ export function ChannelConversation({
           )}
 
           <div className="min-w-0 flex-1 text-left">
-            <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
               Suprah AI · Dispatch Channel
             </p>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
               <h2 className="truncate text-sm font-black tracking-tight sm:text-base">{channel?.name ?? "Channel"}</h2>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 <Users className="size-2.5" /> Group
               </span>
               {closed && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-muted-foreground">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                   <Lock className="size-2.5" /> Closed
                 </span>
               )}
@@ -621,7 +621,7 @@ export function ChannelConversation({
                     <div className="mb-1 flex min-w-0 items-center gap-1.5 px-1 text-[10px] font-semibold text-muted-foreground">
                       <span className="truncate">{mine ? "You" : message.sender.name}</span>
                       {!mine && (
-                        <span className="shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide">
+                        <span className="shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
                           {personLabel(message.sender)}
                         </span>
                       )}
@@ -771,7 +771,7 @@ export function ChannelConversation({
                 className="absolute bottom-[calc(100%-4px)] left-3 z-20 mb-2 w-[min(16rem,calc(100%-1.5rem))] rounded-2xl border border-border p-2 shadow-xl"
                 style={{ background: SURFACE_RAISED }}
               >
-                <p className="px-1 pb-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Quick emotes</p>
+                <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Quick emotes</p>
                 <div className="grid grid-cols-8 gap-1">
                   {EMOJIS.map((emoji) => (
                     <button

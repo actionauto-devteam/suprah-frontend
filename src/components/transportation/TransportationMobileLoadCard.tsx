@@ -169,7 +169,7 @@ function MobilePrimaryReadout({
       <span className={cn("absolute inset-y-0 left-0 w-0.5", accentClass)} />
 
       <span className="flex items-center justify-between gap-2">
-        <span className="text-[9px] font-black uppercase tracking-[0.13em] text-muted-foreground/70">
+        <span className="text-[10px] font-black uppercase tracking-[0.13em] text-muted-foreground/70">
           {eyebrow}
         </span>
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65 transition-transform group-active/focus:translate-x-0.5" />
@@ -233,7 +233,7 @@ function MobileSupportMetric({
         <span className="flex min-w-0 items-center gap-1">
           {icon}
           <span
-            className="truncate text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75"
+            className="truncate text-[10px] font-black uppercase tracking-[0.04em] text-muted-foreground/75"
             title={title}
           >
             {title}

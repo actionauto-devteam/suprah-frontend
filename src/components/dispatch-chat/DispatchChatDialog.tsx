@@ -1110,7 +1110,7 @@ function DispatcherConversationList({
             <p className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
               Conversations
             </p>
-            <p className="truncate text-[9px] text-muted-foreground/70">
+            <p className="truncate text-[10px] text-muted-foreground/70">
               Private by dispatcher
             </p>
           </div>
@@ -1175,7 +1175,7 @@ function DispatcherConversationList({
                       </AvatarFallback>
                     </Avatar>
                     {collapsed && thread.unreadCount > 0 && (
-                      <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[8px] font-black text-white">
+                      <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-black text-white">
                         {thread.unreadCount > 9 ? "9+" : thread.unreadCount}
                       </span>
                     )}
@@ -1188,19 +1188,19 @@ function DispatcherConversationList({
                           {thread.dispatcher.name || "Dispatcher"}
                         </p>
                         {thread.dispatcher.isActive === false && (
-                          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase text-muted-foreground">
+                          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
                             Inactive
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 line-clamp-2 text-[9px] leading-snug text-muted-foreground">
+                      <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground">
                         {thread.lastMessagePreview || "Private conversation"}
                       </p>
                     </div>
                   )}
 
                   {!collapsed && thread.unreadCount > 0 && (
-                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-black text-white">
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-black text-white">
                       {thread.unreadCount > 99 ? "99+" : thread.unreadCount}
                     </span>
                   )}
@@ -1408,7 +1408,7 @@ export function ConversationDetailsPanel({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-[10px] font-black">{result.author}</p>
-                      <p className="shrink-0 text-[9px] text-muted-foreground">
+                      <p className="shrink-0 text-[10px] text-muted-foreground">
                         {formatDispatchChatDateTime(result.createdAt)}
                       </p>
                     </div>
@@ -1420,7 +1420,7 @@ export function ConversationDetailsPanel({
                         {result.attachments.map((attachment, index) => (
                           <span
                             key={`${result.id}:${index}`}
-                            className="max-w-full truncate rounded-md border border-border/50 px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                            className="max-w-full truncate rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                             style={{ background: "var(--bg-base)" }}
                           >
                             {attachment.originalName}
@@ -1452,7 +1452,7 @@ export function ConversationDetailsPanel({
                       <video src={attachment.url} preload="metadata" className="aspect-square w-full bg-black object-cover" />
                     )}
                     <div className="p-2">
-                      <p className="truncate text-[9px] font-bold">{attachment.originalName}</p>
+                      <p className="truncate text-[10px] font-bold">{attachment.originalName}</p>
                       <p className="mt-0.5 text-[8px] text-muted-foreground">{formatDispatchChatDate(message.createdAt)}</p>
                     </div>
                   </a>
@@ -1462,10 +1462,10 @@ export function ConversationDetailsPanel({
                     className="flex aspect-square flex-col items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 text-center"
                   >
                     <AlertTriangle className="mb-2 size-5 text-amber-600 dark:text-amber-400" />
-                    <p className="max-w-full truncate text-[9px] font-bold">
+                    <p className="max-w-full truncate text-[10px] font-bold">
                       {attachment.originalName}
                     </p>
-                    <p className="mt-1 text-[8px] leading-relaxed text-muted-foreground">
+                    <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
                       Temporarily unavailable
                     </p>
                   </div>
@@ -1494,7 +1494,7 @@ export function ConversationDetailsPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[10px] font-black">{attachment.originalName}</p>
-                    <p className="mt-0.5 text-[9px] text-muted-foreground">
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
                       {bytesLabel(attachment.size)} · {formatDispatchChatDate(message.createdAt)}
                     </p>
                   </div>
@@ -1512,7 +1512,7 @@ export function ConversationDetailsPanel({
                     <p className="truncate text-[10px] font-black">
                       {attachment.originalName}
                     </p>
-                    <p className="mt-0.5 text-[9px] text-muted-foreground">
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
                       Attachment temporarily unavailable · {bytesLabel(attachment.size)}
                     </p>
                   </div>
@@ -1527,7 +1527,7 @@ export function ConversationDetailsPanel({
         )}
 
         {truncated && (
-          <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+          <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
             This conversation is very large. Search currently covers the most recent 2,000 messages to keep the dialog responsive.
           </div>
         )}
@@ -3211,7 +3211,7 @@ export function DispatchChatDialog({
           <span className="min-w-0 max-w-full break-all text-[10px] font-semibold [overflow-wrap:anywhere]">
             {file.name}
           </span>
-          <span className="shrink-0 text-[9px] text-muted-foreground">
+          <span className="shrink-0 text-[10px] text-muted-foreground">
             {bytesLabel(file.size)}
           </span>
           <button
@@ -3292,7 +3292,7 @@ export function DispatchChatDialog({
 
             <div className="min-w-0 flex-1 text-left">
               {embedded && (
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                   Suprah AI · Dispatch Chat
                 </p>
               )}
@@ -3300,7 +3300,7 @@ export function DispatchChatDialog({
                 <DispatchChatTitle embedded={embedded} className="truncate text-sm font-black tracking-tight sm:text-base">
                   {embedded ? counterpartName : "Suprah Dispatch Chat"}
                 </DispatchChatTitle>
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                   <ShieldCheck className="size-2.5" /> Private
                 </span>
               </div>
@@ -3317,13 +3317,13 @@ export function DispatchChatDialog({
                   </>
                 )}
                 {currentUserIsDriver && selectedThread?.dispatcher?.isActive === false && (
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase text-muted-foreground">
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">
                     Inactive
                   </span>
                 )}
               </div>
 
-              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] text-muted-foreground">
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-muted-foreground">
                 {primaryLoad ? (
                   <>
                     <Truck className="size-3 shrink-0 text-emerald-500" />
@@ -3581,7 +3581,7 @@ export function DispatchChatDialog({
                       <div className="mb-1 flex items-center gap-1.5 px-1 text-[10px] font-semibold text-muted-foreground">
                         {mine ? "You" : senderLabel}
                         {!mine && (
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide">
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
                             {message.senderRole === "driver"
                               ? "Driver"
                               : "Dispatch"}
@@ -3614,7 +3614,7 @@ export function DispatchChatDialog({
                         )}
                       </div>
 
-                      <div className="mt-1 flex items-center gap-1 px-1 text-[9px] text-muted-foreground/70">
+                      <div className="mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground/70">
                         {formatDispatchChatTime(message.createdAt)}
                         {mine && message.readBy.length > 1 && (
                           <>
@@ -3660,7 +3660,7 @@ export function DispatchChatDialog({
               className="absolute bottom-[calc(100%-4px)] left-0 z-20 mb-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl border border-border p-2 shadow-xl sm:left-12"
               style={{ background: "var(--bg-elevated)" }}
             >
-              <p className="px-1 pb-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Quick emotes
               </p>
               <div className="grid grid-cols-8 gap-1">

@@ -183,7 +183,7 @@ function CoreCompatibilityBadges({
       <Badge
         variant="outline"
         className={cn(
-          "h-auto whitespace-normal px-1.5 py-0.5 text-[9px] font-bold",
+          "h-auto whitespace-normal px-1.5 py-0.5 text-[10px] font-bold",
           availability === "match"
             ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
             : availability === "off_schedule"
@@ -208,7 +208,7 @@ function CoreCompatibilityBadges({
       <Badge
         variant="outline"
         className={cn(
-          "h-auto whitespace-normal px-1.5 py-0.5 text-[9px] font-bold",
+          "h-auto whitespace-normal px-1.5 py-0.5 text-[10px] font-bold",
           capacity === "match"
             ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
             : "border-red-500/25 bg-red-500/5 text-red-700 dark:text-red-400",
@@ -232,7 +232,7 @@ function CoreCompatibilityBadges({
         <Badge
           variant="outline"
           className={cn(
-            "h-auto whitespace-normal px-1.5 py-0.5 text-[9px] font-bold",
+            "h-auto whitespace-normal px-1.5 py-0.5 text-[10px] font-bold",
             trailer === "match"
               ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
               : "border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-400",
@@ -458,7 +458,7 @@ export function DriverPickerSection({
       <div className={cn(makeAvailable && "opacity-40 pointer-events-none")}>
         <div className="flex items-center justify-between mb-2 gap-3">
           <div className="min-w-0">
-            <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
+            <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
               <Radio className="size-3" /> Assign Driver
               {!isLoading && (
                 <span className="font-mono normal-case tracking-normal">
@@ -582,7 +582,7 @@ export function DriverPickerSection({
                           {driver.name}
                         </p>
                         {isBestMatch && (
-                          <Badge className="h-5 border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                          <Badge className="h-5 border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                             Best Match
                           </Badge>
                         )}

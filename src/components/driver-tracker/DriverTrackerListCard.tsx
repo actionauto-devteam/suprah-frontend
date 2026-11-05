@@ -600,7 +600,7 @@ export function DriverTrackerListCard({
                             {selectedAssignment.trackingNumber || selectedAssignment.id}
                           </span>
                           {selectedAssignment.status && (
-                            <Badge variant="outline" className="h-auto whitespace-normal px-1.5 py-0.5 text-[9px]">
+                            <Badge variant="outline" className="h-auto whitespace-normal px-1.5 py-0.5 text-[10px]">
                               {selectedAssignment.status}
                             </Badge>
                           )}
@@ -673,7 +673,7 @@ export function DriverTrackerListCard({
                             <MessageSquare className="size-4 shrink-0" />
                             <span>Message</span>
                             {unreadMessageCount > 0 && (
-                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[8px] font-black leading-4 text-white">
+                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-black leading-4 text-white">
                                 {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
                               </span>
                             )}

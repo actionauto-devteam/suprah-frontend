@@ -1155,7 +1155,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                         />
                       )}
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                           Journey Status
                         </p>
                         <p className="text-xs font-black text-foreground">
@@ -1241,7 +1241,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                         {item.isCurrent && (
                           <span
                             className={cn(
-                              "rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest",
+                              "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest",
                               item.tone === "emerald" &&
                               "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                               item.tone === "cyan" &&

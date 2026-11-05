@@ -110,7 +110,7 @@ function InfoTile({
 }) {
   return (
     <div className="min-w-0 rounded-xl border border-border/55 bg-muted/[0.12] p-2.5">
-      <p className="text-[9px] font-black uppercase tracking-[0.11em] text-muted-foreground">
+      <p className="text-[10px] font-black uppercase tracking-[0.11em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 break-words text-[13px] font-bold [overflow-wrap:anywhere]">
@@ -327,7 +327,7 @@ export function DriverTrackerMobileDrawer({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="mb-1 text-[9px] font-black uppercase tracking-[0.16em] text-primary/80">
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">
                     Suprah Driver Workspace
                   </p>
                   <SheetTitle className="break-words text-[17px] font-black leading-tight [overflow-wrap:anywhere]">
@@ -419,7 +419,7 @@ export function DriverTrackerMobileDrawer({
 
                   {count !== null && (
                     <span
-                      className={`flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[8px] font-black leading-none ${
+                      className={`flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none ${
                         isActive
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground"
@@ -465,7 +465,7 @@ export function DriverTrackerMobileDrawer({
 
               {unreadMessageCount > 0 && (
                 <span
-                  className={`flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[8px] font-black leading-none ${
+                  className={`flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none ${
                     activeTab === "chat" && !onOpenChat
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground"
@@ -532,7 +532,7 @@ export function DriverTrackerMobileDrawer({
                     >
                       <div className="flex min-w-0 items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-primary/75">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary/75">
                             Assigned Load
                           </p>
                           <p className="mt-1 break-all text-sm font-black [overflow-wrap:anywhere]">
@@ -544,14 +544,14 @@ export function DriverTrackerMobileDrawer({
                           {shipment.status && (
                             <Badge
                               variant="outline"
-                              className="h-auto max-w-[8rem] whitespace-normal border-primary/20 bg-primary/[0.06] px-2 py-0.5 text-right text-[9px] font-black leading-tight text-primary"
+                              className="h-auto max-w-[8rem] whitespace-normal border-primary/20 bg-primary/[0.06] px-2 py-0.5 text-right text-[10px] font-black leading-tight text-primary"
                             >
                               {shipment.status}
                             </Badge>
                           )}
                           <Badge
                             variant="outline"
-                            className="h-auto shrink-0 px-2 py-0.5 text-[9px] font-bold"
+                            className="h-auto shrink-0 px-2 py-0.5 text-[10px] font-bold"
                           >
                             {Math.max(0, Number(shipment.vehicleCount ?? 0))} vehicle
                             {Number(shipment.vehicleCount ?? 0) === 1 ? "" : "s"}
@@ -583,14 +583,14 @@ export function DriverTrackerMobileDrawer({
 
                       <div className="mt-2.5 grid min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(7.25rem,0.75fr)] gap-2 max-[360px]:grid-cols-1">
                         <div className="min-w-0 rounded-lg border border-border/45 bg-background/35 p-2.5">
-                          <p className="mb-2 text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                             Route
                           </p>
 
                           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-2 text-[11px] text-muted-foreground">
                             <MapPin className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
                             <div className="min-w-0">
-                              <p className="text-[9px] font-black uppercase tracking-[0.08em] text-muted-foreground/70">
+                              <p className="text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground/70">
                                 Pickup
                               </p>
                               <p className="mt-0.5 break-words font-semibold text-foreground [overflow-wrap:anywhere]">
@@ -600,7 +600,7 @@ export function DriverTrackerMobileDrawer({
 
                             <Route className="mt-0.5 size-3.5 shrink-0 text-blue-500" />
                             <div className="min-w-0">
-                              <p className="text-[9px] font-black uppercase tracking-[0.08em] text-muted-foreground/70">
+                              <p className="text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground/70">
                                 Delivery
                               </p>
                               <p className="mt-0.5 break-words font-semibold text-foreground [overflow-wrap:anywhere]">
@@ -611,13 +611,13 @@ export function DriverTrackerMobileDrawer({
                         </div>
 
                         <div className="min-w-0 rounded-lg border border-border/45 bg-background/35 p-2.5">
-                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                             Dispatch Details
                           </p>
 
                           <div className="mt-2 space-y-2">
                             <div className="min-w-0">
-                              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
                                 Pickup Schedule
                               </p>
                               <p className="mt-0.5 break-words text-[11px] font-bold text-foreground [overflow-wrap:anywhere]">
@@ -628,7 +628,7 @@ export function DriverTrackerMobileDrawer({
                             </div>
 
                             <div className="border-t border-border/40 pt-2">
-                              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
                                 Trailer
                               </p>
                               <p className="mt-0.5 break-words text-[11px] font-bold text-foreground [overflow-wrap:anywhere]">
