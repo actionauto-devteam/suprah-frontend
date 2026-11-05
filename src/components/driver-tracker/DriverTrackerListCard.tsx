@@ -19,7 +19,9 @@ import {
   Bell,
   MessageSquare,
   FileCheck2,
+  Star,
 } from "lucide-react";
+import { ratingSummary } from "@/lib/shipment-review";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -762,6 +764,17 @@ export function DriverTrackerListCard({
                           }`}
                         >
                           {availabilityLabel}
+                        </p>
+                      </div>
+                    )}
+                    {driver.customerRating && (
+                      <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
+                        <p className="text-[11px] text-muted-foreground font-semibold">
+                          Customer rating
+                        </p>
+                        <p className="flex items-center gap-1 text-sm font-bold">
+                          <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
+                          {ratingSummary(driver.customerRating)}
                         </p>
                       </div>
                     )}

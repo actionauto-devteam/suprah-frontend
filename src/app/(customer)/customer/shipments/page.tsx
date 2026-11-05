@@ -34,6 +34,7 @@ import type { CustomerShipmentDriver } from "@/lib/api/customerQuoteRequests";
 import { LIVE_MAP_STAGES } from "@/lib/customer-shipment-tracking";
 import { ShipmentLiveMap } from "@/components/customer/ShipmentLiveMap";
 import { ShipmentChatButtons } from "@/components/customer/ShipmentChatButtons";
+import { ShipmentReceivedSection } from "@/components/customer/ShipmentReceivedSection";
 import { ShipmentChatSheet } from "@/components/shipment-chat/ShipmentChatSheet";
 import { SHIPMENT_CHAT_EVENTS, type ShipmentChatKind } from "@/lib/api/shipmentChat";
 import { initializeSocket } from "@/lib/socket.client";
@@ -230,6 +231,8 @@ function ShipmentCard({ entry, onOpenChat }: { entry: CustomerShipment; onOpenCh
           {LIVE_MAP_STAGES.has(entry.stage) && <ShipmentLiveMap shipmentId={entry.id} />}
 
           {steps && <ShipmentProgress id={entry.id} steps={steps} />}
+
+          <ShipmentReceivedSection entry={entry} />
 
           <ShipmentChatButtons entry={entry} onOpen={onOpenChat} />
 
