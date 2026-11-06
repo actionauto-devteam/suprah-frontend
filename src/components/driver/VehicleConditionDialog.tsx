@@ -33,6 +33,7 @@ import {
 import { VehicleDamageOutline } from "@/components/driver/VehicleDamageOutline"
 import { formatMountainDateTime } from "@/lib/mountain-time"
 import { isNoConnectionError, useSendWhenBackOnline } from "@/hooks/useSendWhenBackOnline"
+import { CONDITION_PHOTO, shrinkPhoto } from "@/lib/shrink-photo"
 
 const PHOTO_TYPES = ["image/jpeg", "image/png"]
 const STOP_LABEL: Record<ConditionStop, string> = { pickup: "At pickup", delivery: "At delivery" }
@@ -51,28 +52,6 @@ const detailsKey = (details: DamageDetails) =>
 
 const toggle = (list: string[], value: string) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
-
-/**
- * Phone photos are often several MB. Shrink to at most 1600 px on the long
- * side as a JPEG before upload, so it's quick on mobile data. Falls back to
- * the original file if the browser can't do it.
- */
-async function shrinkPhoto(file: File): Promise<File> {
-  try {
-    const bitmap = await createImageBitmap(file)
-    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height))
-    if (scale === 1 && file.size < 1_500_000) return file
-    const canvas = document.createElement("canvas")
-    canvas.width = Math.round(bitmap.width * scale)
-    canvas.height = Math.round(bitmap.height * scale)
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82))
-    if (!blob) return file
-    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" })
-  } catch {
-    return file
-  }
-}
 
 function defaultStop(report: MyConditionReport): ConditionStop {
   if (report.status === "In-Transit") return "delivery"
@@ -302,7 +281,7 @@ function ConditionPhotos({
       setUploading((count) => count + 1)
       try {
         const token = await getToken()
-        const next = await addConditionPhoto(loadId, stop, vehicleIndex, await shrinkPhoto(file), token)
+        const next = await addConditionPhoto(loadId, stop, vehicleIndex, await shrinkPhoto(file, CONDITION_PHOTO), token)
         onChange(next)
       } catch (err) {
         toast.error(userErrorMessage(err, "add this photo"))
@@ -532,7 +511,7 @@ function ConditionDamage({
     setUploadingFor(area)
     try {
       const token = await callbacks.current.getToken()
-      callbacks.current.onSaved(await addConditionPhoto(loadId, stop, vehicleIndex, await shrinkPhoto(file), token, area))
+      callbacks.current.onSaved(await addConditionPhoto(loadId, stop, vehicleIndex, await shrinkPhoto(file, CONDITION_PHOTO), token, area))
     } catch (err) {
       toast.error(userErrorMessage(err, "add this photo"))
     } finally {
