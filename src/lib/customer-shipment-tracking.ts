@@ -19,6 +19,9 @@ export const LIVE_MAP_REFRESH_MS = 60_000
 /** The driver's new position, sent to the customer the moment it arrives. */
 export const CUSTOMER_LOCATION_EVENT = "customer-shipment:location"
 
+/** Staff unlinked a shipment from the customer's portal, or linked it again. */
+export const CUSTOMER_SHIPMENT_CHANGED_EVENT = "customer-shipment:changed"
+
 /** Where every shipment notification links to. */
 export const MY_SHIPMENTS_ROUTE = "/customer/shipments"
 

@@ -31,7 +31,7 @@ import {
   type ShipmentStep,
 } from "@/lib/customer-shipments";
 import type { CustomerShipmentDriver } from "@/lib/api/customerQuoteRequests";
-import { LIVE_MAP_STAGES, isShipmentNotification } from "@/lib/customer-shipment-tracking";
+import { CUSTOMER_SHIPMENT_CHANGED_EVENT, LIVE_MAP_STAGES, isShipmentNotification } from "@/lib/customer-shipment-tracking";
 import { ShipmentLiveMap } from "@/components/customer/ShipmentLiveMap";
 import { ShipmentChatButtons } from "@/components/customer/ShipmentChatButtons";
 import { ShipmentReceivedSection } from "@/components/customer/ShipmentReceivedSection";
@@ -415,6 +415,8 @@ export default function MyShipmentsPage() {
       socket.on(SHIPMENT_CHAT_EVENTS.changed, refreshShipments);
       socket.on("notification:new", refreshAfterStep);
       socket.on("notification:updated", refreshAfterStep);
+      // Unlinked by the dealership (or linked again): the shipment and its chats go or come back at once.
+      socket.on(CUSTOMER_SHIPMENT_CHANGED_EVENT, refreshShipments);
       socket.on("connect", refreshShipments);
     })();
     return () => {
@@ -423,6 +425,7 @@ export default function MyShipmentsPage() {
       socket?.off(SHIPMENT_CHAT_EVENTS.changed, refreshShipments);
       socket?.off("notification:new", refreshAfterStep);
       socket?.off("notification:updated", refreshAfterStep);
+      socket?.off(CUSTOMER_SHIPMENT_CHANGED_EVENT, refreshShipments);
       socket?.off("connect", refreshShipments);
     };
   }, [getToken, refreshAfterStep, refreshShipments]);
