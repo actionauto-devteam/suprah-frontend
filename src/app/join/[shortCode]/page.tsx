@@ -153,7 +153,7 @@ export default function JoinPage() {
                 )}
                 <div className="text-center">
                   <p className="text-xs text-white/40 uppercase tracking-widest">
-                    {org.accountType === "driver" ? "Apply to drive with" : "You've been invited by"}
+                    {org.accountType === "driver" ? "Sign up as a driver with" : "You've been invited by"}
                   </p>
                   <h1 className="text-xl font-bold text-white mt-0.5">{org.orgName}</h1>
                 </div>
@@ -249,7 +249,7 @@ export default function JoinPage() {
                 </h2>
                 <p className="mt-1 text-sm text-white/50">
                   {org?.accountType === "driver"
-                    ? "SUPRAH.AI will review your application and email you once it's approved."
+                    ? "Suprah AI will review your application and email you once it's approved."
                     : "Check your email — we sent your login details."}
                 </p>
               </div>
