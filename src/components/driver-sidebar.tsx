@@ -514,7 +514,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
           </div>
           <div className="flex min-w-0 flex-col gap-1 leading-none group-data-[collapsible=icon]:hidden">
             <span className="dsb-brand text-sm truncate">
-              SUPRAH AI
+              Suprah AI
             </span>
             <span className="truncate text-xs text-muted-foreground">{organization?.name || "Driver workspace"}</span>
             <span className="dsb-telemetry">
