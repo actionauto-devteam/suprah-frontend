@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { AlertTriangle, Check, CheckCheck, ImageIcon, ImagePlus, Loader2, Lock, LockOpen, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

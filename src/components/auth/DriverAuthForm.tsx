@@ -17,7 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import Link from "next/link";
 import { passwordRulesMessage } from "@/lib/password-rules";
 import { PasswordRulesChecklist } from "./PasswordRulesChecklist";

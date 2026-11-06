@@ -7,7 +7,7 @@ import {
     Car, Edit3, DollarSign, Gauge, Layers, ShieldCheck, Container, ChevronRight, Link2
 } from "lucide-react"
 import Link from "next/link"
-import { toast } from "sonner"
+import { toast } from "@/lib/readable-toast"
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 import { linkedLead, leadPageHref } from "@/lib/quote-lead"
 import { Card, CardContent } from "@/components/ui/card"

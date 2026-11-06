@@ -46,7 +46,7 @@ import {
   ArrowLeft,
   Zap,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { initializeSocket } from "@/lib/socket.client";
 import { cn, resolveImageUrl } from "@/lib/utils";

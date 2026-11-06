@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { AlertTriangle, CalendarClock, Car, CheckCircle2, ChevronDown, Circle, CircleDot, Loader2, MapPin, RefreshCw, ShoppingBag, Store, Truck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

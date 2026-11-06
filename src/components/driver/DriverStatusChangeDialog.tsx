@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AlertTriangle, FileText, FileUp, Loader2, ShieldAlert, Wrench, PauseCircle, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import type { DriverStatusRequestSnapshot } from "@/hooks/useDriverWorkEligibility";
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 import { userErrorMessage } from "@/lib/user-error";

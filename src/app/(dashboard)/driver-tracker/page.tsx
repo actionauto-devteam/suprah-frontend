@@ -107,7 +107,7 @@ import {
 } from "@/components/driver-tracker/PendingLoadRequestAssignmentDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { useTheme } from "@/context/ThemeContext";
 import { getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import {

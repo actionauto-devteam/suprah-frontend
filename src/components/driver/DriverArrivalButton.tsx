@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Loader2, MapPinCheck } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/readable-toast"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"

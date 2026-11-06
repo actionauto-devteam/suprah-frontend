@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Check, Crown, Loader2, LogOut, MoreHorizontal, Pencil, ShieldCheck, Lock, Users, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import {
   AlertDialog,
   AlertDialogAction,

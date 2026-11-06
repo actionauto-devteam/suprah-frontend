@@ -1,7 +1,7 @@
 import * as React from "react";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Load } from "@/types/load";
 import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";

@@ -37,7 +37,7 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { PersonalInfoTab } from "@/components/profile/PersonalInfoTab";

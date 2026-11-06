@@ -3,7 +3,7 @@
 import * as React from "react";
 import { AlertTriangle, CheckCircle2, History, Loader2, MapPin, RefreshCw, Truck } from "lucide-react";
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import type { Load } from "@/types/load";

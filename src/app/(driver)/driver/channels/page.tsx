@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Hash, Loader2, MessageSquare, Pin, Plus, RefreshCw, Search, Truck, UserRound, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { cn } from "@/lib/utils";
 import { userErrorMessage } from "@/lib/user-error";
 import { useUser } from "@/providers/AuthProvider";

@@ -11,7 +11,7 @@ import { VehicleStatusControl } from "@/components/inventory/VehicleStatusContro
 import { isVehicleOnTheWay } from "@/lib/vehicle-status";
 import { getVehicleShipping } from "@/lib/api/vehicleShipping";
 import { checkableVins, inventoryShippingStates, type VehicleShippingResult } from "@/lib/vehicle-shipping";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { Button } from "@/components/ui/button";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { apiClient } from "@/lib/api-client";

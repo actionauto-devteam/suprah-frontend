@@ -13,7 +13,7 @@ import {
   Maximize2,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/readable-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, resolveImageUrl } from "@/lib/utils";

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Camera, CheckCircle2, ImageIcon, Loader2, Lock, RotateCcw, Trash2, WifiOff, X } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/readable-toast"
 import {
   Dialog,
   DialogContent,
