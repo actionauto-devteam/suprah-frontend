@@ -338,15 +338,16 @@ export function DriverAuthForm() {
               </div>
             )}
 
+            {/* Wraps to two lines on a narrow phone instead of running off the button. */}
             <Button
               type="submit"
-              className={`${AUTH_PRIMARY_BUTTON_CLASS} h-13 text-base`}
+              className={`${AUTH_PRIMARY_BUTTON_CLASS} h-auto min-h-13 whitespace-normal py-3 text-base`}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <Loader2 className="size-5 animate-spin" />
+                <Loader2 className="size-5 animate-spin" aria-label="Signing you up" />
               ) : (
-                "Apply as Driver"
+                "Sign up as a driver at Suprah AI"
               )}
             </Button>
           </motion.form>
