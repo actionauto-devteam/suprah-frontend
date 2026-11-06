@@ -6,6 +6,8 @@ import { SUPPORT_EMAIL } from "@/lib/support-contact";
  * browser; in the iPhone app, it's allowed in iPhone Settings → Suprah AI.
  */
 
+const BROWSER_STEPS = `Allow location for this site in your browser settings (usually under the lock icon next to the web address). If you can't find it, contact Suprah AI support at ${SUPPORT_EMAIL}.`;
+
 const IPHONE_STEPS = `open iPhone Settings, tap Suprah AI, then Location, and choose While Using the App. If Location isn't listed there, contact Suprah AI support at ${SUPPORT_EMAIL}.`;
 
 /**
@@ -16,9 +18,9 @@ const IPHONE_STEPS = `open iPhone Settings, tap Suprah AI, then Location, and ch
  */
 export function locationBlockedMessage(reason: "retained" | "accepted" | "optional"): string {
   if (!isNativeApp()) {
-    if (reason === "retained") return "Location is blocked for this site. Dispatch kept a load with you and needs your location. Allow location for this site in your browser settings.";
-    if (reason === "accepted") return "Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings.";
-    return "Location is blocked for this site. Allow it in your browser settings if you want to share your location.";
+    if (reason === "retained") return `Location is blocked for this site. Dispatch kept a load with you and needs your location. ${BROWSER_STEPS}`;
+    if (reason === "accepted") return `Location is blocked for this site. You have an accepted load, so Dispatch needs your location. ${BROWSER_STEPS}`;
+    return `Location is blocked for this site. If you want to share your location, ${BROWSER_STEPS.charAt(0).toLowerCase()}${BROWSER_STEPS.slice(1)}`;
   }
   if (reason === "retained") return `Location is blocked for the Suprah AI app. Dispatch kept a load with you and needs your location. To allow it, ${IPHONE_STEPS}`;
   if (reason === "accepted") return `Location is blocked for the Suprah AI app. You have an accepted load, so Dispatch needs your location. To allow it, ${IPHONE_STEPS}`;

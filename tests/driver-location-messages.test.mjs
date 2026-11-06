@@ -39,11 +39,11 @@ afterEach(() => {
 test('on the website the messages stay exactly as before', () => {
   assert.equal(
     locationBlockedMessage('accepted'),
-    'Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings.',
+    "Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings (usually under the lock icon next to the web address). If you can't find it, contact Suprah AI support at support@suprahai.com.",
   );
   assert.equal(
     locationBlockedMessage('optional'),
-    'Location is blocked for this site. Allow it in your browser settings if you want to share your location.',
+    "Location is blocked for this site. If you want to share your location, allow location for this site in your browser settings (usually under the lock icon next to the web address). If you can't find it, contact Suprah AI support at support@suprahai.com.",
   );
   assert.equal(locationBlockedChip(false), 'Location blocked. Allow it in your browser settings.');
 });
