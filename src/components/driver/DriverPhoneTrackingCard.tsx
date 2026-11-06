@@ -182,7 +182,7 @@ export function DriverPhoneTrackingCard() {
       </CardContent>
 
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && busy === null && setConfirm(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{confirm === "replace" ? "Set up a different phone?" : "Stop using this phone?"}</AlertDialogTitle>
             <AlertDialogDescription>

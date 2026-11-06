@@ -530,7 +530,7 @@ export function ShipmentChatPanel({ source, fallbackName, onActivity }: Shipment
       <AttachmentLightbox attachment={lightbox} onClose={() => setLightbox(null)} />
 
       <AlertDialog open={confirmClose} onOpenChange={(next) => !closing && setConfirmClose(next)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Close this chat with {otherName}?</AlertDialogTitle>
             <AlertDialogDescription>
