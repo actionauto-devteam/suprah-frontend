@@ -82,3 +82,14 @@ export function mergeLocationEvent(driver: DriverTrackingItem, event: LocationEv
     isSharing: event.isSharing ?? driver.isSharing,
   };
 }
+
+/**
+ * Choosing a driver (from the list, the map or a link) follows them on the
+ * map straight away, as the customer's live map does (2026-11-07), when this
+ * staff member can see their exact location. Moving the map still pauses it.
+ */
+export function followModeOnFocus(
+  driver: Pick<DriverTrackingItem, "coords"> & { canViewExactGps?: boolean | null },
+): "following" | "off" {
+  return driver.canViewExactGps !== false && validCoordinates(driver.coords) ? "following" : "off";
+}

@@ -33,6 +33,7 @@ import {
   type MapCamera,
 } from "@/lib/google-maps";
 import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
+import { stopsFollowing } from "@/lib/map-follow";
 import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrackingReminder";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@/providers/AuthProvider";
@@ -491,6 +492,12 @@ export default function DriverDashboardPage() {
   const googleLibrariesRef = React.useRef<GoogleMapsLibraries | null>(null);
   const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
   const centeredOnOwnLocationRef = React.useRef(false);
+  // The map follows the driver's own position until they drag it to look
+  // around; Follow my location brings it back (2026-11-07).
+  const [followingSelf, setFollowingSelf] = React.useState(true);
+  const followingSelfRef = React.useRef(true);
+  // The driver's own drag or zoom is under way: following waits for it.
+  const mapGestureRef = React.useRef(false);
   const [googleMapGeneration, setGoogleMapGeneration] = React.useState(0);
 
   const [currentTime, setCurrentTime] = React.useState(new Date());
@@ -997,6 +1004,27 @@ export default function DriverDashboardPage() {
 
         mapRef.current = map;
 
+        // Dragging the map or the arrow keys stop following the driver;
+        // zooming keeps following. The map's own moves have no event.
+        const stopFollowing = () => {
+          followingSelfRef.current = false;
+          setFollowingSelf(false);
+        };
+        map.on("dragstart", (event) => {
+          if (event.originalEvent) mapGestureRef.current = true;
+          if (stopsFollowing(event.originalEvent)) stopFollowing();
+        });
+        // The map's types leave it out, but a zoom the driver makes carries its event.
+        map.on("zoomstart", (event) => {
+          if ((event as { originalEvent?: Event }).originalEvent) mapGestureRef.current = true;
+        });
+        map.on("movestart", (event) => {
+          const original = event.originalEvent as Event | undefined;
+          if (original?.type === "keydown" && stopsFollowing(original as KeyboardEvent)) stopFollowing();
+        });
+        map.on("moveend", () => {
+          mapGestureRef.current = false;
+        });
 
         const loadTimeout = window.setTimeout(() => {
           if (!map.isStyleLoaded()) {
@@ -1062,6 +1090,14 @@ export default function DriverDashboardPage() {
     let cancelled = false;
     let camera: MapCamera | null = null;
     let loadTimeout = 0;
+    let keyTarget: HTMLElement | null = null;
+    const stopFollowing = () => {
+      followingSelfRef.current = false;
+      setFollowingSelf(false);
+    };
+    const onArrowKeys = (event: KeyboardEvent) => {
+      if (stopsFollowing(event)) stopFollowing();
+    };
 
     const stopAuthWatch = onGoogleMapsAuthFailure(() => {
       if (cancelled) return;
@@ -1094,6 +1130,10 @@ export default function DriverDashboardPage() {
       googleMapRef.current = created.map;
       googleLibrariesRef.current = libraries;
       mapRef.current = camera;
+      // Dragging the map or the arrow keys stop following the driver.
+      created.map.addListener("dragstart", stopFollowing);
+      keyTarget = mapContainerRef.current;
+      keyTarget.addEventListener("keydown", onArrowKeys);
       markerRef.current = null;
       // The location marker is created again on the new map.
       setGoogleMapGeneration((generation) => generation + 1);
@@ -1118,6 +1158,7 @@ export default function DriverDashboardPage() {
     return () => {
       cancelled = true;
       stopAuthWatch();
+      keyTarget?.removeEventListener("keydown", onArrowKeys);
       window.clearTimeout(loadTimeout);
       camera?.remove();
       if (mapRef.current === camera) mapRef.current = null;
@@ -1134,6 +1175,8 @@ export default function DriverDashboardPage() {
     const position = { lat: lastCoords.lat, lng: lastCoords.lng };
     if (markerRef.current) {
       markerRef.current.position = position;
+      // Following: the map moves with the driver at the zoom they chose.
+      if (followingSelfRef.current) mapRef.current?.easeTo({ center: [lastCoords.lng, lastCoords.lat] });
       return;
     }
     const element = document.createElement("div");
@@ -1208,6 +1251,11 @@ export default function DriverDashboardPage() {
         }
       } else {
         markerRef.current.setLngLat([lastCoords.lng, lastCoords.lat]);
+        // Following: the map moves with the driver at the zoom they chose,
+        // but not in the middle of their own drag or pinch.
+        if (followingSelfRef.current && !mapGestureRef.current) {
+          map.easeTo({ center: [lastCoords.lng, lastCoords.lat], duration: 800 });
+        }
       }
     };
 
@@ -1252,7 +1300,10 @@ export default function DriverDashboardPage() {
     nextStopPosition,
   );
 
+  // Recenters on the driver and follows them again.
   const centerOnMe = () => {
+    followingSelfRef.current = true;
+    setFollowingSelf(true);
     const map = mapRef.current;
     if (!map) return;
     if (lastCoords) {
@@ -2179,14 +2230,17 @@ export default function DriverDashboardPage() {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          aria-label="Recenter on my location"
-                          className="size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10"
+                          aria-label={followingSelf ? "Following your location" : "Follow my location"}
+                          className={cn(
+                            "size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10",
+                            followingSelf && "bg-primary/10 text-primary",
+                          )}
                           onClick={centerOnMe}
                         >
                           <LocateFixed className="size-4" strokeWidth={2.1} />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">Recenter on my location</TooltipContent>
+                      <TooltipContent side="left" className="text-xs">{followingSelf ? "Following your location" : "Follow my location"}</TooltipContent>
                     </Tooltip>
 
                     {nextStopMapState.stop && (
@@ -2198,7 +2252,12 @@ export default function DriverDashboardPage() {
                             variant="ghost"
                             aria-label="Show my next stop"
                             className="size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10"
-                            onClick={() => nextStopLayerRef.current?.fit()}
+                            onClick={() => {
+                              // Stops following, so the next position doesn't pull the map back.
+                              followingSelfRef.current = false;
+                              setFollowingSelf(false);
+                              nextStopLayerRef.current?.fit();
+                            }}
                           >
                             <Route className="size-4" strokeWidth={2.1} />
                           </Button>

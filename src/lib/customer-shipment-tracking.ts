@@ -137,3 +137,49 @@ export function isShipmentNotification(notification: { metadata?: { route?: unkn
   const route = typeof notification?.metadata?.route === "string" ? notification.metadata.route : ""
   return route === MY_SHIPMENTS_ROUTE || route.startsWith(`${MY_SHIPMENTS_ROUTE}?`)
 }
+
+// ─── The live map's camera ───────────────────────────────────────────────────
+
+/** How close the map is while it follows the driver: a few streets around them. */
+export const FOLLOW_ZOOM = 13
+/** How close the map is on the delivery point while the driver's location is on its way. */
+const DELIVERY_ZOOM = 12
+
+type MapPoint = { lat: number; lng: number }
+
+/** Where the live map looks next; null leaves the customer's own view alone. */
+export type LiveMapCameraMove = {
+  target: "driver" | "delivery"
+  center: [number, number]
+  /** Set for a first look (the map goes straight there); left out to glide along at the customer's zoom. */
+  zoom?: number
+} | null
+
+/**
+ * Like a ride-hailing app: while following, the map first centres on the
+ * driver a few streets close (or closer, if the customer zoomed in), then
+ * glides along with each new position at whatever zoom the customer picked.
+ * Without a driver position yet, the delivery point is shown once. Not
+ * following: nothing moves the customer's view. Which gestures stop following
+ * is in lib/map-follow.
+ */
+export function liveMapCamera(input: {
+  following: boolean
+  /** The map already centred on the driver once since following (re)started. */
+  started: boolean
+  driver: MapPoint | null
+  delivery: MapPoint | null
+  /** The delivery point was already shown while waiting for the driver. */
+  deliveryShown: boolean
+  currentZoom: number
+}): LiveMapCameraMove {
+  const { following, started, driver, delivery, deliveryShown, currentZoom } = input
+  if (driver && following) {
+    const center: [number, number] = [driver.lng, driver.lat]
+    return started ? { target: "driver", center } : { target: "driver", center, zoom: Math.max(currentZoom, FOLLOW_ZOOM) }
+  }
+  if (!driver && delivery && !deliveryShown) {
+    return { target: "delivery", center: [delivery.lng, delivery.lat], zoom: Math.max(currentZoom, DELIVERY_ZOOM) }
+  }
+  return null
+}
