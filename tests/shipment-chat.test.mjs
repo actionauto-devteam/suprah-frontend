@@ -98,7 +98,7 @@ test('live updates are matched to the right chat', () => {
 });
 
 test('drivers are told customers can message them, and until when', () => {
-  assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /message you in a private chat on the load from when you accept until 24 hours after delivery/);
+  assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /message you in a private chat \(under Customers in Messages, and on the load\) from when you accept until 24 hours after delivery/);
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /never see your phone number or email/);
 });
 

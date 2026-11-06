@@ -384,7 +384,7 @@ function DriverDispatchChatView() {
         <div className="min-w-0 flex-1">
           {/* Inline size: the driver portal's stylesheet enlarges every page heading. */}
           <h1 className="truncate font-black tracking-tight" style={{ fontSize: 16, lineHeight: 1.25 }}>
-            Dispatch <span className="text-emerald-600 dark:text-emerald-400">Chat</span>
+            <span className="text-emerald-600 dark:text-emerald-400">Messages</span>
           </h1>
           <p className="truncate text-[11px] text-muted-foreground">Private chats with dispatchers and customers, and your group channels</p>
         </div>

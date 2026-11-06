@@ -540,7 +540,7 @@ export default function AvailableLoadsPage() {
         setChatOpen(true);
       } catch (error: any) {
         toast.error(
-          userErrorMessage(error, "open Dispatch Chat for this load"),
+          userErrorMessage(error, "message the dispatcher about this load"),
         );
       } finally {
         setChatOpeningLoadId(null);

@@ -4,7 +4,7 @@
  * and the sign-up agreement step, so nobody is surprised.
  */
 export const CUSTOMER_SEES_DRIVER_NOTICE =
-  "Customers you deliver to see your full name, profile photo and truck once you accept their shipment, and where you are on a map from pickup until delivery. They can message you in a private chat on the load from when you accept until 24 hours after delivery. They never see your phone number or email."
+  "Customers you deliver to see your full name, profile photo and truck once you accept their shipment, and where you are on a map from pickup until delivery. They can message you in a private chat (under Customers in Messages, and on the load) from when you accept until 24 hours after delivery. They never see your phone number or email."
 
 /** Who sees a driver's live location, for the places that explain location sharing. */
 export const WHO_SEES_DRIVER_LOCATION =
