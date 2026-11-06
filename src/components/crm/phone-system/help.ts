@@ -18,6 +18,7 @@ export const PHONE_SYSTEM_HELP: Record<PhoneSystemTab, HelpTopic> = {
       "A number that is not ready is never used.",
       "The location list comes from CRM Settings, Locations. If a location is missing, add it there first.",
       "The department only decides who gets calls. Texts go to Leads, where everyone in Suprah CRM can see them.",
+      "If a Phone Menu is on for a number, the menu answers that number first and the card shows Answered by: Phone Menu. Who answers is then only used if the menu is turned off.",
     ],
   },
   menu: {

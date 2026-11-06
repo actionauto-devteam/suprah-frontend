@@ -30,6 +30,7 @@ interface DealershipNumber {
   department: string
   ringGroupId: string | null
   ringGroupName: string
+  phoneMenuName?: string
   telnyx: TelnyxCheck
 }
 
@@ -59,6 +60,8 @@ const ANSWER_LABELS: Record<Kind, string> = {
   department: "Department",
 }
 const field = "mt-1 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+const MENU_TAB = "/crm/settings/phone-system?tab=menu"
+const MENU_BACKUP_LABEL = "If the Phone Menu is off, who answers?"
 
 function errorMessage(error: unknown, fallback: string) {
   return (error as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
@@ -113,6 +116,7 @@ function TeamMembers({ groupId, load }: { groupId: string; load: (groupId: strin
 
 function NumberForm({
   initial,
+  phoneMenuName,
   locations,
   locationsLoading,
   locationsError,
@@ -123,6 +127,7 @@ function NumberForm({
   onSave,
 }: {
   initial: FormValues
+  phoneMenuName?: string
   locations: string[]
   locationsLoading: boolean
   locationsError: string | null
@@ -201,8 +206,22 @@ function NumberForm({
         </div>
       )}
       <div>
+        {phoneMenuName ? (
+          <div role="status" className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
+            <p className="font-medium text-foreground">The Phone Menu &ldquo;{phoneMenuName}&rdquo; answers this number.</p>
+            <p className="mt-1 text-muted-foreground">
+              Callers hear the menu and press a key to reach a team. The choice below is only used if the menu is turned off.{" "}
+              <Link href={MENU_TAB} className="font-medium text-primary underline">Open Phone Menu</Link>
+            </p>
+          </div>
+        ) : values.kind === "main" ? (
+          <p className="mb-3 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+            Want callers to hear a menu first, like &ldquo;Thank you for calling, press 1 for Sales&rdquo;? Save this number, then turn on a{" "}
+            <Link href={MENU_TAB} className="font-medium text-primary underline">Phone Menu</Link> and put this number in Inbound IVR number. The choice below is then only used if the menu is off.
+          </p>
+        ) : null}
         <label className="block text-xs font-medium text-muted-foreground">
-          {ANSWER_LABELS[values.kind]}
+          {phoneMenuName ? MENU_BACKUP_LABEL : ANSWER_LABELS[values.kind]}
           <select required={values.kind === "department"} value={values.ringGroupId} onChange={(e) => set({ ringGroupId: e.target.value })} className={field}>
             {values.kind === "department"
               ? <option value="" disabled>Choose a department</option>
@@ -321,6 +340,7 @@ export function PhoneNumbersPanel() {
             <NumberForm
               key={editing.id || "new"}
               initial={editing.values}
+              phoneMenuName={editing.id ? numbers.find((row) => row._id === editing.id)?.phoneMenuName || "" : ""}
               locations={locations}
               locationsLoading={crmLocations.loading}
               locationsError={crmLocations.error}
@@ -364,9 +384,20 @@ export function PhoneNumbersPanel() {
                     </button>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Calls ring: <span className="font-medium text-foreground">{row.ringGroupId ? row.ringGroupName || "A Lead Group that is no longer active (everyone)" : "Everyone"}</span>
-                </p>
+                {row.phoneMenuName ? (
+                  <>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Answered by: <span className="font-medium text-foreground">Phone Menu &ldquo;{row.phoneMenuName}&rdquo;</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      If the menu is off, calls ring: <span className="font-medium text-foreground">{row.ringGroupId ? row.ringGroupName || "A Lead Group that is no longer active (everyone)" : "Everyone"}</span>
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Calls ring: <span className="font-medium text-foreground">{row.ringGroupId ? row.ringGroupName || "A Lead Group that is no longer active (everyone)" : "Everyone"}</span>
+                  </p>
+                )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <ReadyChip ok={row.telnyx?.readyForCalls} label={row.telnyx?.readyForCalls ? "Ready for calls" : "Calls not ready"} />
                   <ReadyChip ok={row.telnyx?.readyForTexts} label={row.telnyx?.readyForTexts ? "Ready for texts" : "Texts not ready"} />
