@@ -76,6 +76,7 @@ import { DocumentRequirementCard, type DocStatus } from './DocumentRequirementCa
 import { Skeleton } from '@/components/ui/skeleton';
 import { userErrorMessage } from "@/lib/user-error";
 import { mountainDaysUntil } from "@/lib/mountain-time";
+import { documentTooLargeMessage, isPhotoFile, MAX_DOCUMENT_BYTES, prepareDocumentFile } from "@/lib/shrink-photo";
 
 const STEPS = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -1015,8 +1016,9 @@ export const DocumentsPage: React.FC = () => {
   );
 
   const startUploadWithFile = (type: string, file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("This file is larger than 5 MB. Choose a smaller file.");
+    // Photos are made smaller when uploaded; only a PDF can be too large here.
+    if (!isPhotoFile(file) && file.size > MAX_DOCUMENT_BYTES) {
+      toast.error(documentTooLargeMessage(file));
       return;
     }
     setReplaceTarget(null);
@@ -1051,11 +1053,6 @@ export const DocumentsPage: React.FC = () => {
       toast.error("Choose a file and enter a name for the document.");
       return;
     }
-    if (uploadFile.size > 5 * 1024 * 1024) {
-      toast.error("This file is larger than 5 MB. Choose a smaller file.");
-      return;
-    }
-
     const uploadRequiresExpiry = DOCUMENT_EXPIRY_TYPES.has(uploadType);
     if (uploadRequiresExpiry && !uploadExpiry) {
       toast.error("Enter the expiration date for this document.");
@@ -1067,9 +1064,15 @@ export const DocumentsPage: React.FC = () => {
 
     setUploading(true);
     try {
+      // Phone photos are shrunk first, so they fit the 5 MB limit and stay readable.
+      const prepared = await prepareDocumentFile(uploadFile);
+      if (prepared.error !== undefined) {
+        toast.error(prepared.error);
+        return;
+      }
       const token = await getToken();
       const body = new FormData();
-      body.append('document', uploadFile);
+      body.append('document', prepared.file);
       body.append('type', uploadType);
       body.append('label', uploadLabel.trim());
       if (uploadExpiry) body.append('expiresAt', uploadExpiry);

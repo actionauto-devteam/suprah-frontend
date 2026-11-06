@@ -26,6 +26,7 @@ import { Stepper, type StepperStep } from './Stepper';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
 import { CUSTOMER_SEES_DRIVER_NOTICE, DISPATCH_SEES_DISTANCE_NOTICE } from '@/lib/driver-privacy';
+import { prepareDocumentFile } from '@/lib/shrink-photo';
 
 const APPLICATION_STEPS: readonly StepperStep[] = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -151,12 +152,14 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
 
   const handleUpload = async () => {
     if (!uploadFile || !uploadLabel.trim()) { toast.error("Choose a file and enter a name for the document."); return; }
-    if (uploadFile.size > 5 * 1024 * 1024) { toast.error("This file is larger than 5 MB. Choose a smaller file."); return; }
     setUploading(true);
     try {
+      // Phone photos are shrunk first, so they fit the 5 MB limit and stay readable.
+      const prepared = await prepareDocumentFile(uploadFile);
+      if (prepared.error !== undefined) { toast.error(prepared.error); return; }
       const token = await getToken();
       const fd = new FormData();
-      fd.append('document', uploadFile);
+      fd.append('document', prepared.file);
       fd.append('type', uploadType);
       fd.append('label', uploadLabel.trim());
       if (uploadExpiry) fd.append('expiresAt', uploadExpiry);
