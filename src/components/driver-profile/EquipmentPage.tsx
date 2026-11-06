@@ -25,7 +25,7 @@ import { getEquipmentReadiness } from '@/lib/driver-readiness';
 import { RIG_HEIGHT_INCHES, RIG_LENGTH_FEET } from '@/lib/rig-size';
 import Link from 'next/link';
 import { userErrorMessage } from "@/lib/user-error";
-import { CUSTOMER_SEES_DRIVER_NOTICE } from "@/lib/driver-privacy";
+import { CUSTOMER_SEES_DRIVER_NOTICE, DISPATCH_SEES_DISTANCE_NOTICE } from "@/lib/driver-privacy";
 
 interface EquipmentForm {
   truckMake: string; truckModel: string; truckYear: number | undefined;
@@ -481,7 +481,7 @@ export const EquipmentPage: React.FC = () => {
 
                     <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Truck Details</h3>
-                      <p className="text-xs text-muted-foreground">{CUSTOMER_SEES_DRIVER_NOTICE}</p>
+                      <p className="text-xs text-muted-foreground">{CUSTOMER_SEES_DRIVER_NOTICE} {DISPATCH_SEES_DISTANCE_NOTICE}</p>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <div className="space-y-2">
