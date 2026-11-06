@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils"
  * about once a minute, only while the page is open, catches anything missed.
  *
  * The map follows the driver, like a ride-hailing app, until the customer
- * drags it to look around; Follow driver brings it back (2026-11-07). It moves
+ * drags it to look around; Follow driver brings it back (2026-11-06). It moves
  * freely with one finger or the mouse, with no "ctrl + scroll" or "two
  * fingers" note covering it, and has + and − buttons big enough for a phone.
  */

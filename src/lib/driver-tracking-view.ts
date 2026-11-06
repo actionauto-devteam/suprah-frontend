@@ -85,7 +85,7 @@ export function mergeLocationEvent(driver: DriverTrackingItem, event: LocationEv
 
 /**
  * Choosing a driver (from the list, the map or a link) follows them on the
- * map straight away, as the customer's live map does (2026-11-07), when this
+ * map straight away, as the customer's live map does (2026-11-06), when this
  * staff member can see their exact location. Moving the map still pauses it.
  */
 export function followModeOnFocus(

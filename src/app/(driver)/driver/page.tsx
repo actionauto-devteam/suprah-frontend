@@ -493,7 +493,7 @@ export default function DriverDashboardPage() {
   const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
   const centeredOnOwnLocationRef = React.useRef(false);
   // The map follows the driver's own position until they drag it to look
-  // around; Follow my location brings it back (2026-11-07).
+  // around; Follow my location brings it back (2026-11-06).
   const [followingSelf, setFollowingSelf] = React.useState(true);
   const followingSelfRef = React.useRef(true);
   // The driver's own drag or zoom is under way: following waits for it.

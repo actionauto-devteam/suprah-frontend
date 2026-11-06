@@ -1,5 +1,5 @@
 /*
- * Maps that follow a driver (decided 2026-11-07): the customer's live map on
+ * Maps that follow a driver (decided 2026-11-06): the customer's live map on
  * My Shipments and the driver's own map on the Driver Page follow the driver
  * until the person drags the map to look around; zooming keeps following.
  */
