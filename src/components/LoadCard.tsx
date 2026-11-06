@@ -27,6 +27,7 @@ import {
   ImageIcon,
   Clock3,
   CheckCircle2,
+  MessageCircle,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -47,11 +48,14 @@ import { cn, resolveImageUrl } from "@/lib/utils"
 import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy"
 import { cancellationReasonLabel } from "@/lib/load-cancellation"
 import { formatScheduleDate } from "@/utils/calendar.utils"
+import { customerMessagesLabel, loadCustomerChatHref } from "@/lib/shipment-chat"
 
 interface LoadCardProps {
   load: Load
   onDelete?: (loadId: string) => void
   isDeleting?: boolean
+  /** Unread messages from the load's customer, for its dispatcher (Transportation). */
+  customerUnread?: number
 }
 
 type LoadVehicleItem = NonNullable<Load["vehicles"]>[number]
@@ -362,7 +366,7 @@ function getLicensePlate(vehicle: LoadVehicleItem) {
 
 type LoadInfoModal = "vehicles" | "financials" | "dates" | null
 
-export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
+export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: LoadCardProps) {
   const router = useRouter()
   const { organization } = useOrg()
   const [isExporting, setIsExporting] = React.useState(false)
@@ -520,6 +524,19 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                       <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-700 dark:text-red-300">
                         {cancellationReasonLabel(load.cancellation.reason)}
                       </span>
+                    )}
+                    {customerUnread > 0 && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          router.push(loadCustomerChatHref(load._id))
+                        }}
+                        className="inline-flex min-h-7 items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-bold text-sky-700 transition-colors hover:bg-sky-500/20 dark:text-sky-300"
+                      >
+                        <MessageCircle className="size-3" aria-hidden="true" />
+                        {customerMessagesLabel(customerUnread)}
+                      </button>
                     )}
                   </div>
 
