@@ -103,9 +103,15 @@ function LoadRouteMap({ route, lines }: { route: MapRoute; lines: LoadRouteLines
           zoom: 8,
           attributionControl: false,
           renderWorldCopies: false,
-          // On a scrolling page: one finger scrolls, two move the map.
-          cooperativeGestures: true,
+          // Moves with one finger or the mouse, with no "ctrl + scroll" or
+          // "two fingers" note over it (as on the customer's live map,
+          // 2026-11-06). North stays up: no turning or tilting.
+          dragRotate: false,
+          pitchWithRotate: false,
+          touchPitch: false,
         });
+        map.touchZoomRotate.disableRotation();
+        map.keyboard.disableRotation();
         mapRef.current = map;
         // A theme change replaces the style, which drops the lines.
         map.on("style.load", () => void draw());
