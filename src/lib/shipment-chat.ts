@@ -138,3 +138,13 @@ export function customerChatMatches(chat: InboxChat, query: string): boolean {
     .toLowerCase()
     .includes(needle)
 }
+
+/** "1 new customer message" / "3 new customer messages" / "9+ …" on a load card; "" when none. */
+export function customerMessagesLabel(count: number | null | undefined): string {
+  const n = Math.max(0, Math.floor(Number(count) || 0))
+  if (n === 0) return ""
+  return `${n > 9 ? "9+" : n} new customer message${n === 1 ? "" : "s"}`
+}
+
+/** The load page with its customer chat open (as a notification link opens it). */
+export const loadCustomerChatHref = (loadId: string) => `/transportation/load/${encodeURIComponent(loadId)}?chat=customer`

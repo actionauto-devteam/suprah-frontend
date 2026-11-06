@@ -45,6 +45,7 @@ import {
 import { TransportationMobileViewSwitcher } from "@/components/transportation/TransportationMobileViewSwitcher";
 import { TransportationMobilePagination } from "@/components/transportation/TransportationMobilePagination";
 import { NeedsAttentionPanel } from "@/components/transportation/NeedsAttentionPanel";
+import { useCustomerChatInbox } from "@/hooks/useCustomerChatInbox";
 
 
 function getPageNumbers(current: number, total: number): (number | "…")[] {
@@ -257,6 +258,12 @@ export default function TransportationPage() {
 function TransportationPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // The dispatcher's own customer chats (live): a badge on each load with new messages.
+  const customerInbox = useCustomerChatInbox(true);
+  const customerUnreadByLoad = React.useMemo(
+    () => new Map(customerInbox.chats.filter((chat) => chat.unread > 0).map((chat) => [chat.loadId, chat.unread])),
+    [customerInbox.chats],
+  );
   const [activeTab, setActiveTab] = React.useState(() => {
     const tab = searchParams.get("tab");
     if (tab === "load-board" || tab === "market-board") return "load-board";
@@ -1009,6 +1016,7 @@ function TransportationPageInner() {
                     <TransportationMobileLoadCard
                       key={load._id}
                       load={load}
+                      customerUnread={customerUnreadByLoad.get(load._id) ?? 0}
                       presentation="load-board"
                       onDelete={handleDeleteBoardLoad}
                       isDeleting={boardDeletingId === load._id}
@@ -1038,6 +1046,7 @@ function TransportationPageInner() {
                     <LoadCard
                       key={load._id}
                       load={load}
+                      customerUnread={customerUnreadByLoad.get(load._id) ?? 0}
                       onDelete={handleDeleteBoardLoad}
                       isDeleting={boardDeletingId === load._id}
                     />
@@ -1127,6 +1136,7 @@ function TransportationPageInner() {
                     <TransportationMobileLoadCard
                       key={load._id}
                       load={load}
+                      customerUnread={customerUnreadByLoad.get(load._id) ?? 0}
                       presentation="shipments"
                       onDelete={handleDeleteLoad}
                       onInspect={(selected, tab = "overview") => {
@@ -1155,6 +1165,7 @@ function TransportationPageInner() {
                     <LoadCard
                       key={load._id}
                       load={load}
+                      customerUnread={customerUnreadByLoad.get(load._id) ?? 0}
                       onDelete={handleDeleteLoad}
                     />
                   ))}

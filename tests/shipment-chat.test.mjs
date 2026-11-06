@@ -120,3 +120,13 @@ test("Dispatch Chat's Customers section: what each row says and what search find
   for (const query of ['', 'maria', 'CAMRY', 'l-1001', 'on the way']) assert.equal(customerChatMatches(chat, query), true, query);
   assert.equal(customerChatMatches(chat, 'peterbilt'), false);
 });
+
+test("Transportation load cards: the customer message badge and where it opens", () => {
+  const { customerMessagesLabel, loadCustomerChatHref } = loadLib('shipment-chat');
+  assert.equal(customerMessagesLabel(0), '');
+  assert.equal(customerMessagesLabel(1), '1 new customer message');
+  assert.equal(customerMessagesLabel(3), '3 new customer messages');
+  assert.equal(customerMessagesLabel(12), '9+ new customer messages');
+  assert.equal(customerMessagesLabel(undefined), '');
+  assert.equal(loadCustomerChatHref('abc 1'), '/transportation/load/abc%201?chat=customer');
+});

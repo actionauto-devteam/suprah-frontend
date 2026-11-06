@@ -16,6 +16,7 @@ import {
   MapPin,
   Trash2,
   User,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy";
 import { useOrg } from "@/hooks/useOrg";
 import type { Load, LoadStatus } from "@/types/load";
 import { cancellationReasonLabel } from "@/lib/load-cancellation";
+import { customerMessagesLabel, loadCustomerChatHref } from "@/lib/shipment-chat";
 import {
   formatMobileLoadCurrency,
   getMobileLoadSchedulePresentation,
@@ -42,6 +44,8 @@ interface TransportationMobileLoadCardProps {
   onDelete?: (loadId: string) => void;
   isDeleting?: boolean;
   onInspect: (load: Load, tab?: TransportationMobileLoadTab) => void;
+  /** Unread messages from the load's customer, for its dispatcher. */
+  customerUnread?: number;
 }
 
 const JOURNEY_STATUSES = [
@@ -292,6 +296,7 @@ export function TransportationMobileLoadCard({
   onDelete,
   isDeleting = false,
   onInspect,
+  customerUnread = 0,
 }: TransportationMobileLoadCardProps) {
   const router = useRouter();
   const { organization } = useOrg();
@@ -446,6 +451,19 @@ export function TransportationMobileLoadCard({
                   <p className="mt-0.5 truncate text-[11px] font-bold text-red-700 dark:text-red-300">
                     Cancelled: {cancellationReasonLabel(load.cancellation.reason)}
                   </p>
+                )}
+                {customerUnread > 0 && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      router.push(loadCustomerChatHref(load._id));
+                    }}
+                    className="mt-1 inline-flex min-h-9 max-w-full items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2.5 text-[11px] font-bold text-sky-700 dark:text-sky-300"
+                  >
+                    <MessageCircle className="size-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{customerMessagesLabel(customerUnread)}</span>
+                  </button>
                 )}
               </div>
 
