@@ -247,7 +247,7 @@ function DriverRow({
             {driver.name}
           </p>
           {driver.activeLoadCount > 0 && (
-            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
+            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
               {driver.activeLoadCount} active
             </span>
           )}
@@ -322,7 +322,7 @@ function DriverRow({
           <span
             className="shrink-0 rounded-full text-center font-bold text-white"
             style={{
-              fontSize: 9,
+              fontSize: 10,
               minWidth: 18,
               height: 18,
               lineHeight: "18px",
@@ -379,7 +379,7 @@ function CustomerChatRow({
             {name}
           </p>
           {!chat.open && (
-            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
               Closed
             </span>
           )}
@@ -411,7 +411,7 @@ function CustomerChatRow({
         {unread > 0 && (
           <span
             className="shrink-0 rounded-full text-center font-bold text-white"
-            style={{ fontSize: 9, minWidth: 18, height: 18, lineHeight: "18px", padding: "0 5px", background: "var(--accent)" }}
+            style={{ fontSize: 10, minWidth: 18, height: 18, lineHeight: "18px", padding: "0 5px", background: "var(--accent)" }}
             aria-label={`${unread} unread customer message${unread === 1 ? "" : "s"}`}
           >
             {unread > 99 ? "99+" : unread}
@@ -579,7 +579,7 @@ function NewDispatchChatModal({
                           {driver.name}
                         </p>
                         {driver.activeLoadCount > 0 && (
-                          <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
+                          <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                             {driver.activeLoadCount} active
                           </span>
                         )}
@@ -606,7 +606,7 @@ function NewDispatchChatModal({
                         <span
                           className="rounded-full text-center font-bold text-white"
                           style={{
-                            fontSize: 9,
+                            fontSize: 10,
                             minWidth: 18,
                             height: 18,
                             lineHeight: "18px",
@@ -1611,7 +1611,7 @@ export function DispatchChatTab({
             ))}
 
             {pillUnread > 0 && (
-              <span className="ml-auto shrink-0 rounded-full bg-emerald-600 px-2 py-1 text-[9px] font-black text-white">
+              <span className="ml-auto shrink-0 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-black text-white">
                 {pillUnread > 99 ? "99+" : pillUnread} unread
               </span>
             )}
@@ -1621,7 +1621,7 @@ export function DispatchChatTab({
         {refreshWarning && drivers.length > 0 && (
           <div
             className={cn(
-              "flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.06] px-3 py-1.5 text-[9px] text-amber-700 dark:text-amber-300",
+              "flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.06] px-3 py-1.5 text-[10px] text-amber-700 dark:text-amber-300",
               railCollapsed && "@lg:hidden",
             )}
           >

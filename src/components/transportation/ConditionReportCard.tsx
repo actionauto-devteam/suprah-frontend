@@ -139,7 +139,7 @@ function StopReport({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={photo.url} alt="Vehicle condition photo" className="size-full object-cover" />
                     {photo.area && (
-                      <span className="absolute bottom-0.5 left-0.5 max-w-[calc(100%-0.25rem)] truncate rounded bg-black/65 px-1 py-px text-[9px] font-semibold text-white">
+                      <span className="absolute bottom-0.5 left-0.5 max-w-[calc(100%-0.25rem)] truncate rounded bg-black/65 px-1 py-px text-[10px] font-semibold text-white">
                         {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
                       </span>
                     )}

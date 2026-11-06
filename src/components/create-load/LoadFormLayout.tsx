@@ -1028,7 +1028,7 @@ function PricingPanel({
           <>
         <div className="rounded-xl border border-border/60 bg-background/40 p-4">
           <label className="block">
-            <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
+            <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
               Total Driver Pay (USD)
             </span>
             <input

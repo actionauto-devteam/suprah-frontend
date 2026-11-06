@@ -154,7 +154,7 @@ export function DriverTrackerRequestsCard({
                       </span>
                     )}
                     {req.equipment?.trailerType && (
-                      <Badge className="text-xs sm:text-[9px] px-1.5 py-0 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal">
+                      <Badge className="text-xs sm:text-[10px] px-1.5 py-0 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal">
                         {trailerLabel(req.equipment.trailerType)}
                       </Badge>
                     )}
@@ -177,7 +177,7 @@ export function DriverTrackerRequestsCard({
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <Badge className={`text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${availabilityMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : availabilityMatch === "off_schedule" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25" : "bg-muted text-muted-foreground border-border/50"}`}>
+                  <Badge className={`text-xs sm:text-[10px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${availabilityMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : availabilityMatch === "off_schedule" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25" : "bg-muted text-muted-foreground border-border/50"}`}>
                     {availabilityMatch === "match" ? <CheckCircle2 className="size-2.5 shrink-0" /> : availabilityMatch === "off_schedule" ? <AlertTriangle className="size-2.5 shrink-0" /> : <Calendar className="size-2.5 shrink-0" />}
                     {availabilityMatch === "match"
                       ? `Available ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()
@@ -186,18 +186,18 @@ export function DriverTrackerRequestsCard({
                         : "Schedule Unknown"}
                   </Badge>
                   {trailerMatch !== "unknown" && (
-                    <Badge className={`text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${trailerMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"}`}>
+                    <Badge className={`text-xs sm:text-[10px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${trailerMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"}`}>
                       {trailerMatch === "match" ? <CheckCircle2 className="size-2.5 shrink-0" /> : <AlertTriangle className="size-2.5 shrink-0" />}
                       Trailer {trailerMatch === "match" ? "Match" : "Mismatch"}
                     </Badge>
                   )}
                   {capacityMatch === "match" ? (
-                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
+                    <Badge className="text-xs sm:text-[10px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
                       <CheckCircle2 className="size-2.5 shrink-0" />
                       Capacity {compatibility?.capacity.requiredVehicles ?? req.vehicleCount ?? "?"}/{compatibility?.capacity.maxVehicles ?? req.equipment?.maxVehicleCapacity ?? "?"}
                     </Badge>
                   ) : (
-                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
+                    <Badge className="text-xs sm:text-[10px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
                       {capacityMatch === "exceeded" ? <XCircle className="size-2.5 shrink-0" /> : <AlertTriangle className="size-2.5 shrink-0" />}
                       {capacityMatch === "exceeded"
                         ? `Capacity ${compatibility?.capacity.requiredVehicles ?? req.vehicleCount ?? "?"}/${compatibility?.capacity.maxVehicles ?? req.equipment?.maxVehicleCapacity ?? "?"} · Exceeded`
@@ -205,22 +205,22 @@ export function DriverTrackerRequestsCard({
                     </Badge>
                   )}
                   {req.workEligible === false && (
-                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25">
+                    <Badge className="text-xs sm:text-[10px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25">
                       <AlertTriangle className="size-2.5" />Unavailable for New Work
                     </Badge>
                   )}
                   {req.equipment?.isComplianceExpired && (
-                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
+                    <Badge className="text-xs sm:text-[10px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
                       <AlertTriangle className="size-2.5" />Compliance Expired
                     </Badge>
                   )}
                   {req.equipment?.profileCompletionScore != null && (
-                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-muted text-muted-foreground border-border/50">
+                    <Badge className="text-xs sm:text-[10px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-muted text-muted-foreground border-border/50">
                       Profile: {req.equipment.profileCompletionScore}%
                     </Badge>
                   )}
                   {req.carrierPayAmount != null && req.carrierPayAmount > 0 && (
-                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
+                    <Badge className="text-xs sm:text-[10px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
                       <DollarSign className="size-2.5" />{req.carrierPayAmount.toLocaleString()}
                     </Badge>
                   )}

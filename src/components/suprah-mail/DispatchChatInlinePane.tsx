@@ -1110,7 +1110,7 @@ export function DispatchChatInlinePane({
                       <div className="mb-1 flex items-center gap-1.5 px-1 text-[11.5px] font-semibold text-muted-foreground">
                         {mine ? "You" : message.sender?.name || "Driver"}
                         {!mine && (
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide">
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
                             Driver
                           </span>
                         )}

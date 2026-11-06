@@ -669,7 +669,7 @@ function TransportationPageInner() {
                       <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50 motion-reduce:animate-none" />
                       <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                     </span>
-                    <span className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-300/80 sm:text-[10px]">
+                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-300/80 sm:text-[10px]">
                       Suprah Transport Operations
                     </span>
                   </div>

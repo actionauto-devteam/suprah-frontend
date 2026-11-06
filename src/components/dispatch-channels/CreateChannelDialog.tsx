@@ -80,7 +80,7 @@ export function CreateChannelDialog({
               <Hash className="size-4 text-emerald-600 dark:text-emerald-400" />
             </span>
             <div className="min-w-0 text-left">
-              <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                 Suprah AI · Dispatch Channel
               </p>
               <DialogTitle className="text-base font-black tracking-tight">New channel</DialogTitle>

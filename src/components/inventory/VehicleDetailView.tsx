@@ -868,7 +868,7 @@ export function VehicleDetailView({
                 {!hasPrice ? (
                   <>
                     <p className="text-sm font-black leading-tight text-primary">Price Pending</p>
-                    <p className="mt-0.5 text-[9px] leading-tight text-muted-foreground">
+                    <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
                       Pricing is being finalized.
                     </p>
                   </>
@@ -946,7 +946,7 @@ export function VehicleDetailView({
               surface. Inspector mode moves its three primary actions into a
               pinned footer while keeping every secondary action available here. */}
           <section className="border-b border-border/50 bg-background px-3 py-3 lg:hidden">
-            <p className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">
               Vehicle Actions
             </p>
             {!mobileInspector && onApplyNow && (
@@ -1136,7 +1136,7 @@ export function VehicleDetailView({
 
                 <div className="space-y-2.5 lg:hidden">
                   <Separator />
-                  <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                     <MapPin className="h-3 w-3 text-primary/70" /> Location
                   </p>
                   <div className="overflow-hidden rounded-xl border border-border/50">
@@ -1499,7 +1499,7 @@ export function VehicleDetailView({
               <div className="px-5 pt-5 pb-4">
                 {!hasPrice ? (
                   <>
-                    <p className="mb-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                       Our Price
                     </p>
                     <p className="text-3xl font-black tracking-tight text-primary">Price Pending</p>
@@ -1509,7 +1509,7 @@ export function VehicleDetailView({
                   </>
                 ) : (
                   <>
-                    <p className="mb-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                       {hasMemberDiscount ? `${vehicle.tierName} Member Price` : "Our Price"}
                     </p>
                     {hasMemberDiscount && (

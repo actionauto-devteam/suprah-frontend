@@ -89,13 +89,13 @@ function Field({
         </span>
 
         {importance === "recommended" && (
-          <span className="normal-case tracking-normal rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
+          <span className="normal-case tracking-normal rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
             Recommended
           </span>
         )}
 
         {importance === "optional" && (
-          <span className="normal-case tracking-normal text-[9px] font-semibold text-muted-foreground/70">
+          <span className="normal-case tracking-normal text-[10px] font-semibold text-muted-foreground/70">
             Optional
           </span>
         )}

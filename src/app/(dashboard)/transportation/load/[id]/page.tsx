@@ -412,7 +412,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[7px] sm:text-[8px] font-bold uppercase px-1.5 py-0",
+                          "text-[10px] sm:text-[10px] font-bold uppercase px-1.5 py-0",
                           theme.badge,
                         )}
                       >
@@ -423,7 +423,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
 
                   <p
                     className={cn(
-                      "mt-1 w-full truncate text-[8px] sm:text-[9px] lg:text-[10px]",
+                      "mt-1 w-full truncate text-[10px] sm:text-[10px] lg:text-[10px]",
                       isCurrent && date
                         ? "text-muted-foreground"
                         : "text-muted-foreground/35 italic",

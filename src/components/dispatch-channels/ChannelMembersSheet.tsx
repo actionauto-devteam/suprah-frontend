@@ -63,7 +63,7 @@ export function ChannelMembersSheet({
               <Users className="size-4 text-emerald-600 dark:text-emerald-400" />
             </span>
             <div className="min-w-0">
-              <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                 Suprah AI · Channel people
               </p>
               <SheetTitle className="truncate text-base font-black tracking-tight">{channel.name}</SheetTitle>

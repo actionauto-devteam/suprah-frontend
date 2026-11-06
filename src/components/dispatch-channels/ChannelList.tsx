@@ -56,7 +56,7 @@ export function ChannelListRow({
           <Hash className="size-4 text-emerald-600 dark:text-emerald-400" />
         )}
         {collapsed && unread > 0 && (
-          <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white">
+          <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[10px] font-black leading-4 text-white">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -69,9 +69,9 @@ export function ChannelListRow({
                 {channel.name}
               </span>
               {closed ? (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">Closed</span>
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">Closed</span>
               ) : (
-                <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
                   {channel.memberCount} {channel.memberCount === 1 ? "person" : "people"}
                 </span>
               )}
@@ -97,7 +97,7 @@ export function ChannelListRow({
             </span>
             {unread > 0 && (
               <span
-                className="min-w-[18px] rounded-full bg-emerald-600 px-1.5 text-center text-[9px] font-bold leading-[18px] text-white"
+                className="min-w-[18px] rounded-full bg-emerald-600 px-1.5 text-center text-[10px] font-bold leading-[18px] text-white"
                 aria-label={`${unread} unread channel message${unread === 1 ? "" : "s"}`}
               >
                 {unread > 99 ? "99+" : unread}

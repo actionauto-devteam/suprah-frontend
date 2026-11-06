@@ -440,7 +440,7 @@ export function DriverStatusRequestReviewDialog({
                                   {key === "keep_assigned" && (
                                     <Badge
                                       variant="outline"
-                                      className="h-5 shrink-0 text-[9px] font-bold"
+                                      className="h-5 shrink-0 text-[10px] font-bold"
                                     >
                                       Default
                                     </Badge>
