@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/lib/readable-toast";
 import Link from "next/link";
 import { passwordRulesMessage } from "@/lib/password-rules";
+import { SUPPORT_EMAIL } from "@/lib/support-contact";
 import { PasswordRulesChecklist } from "./PasswordRulesChecklist";
 import {
   AUTH_INPUT_CLASS,
@@ -31,6 +32,14 @@ import {
 
 // Seconds before Resend Code can be pressed (again).
 const RESEND_WAIT_SECONDS = 30;
+
+// Plain-English notes for when something goes wrong, with what to do next.
+const STILL_LOADING = "The form is still loading. Wait a moment, then try again.";
+const PASSWORDS_DIFFERENT = "The passwords don't match. Type the same password in both boxes, then try again.";
+const SIGN_UP_FAILED = `We couldn't create your driver account. Check your connection and try again. If it keeps happening, contact Suprah AI support at ${SUPPORT_EMAIL}.`;
+const codeDidNotWork = (email: string) =>
+  `That code didn't work. Check the latest code we emailed to ${email || "you"}, or tap Resend Code for a new one. If it still doesn't work, contact Suprah AI support at ${SUPPORT_EMAIL}.`;
+const SIGNED_UP_SIGN_IN = `Your email is confirmed, but we couldn't sign you in automatically. Go to Sign in and use your email and password to continue your driver application. If that doesn't work, contact Suprah AI support at ${SUPPORT_EMAIL}.`;
 
 export function DriverAuthForm() {
   const {
@@ -77,7 +86,10 @@ export function DriverAuthForm() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSignUpLoaded || !signUp) return;
+    if (!isSignUpLoaded || !signUp) {
+      setError(STILL_LOADING);
+      return;
+    }
     setError(null);
     const passwordProblem = passwordRulesMessage(regPassword);
     if (passwordProblem) {
@@ -85,7 +97,7 @@ export function DriverAuthForm() {
       return;
     }
     if (regPassword !== regConfirmPassword) {
-      setError("Passwords do not match");
+      setError(PASSWORDS_DIFFERENT);
       return;
     }
     setIsSubmitting(true);
@@ -115,7 +127,7 @@ export function DriverAuthForm() {
       const msg =
         err.errors?.[0]?.longMessage ||
         err.errors?.[0]?.message ||
-        "Registration failed";
+        SIGN_UP_FAILED;
       setError(msg);
     } finally {
       setIsSubmitting(false);
@@ -124,7 +136,10 @@ export function DriverAuthForm() {
 
   const handleVerifyEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSignUpLoaded || !signUp) return;
+    if (!isSignUpLoaded || !signUp) {
+      setError(STILL_LOADING);
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
     try {
@@ -134,12 +149,15 @@ export function DriverAuthForm() {
       if (result.status === "complete" && result.createdSessionId) {
         await setSignUpActive({ session: result.createdSessionId });
         setShowApplication(true);
+      } else {
+        // The code was accepted but no session came back: never leave the driver without a next step.
+        setError(SIGNED_UP_SIGN_IN);
       }
     } catch (err: any) {
       const msg =
         err.errors?.[0]?.longMessage ||
         err.errors?.[0]?.message ||
-        "Invalid verification code.";
+        codeDidNotWork(regEmail);
       setError(msg);
     } finally {
       setIsSubmitting(false);
@@ -212,9 +230,14 @@ export function DriverAuthForm() {
               </div>
               {error && (
                 <div className="flex items-center gap-2 p-3 text-xs font-medium bg-destructive/10 text-destructive rounded-lg border border-destructive/20">
-                  <AlertCircle className="h-4 w-4" />
+                  <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{error}</span>
                 </div>
+              )}
+              {error === SIGNED_UP_SIGN_IN && (
+                <Link href="/sign-in" className={`block text-center text-sm font-semibold ${AUTH_LINK_CLASS}`}>
+                  Go to Sign in
+                </Link>
               )}
               <Button
                 type="submit"
