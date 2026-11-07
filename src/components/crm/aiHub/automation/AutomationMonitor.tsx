@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ChevronDown, ChevronLeft, ChevronRight, Download, FlaskConical, Info, Loader2, RefreshCw, Search } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Download, FlaskConical, Info, Loader2, RefreshCw, RotateCcw, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -106,6 +106,7 @@ export function AutomationMonitor({ getToken, automations, options }: {
   const [open, setOpen] = React.useState<string | null>(null)
   const [exporting, setExporting] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
+  const [retrying, setRetrying] = React.useState<string | null>(null)
 
   const tags = React.useMemo(() => Array.from(new Set(automations.flatMap((item) => item.tags || []))).sort((a, b) => a.localeCompare(b)), [automations])
 
@@ -206,7 +207,20 @@ export function AutomationMonitor({ getToken, automations, options }: {
     }
   }
 
-  const stepLabel = (type: string) => options?.actions.find((action) => action.key === type)?.label || (type === "wait" ? "Wait" : type)
+  const retry = async (runId: string) => {
+    setRetrying(runId)
+    try {
+      await automationRequest(getToken, "post", `/runs/${encodeURIComponent(runId)}/retry`)
+      toast.success("Retry started. The failed steps run again within a minute.")
+      refresh()
+    } catch (err) {
+      toast.error(automationError(err, "Could not retry this event"))
+    } finally {
+      setRetrying(null)
+    }
+  }
+
+  const stepLabel = (type: string) => options?.actions.find((action) => action.key === type)?.label || (type === "wait" ? "Wait" : type === "retry" ? "Retry" : type)
   const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value)
     setPage(1)
@@ -334,9 +348,17 @@ export function AutomationMonitor({ getToken, automations, options }: {
                               {run.step && <p className="truncate text-[11px] text-muted-foreground">{run.step}</p>}
                             </div>
                             <span className={cn("inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold", MONITOR_STATUS_STYLES[run.display])}>{MONITOR_STATUS_LABELS[run.display]}</span>
-                            <p className="min-w-0 text-[11px] text-muted-foreground md:line-clamp-2">
-                              {run.reason || (run.display === "scheduled" && run.nextRunAt ? `Next step ${formatAutomationDate(run.nextRunAt)}` : "—")}
-                            </p>
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-muted-foreground md:line-clamp-2">
+                                {run.reason || (run.display === "scheduled" && run.nextRunAt ? `Next step ${formatAutomationDate(run.nextRunAt)}` : "—")}
+                              </p>
+                              {run.retryable && options?.canEdit && (
+                                <Button type="button" variant="outline" size="sm" className="mt-1 h-7 gap-1 px-2 text-[11px]" disabled={retrying === run.id} onClick={() => void retry(run.id)} aria-label={`Retry the failed steps for ${run.contact.name || "this contact"}`}>
+                                  {retrying === run.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                                  Retry
+                                </Button>
+                              )}
+                            </div>
                             <p className="text-[11px] text-muted-foreground"><span className="md:hidden">Channel: </span>{run.channel || "—"}</p>
                             <p className="text-[11px] tabular-nums text-muted-foreground">{formatAutomationDate(run.createdAt)}</p>
                             {run.log.length > 0 ? (

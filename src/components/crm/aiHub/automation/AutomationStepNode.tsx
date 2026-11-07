@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { ASSIGNABLE_STEP_TYPES, STEP_HELP, TIMED_STEP_TYPES, stepTiming, type AutomationOptions, type AutomationStep, type AutomationStepType } from "@/lib/crmAutomations"
+import { ASSIGNABLE_STEP_TYPES, RESTRICTED_LEAD_STATUSES, STEP_HELP, TIMED_STEP_TYPES, stepTiming, type AutomationOptions, type AutomationStep, type AutomationStepType } from "@/lib/crmAutomations"
 import { AssignToSelect, TimingEditor } from "./AutomationStepTiming"
 import { EmojiPicker, TemplatePicker } from "./AutomationMessageTools"
 
@@ -180,7 +180,7 @@ function StepEditor({ step, options, readOnly, onChange }: {
     )
   }
   if (step.type === "update_lead_status") {
-    const statuses = options.audienceFields.find((field) => field.key === "lead_status")?.choices || []
+    const statuses = (options.audienceFields.find((field) => field.key === "lead_status")?.choices || []).filter((status) => !RESTRICTED_LEAD_STATUSES.has(status.value))
     return (
       <div className="space-y-1">
         <label htmlFor={`step-${step.id}-status`} className="text-xs font-semibold">New status</label>

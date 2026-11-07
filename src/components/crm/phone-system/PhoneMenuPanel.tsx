@@ -129,7 +129,10 @@ export function PhoneMenuPanel() {
     const auth = await headers();
     const response = _id ? await apiClient.put(`/api/crm/communications/ivr-configs/${_id}`, payload, auth) : await apiClient.post('/api/crm/communications/ivr-configs', payload, auth);
     return response.data.data as Config;
-  }, onSuccess: () => queryClient.invalidateQueries({ queryKey: key }) });
+  }, onSuccess: () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: key }),
+    queryClient.invalidateQueries({ queryKey: ['crm-phone-numbers', orgId] }),
+  ]) });
   return (
     <div className="min-w-0 space-y-6">
       <div className="flex justify-end">

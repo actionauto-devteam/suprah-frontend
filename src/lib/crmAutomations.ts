@@ -38,6 +38,7 @@ export interface AutomationTrigger {
   time: string | null
   filters: AutomationFilter[]
   repeat: { mode: AutomationRepeatMode; days: number | null; per: string[] }
+  quietFor?: { amount: number; unit: "hours" | "days" } | null
   sendingHours: "sending_hours" | "any_time"
   stopOnReply: boolean
   cancelFirstOnReply: boolean
@@ -107,6 +108,9 @@ export interface AutomationOptions {
   team: Array<{ id: string; name: string; email?: string; role: string }>
   agentName: string
   canEdit: boolean
+  inventoryVariables?: string[]
+  priceDropMinimum?: number
+  dateRunLimit?: number
 }
 
 export type AutomationDraft = Pick<Automation, "name" | "locations" | "trigger" | "steps">
@@ -133,7 +137,27 @@ export const TIMED_STEP_TYPES = new Set<AutomationStepType>(["send_message", "se
 export const ASSIGNABLE_STEP_TYPES = new Set<AutomationStepType>(["send_message", "send_review_invitation", "send_appointment_confirmation", "send_email"])
 export const FUTURE_TIME_EVENTS = new Set(["appointment_booked", "appointment_confirmed", "appointment_rescheduled"])
 export const AI_AGENT_ASSIGNEE = "ai_agent"
+export const INVENTORY_EVENTS = new Set(["vehicle_added", "vehicle_price_dropped"])
+export const QUIET_LIMITS: Record<"hours" | "days", number> = { hours: 168, days: 30 }
+export const DEFAULT_QUIET_FOR = { amount: 24, unit: "hours" as const }
+export const RESTRICTED_LEAD_STATUSES = new Set(["Do Not Contact"])
 export const ON_TRIGGER: StepTiming = { when: "on", amount: null, unit: null }
+
+export function triggerHelp(trigger: AutomationTrigger, options: Pick<AutomationOptions, "priceDropMinimum" | "dateRunLimit">): string | null {
+  if (trigger.source === "on_a_date") return `Runs once at the date and time you pick, for every lead that matches the audience (up to ${options.dateRunLimit || 500} leads). Add at least one audience filter. Leads marked Do Not Contact are never included.`
+  switch (trigger.event) {
+    case "lead_went_quiet":
+      return "Runs when our last text to an open lead got no reply for the time you pick. It runs once for each quiet spell, and texts sent by an automation do not start a new one."
+    case "voicemail_received":
+      return "Runs when a caller leaves a voicemail on one of your Suprah numbers."
+    case "vehicle_added":
+      return "Runs for each open lead from the last 180 days whose vehicle of interest has the same year, make and model as a vehicle added to inventory. Up to 25 leads per vehicle."
+    case "vehicle_price_dropped":
+      return `Runs for each open lead from the last 180 days who asked about that vehicle when its price goes down by $${(options.priceDropMinimum || 250).toLocaleString("en-US")} or more. Up to 25 leads per price drop.`
+    default:
+      return null
+  }
+}
 export const MAX_STEPS = 20
 export const MAX_TOTAL_STEPS = 60
 export const MAX_BRANCH_DEPTH = 3
@@ -312,6 +336,7 @@ export interface AutomationRunRow {
   step: string
   channel: string
   reason: string | null
+  retryable?: boolean
   contact: { leadId: string | null; name: string; firstName: string; phone: string; email: string }
   triggerAt: string
   nextRunAt: string | null

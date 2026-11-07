@@ -10,19 +10,19 @@ import { updateRecordingGrant, type RecordingDirectory, type RecordingStaff } fr
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type RecordingSettings = { announcementText: string; retentionMonths: number; autoRecord?: boolean };
+type RecordingSettings = { announcementText: string; retentionMonths: number; autoRecord?: boolean; voicemailGreeting?: string; voicemailGreetingDefault?: string };
 type Settings = RecordingDirectory & { settings: RecordingSettings };
 const field = 'min-h-11 w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm';
 
 function SettingsForm({ initial, save }: { initial: RecordingSettings; save: (value: RecordingSettings) => Promise<void> }) {
-  const [value, setValue] = useState({ ...initial, autoRecord: initial.autoRecord !== false });
+  const [value, setValue] = useState({ ...initial, autoRecord: initial.autoRecord !== false, voicemailGreeting: initial.voicemailGreeting || '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const changed = value.announcementText.trim() !== initial.announcementText || value.retentionMonths !== initial.retentionMonths || value.autoRecord !== (initial.autoRecord !== false);
+  const changed = value.announcementText.trim() !== initial.announcementText || value.retentionMonths !== initial.retentionMonths || value.autoRecord !== (initial.autoRecord !== false) || value.voicemailGreeting.trim() !== (initial.voicemailGreeting || '');
   return <form className="min-w-0 max-w-2xl space-y-5" onSubmit={async event => {
     event.preventDefault(); setBusy(true); setError(''); setSaved(false);
-    try { await save({ announcementText: value.announcementText.trim(), retentionMonths: value.retentionMonths, autoRecord: value.autoRecord }); setSaved(true); } catch (err) { setError(recordingError(err)); } finally { setBusy(false); }
+    try { await save({ announcementText: value.announcementText.trim(), retentionMonths: value.retentionMonths, autoRecord: value.autoRecord, voicemailGreeting: value.voicemailGreeting.trim() }); setSaved(true); } catch (err) { setError(recordingError(err)); } finally { setBusy(false); }
   }}>
     <fieldset disabled={busy} className="min-w-0 space-y-5">
       <label className="flex min-h-11 items-start gap-3 text-sm">
@@ -33,6 +33,10 @@ function SettingsForm({ initial, save }: { initial: RecordingSettings; save: (va
       <label className="block space-y-1 text-sm"><span className="block font-medium">Announcement</span>
         <textarea required rows={3} maxLength={300} className={field} value={value.announcementText} onChange={event => { setSaved(false); setValue({ ...value, announcementText: event.target.value }); }} />
         <span className="block text-xs text-muted-foreground">The customer and the rep hear this right before the recording starts.</span>
+      </label>
+      <label className="block space-y-1 text-sm"><span className="block font-medium">Voicemail greeting</span>
+        <textarea rows={3} maxLength={400} className={field} value={value.voicemailGreeting} placeholder={initial.voicemailGreetingDefault} onChange={event => { setSaved(false); setValue({ ...value, voicemailGreeting: event.target.value }); }} />
+        <span className="block text-xs text-muted-foreground">Callers hear this when nobody answers, right before the tone. Leave it empty to use the standard greeting shown in the box.</span>
       </label>
       <label className="block space-y-1 text-sm"><span className="block font-medium">Keep recordings for (months)</span>
         <input required type="number" min={1} max={120} className={`${field} sm:w-40`} value={value.retentionMonths} onChange={event => { setSaved(false); setValue({ ...value, retentionMonths: Number(event.target.value) }); }} />
@@ -62,7 +66,7 @@ export function RecordingsPanel() {
   };
   const saveSettings = async (value: RecordingSettings) => {
     await request('put', '/recording-settings', value);
-    queryClient.setQueryData<Settings>(queryKey, current => current ? { ...current, settings: value } : current);
+    queryClient.setQueryData<Settings>(queryKey, current => current ? { ...current, settings: { ...current.settings, ...value } } : current);
   };
   return <div className="min-w-0 space-y-5">
     {access.isPending ? <Loader2 aria-label="Loading call recordings" className="h-5 w-5 animate-spin" />
