@@ -23,6 +23,7 @@ import { canViewAiHub } from "@/lib/aiShadowDrafts"
 import {
   AUTOMATION_STATUS_LABELS,
   ENGINE_OFF_NOTE,
+  INVENTORY_EVENTS,
   MAX_TOTAL_STEPS,
   NEW_TRIGGER_DEFAULTS,
   TIMED_STEP_TYPES,
@@ -216,6 +217,12 @@ export function AutomationBuilder({ automationId }: { automationId?: string }) {
   }, [options])
 
   const readOnly = !options?.canEdit
+  const triggerEvent = draft.trigger?.event || ""
+  const stepOptions = React.useMemo(() => {
+    if (!options || INVENTORY_EVENTS.has(triggerEvent)) return options
+    const hidden = new Set(options.inventoryVariables || [])
+    return { ...options, variables: options.variables.filter((variable) => !hidden.has(variable.key)) }
+  }, [options, triggerEvent])
   const dirty = JSON.stringify(draft) !== baseline
   const missing = missingParts(draft)
 
@@ -410,7 +417,7 @@ export function AutomationBuilder({ automationId }: { automationId?: string }) {
               steps={draft.steps}
               depth={0}
               room={MAX_TOTAL_STEPS - countSteps(draft.steps)}
-              options={options}
+              options={stepOptions || options}
               readOnly={readOnly}
               allowBefore={allowsBeforeTrigger(draft.trigger)}
               onChange={(steps) => update({ steps })}

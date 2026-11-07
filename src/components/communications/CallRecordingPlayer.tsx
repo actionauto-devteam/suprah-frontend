@@ -7,8 +7,32 @@ import { useCallRecordingApi, recordingError, type Recording, type RecordingPerm
 import { Button } from '@/components/ui/button';
 import { fmtDateMDT, fmtFullDateTimeMDT } from '@/lib/timezone';
 
-type Detail = { recording: Recording; permissions: RecordingPermission[]; audits: { _id: string; action: string; actorId?: string; createdAt: string }[]; shares: { _id: string; expiresAt: string; revokedAt?: string }[] };
+type Detail = { recording: Recording; permissions: RecordingPermission[]; audits: { _id: string; action: string; actorId?: string; actorKind?: string; actorName?: string; createdAt: string }[]; shares: { _id: string; expiresAt: string; revokedAt?: string }[] };
 const STATE_LABELS: Record<string, string> = { ready: 'Saved', processing: 'Saving...', recording: 'Recording now', paused: 'Paused', failed: 'Recording failed', unknown: 'Needs attention', disclosing: 'Playing the announcement...', starting: 'Starting...', 'start-pending': 'Starting...' };
+const AUDIT_LABELS: Record<string, string> = {
+  'recording.auto-requested': 'Recording started automatically',
+  'recording.requested': 'Recording started',
+  'recording.start-requested': 'Recording started',
+  'recording.viewed': 'Opened the recording',
+  'recording.reviewed': 'Marked reviewed',
+  'recording.deleted': 'Deleted the recording',
+  'playback.requested': 'Played the recording',
+  'playback.accessed': 'Played the recording',
+  'download.requested': 'Downloaded the recording',
+  'download.accessed': 'Downloaded the recording',
+  'share.created': 'Made a share link',
+  'share.accessed': 'Opened a share link',
+  'share.revoked': 'Turned off a share link',
+  'import.retry-requested': 'Asked to save the recording again',
+  'pause.requested': 'Asked to pause the recording',
+  'pause.accepted': 'Paused the recording',
+  'pause.failed': 'Pause did not work',
+  'resume.requested': 'Asked to resume the recording',
+  'resume.accepted': 'Resumed the recording',
+  'resume.failed': 'Resume did not work',
+};
+const auditLabel = (action: string) => AUDIT_LABELS[action] || action.replace(/[.-]/g, ' ');
+const auditActor = (a: { actorId?: string; actorKind?: string; actorName?: string }) => a.actorName || (a.actorKind === 'share' ? 'Someone with a share link' : a.actorId ? 'Former team member' : 'Suprah');
 type PlayerProps = { callId?: string; recordingId?: string; shareId?: string; onChanged?: () => void };
 export function CallRecordingPlayer({ callId, recordingId, shareId, onChanged }: PlayerProps) {
   const { orgId, authKey } = useCallRecordingApi();
@@ -85,8 +109,8 @@ function RecordingPlayerContent({ callId, recordingId, shareId, onChanged }: Pla
         {record.endedAt && query.data?.permissions.includes('delete') && <Button variant="outline" size="icon" className="h-11 w-11" disabled={busy} title="Delete recording" aria-label="Delete recording" onClick={() => { if (window.confirm('Permanently delete this recording and revoke its shared links?')) void command(async () => { await request('delete', `/recordings/${record._id}`); setSource(''); setDeleted(true); onChanged?.(); }); }}><Trash2 className="h-4 w-4" /></Button>}
       </div>
       {link && <input aria-label="Internal recording share link" readOnly value={link} className="min-h-11 w-full min-w-0 rounded-md border bg-background px-2 text-xs" onFocus={event => event.target.select()} />}
-      {query.data?.permissions.includes('share') && query.data.shares.filter(s => !s.revokedAt && new Date(s.expiresAt) > new Date()).map(s => <div key={s._id} className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>Share expires {new Date(s.expiresAt).toLocaleDateString()}</span><Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void command(async () => { await request('delete', `/recording-shares/${s._id}`); await query.refetch(); })}><X className="h-4 w-4" />Revoke</Button></div>)}
-      <details className="text-xs"><summary className="min-h-11 cursor-pointer py-3">Access history</summary><ul className="max-h-52 space-y-2 overflow-auto">{query.data?.audits.map(a => <li key={a._id} className="break-words">{a.action} - {a.actorId || 'System'} - {new Date(a.createdAt).toLocaleString()}</li>)}</ul></details>
+      {query.data?.permissions.includes('share') && query.data.shares.filter(s => !s.revokedAt && new Date(s.expiresAt) > new Date()).map(s => <div key={s._id} className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>Share expires {fmtDateMDT(s.expiresAt)}</span><Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => void command(async () => { await request('delete', `/recording-shares/${s._id}`); await query.refetch(); })}><X className="h-4 w-4" />Revoke</Button></div>)}
+      <details className="text-xs"><summary className="min-h-11 cursor-pointer py-3">Access history</summary><ul className="max-h-52 space-y-2 overflow-auto">{query.data?.audits.map(a => <li key={a._id} className="break-words"><span className="font-medium">{auditLabel(a.action)}</span> · {auditActor(a)} · {fmtFullDateTimeMDT(a.createdAt)} MT</li>)}</ul></details>
     </>}
     {error && <p role="alert" className="break-words text-xs text-red-500">{error}</p>}
   </section>;

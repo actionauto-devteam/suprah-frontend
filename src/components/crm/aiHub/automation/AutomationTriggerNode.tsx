@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import {
+  DEFAULT_QUIET_FOR,
   NEW_TRIGGER_DEFAULTS,
+  QUIET_LIMITS,
   eventLabel,
+  triggerHelp,
   type AutomationOptions,
   type AutomationSource,
   type AutomationTrigger,
@@ -97,15 +100,18 @@ export function TriggerPlaceholder({ onChoose, disabled }: { onChoose: () => voi
 export function TriggerCard({ trigger, sources, options, readOnly, onChange, onEdit, onRemove }: {
   trigger: AutomationTrigger
   sources: AutomationSource[]
-  options: Pick<AutomationOptions, "audienceFields" | "audienceOperators">
+  options: Pick<AutomationOptions, "audienceFields" | "audienceOperators" | "priceDropMinimum" | "dateRunLimit">
   readOnly: boolean
   onChange: (next: AutomationTrigger) => void
   onEdit: () => void
   onRemove: () => void
 }) {
   const [advanced, setAdvanced] = React.useState(false)
+  const [quietDraft, setQuietDraft] = React.useState<string | null>(null)
   const labels = eventLabel(sources, trigger)
   const dateBased = trigger.source === "on_a_date"
+  const quiet = trigger.quietFor || DEFAULT_QUIET_FOR
+  const help = triggerHelp(trigger, options)
   const patch = (next: Partial<AutomationTrigger>) => onChange({ ...NEW_TRIGGER_DEFAULTS, ...trigger, ...next })
 
   return (
@@ -136,6 +142,46 @@ export function TriggerCard({ trigger, sources, options, readOnly, onChange, onE
           <span className="text-[10px] text-muted-foreground">Mountain Time</span>
         </div>
       )}
+
+      {trigger.event === "lead_went_quiet" && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/40 px-4 py-3">
+          <label htmlFor="automation-quiet-amount" className="text-xs text-muted-foreground">No reply for</label>
+          <Input
+            id="automation-quiet-amount"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={QUIET_LIMITS[quiet.unit]}
+            value={quietDraft ?? String(quiet.amount)}
+            disabled={readOnly}
+            onChange={(event) => {
+              setQuietDraft(event.target.value)
+              const amount = Math.round(Number(event.target.value))
+              if (amount >= 1 && amount <= QUIET_LIMITS[quiet.unit]) patch({ quietFor: { ...quiet, amount } })
+            }}
+            onBlur={() => setQuietDraft(null)}
+            className="h-8 w-20 text-xs"
+          />
+          <label htmlFor="automation-quiet-unit" className="sr-only">Hours or days</label>
+          <select
+            id="automation-quiet-unit"
+            className="h-8 rounded-lg border border-input bg-background px-2 text-xs disabled:opacity-60"
+            value={quiet.unit}
+            disabled={readOnly}
+            onChange={(event) => {
+              const unit = event.target.value === "days" ? "days" : "hours"
+              setQuietDraft(null)
+              patch({ quietFor: { unit, amount: Math.min(quiet.amount, QUIET_LIMITS[unit]) } })
+            }}
+          >
+            <option value="hours">hours</option>
+            <option value="days">days</option>
+          </select>
+          <span className="text-[10px] text-muted-foreground">Up to {QUIET_LIMITS[quiet.unit]} {quiet.unit}</span>
+        </div>
+      )}
+
+      {help && <p className="border-t border-border/40 px-4 py-2.5 text-[11px] text-muted-foreground">{help}</p>}
 
       <AudienceEditor filters={trigger.filters || []} options={options} readOnly={readOnly} onChange={(filters) => patch({ filters })} />
 
