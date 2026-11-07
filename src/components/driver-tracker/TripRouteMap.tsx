@@ -56,8 +56,9 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
           theme: theme === "dark" ? "dark" : "light",
           center: [first.lng, first.lat],
           zoom: 11,
-          // Inside a scrolling dialog: one finger scrolls, two move the map.
-          gestureHandling: "cooperative",
+          // Moves with one finger or the mouse, with no "ctrl + scroll" or
+          // "two fingers" note over it, like the other Driver Tracker maps
+          // (2026-11-06).
         });
         camera = created.camera;
         const map = created.map;
