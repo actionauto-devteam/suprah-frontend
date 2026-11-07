@@ -366,7 +366,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
 
             {optionalDocs.length > 0 && (
               <>
-                <div className="flex items-center gap-3 pt-3 pb-1"><div className="h-px flex-1 bg-border" /><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Optional</span><div className="h-px flex-1 bg-border" /></div>
+                <div className="flex items-center gap-3 pt-3 pb-1"><div className="h-px flex-1 bg-border" /><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">More documents</span><div className="h-px flex-1 bg-border" /></div>
                 {optionalDocs.map(req => {
                   const ups = documents.filter(d => d.type === req.type);
                   return (
@@ -421,7 +421,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
             </fieldset>
 
             <fieldset className="space-y-3 border-t border-border pt-5">
-              <legend className="text-sm font-bold text-foreground">DOT Medical Card <span className="font-normal text-muted-foreground">(optional)</span></legend>
+              <legend className="text-sm font-bold text-foreground">DOT Medical Card</legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="compliance-medical-expiration" className="text-xs font-bold text-muted-foreground">Expiration Date</Label>
@@ -431,7 +431,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
             </fieldset>
 
             <fieldset className="space-y-3 border-t border-border pt-5">
-              <legend className="text-sm font-bold text-foreground">Auto Liability Insurance <span className="font-normal text-muted-foreground">(optional)</span></legend>
+              <legend className="text-sm font-bold text-foreground">Auto Liability Insurance</legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="compliance-insurance-provider" className="text-xs font-bold text-muted-foreground">Insurance Provider</Label>
@@ -562,7 +562,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
               <Input value={uploadLabel} onChange={e => setUploadLabel(e.target.value)} placeholder="e.g. CDL Front Side" maxLength={100} className="h-11" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-muted-foreground">Expiration Date (optional)</Label>
+              <Label className="text-xs font-bold text-muted-foreground">Expiration Date</Label>
               <Input type="date" value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)} className="h-11" />
             </div>
             <div className="space-y-1.5">
