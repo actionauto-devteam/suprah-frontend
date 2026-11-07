@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LogOut,
   LayoutDashboard,
@@ -51,6 +51,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -168,6 +169,18 @@ export function CustomerSidebar() {
   const [shopOpen, setShopOpen] = useState(pathname.startsWith("/customer/shop"));
   const { data: membership } = useMyMembership();
   const { organization } = useOrg();
+  const { setOpenMobile } = useSidebar();
+
+  // On a phone the sidebar covers the page; close it once a page is picked.
+  // Only the phone's open state changes, so the computer sidebar stays as it is.
+  const closeMobileSidebar = useCallback(() => {
+    setOpenMobile(false);
+  }, [setOpenMobile]);
+
+  // Also closes after any other way of changing page while it's open.
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
 
   const resolvedAvatar = resolveImageUrl(
     avatarUrl !== null ? avatarUrl : user?.imageUrl,
@@ -225,6 +238,7 @@ export function CustomerSidebar() {
             </div>
             <Link
               href="/customer/membership"
+              onClick={closeMobileSidebar}
               className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-colors"
               style={{
                 color: membership?.currentTier.colorTheme.primary ?? "#16a34a",
@@ -283,7 +297,7 @@ export function CustomerSidebar() {
                                     tooltip="Shop Vehicles"
                                     className={`flex-1 rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
                                   >
-                                    <Link href="/customer/shop">
+                                    <Link href="/customer/shop" onClick={closeMobileSidebar}>
                                       <CarFront className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
                                       <span className="text-[13px]">Shop Vehicles</span>
                                     </Link>
@@ -327,7 +341,7 @@ export function CustomerSidebar() {
                               {SHOP_SUB_ITEMS.map((subItem) => (
                                 <SidebarMenuSubItem key={subItem.title}>
                                   <SidebarMenuSubButton asChild>
-                                    <Link href={subItem.url + subItem.params}>
+                                    <Link href={subItem.url + subItem.params} onClick={closeMobileSidebar}>
                                       <subItem.icon className="h-3.5 w-3.5 shrink-0" />
                                       <span className="text-[12px]">{subItem.title}</span>
                                     </Link>
@@ -363,7 +377,7 @@ export function CustomerSidebar() {
                                 tooltip={collapsedTitle}
                                 className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
                               >
-                                <Link href={item.url}>
+                                <Link href={item.url} onClick={closeMobileSidebar}>
                                   <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
                                   <span className="text-[13px]">{item.title}</span>
                                   {devBadge}
@@ -392,7 +406,7 @@ export function CustomerSidebar() {
                             tooltip={collapsedTitle}
                             className={`rounded-lg transition-all ${isActive ? activeCls : inactiveCls}`}
                           >
-                            <Link href={item.url}>
+                            <Link href={item.url} onClick={closeMobileSidebar}>
                               <item.icon className={isActive ? "text-green-600 dark:text-green-400" : "text-zinc-400"} />
                               <span className="text-[13px]">{item.title}</span>
                               {devBadge}
@@ -418,7 +432,7 @@ export function CustomerSidebar() {
               tooltip="Profile"
               className="rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all"
             >
-              <Link href="/customer/settings">
+              <Link href="/customer/settings" onClick={closeMobileSidebar}>
                 <User className="text-zinc-400" />
                 <span className="text-[13px]">Profile</span>
               </Link>
@@ -430,7 +444,7 @@ export function CustomerSidebar() {
               tooltip="Settings"
               className="rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all"
             >
-              <Link href="/customer/settings">
+              <Link href="/customer/settings" onClick={closeMobileSidebar}>
                 <Settings className="text-zinc-400" />
                 <span className="text-[13px]">Settings</span>
               </Link>
