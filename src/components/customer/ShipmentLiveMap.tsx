@@ -3,19 +3,22 @@
 import * as React from "react"
 import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Clock, Loader2, LocateFixed, MapPin } from "lucide-react"
+import { AlertTriangle, Clock, Loader2, LocateFixed, MapPin, Minus, Navigation, Plus } from "lucide-react"
 import { useAuth } from "@/providers/AuthProvider"
 import { useTheme } from "@/context/ThemeContext"
 import { getShipmentTracking, type CustomerShipmentTracking } from "@/lib/api/customerQuoteRequests"
 import {
   CUSTOMER_LOCATION_EVENT,
+  FOLLOW_ZOOM,
   LIVE_MAP_REFRESH_MS,
   arrivalLine,
+  liveMapCamera,
   positionLine,
   updatedAgo,
   withLivePosition,
   type LivePositionUpdate,
 } from "@/lib/customer-shipment-tracking"
+import { stopsFollowing } from "@/lib/map-follow"
 import { withinTripRange } from "@/lib/driver-next-stop"
 import { initializeSocket } from "@/lib/socket.client"
 import { addMapboxRouteLayers, routeLineFeatures } from "@/lib/load-route-lines"
@@ -32,6 +35,11 @@ import { cn } from "@/lib/utils"
  * driver to the delivery point, as Driver Tracker does with the next stop.
  * The driver moves the moment their phone reports a new position; a refresh
  * about once a minute, only while the page is open, catches anything missed.
+ *
+ * The map follows the driver, like a ride-hailing app, until the customer
+ * drags it to look around; Follow driver brings it back (2026-11-06). It moves
+ * freely with one finger or the mouse, with no "ctrl + scroll" or "two
+ * fingers" note covering it, and has + and − buttons big enough for a phone.
  */
 
 const MAP_STYLE_BY_THEME = {
@@ -69,11 +77,60 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
   const mapRef = React.useRef<MapboxMap | null>(null)
   const markersRef = React.useRef<{ driver?: MapboxMarker; delivery?: MapboxMarker }>({})
   const latestRef = React.useRef(view)
-  // How many of the driver and the delivery point the map was last framed on.
-  const framedPointsRef = React.useRef(0)
+  // Follows the driver until the customer drags the map to look around.
+  const [following, setFollowing] = React.useState(true)
+  const followingRef = React.useRef(true)
+  // Centred on the driver once since following (re)started; delivery point
+  // shown once while the driver's location is on its way.
+  const startedRef = React.useRef(false)
+  const deliveryShownRef = React.useRef(false)
+  // The customer's own drag or zoom is under way: following waits for it.
+  const gestureRef = React.useRef(false)
   const [ready, setReady] = React.useState(false)
   const [failed, setFailed] = React.useState(false)
   latestRef.current = view
+
+  const moveCamera = React.useCallback((map: MapboxMap, animate: boolean) => {
+    const current = latestRef.current
+    const move = liveMapCamera({
+      following: followingRef.current,
+      started: startedRef.current,
+      driver: current.driver?.position ?? null,
+      delivery: current.delivery,
+      deliveryShown: deliveryShownRef.current,
+      currentZoom: map.getZoom(),
+    })
+    if (!move || gestureRef.current) return
+    // Animations are skipped for people who turned on reduced motion.
+    if (move.zoom === undefined) {
+      map.easeTo({ center: move.center, duration: 1000 })
+      return
+    }
+    if (move.target === "driver") startedRef.current = true
+    else deliveryShownRef.current = true
+    if (animate) map.easeTo({ center: move.center, zoom: move.zoom, duration: 600 })
+    else map.jumpTo({ center: move.center, zoom: move.zoom })
+  }, [])
+
+  const setFollowingMode = React.useCallback(
+    (on: boolean) => {
+      if (!on && !followingRef.current) return
+      followingRef.current = on
+      setFollowing(on)
+      const map = mapRef.current
+      if (!map) return
+      // While following, zooming keeps the driver in the middle of the map.
+      const zoomOptions = on ? ({ around: "center" } as const) : undefined
+      map.scrollZoom.disable()
+      map.scrollZoom.enable(zoomOptions)
+      map.touchZoomRotate.enable(zoomOptions)
+      if (on) {
+        startedRef.current = false
+        moveCamera(map, true)
+      }
+    },
+    [moveCamera],
+  )
 
   const draw = React.useCallback(async () => {
     const map = mapRef.current
@@ -111,20 +168,23 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
     place("driver", driver, "Your driver")
     place("delivery", current.delivery, "Delivery point")
 
-    // Framed on the driver and the delivery point when they first show (again
-    // if the delivery point arrives later); otherwise the customer's own
-    // panning is left alone, and "Show both" frames them again.
-    const known = [driver, current.delivery].filter(Boolean).length
-    const bounds = framingBounds(current)
-    if (bounds && known > framedPointsRef.current) {
-      framedPointsRef.current = known
-      map.fitBounds(bounds, { padding: 48, maxZoom: 13, duration: 0 })
-    }
-  }, [])
+    // Follows the driver (straight there the first time, gliding after);
+    // once the customer looks around, their view is left alone.
+    moveCamera(map, false)
+  }, [moveCamera])
 
-  const showBoth = React.useCallback(() => {
+  // "Show both" frames the driver and the delivery point, so it stops following.
+  const showOverview = React.useCallback(() => {
+    if (latestRef.current.driver) setFollowingMode(false)
     const bounds = framingBounds(latestRef.current)
-    if (bounds) mapRef.current?.fitBounds(bounds, { padding: 48, maxZoom: 13, duration: 600 })
+    if (bounds) mapRef.current?.fitBounds(bounds, { padding: 48, maxZoom: FOLLOW_ZOOM, duration: 600 })
+  }, [setFollowingMode])
+
+  const zoomBy = React.useCallback((step: 1 | -1, event: React.MouseEvent) => {
+    const map = mapRef.current
+    // Passing the click marks it as the customer's zoom, so following waits for it.
+    if (step > 0) map?.zoomIn(undefined, { originalEvent: event.nativeEvent })
+    else map?.zoomOut(undefined, { originalEvent: event.nativeEvent })
   }, [])
 
   React.useEffect(() => {
@@ -138,18 +198,46 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
           return
         }
         mapboxgl.accessToken = token
-        const start = latestRef.current.driver?.position ?? latestRef.current.delivery ?? { lat: 39.5, lng: -111.5 }
+        const first = latestRef.current
+        const start = first.driver?.position ?? first.delivery ?? { lat: 39.5, lng: -111.5 }
+        let startZoom = 9
+        if (first.driver) startZoom = FOLLOW_ZOOM
+        else if (first.delivery) startZoom = 12
         const map = new mapboxgl.Map({
           container: containerRef.current,
           style: MAP_STYLE_BY_THEME[theme === "dark" ? "dark" : "light"],
           center: [start.lng, start.lat],
-          zoom: 9,
+          zoom: startZoom,
           attributionControl: false,
           renderWorldCopies: false,
-          // On a scrolling page: one finger scrolls, two move the map.
-          cooperativeGestures: true,
+          // Moves with one finger or the mouse, with no "ctrl + scroll" or
+          // "two fingers" note over it. North stays up: no turning or tilting.
+          dragRotate: false,
+          pitchWithRotate: false,
+          touchPitch: false,
+          // Following starts on, so zooming keeps the driver in the middle.
+          scrollZoom: { around: "center" },
+          touchZoomRotate: { around: "center" },
         })
+        map.touchZoomRotate.disableRotation()
+        map.keyboard.disableRotation()
         mapRef.current = map
+        map.on("dragstart", (event) => {
+          if (event.originalEvent) gestureRef.current = true
+          if (stopsFollowing(event.originalEvent)) setFollowingMode(false)
+        })
+        // The map's types leave it out, but a zoom the customer makes carries its event.
+        map.on("zoomstart", (event) => {
+          if ((event as { originalEvent?: Event }).originalEvent) gestureRef.current = true
+        })
+        // Arrow keys move the map the way a drag does.
+        map.on("movestart", (event) => {
+          const original = event.originalEvent as Event | undefined
+          if (original?.type === "keydown" && stopsFollowing(original as KeyboardEvent)) setFollowingMode(false)
+        })
+        map.on("moveend", () => {
+          gestureRef.current = false
+        })
         map.on("style.load", () => void draw())
         map.on("load", () => {
           if (!cancelled) setReady(true)
@@ -202,17 +290,65 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
             Loading the map…
           </div>
         )}
+        {ready && (
+          <div className="absolute right-2 top-2 z-10 flex flex-col overflow-hidden rounded-lg border border-border/60 bg-background/90 shadow-sm backdrop-blur-sm">
+            <button
+              type="button"
+              aria-label="Zoom in"
+              title="Zoom in"
+              onClick={(event) => zoomBy(1, event)}
+              className="flex size-9 items-center justify-center text-foreground hover:bg-muted max-sm:size-11"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+            </button>
+            <span aria-hidden="true" className="h-px bg-border/60" />
+            <button
+              type="button"
+              aria-label="Zoom out"
+              title="Zoom out"
+              onClick={(event) => zoomBy(-1, event)}
+              className="flex size-9 items-center justify-center text-foreground hover:bg-muted max-sm:size-11"
+            >
+              <Minus className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
         {ready && (view.driver || view.delivery) && (
-          <button
-            type="button"
-            onClick={showBoth}
-            className="absolute bottom-2 right-2 z-10 flex min-h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-background/90 px-2.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-sm hover:bg-background max-sm:min-h-11"
-          >
-            <LocateFixed className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            {view.driver && view.delivery ? "Show both" : view.driver ? "Show driver" : "Show delivery point"}
-          </button>
+          <div className="absolute bottom-2 right-2 z-10 flex flex-wrap justify-end gap-1.5">
+            {(view.delivery || !view.driver) && (
+              <button
+                type="button"
+                onClick={showOverview}
+                className="flex min-h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-background/90 px-2.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-sm hover:bg-background max-sm:min-h-11"
+              >
+                <LocateFixed className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                {view.driver ? "Show both" : "Show delivery point"}
+              </button>
+            )}
+            {view.driver && (
+              <button
+                type="button"
+                aria-pressed={following}
+                onClick={() => setFollowingMode(!following)}
+                className={cn(
+                  "flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold shadow-sm backdrop-blur-sm max-sm:min-h-11",
+                  following
+                    ? "border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800"
+                    : "border-border/60 bg-background/90 text-foreground hover:bg-background",
+                )}
+              >
+                <Navigation className={cn("size-3.5", following ? "text-white" : "text-emerald-600 dark:text-emerald-400")} aria-hidden="true" />
+                Follow driver
+              </button>
+            )}
+          </div>
         )}
       </div>
+      {ready && view.driver && !following && (
+        <p role="status" className="text-xs text-muted-foreground">
+          The map stopped following your driver while you look around. Tap or click Follow driver to go back to them.
+        </p>
+      )}
       <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Map key">
         <li className="flex items-center gap-1.5">
           <span aria-hidden="true" className="size-3 rounded-full border-2 border-white shadow-sm" style={{ background: COLORS.driver }} />

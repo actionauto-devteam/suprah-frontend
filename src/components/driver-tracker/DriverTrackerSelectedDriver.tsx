@@ -10,9 +10,9 @@ import type { LoadRouteState } from "@/hooks/useLoadRoute";
 import { LoadRouteSummary } from "./LoadRoutePanel";
 
 /**
- * Follow keeps the map on the driver. Moving the map yourself pauses it
- * (Resume brings it back); Stop, another selection, or losing sight of the
- * driver's location turns it off.
+ * Follow keeps the map on the driver, and starts by itself when a driver is
+ * chosen. Moving the map yourself pauses it (Resume brings it back); Stop or
+ * losing sight of the driver's location turns it off.
  */
 export type FollowMode = "off" | "following" | "paused";
 

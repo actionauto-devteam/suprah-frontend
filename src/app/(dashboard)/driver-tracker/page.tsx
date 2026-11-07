@@ -32,7 +32,7 @@ import {
   type MapCamera,
 } from "@/lib/google-maps";
 import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
-import { trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
+import { followModeOnFocus, trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
 import { isActiveLoadStatus } from "@/lib/load-status";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -430,10 +430,14 @@ export default function DriverTrackerPage() {
   const fleetLayerRef = React.useRef<DriverFleetLayer | null>(null);
   const cameraActionRef = React.useRef(0);
   const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(null);
-  // Follow: moving the map yourself pauses it (Resume brings it back); Stop,
-  // another selection, or losing sight of the driver's location turns it off.
+  // Follow: choosing a driver follows them straight away when their exact
+  // location is visible; moving the map yourself pauses it (Resume brings it
+  // back); Stop, Show all, or losing sight of the driver's location turns it off.
   const [followMode, setFollowMode] = React.useState<FollowMode>("off");
   const followingDriver = followMode === "following";
+  // While the map is still flying in on a driver just chosen, following waits
+  // so it doesn't cut that zoom short.
+  const focusMoveUntilRef = React.useRef(0);
   const googleMapRef = React.useRef<google.maps.Map | null>(null);
   const googleLibrariesRef = React.useRef<GoogleMapsLibraries | null>(null);
   const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
@@ -1742,7 +1746,7 @@ export default function DriverTrackerPage() {
       setSelectedDriverId(driver.id);
       cameraActionRef.current += 1;
       setMapFilter("all");
-      setFollowMode("off");
+      setFollowMode(followModeOnFocus(driver));
       if (validCoordinates(driver.coords)) {
         mapInstanceRef.current?.easeTo({ center: [driver.coords.lng, driver.coords.lat], duration: 300 });
       }
@@ -1782,7 +1786,7 @@ export default function DriverTrackerPage() {
   const focusDriverOnLiveMap = React.useCallback((driver: DriverTrackingItem, options?: { closeDrawer?: boolean }) => {
     cameraActionRef.current += 1;
     setSelectedDriverId(driver.id);
-    setFollowMode("off");
+    setFollowMode(followModeOnFocus(driver));
     setMapFilter("all");
     setMobileWorkspace("map");
     if (options?.closeDrawer) setMobileDriverDrawerOpen(false);
@@ -1790,6 +1794,7 @@ export default function DriverTrackerPage() {
     if (!validCoordinates(driver.coords)) return;
     const map = mapInstanceRef.current;
     map?.resize();
+    focusMoveUntilRef.current = Date.now() + 400;
     map?.easeTo({ center: [driver.coords.lng, driver.coords.lat], zoom: Math.max(map.getZoom(), 14), duration: 350 });
   }, [setMobileWorkspace]);
 
@@ -2604,6 +2609,8 @@ export default function DriverTrackerPage() {
     if (!followingDriver || !selectedDriver || !isMapReady) return;
     // Follow only acknowledged, fresh GPS; an old fix remains visible without pretending to move.
     if (trackingState(selectedDriver, trackingNow).kind !== "live" || !validCoordinates(selectedDriver.coords)) return;
+    // The map is already flying to this driver after they were chosen.
+    if (Date.now() < focusMoveUntilRef.current) return;
     mapInstanceRef.current?.easeTo({ center: [selectedDriver.coords.lng, selectedDriver.coords.lat], duration: 350 });
   }, [followingDriver, selectedDriver?.id, selectedDriver?.coords?.lat, selectedDriver?.coords?.lng, selectedDriver?.locationRecordedAt, selectedDriver?.lastSeenAt, selectedDriver?.isSharing, isMapReady]);
 

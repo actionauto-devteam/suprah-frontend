@@ -106,3 +106,28 @@ test('dispatchers choosing a driver see only a rounded distance, and drivers are
   assert.match(DISPATCH_SEES_DISTANCE_NOTICE, /rounded to 5 miles/);
   assert.match(WHO_SEES_DRIVER_LOCATION, /Dispatchers choosing a driver for another load see only about how far you are from its pickup, rounded to 5 miles, never your exact location\.$/);
 });
+
+test('the live map follows the driver like a ride-hailing app', () => {
+  const { FOLLOW_ZOOM, liveMapCamera } = loadLib('customer-shipment-tracking');
+  const driver = { lat: 40.76, lng: -111.89 };
+  const delivery = { lat: 40.23, lng: -111.66 };
+  const base = { following: true, started: false, driver, delivery, deliveryShown: false, currentZoom: 9 };
+  // First look: straight to the driver, a few streets close.
+  assert.deepEqual(liveMapCamera(base), { target: 'driver', center: [-111.89, 40.76], zoom: FOLLOW_ZOOM });
+  // Already zoomed in closer: that zoom is kept.
+  assert.equal(liveMapCamera({ ...base, currentZoom: 15 }).zoom, 15);
+  // Then it glides along at whatever zoom the customer picked.
+  assert.deepEqual(liveMapCamera({ ...base, started: true, currentZoom: 11 }), { target: 'driver', center: [-111.89, 40.76] });
+  // Not following: the customer's own view is left alone.
+  assert.equal(liveMapCamera({ ...base, following: false }), null);
+  assert.equal(liveMapCamera({ ...base, following: false, started: true }), null);
+});
+
+test('before the driver shows, the map shows the delivery point once', () => {
+  const { liveMapCamera } = loadLib('customer-shipment-tracking');
+  const delivery = { lat: 40.23, lng: -111.66 };
+  const waiting = { following: true, started: false, driver: null, delivery, deliveryShown: false, currentZoom: 9 };
+  assert.deepEqual(liveMapCamera(waiting), { target: 'delivery', center: [-111.66, 40.23], zoom: 12 });
+  assert.equal(liveMapCamera({ ...waiting, deliveryShown: true }), null);
+  assert.equal(liveMapCamera({ ...waiting, delivery: null }), null);
+});
