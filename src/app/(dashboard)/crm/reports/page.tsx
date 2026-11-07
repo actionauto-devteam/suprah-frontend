@@ -32,6 +32,12 @@ import { useAuth } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
 import { mdtDayRangeUtc, todayStrMDT, fmtDateMDT, fmtLongDateMDT, fmtLongDateTimeMDT } from "@/lib/timezone"
 import { useChartTheme, OverviewTooltip } from "@/components/reports/crm/LeadAnalyticsOverview"
+import {
+  SalespeopleSection,
+  salespersonExcelColumns,
+  salespersonLeadExcelColumns,
+  type SalespeopleReport,
+} from "@/components/reports/crm/SalespeopleSection"
 
 type RangePreset = "today" | "yesterday" | "custom"
 
@@ -187,6 +193,9 @@ export default function CrmReportsPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [exporting, setExporting] = React.useState(false)
+  const [salespeople, setSalespeople] = React.useState<SalespeopleReport | null>(null)
+  const [salespeopleLoading, setSalespeopleLoading] = React.useState(true)
+  const [salespeopleError, setSalespeopleError] = React.useState("")
 
   const resolvedRange = React.useMemo(() => {
     if (preset === "today") {
@@ -224,6 +233,32 @@ export default function CrmReportsPage() {
     void loadOverview()
   }, [loadOverview])
 
+  const fetchSalespeople = React.useCallback(async (withLeads: boolean): Promise<SalespeopleReport | null> => {
+    const t = await getToken()
+    const res = await apiClient.get("/api/crm/reports/salespeople", {
+      params: { from: resolvedRange.from, to: resolvedRange.to, ...(withLeads ? { leads: "1" } : {}) },
+      headers: { Authorization: `Bearer ${t}` },
+    })
+    return res.data?.data || res.data || null
+  }, [getToken, resolvedRange.from, resolvedRange.to])
+
+  const loadSalespeople = React.useCallback(async () => {
+    setSalespeopleLoading(true)
+    setSalespeopleError("")
+    try {
+      setSalespeople(await fetchSalespeople(false))
+    } catch (err) {
+      setSalespeople(null)
+      setSalespeopleError(getErrorMessage(err, "Could not load the report by salesperson."))
+    } finally {
+      setSalespeopleLoading(false)
+    }
+  }, [fetchSalespeople])
+
+  React.useEffect(() => {
+    void loadSalespeople()
+  }, [loadSalespeople])
+
   const leadStatusPalette = React.useCallback((_key: string, index: number) => theme.palette[index % theme.palette.length], [theme.palette])
 
   const sourceChartData = React.useMemo(() => {
@@ -257,6 +292,11 @@ export default function CrmReportsPage() {
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, overview.leads.overTime, trendColumns, "No leads in this range"), "Leads Over Time")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.leads.byStatus), countColumns, "No leads in this range"), "Leads by Status")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.leads.bySource), countColumns, "No leads in this range"), "Leads by Source")
+      const salesReport = await fetchSalespeople(true).catch(() => null)
+      if (salesReport) {
+        XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, salesReport.rows, salespersonExcelColumns, "No leads or activity in this range"), "By Salesperson")
+        XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, salesReport.leads || [], salespersonLeadExcelColumns, "No leads in this range"), "Leads by Salesperson")
+      }
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.smsCampaigns), countColumns, "No SMS campaign activity"), "SMS Campaigns")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.smsDeliveryStatus), countColumns, "No SMS delivery confirmations"), "SMS Delivery Status")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.emailCampaigns), countColumns, "No email campaign activity"), "Email Campaigns")
@@ -295,13 +335,16 @@ export default function CrmReportsPage() {
             CRM Reports
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Leads, campaigns, price drop and re-engagement activity, and unsubscribes for the selected period.
+            Leads, salespeople, campaigns, price drop and re-engagement activity, and unsubscribes for the selected period.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => void loadOverview()}
+            onClick={() => {
+              void loadOverview()
+              void loadSalespeople()
+            }}
             disabled={loading}
             className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground disabled:opacity-50"
             aria-label="Refresh"
@@ -464,6 +507,8 @@ export default function CrmReportsPage() {
               </ChartCard>
             </div>
           </div>
+
+          <SalespeopleSection report={salespeople} loading={salespeopleLoading} error={salespeopleError} />
 
           <div>
             <SectionHeader title="Campaign Performance" description="SMS and email campaign delivery outcomes." />
