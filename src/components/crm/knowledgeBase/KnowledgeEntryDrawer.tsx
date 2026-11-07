@@ -35,6 +35,11 @@ import {
 import { HubState } from "@/components/crm/aiHub/ShadowStatusBadge"
 import { KbBadge, KbIssueList, KbPill, formatKbDate } from "./KnowledgeShared"
 
+function joinLabels(labels: string[]): string {
+  if (labels.length <= 1) return labels.join("")
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`
+}
+
 function approvedVersionNote(state?: string): string {
   if (state === "valid") return "approved"
   if (state === "partial") return "approved, suspended at some locations"
@@ -108,7 +113,7 @@ function ApprovalPanel({ detail, locations, repliesOn }: { detail: KbEntryDetail
           ? "The AI Agent is not using Knowledge Base answers right now. An admin can turn on AI Agent replies at the top of the Knowledge Base."
           : entry.lifecycle !== "active" || approval.state === "invalidated" || approval.state === "suspended"
             ? "The AI Agent does not use this answer until it is active and approved again."
-            : `The AI Agent can use the approved version for ${entry.channels.map((channel) => KB_CHANNEL_LABELS[channel] || channel).filter((label) => !/email/i.test(label)).join(" and ") || "no reply channel yet"} replies when it fits the customer's question.`}
+            : `The AI Agent can use the approved version for ${joinLabels(entry.channels.map((channel) => KB_CHANNEL_LABELS[channel] || channel)) || "no reply channel yet"} replies when it fits the customer's question.`}
       </p>
     </section>
   )

@@ -135,7 +135,7 @@ function AvailabilityStrip({ availability, getToken, onChange }: {
             <>
               <p className="font-semibold">Let the AI agent use approved answers?</p>
               <p>It uses an approved answer only when it fits what the customer is asking, on the channels and at the locations the answer was approved for. Drafts, inactive and unapproved entries are never used. Amounts a manager allowed can be said exactly as approved.</p>
-              <p>To test first, keep the AI agent in Training mode for texts and webchat: it writes drafts with these answers but sends nothing.</p>
+              <p>To test first, keep the AI agent in Training mode for texts, webchat and email: it writes drafts with these answers but sends nothing.</p>
             </>
           ) : (
             <p>Stop using Knowledge Base answers? The AI agent goes back to replying without them right away. Entries are kept.</p>
