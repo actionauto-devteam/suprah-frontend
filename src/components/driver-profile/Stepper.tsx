@@ -54,7 +54,7 @@ export function Stepper({ steps, currentStepId, completedStepIds, onStepClick, c
               </div>
               <span
                 className={cn(
-                  'text-[10px] font-bold hidden sm:block',
+                  'text-[11px] font-bold hidden sm:block',
                   active ? 'text-foreground' : done ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-muted-foreground',
                 )}
               >

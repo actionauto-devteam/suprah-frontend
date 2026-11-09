@@ -97,7 +97,7 @@ function CreateLoadPageInner() {
               <Truck className="size-5 text-emerald-500" />
               Create Load
             </h1>
-            <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mt-0.5">
+            <p className="text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mt-0.5">
               {postType
                 ? WORKFLOWS.find((w) => w.key === postType)?.title
                 : "Choose a workflow"}

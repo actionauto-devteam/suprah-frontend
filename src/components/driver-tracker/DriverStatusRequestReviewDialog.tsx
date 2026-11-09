@@ -440,7 +440,7 @@ export function DriverStatusRequestReviewDialog({
                                   {key === "keep_assigned" && (
                                     <Badge
                                       variant="outline"
-                                      className="h-5 shrink-0 text-[10px] font-bold"
+                                      className="h-5 shrink-0 text-[11px] font-bold"
                                     >
                                       Default
                                     </Badge>
@@ -529,7 +529,7 @@ export function DriverStatusRequestReviewDialog({
                         : "Affected Loads at Submission"}
                     </p>
                     {currentLoads.length > 0 && (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-[11px]">
                         {currentLoads.length} active
                       </Badge>
                     )}
@@ -562,7 +562,7 @@ export function DriverStatusRequestReviewDialog({
                             {loadNumber}
                           </span>
                           {load.status && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-[11px]">
                               {load.status}
                             </Badge>
                           )}
@@ -809,7 +809,7 @@ export function DriverStatusRequestReviewDialog({
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 break-words text-sm font-semibold capitalize [overflow-wrap:anywhere]">

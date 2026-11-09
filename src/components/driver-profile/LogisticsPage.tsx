@@ -148,7 +148,7 @@ export const LogisticsPage: React.FC = () => {
                   >
                     <div className={cn("size-5 rounded-full", opt.color)} />
                     <span className="text-sm font-bold">{opt.label}</span>
-                    <span className="text-[10px] text-muted-foreground text-center leading-tight">{opt.description}</span>
+                    <span className="text-[11px] text-muted-foreground text-center leading-tight">{opt.description}</span>
                   </motion.button>
                 ))}
               </div>
@@ -201,7 +201,7 @@ export const LogisticsPage: React.FC = () => {
                   <span className="text-xl font-black text-emerald-600">{radius} mi</span>
                 </div>
                 <Slider value={[radius]} onValueChange={([v]) => setRadius(v)} min={25} max={3000} step={25} className="w-full" />
-                <div className="flex justify-between text-[10px] text-muted-foreground">
+                <div className="flex justify-between text-[11px] text-muted-foreground">
                   <span>25 mi</span>
                   <span>3,000 mi</span>
                 </div>

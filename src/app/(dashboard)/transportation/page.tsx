@@ -676,7 +676,7 @@ function TransportationPageInner() {
                       <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50 motion-reduce:animate-none" />
                       <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                     </span>
-                    <span className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-300/80 sm:text-[10px]">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-300/80 sm:text-[11px]">
                       Suprah Transport Operations
                     </span>
                   </div>
@@ -755,7 +755,7 @@ function TransportationPageInner() {
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/35 pt-2.5">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
                 <span className="relative flex size-1.5">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50 motion-reduce:animate-none" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
@@ -764,7 +764,7 @@ function TransportationPageInner() {
               </span>
 
               {vehicles.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/55 bg-background/55 px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/55 bg-background/55 px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
                   <Package className="size-3 text-emerald-600 dark:text-emerald-400" />
                   {vehicles.length} vehicle{vehicles.length === 1 ? "" : "s"} available
                 </span>

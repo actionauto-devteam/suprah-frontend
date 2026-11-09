@@ -93,8 +93,8 @@ export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) =
                     <span className="text-sm font-semibold">{opt.label}</span>
                     {trailerType === opt.value && <CheckCircle2 className="size-4 text-emerald-500" />}
                   </div>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">{opt.description}</span>
-                  <Badge variant="outline" className="mt-1.5 text-[10px] w-fit">{opt.capacity}</Badge>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">{opt.description}</span>
+                  <Badge variant="outline" className="mt-1.5 text-[11px] w-fit">{opt.capacity}</Badge>
                 </button>
               ))}
             </div>

@@ -63,15 +63,15 @@ export function DriverTrackerShareCard({
             </div>
             <div>
               <CardTitle className="text-sm font-bold">Driver GPS</CardTitle>
-              <p className="text-[10px] text-muted-foreground/60 font-medium">Live location broadcast</p>
+              <p className="text-[11px] text-muted-foreground/60 font-medium">Live location broadcast</p>
             </div>
           </div>
           {(isSharing || isStarting) && (
             <Badge
               className={
                 isSharing
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-200/50 text-[10px] font-bold gap-1.5 animate-pulse"
-                  : "bg-amber-500/10 text-amber-600 border-amber-200/50 text-[10px] font-bold gap-1.5"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-200/50 text-[11px] font-bold gap-1.5 animate-pulse"
+                  : "bg-amber-500/10 text-amber-600 border-amber-200/50 text-[11px] font-bold gap-1.5"
               }
             >
               <span
@@ -106,7 +106,7 @@ export function DriverTrackerShareCard({
             return locked ? (
               <Tooltip key={item.key}>
                 <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                <TooltipContent side="bottom" className="text-[10px]">
+                <TooltipContent side="bottom" className="text-[11px]">
                   You need an active load to go On Route
                 </TooltipContent>
               </Tooltip>
@@ -139,7 +139,7 @@ export function DriverTrackerShareCard({
                 <p className="text-[11px] font-bold">
                   GPS Required While Loads Are Active
                 </p>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                   {isSharing
                     ? "Location sharing is automatic and cannot be turned off until you have no active loads."
                     : isStarting
@@ -152,7 +152,7 @@ export function DriverTrackerShareCard({
         ) : (
           <div className="space-y-2">
             <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
                 No active loads. GPS sharing is optional and under your control.
               </p>
             </div>
@@ -180,7 +180,7 @@ export function DriverTrackerShareCard({
           </div>
         )}
         {lastShareAt && (
-          <p className="text-[10px] text-muted-foreground/60 text-center font-medium">
+          <p className="text-[11px] text-muted-foreground/60 text-center font-medium">
             Last broadcast: {lastShareAt}
           </p>
         )}

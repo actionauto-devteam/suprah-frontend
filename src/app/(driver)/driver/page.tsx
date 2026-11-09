@@ -3196,7 +3196,7 @@ export default function DriverDashboardPage() {
                         {pendingRequestsByRecency.length > 1 && (
                           <Badge
                             variant="outline"
-                            className="shrink-0 border-amber-500/30 bg-background/60 text-[10px] font-bold text-amber-700 dark:text-amber-300"
+                            className="shrink-0 border-amber-500/30 bg-background/60 text-[11px] font-bold text-amber-700 dark:text-amber-300"
                           >
                             1 of {pendingRequestsByRecency.length}
                           </Badge>

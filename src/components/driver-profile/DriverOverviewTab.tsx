@@ -262,7 +262,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                             {statCards.map((stat, i) => (
                                 <div key={i} className={cn("p-3.5 rounded-xl bg-linear-to-br border", stat.gradient, stat.border)}>
                                     <stat.icon className={cn("size-5 mb-2", stat.iconColor)} />
-                                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{stat.label}</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{stat.label}</p>
                                     <p className="text-xl font-extrabold text-gray-900 dark:text-white">{stat.value}</p>
                                 </div>
                             ))}
@@ -339,7 +339,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                     <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50">
                                         <info.icon className={cn("size-4 shrink-0", info.color)} />
                                         <div className="min-w-0">
-                                            <p className="text-[9px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500">{info.label}</p>
+                                            <p className="text-[11px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500">{info.label}</p>
                                             <p className="text-xs font-semibold whitespace-normal break-words [overflow-wrap:anywhere] text-gray-800 dark:text-gray-200">{info.value}</p>
                                         </div>
                                     </div>
@@ -348,7 +348,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
 
                             {socialLinks.length > 0 && (
                                 <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-800">
-                                    <p className="text-[9px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500 mb-3">Links</p>
+                                    <p className="text-[11px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500 mb-3">Links</p>
                                     <div className="flex flex-wrap gap-2">
                                         {socialLinks.map((link: any, i: number) => (
                                             <button
@@ -396,7 +396,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold whitespace-normal break-words [overflow-wrap:anywhere] group-hover/act:text-purple-600 dark:group-hover/act:text-purple-400 transition-colors">{activity.title}</p>
-                                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-0.5">{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</p>
+                                            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mt-0.5">{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</p>
                                         </div>
                                     </div>
                                 </button>

@@ -226,7 +226,7 @@ export function DriverTrackerMap({
             <MapPinned className="size-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary/80">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-primary/80">
               Suprah Fleet
             </p>
             <p className="mt-0.5 break-words text-xs font-black leading-tight text-foreground [overflow-wrap:anywhere] sm:text-sm md:text-lg">
@@ -237,7 +237,7 @@ export function DriverTrackerMap({
         </div>
 
         <div
-          className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+          className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-wider ${
             activeCount > 0
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : "border-border/50 bg-muted/25 text-muted-foreground"

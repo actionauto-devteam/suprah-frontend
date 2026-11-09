@@ -89,7 +89,7 @@ export function TransportationMobilePagination({
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">
             Per page
           </p>
           <Select

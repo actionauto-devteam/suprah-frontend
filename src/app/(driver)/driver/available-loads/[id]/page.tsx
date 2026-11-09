@@ -611,8 +611,8 @@ export default function AvailableLoadDetailPage() {
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                     <h1 className="break-all font-mono text-xl font-black tracking-tight text-foreground [overflow-wrap:anywhere] sm:text-2xl">{data.trackingNumber || data.loadNumber || loadId.slice(-8)}</h1>
-                    <Badge className="bg-blue-500/10 text-[10px] text-blue-600 dark:text-blue-400">Available</Badge>
-                    {isRequested && <Badge className="bg-amber-500/10 text-[10px] text-amber-600 dark:text-amber-400"><Timer className="mr-1 size-2.5" />Requested</Badge>}
+                    <Badge className="bg-blue-500/10 text-[11px] text-blue-600 dark:text-blue-400">Available</Badge>
+                    {isRequested && <Badge className="bg-amber-500/10 text-[11px] text-amber-600 dark:text-amber-400"><Timer className="mr-1 size-2.5" />Requested</Badge>}
                   </div>
                   <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{vehicleName || `${data.origin} → ${data.destination}`}</p>
                 </div>
@@ -721,7 +721,7 @@ export default function AvailableLoadDetailPage() {
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"><Car className="size-5 text-primary" /></div>
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">{`${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Unknown Vehicle'}</p>
-                      <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                         {vehicle.color && <span>{vehicle.color}</span>}
                         {vehicle.condition && <span>· {vehicle.condition}</span>}
                         {vehicle.vin && <span className="break-all font-mono [overflow-wrap:anywhere]">VIN: {vehicle.vin}</span>}
@@ -770,8 +770,8 @@ export default function AvailableLoadDetailPage() {
             <Card className="overflow-hidden rounded-2xl border-border/40 md:col-span-2">
               <div className="border-b border-border/40 p-4"><div className="flex items-center gap-2"><FileText className="size-4 text-primary" /><h3 className="text-sm font-black uppercase tracking-wider">Notes & Instructions</h3></div></div>
               <CardContent className="space-y-4 p-4">
-                {data.preDispatchNotes && <div><p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dispatch Notes</p><p className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">{data.preDispatchNotes}</p></div>}
-                {data.specialInstructions && <div><p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Special Instructions</p><p className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">{data.specialInstructions}</p></div>}
+                {data.preDispatchNotes && <div><p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Dispatch Notes</p><p className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">{data.preDispatchNotes}</p></div>}
+                {data.specialInstructions && <div><p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Special Instructions</p><p className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">{data.specialInstructions}</p></div>}
               </CardContent>
             </Card>
           )}

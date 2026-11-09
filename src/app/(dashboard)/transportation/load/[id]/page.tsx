@@ -398,7 +398,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
                   <div className="flex min-w-0 flex-col items-center gap-1">
                     <h4
                       className={cn(
-                        "w-full truncate text-[10px] sm:text-xs lg:text-sm font-bold transition-colors",
+                        "w-full truncate text-[11px] sm:text-xs lg:text-sm font-bold transition-colors",
                         isCurrent
                           ? theme.text
                           : "text-muted-foreground/40",
@@ -412,7 +412,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[10px] sm:text-[10px] font-bold uppercase px-1.5 py-0",
+                          "text-[11px] sm:text-[11px] font-bold uppercase px-1.5 py-0",
                           theme.badge,
                         )}
                       >
@@ -423,7 +423,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
 
                   <p
                     className={cn(
-                      "mt-1 w-full truncate text-[10px] sm:text-[10px] lg:text-[10px]",
+                      "mt-1 w-full truncate text-[11px] sm:text-[11px] lg:text-[11px]",
                       isCurrent && date
                         ? "text-muted-foreground"
                         : "text-muted-foreground/35 italic",
@@ -727,7 +727,7 @@ export default function LoadDetailsPage() {
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2 mt-1 flex-wrap">
             Posted {formatDate(load.createdAt)}
-            {load.postType === "assign-carrier" && <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">Direct Dispatch</Badge>}
+            {load.postType === "assign-carrier" && <Badge variant="secondary" className="text-[11px] uppercase font-bold tracking-wider">Direct Dispatch</Badge>}
           </p>
           {load.quoteOrigin && (
             <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 break-words">
@@ -995,7 +995,7 @@ export default function LoadDetailsPage() {
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <Car className="size-3.5" />
               Vehicles
-              <span className="text-[10px] font-bold bg-muted px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold bg-muted px-2 py-0.5 rounded-full">
                 {load.vehicles?.length || 0}
               </span>
             </CardTitle>
@@ -1127,7 +1127,7 @@ export default function LoadDetailsPage() {
 
             {load.pricing?.isPricingEnabled !== false && load.postType === "load-board" && load.pricing?.estimatedRate && (
               <div className="flex items-center justify-between gap-3 p-3 bg-background border border-border/50 rounded-xl shadow-sm">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
                   <AlertCircle className="size-3" /> Est. Market Rate
                 </span>
                 <span className="font-bold text-sm text-foreground">${load.pricing.estimatedRate.toLocaleString()}</span>
@@ -1160,7 +1160,7 @@ export default function LoadDetailsPage() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
                 <p className="text-sm font-medium">
                   {new Date(load.proofOfPickup.submittedAt).toLocaleString("en-US", { timeZone: "America/Denver" })}
                 </p>
@@ -1195,7 +1195,7 @@ export default function LoadDetailsPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
                 <p className="text-sm font-medium">
                   {new Date(load.proofOfDelivery.submittedAt).toLocaleString("en-US", { timeZone: "America/Denver" })}
                 </p>
@@ -1236,7 +1236,7 @@ export default function LoadDetailsPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {load.additionalInfo.instructions && (
                   <div className="h-full">
-                    <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Carrier Instructions</h5>
+                    <h5 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Carrier Instructions</h5>
                     <p className="text-sm bg-muted/30 p-3.5 rounded-xl border border-border/50 leading-relaxed text-foreground/90 h-[calc(100%-20px)]">
                       {load.additionalInfo.instructions}
                     </p>
@@ -1244,7 +1244,7 @@ export default function LoadDetailsPage() {
                 )}
                 {load.additionalInfo.notes && (
                   <div className="h-full">
-                    <h5 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Internal Notes</h5>
+                    <h5 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Internal Notes</h5>
                     <p className="text-sm bg-blue-500/5 p-3.5 rounded-xl border border-blue-500/10 leading-relaxed text-blue-900 dark:text-blue-200 h-[calc(100%-20px)]">
                       {load.additionalInfo.notes}
                     </p>
@@ -1272,7 +1272,7 @@ export default function LoadDetailsPage() {
                 <p className="text-xs text-muted-foreground font-medium mb-1">
                   Agreed by: <span className="text-foreground font-semibold">{load.contract.signerName}</span>
                 </p>
-                <p className="text-[10px] text-muted-foreground/80 font-mono">
+                <p className="text-[11px] text-muted-foreground/80 font-mono">
                   {formatDate(load.contract.signedAt || load.createdAt)}
                 </p>
               </div>
@@ -1311,7 +1311,7 @@ export default function LoadDetailsPage() {
                 <p className="text-xs text-muted-foreground font-medium mb-1">
                   Signed by: <span className="text-foreground font-semibold">{load.driverContract.signerName}</span>
                 </p>
-                <p className="text-[10px] text-muted-foreground/80 font-mono">
+                <p className="text-[11px] text-muted-foreground/80 font-mono">
                   {formatDate(load.driverContract.signedAt)}
                 </p>
               </div>
@@ -1360,7 +1360,7 @@ export default function LoadDetailsPage() {
                     >
                       BOL Preview
                     </p>
-                    <p className="truncate text-[10px] font-medium text-muted-foreground">
+                    <p className="truncate text-[11px] font-medium text-muted-foreground">
                       {load.loadNumber}
                     </p>
                   </div>

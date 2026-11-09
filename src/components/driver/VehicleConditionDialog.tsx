@@ -334,7 +334,7 @@ function ConditionPhotos({
                 <ImageIcon className="m-auto size-6 text-muted-foreground" />
               )}
               {photo.area && (
-                <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-semibold text-white">
                   {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
                 </span>
               )}

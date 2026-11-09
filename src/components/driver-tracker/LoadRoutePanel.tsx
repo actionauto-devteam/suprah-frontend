@@ -197,7 +197,7 @@ export function LoadRouteSummary({ state, audience, variant = "card", className 
       aria-label={`Arrival time at ${stopLabel}`}
       className={cn("min-w-0 rounded-lg border border-border/60 bg-background/45", compact ? "p-2.5" : "p-3", className)}
     >
-      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
         <Clock className="size-3.5 text-primary" aria-hidden="true" />
         {audience === "driver" ? "Your arrival" : "Arrival"} · {shown.stop === "pickup" ? "Pickup" : "Delivery"}
       </p>

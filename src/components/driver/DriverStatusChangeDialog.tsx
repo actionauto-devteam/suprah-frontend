@@ -455,7 +455,7 @@ export function DriverStatusChangeDialog({
                             <p className="break-all text-xs font-medium leading-relaxed text-foreground">
                               {file.name}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">
+                            <p className="text-[11px] text-muted-foreground">
                               {formatFileSize(file.size)}
                             </p>
                           </div>
@@ -477,7 +477,7 @@ export function DriverStatusChangeDialog({
                 )}
 
                 {emergency && (
-                  <p className="break-words text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                  <p className="break-words text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                     Attachments are never required for an emergency request.
                   </p>
                 )}

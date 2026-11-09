@@ -173,7 +173,7 @@ function MobilePrimaryReadout({
       <span className={cn("absolute inset-y-0 left-0 w-0.5", accentClass)} />
 
       <span className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.13em] text-muted-foreground/70">
+        <span className="text-[11px] font-black uppercase tracking-[0.13em] text-muted-foreground/70">
           {eyebrow}
         </span>
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65 transition-transform group-active/focus:translate-x-0.5" />
@@ -185,7 +185,7 @@ function MobilePrimaryReadout({
         </span>
         <span className="min-w-0 flex-1">
           <span
-            className="block truncate text-[10px] font-black uppercase tracking-[0.07em] text-muted-foreground"
+            className="block truncate text-[11px] font-black uppercase tracking-[0.07em] text-muted-foreground"
             title={title}
           >
             {title}
@@ -237,7 +237,7 @@ function MobileSupportMetric({
         <span className="flex min-w-0 items-center gap-1">
           {icon}
           <span
-            className="truncate text-[10px] font-black uppercase tracking-[0.04em] text-muted-foreground/75"
+            className="truncate text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75"
             title={title}
           >
             {title}
@@ -412,7 +412,7 @@ export function TransportationMobileLoadCard({
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-linear-to-br from-emerald-950/25 via-card to-cyan-950/20 px-2 text-center">
                   <Car className="size-6 text-primary/65" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                     No photo on file
                   </span>
                 </div>
@@ -425,7 +425,7 @@ export function TransportationMobileLoadCard({
             <div className="pointer-events-none absolute left-2 top-2 z-10">
               <Badge
                 className={cn(
-                  "border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide",
+                  "border px-2.5 py-1 text-[11px] font-black uppercase tracking-wide",
                   "shadow-[0_2px_10px_rgba(0,0,0,0.48)] ring-1 ring-black/10 backdrop-blur-sm",
                   HERO_STATUS_BADGE[load.status],
                 )}
@@ -654,7 +654,7 @@ export function TransportationMobileLoadCard({
                   </span>
                   <span
                     className={cn(
-                      "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                      "rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider",
                       STATUS_THEME[currentJourney].badge,
                     )}
                   >

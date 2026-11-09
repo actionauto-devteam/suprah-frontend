@@ -396,7 +396,7 @@ function accessLabel(level?: DriverReviewAccess["level"]) {
 function Field({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-border/60 bg-background/70 p-3.5">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 break-words text-sm font-semibold">
@@ -716,12 +716,12 @@ export function DriverComplianceDocumentsDialog({
                 <Shield className="size-3.5 text-emerald-500" />
                 <span className="font-bold">{accessLabel(access?.level)}</span>
                 {access?.hasActiveLoadRelationship && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[11px]">
                     Exact active-load relationship verified
                   </Badge>
                 )}
                 {access?.activeLoads?.map((load) => (
-                  <Badge key={load.id} variant="secondary" className="text-[10px]">
+                  <Badge key={load.id} variant="secondary" className="text-[11px]">
                     {load.loadNumber || load.id} · {load.status || "Active"}
                   </Badge>
                 ))}
@@ -734,7 +734,7 @@ export function DriverComplianceDocumentsDialog({
               <div className="sm:hidden">
                 <label
                   htmlFor="driver-review-section"
-                  className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground"
+                  className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground"
                 >
                   Review Section
                 </label>

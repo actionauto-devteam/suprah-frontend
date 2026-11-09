@@ -180,7 +180,7 @@ export default function DriverSchedulePage() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                                 Load #
                               </p>
                               <p className="mt-0.5 font-mono text-sm font-bold text-foreground">
@@ -201,7 +201,7 @@ export default function DriverSchedulePage() {
 
                           <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border/60 bg-muted/20 px-3 py-3">
                             <div className="min-w-0">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                                 Origin
                               </p>
                               <p className="mt-0.5 whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-bold">
@@ -213,7 +213,7 @@ export default function DriverSchedulePage() {
                             <ArrowRight className="size-4 text-emerald-500" />
 
                             <div className="min-w-0 text-right">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                                 Destination
                               </p>
                               <p className="mt-0.5 whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-bold">

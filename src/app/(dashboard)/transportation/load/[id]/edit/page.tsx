@@ -49,7 +49,7 @@ export default function EditLoadPage() {
               <Truck className="size-5 text-emerald-500" />
               Edit Load
             </h1>
-            <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mt-0.5">
+            <p className="text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mt-0.5">
               {load ? `#${load.loadNumber}` : "Loading…"}
             </p>
           </div>

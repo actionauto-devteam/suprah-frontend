@@ -466,7 +466,7 @@ export function TransportationMobileDetailsDrawer({
                 {load.loadNumber}
               </h2>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className="max-w-full px-2 py-0.5 text-[10px] font-black uppercase">
+                <Badge variant="outline" className="max-w-full px-2 py-0.5 text-[11px] font-black uppercase">
                   {load.status}
                 </Badge>
                 <span className="inline-flex min-w-0 items-center gap-1 break-words text-[11px] font-bold uppercase text-muted-foreground">
@@ -485,7 +485,7 @@ export function TransportationMobileDetailsDrawer({
                 {quote.firstName} {quote.lastName}
               </h2>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-black uppercase">
+                <Badge variant="outline" className="px-2 py-0.5 text-[11px] font-black uppercase">
                   {formatQuoteStatus(quote.status)}
                 </Badge>
                 <span className="min-w-0 break-words text-[11px] text-muted-foreground">
@@ -596,10 +596,10 @@ export function TransportationMobileDetailsDrawer({
 
             <section className="overflow-hidden rounded-2xl border border-cyan-500/40 bg-linear-to-br from-cyan-500/9 via-background to-blue-500/2 p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                   Estimated Transit
                 </span>
-                <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-black uppercase">
+                <Badge variant="outline" className="px-2 py-0.5 text-[11px] font-black uppercase">
                   {formatQuoteStatus(quote.status)}
                 </Badge>
               </div>
@@ -639,7 +639,7 @@ export function TransportationMobileDetailsDrawer({
             </div>
 
             <section className="rounded-xl border border-border/60 bg-background/45 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+              <p className="text-[11px] font-black uppercase tracking-[0.10em] text-muted-foreground">
                 Customer
               </p>
               <p className="mt-1 break-words text-sm font-black text-foreground">
@@ -682,7 +682,7 @@ export function TransportationMobileDetailsDrawer({
                 ) : (
                   <div className="flex h-40 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20">
                     <Car className="size-8 text-muted-foreground/45" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                       No photo on file
                     </span>
                   </div>
@@ -697,7 +697,7 @@ export function TransportationMobileDetailsDrawer({
                   <Car className="size-5 text-emerald-500" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                     Quote Vehicle
                   </p>
                   <p className="mt-1 break-words text-base font-black leading-snug text-foreground">
@@ -725,7 +725,7 @@ export function TransportationMobileDetailsDrawer({
 
             {quote.vin || quote.vehicleId?.vin ? (
               <section className="rounded-xl border border-border/60 bg-background/45 p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+                <p className="text-[11px] font-black uppercase tracking-[0.10em] text-muted-foreground">
                   VIN
                 </p>
                 <p className="mt-1 break-all font-mono text-xs font-bold text-foreground">
@@ -740,10 +740,10 @@ export function TransportationMobileDetailsDrawer({
           <div className="min-w-0 space-y-3.5">
             <section className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/9 via-background to-emerald-500/2 p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                   Quote Financials
                 </span>
-                <Badge variant="outline" className="px-2 py-0.5 text-[10px] font-black uppercase">
+                <Badge variant="outline" className="px-2 py-0.5 text-[11px] font-black uppercase">
                   {formatQuoteStatus(quote.status)}
                 </Badge>
               </div>
@@ -780,7 +780,7 @@ export function TransportationMobileDetailsDrawer({
             </div>
 
             <section className="rounded-xl border border-border/60 bg-background/45 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+              <p className="text-[11px] font-black uppercase tracking-[0.10em] text-muted-foreground">
                 Customer
               </p>
               <p className="mt-1 break-words text-sm font-black text-foreground">

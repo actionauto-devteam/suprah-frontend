@@ -261,7 +261,7 @@ export function TransportationMobileQuoteCard({
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-linear-to-br from-emerald-950/25 via-card to-cyan-950/20 px-2 text-center">
                   <Car className="size-6 text-primary/65" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                     No photo on file
                   </span>
                 </div>
@@ -274,7 +274,7 @@ export function TransportationMobileQuoteCard({
             <div className="pointer-events-none absolute left-2 top-2">
               <Badge
                 className={cn(
-                  "border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide",
+                  "border px-2.5 py-1 text-[11px] font-black uppercase tracking-wide",
                   "shadow-[0_2px_10px_rgba(0,0,0,0.48)] ring-1 ring-black/10 backdrop-blur-sm",
                   statusMeta.badge,
                 )}

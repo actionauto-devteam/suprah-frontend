@@ -261,7 +261,7 @@ export function DriverTrackerListCard({
           </div>
           <Badge
             variant="secondary"
-            className="h-6 gap-1 px-2 text-[10px] font-bold bg-blue-500/10 text-blue-600 sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-xs"
+            className="h-6 gap-1 px-2 text-[11px] font-bold bg-blue-500/10 text-blue-600 sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-xs"
           >
             <Wifi className="size-3.5" />
             {counts.sharing} Fresh GPS
@@ -454,7 +454,7 @@ export function DriverTrackerListCard({
                         {shipments.length > 0 && (
                           <Badge
                             variant="outline"
-                            className="h-6 border-border/50 px-2 text-[10px] font-semibold sm:h-7 sm:px-2.5 sm:text-[11px]"
+                            className="h-6 border-border/50 px-2 text-[11px] font-semibold sm:h-7 sm:px-2.5 sm:text-[11px]"
                           >
                             {shipments.length} load{shipments.length !== 1 ? "s" : ""}
                           </Badge>
@@ -480,7 +480,7 @@ export function DriverTrackerListCard({
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <Badge
                         variant="outline"
-                        className={`${operationalStatus === "active" ? "hidden md:inline-flex" : "inline-flex"} h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${
+                        className={`${operationalStatus === "active" ? "hidden md:inline-flex" : "inline-flex"} h-auto px-2 py-1 text-[11px] sm:h-7 sm:px-2.5 sm:text-[11px] ${
                           operationalStatus === "active"
                             ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
                             : operationalStatus === "on_leave"
@@ -490,10 +490,10 @@ export function DriverTrackerListCard({
                       >
                         Availability: {availabilityLabel}
                       </Badge>
-                      <Badge variant="outline" className={`h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${statusText[driver.status]}`}>
+                      <Badge variant="outline" className={`h-auto px-2 py-1 text-[11px] sm:h-7 sm:px-2.5 sm:text-[11px] ${statusText[driver.status]}`}>
                         Activity: {statusLabel[driver.status]}
                       </Badge>
-                      <Badge variant="outline" className={`h-auto gap-1 px-2 py-1 text-[10px] sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-[11px] ${tracking.kind === "live" ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
+                      <Badge variant="outline" className={`h-auto gap-1 px-2 py-1 text-[11px] sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-[11px] ${tracking.kind === "live" ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
                         {tracking.kind === "live" ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
                         {tracking.label}
                       </Badge>
@@ -600,7 +600,7 @@ export function DriverTrackerListCard({
                             {selectedAssignment.trackingNumber || selectedAssignment.id}
                           </span>
                           {selectedAssignment.status && (
-                            <Badge variant="outline" className="h-auto whitespace-normal px-1.5 py-0.5 text-[10px]">
+                            <Badge variant="outline" className="h-auto whitespace-normal px-1.5 py-0.5 text-[11px]">
                               {selectedAssignment.status}
                             </Badge>
                           )}
@@ -643,7 +643,7 @@ export function DriverTrackerListCard({
                     )}
                     {eq?.isComplianceExpired && (
                       <div className="mt-1.5 md:hidden">
-                        <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-red-700 dark:text-red-300">
+                        <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-700 dark:text-red-300">
                           <FileCheck2 className="size-3 shrink-0" />
                           Compliance needs attention
                         </span>
@@ -673,7 +673,7 @@ export function DriverTrackerListCard({
                             <MessageSquare className="size-4 shrink-0" />
                             <span>Message</span>
                             {unreadMessageCount > 0 && (
-                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-black leading-4 text-white">
+                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[11px] font-black leading-4 text-white">
                                 {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
                               </span>
                             )}
@@ -869,7 +869,7 @@ export function DriverTrackerListCard({
                           {s.status && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] h-6 shrink-0"
+                              className="text-[11px] h-6 shrink-0"
                             >
                               {s.status}
                             </Badge>
