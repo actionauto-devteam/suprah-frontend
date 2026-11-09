@@ -38,6 +38,7 @@ import {
   type AutomationOptions,
   type AutomationStep,
 } from "@/lib/crmAutomations"
+import { findAutomationTemplate } from "@/lib/crmAutomationTemplates"
 import { TriggerCard, TriggerChooser, TriggerPlaceholder } from "./AutomationTriggerNode"
 import { Connector, StepList, cardWidth } from "./AutomationStepList"
 
@@ -146,12 +147,13 @@ function prepareSteps(steps: AutomationStep[]): AutomationStep[] {
   })
 }
 
-export function AutomationBuilder({ automationId }: { automationId?: string }) {
+export function AutomationBuilder({ automationId, templateKey }: { automationId?: string; templateKey?: string }) {
   const router = useRouter()
   const { getToken } = useAuth()
+  const template = React.useMemo(() => (automationId ? null : findAutomationTemplate(templateKey)), [automationId, templateKey])
   const [options, setOptions] = React.useState<AutomationOptions | null>(null)
   const [saved, setSaved] = React.useState<Automation | null>(null)
-  const [draft, setDraft] = React.useState<AutomationDraft>(EMPTY_DRAFT)
+  const [draft, setDraft] = React.useState<AutomationDraft>(() => (template ? template.build() : EMPTY_DRAFT))
   const [baseline, setBaseline] = React.useState(JSON.stringify(EMPTY_DRAFT))
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [saveError, setSaveError] = React.useState<string | null>(null)
@@ -352,6 +354,9 @@ export function AutomationBuilder({ automationId }: { automationId?: string }) {
             )}
             {!options.engineEnabled && (
               <p role="status" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">{ENGINE_OFF_NOTE}</p>
+            )}
+            {template && !saved && (
+              <p role="status" className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-[11px]">Started from the &quot;{template.name}&quot; template. Check the steps and messages, then Save. It stays a Draft until you turn it on.</p>
             )}
             {status === "test" && (
               <p className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-[11px] text-sky-800 dark:text-sky-200">Test Mode: this automation runs but sends nothing and changes nothing. See what it would do in Monitor with Test mode on.</p>

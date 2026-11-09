@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ChevronDown, ChevronLeft, ChevronRight, Download, FlaskConical, Info, Loader2, RefreshCw, RotateCcw, Search } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Download, FileUp, FlaskConical, History, Info, Loader2, RefreshCw, RotateCcw, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -27,11 +27,13 @@ import {
   type AutomationLogPage,
   type AutomationOptions,
   type MonitorGroup,
+  type MonitorMode,
   type MonitorRange,
   type MonitorStatus,
 } from "@/lib/crmAutomations"
 import { HubState } from "../ShadowStatusBadge"
 import { AutomationExportDialog } from "./AutomationExportDialog"
+import { AutomationImportDialog } from "./AutomationImportDialog"
 import { MonitorChart } from "./AutomationMonitorChart"
 import { ReengagementChart } from "./AutomationReengagementChart"
 
@@ -86,7 +88,10 @@ export function AutomationMonitor({ getToken, automations, options }: {
   automations: Automation[]
   options: AutomationOptions | null
 }) {
-  const [testMode, setTestMode] = React.useState(false)
+  const [mode, setMode] = React.useState<MonitorMode>("live")
+  const testMode = mode === "test"
+  const fromPodium = mode === "podium"
+  const [importOpen, setImportOpen] = React.useState(false)
   const [automation, setAutomation] = React.useState("")
   const [tag, setTag] = React.useState("")
   const [status, setStatus] = React.useState<MonitorStatus | "">("")
@@ -124,11 +129,11 @@ export function AutomationMonitor({ getToken, automations, options }: {
   }, [query, search, tab])
 
   const filters = React.useMemo(() => {
-    const params = new URLSearchParams({ mode: testMode ? "test" : "live", range })
-    if (automation) params.set("automation", automation)
-    if (tag) params.set("tag", tag)
+    const params = new URLSearchParams({ mode, range })
+    if (automation && !fromPodium) params.set("automation", automation)
+    if (tag && !fromPodium) params.set("tag", tag)
     return params
-  }, [automation, range, tag, testMode])
+  }, [automation, fromPodium, mode, range, tag])
 
   const loadSummary = React.useCallback(async () => {
     setSummaryLoading(true)
@@ -220,7 +225,7 @@ export function AutomationMonitor({ getToken, automations, options }: {
     }
   }
 
-  const stepLabel = (type: string) => options?.actions.find((action) => action.key === type)?.label || (type === "wait" ? "Wait" : type === "retry" ? "Retry" : type)
+  const stepLabel = (type: string) => options?.actions.find((action) => action.key === type)?.label || (type === "wait" ? "Wait" : type === "retry" ? "Retry" : type === "podium" ? "From Podium" : type)
   const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value)
     setPage(1)
@@ -231,11 +236,13 @@ export function AutomationMonitor({ getToken, automations, options }: {
     ? `Nothing matches "${search}" in the selected filters and date range.`
     : testMode
       ? `There are no Test Mode ${noun} for the selected filters and date range. Set an automation to Test Mode to see what it would do.`
-      : `There are no automation ${noun} for the selected filters and date range. Try a wider date range.`
+      : fromPodium
+        ? `There are no Podium ${noun} for the selected filters and date range. Use Import from Podium to add the automations export from Podium.`
+        : `There are no automation ${noun} for the selected filters and date range. Try a wider date range.`
 
   return (
     <div className="space-y-4">
-      {summary && !summary.engineEnabled && (
+      {summary && !summary.engineEnabled && !fromPodium && (
         <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">{ENGINE_OFF_NOTE}</p>
       )}
 
@@ -245,29 +252,44 @@ export function AutomationMonitor({ getToken, automations, options }: {
           <option value="">All Statuses</option>
           {MONITOR_STATUS_ORDER.map((value) => <option key={value} value={value}>{MONITOR_STATUS_LABELS[value]}</option>)}
         </select>
-        <label htmlFor="automation-monitor-automation" className="sr-only">Automation</label>
-        <select id="automation-monitor-automation" className={SELECT_CLASS} value={automation} onChange={(event) => resetPage(setAutomation)(event.target.value)}>
-          <option value="">All automations</option>
-          {automations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <label htmlFor="automation-monitor-tag" className="sr-only">Tag</label>
-        <select id="automation-monitor-tag" className={SELECT_CLASS} value={tag} onChange={(event) => resetPage(setTag)(event.target.value)}>
-          <option value="">All tags</option>
-          {tags.map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
+        {!fromPodium && (
+          <>
+            <label htmlFor="automation-monitor-automation" className="sr-only">Automation</label>
+            <select id="automation-monitor-automation" className={SELECT_CLASS} value={automation} onChange={(event) => resetPage(setAutomation)(event.target.value)}>
+              <option value="">All automations</option>
+              {automations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <label htmlFor="automation-monitor-tag" className="sr-only">Tag</label>
+            <select id="automation-monitor-tag" className={SELECT_CLASS} value={tag} onChange={(event) => resetPage(setTag)(event.target.value)}>
+              <option value="">All tags</option>
+              {tags.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </>
+        )}
         <label htmlFor="automation-monitor-range" className="sr-only">Date range</label>
         <select id="automation-monitor-range" className={SELECT_CLASS} value={range} onChange={(event) => resetPage(setRange)(event.target.value as MonitorRange)}>
           {(Object.keys(MONITOR_RANGE_LABELS) as MonitorRange[]).map((value) => <option key={value} value={value}>{MONITOR_RANGE_LABELS[value]}</option>)}
         </select>
         <label className="flex items-center gap-2 text-xs font-semibold">
-          <Switch checked={testMode} onCheckedChange={(checked) => resetPage(setTestMode)(Boolean(checked))} aria-label="Test mode" />
+          <Switch checked={testMode} onCheckedChange={(checked) => resetPage(setMode)(checked ? "test" : "live")} aria-label="Test mode" />
           <FlaskConical className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           Test Mode
         </label>
-        <div className="flex gap-2 sm:ml-auto">
+        <label className="flex items-center gap-2 text-xs font-semibold">
+          <Switch checked={fromPodium} onCheckedChange={(checked) => resetPage(setMode)(checked ? "podium" : "live")} aria-label="From Podium" />
+          <History className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          From Podium
+        </label>
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
           <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={refresh} disabled={summaryLoading || listLoading} aria-label="Refresh">
             <RefreshCw className={cn("h-3.5 w-3.5", (summaryLoading || listLoading) && "animate-spin")} />
           </Button>
+          {options?.canEdit && (
+            <Button type="button" variant="outline" size="sm" className="h-9 flex-1 sm:flex-none" onClick={() => setImportOpen(true)}>
+              <FileUp className="h-3.5 w-3.5" />
+              Import from Podium
+            </Button>
+          )}
           <Button type="button" size="sm" className="h-9 flex-1 sm:flex-none" onClick={() => setExportOpen(true)} disabled={exporting}>
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             Export as CSV
@@ -325,6 +347,7 @@ export function AutomationMonitor({ getToken, automations, options }: {
           </div>
         )}
         {testMode && <p className="text-[11px] text-muted-foreground">Test Mode shows what automations in Test Mode would have done. Nothing was sent and no lead was changed.</p>}
+        {fromPodium && <p className="text-[11px] text-muted-foreground">From Podium shows automation events imported from a Podium export. They are only a record: Suprah did not send them and does not run them.</p>}
 
         <HubState loading={listLoading && !list} error={list ? null : listError} onRetry={loadList}>
           {list && (
@@ -410,6 +433,16 @@ export function AutomationMonitor({ getToken, automations, options }: {
       </div>
 
       <ReengagementChart getToken={getToken} />
+
+      <AutomationImportDialog
+        open={importOpen}
+        getToken={getToken}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          if (mode === "podium") refresh()
+          else resetPage(setMode)("podium")
+        }}
+      />
 
       {exportOpen && (
         <AutomationExportDialog

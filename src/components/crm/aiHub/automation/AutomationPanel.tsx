@@ -55,6 +55,7 @@ import { HubCard, HubState } from "../ShadowStatusBadge"
 import { AutomationTagsDialog } from "./AutomationTagsDialog"
 import { AutomationMonitor } from "./AutomationMonitor"
 import { AutomationAlertsDialog } from "./AutomationAlertsDialog"
+import { AutomationBrowse } from "./AutomationBrowse"
 import { AddSyncButton, DataSyncList } from "./DataSyncList"
 
 type GetToken = () => Promise<string | null>
@@ -66,10 +67,6 @@ const VIEWS: Array<{ value: AutomationView; label: string; icon: React.Component
   { value: "browse", label: "Browse", icon: LayoutGrid },
   { value: "sync", label: "Data Sync", icon: ArrowLeftRight },
 ]
-
-const EMPTY_STATES: Record<Exclude<AutomationView, "manage" | "monitor" | "sync">, { title: string; body: string }> = {
-  browse: { title: "No ready-made automations yet", body: "Ready-made automations will show here." },
-}
 
 const SELECT_CLASS = "h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs sm:w-auto"
 const BUILDER_PATH = "/crm/settings/ai-agent/automations"
@@ -259,8 +256,8 @@ export function AutomationPanel({ getToken }: { getToken: GetToken }) {
           <DataSyncList getToken={getToken} />
         ) : view === "monitor" ? (
           <AutomationMonitor getToken={getToken} automations={items || []} options={options} />
-        ) : view !== "manage" ? (
-          <EmptyState icon={VIEWS.find((item) => item.value === view)?.icon || Activity} {...EMPTY_STATES[view]} />
+        ) : view === "browse" ? (
+          <AutomationBrowse canEdit={canEdit} />
         ) : (
           <HubState loading={loading && !items} error={items ? null : error} onRetry={load}>
             {items && items.length === 0 ? (

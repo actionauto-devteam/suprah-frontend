@@ -150,6 +150,8 @@ export function triggerHelp(trigger: AutomationTrigger, options: Pick<Automation
       return "Runs when our last text to an open lead got no reply for the time you pick. It runs once for each quiet spell, and texts sent by an automation do not start a new one."
     case "voicemail_received":
       return "Runs when a caller leaves a voicemail on one of your Suprah numbers."
+    case "call_abandoned":
+      return "Runs when a caller hangs up before anyone answers. These calls also count as Missed calls, so use this or a Missed call automation, not both."
     case "vehicle_added":
       return "Runs for each open lead from the last 180 days whose vehicle of interest has the same year, make and model as a vehicle added to inventory. Up to 25 leads per vehicle."
     case "vehicle_price_dropped":
@@ -323,13 +325,27 @@ export type AutomationRunStatus = "filtered" | "waiting" | "running" | "complete
 export type MonitorStatus = "message_sent" | "processed" | "scheduled" | "filtered" | "failed"
 export type MonitorRange = "today" | "last_7_days" | "last_30_days" | "month_to_date" | "last_month"
 export type MonitorGroup = "day" | "week" | "month"
+export type MonitorMode = "live" | "test" | "podium"
 export type LogStatus = "sent" | "test" | "skipped" | "failed" | "done"
+
+export const PODIUM_REQUIRED_COLUMNS = ["Automation Type", "Created At", "Status"]
+export const PODIUM_KEY_COLUMNS = ["Automation Type", "Data Feed Name", "Automation Display Name", "Created At", "Customer Phone Number", "Customer Email", "Customer Name", "Location Name"]
+export const PODIUM_BATCH_SIZE = 500
+export const PODIUM_MAX_ROWS = 20000
+
+export interface PodiumImportResult {
+  added: number
+  updated: number
+  unchanged: number
+  skipped: number
+  tooOld: number
+}
 
 export interface AutomationRunRow {
   id: string
   automationId: string
   automationName: string
-  mode: "live" | "test"
+  mode: MonitorMode
   event: string
   status: AutomationRunStatus
   display: MonitorStatus
@@ -351,7 +367,7 @@ export interface MonitorRangeInfo {
 }
 
 export interface AutomationActivityPage {
-  mode: "live" | "test"
+  mode: MonitorMode
   engineEnabled: boolean
   range: MonitorRangeInfo
   page: number
@@ -361,7 +377,7 @@ export interface AutomationActivityPage {
 }
 
 export interface AutomationActivitySummary {
-  mode: "live" | "test"
+  mode: MonitorMode
   engineEnabled: boolean
   range: MonitorRangeInfo
   group: MonitorGroup
@@ -387,7 +403,7 @@ export interface AutomationLogRow {
 }
 
 export interface AutomationLogPage {
-  mode: "live" | "test"
+  mode: MonitorMode
   range: MonitorRangeInfo
   page: number
   pages: number
@@ -397,7 +413,7 @@ export interface AutomationLogPage {
 
 export interface AutomationExportCount {
   view: "events" | "logs"
-  mode: "live" | "test"
+  mode: MonitorMode
   range: { from: string; to: string }
   total: number
   limit: number
