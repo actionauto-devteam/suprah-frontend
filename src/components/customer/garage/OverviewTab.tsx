@@ -613,7 +613,8 @@ export function OverviewTab() {
                     )}>
                       {notif.title}
                     </p>
-                    <p className="text-[10px] text-muted-foreground truncate mt-0.5">{notif.message}</p>
+                    {/* Two readable lines of each update instead of one tiny cut-off line (2026-11-09). */}
+                    <p className="mt-0.5 line-clamp-2 break-words text-xs text-muted-foreground">{notif.message}</p>
                   </div>
                   {!notif.isRead && (
                     <span className="shrink-0 mt-1.5 h-2 w-2 rounded-full bg-primary" />
