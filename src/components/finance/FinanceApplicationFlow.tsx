@@ -212,7 +212,7 @@ export function FinanceApplicationFlow({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const onSubmit = async (data: FinanceApplicationData) => {
+  const onSubmit = async () => {
     // Hard Lockdown: If on the final review step, require the
     // explicit confirmation checkbox before proceeding.
     if (step === 6 && !isConfirmed) {
@@ -228,7 +228,7 @@ export function FinanceApplicationFlow({
 
     setIsSubmitting(true);
     try {
-      console.log("Submitting Finance Application:", data);
+      // Never log the application: it holds the SSN, date of birth, license number and income (2026-11-09).
       // Connect to production API here
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
