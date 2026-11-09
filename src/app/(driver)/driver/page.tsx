@@ -127,6 +127,7 @@ import { locationBlockedChip } from "@/lib/driver-location-messages";
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { formatMountainDateTime } from "@/lib/mountain-time";
 import { WHO_SEES_DRIVER_LOCATION } from "@/lib/driver-privacy";
+import { verificationDetailsText } from "@/lib/driver-verification-reminder";
 
 function formatDashboardLoadLocation(
   location: { city?: string; state?: string; address?: string } | null | undefined,
@@ -314,6 +315,8 @@ export default function DriverDashboardPage() {
     completedLoads: number;
     /** False until the driver sets their trailer type (capacity is then the default of 1). */
     trailerSetUp?: boolean;
+    /** Driver Verification details still missing (labels such as "VIN"); empty once verified. */
+    verificationDetailsMissing?: string[];
   } | null>(null);
   const [kpiSnapshot, setKpiSnapshot] = React.useState<DriverKpiSnapshot | null>(
     () => readDriverKpiSnapshot(user?.id),
@@ -2056,6 +2059,21 @@ export default function DriverDashboardPage() {
               Before then, press Replace on {(dashStats?.complianceExpiringItems?.length ?? 0) > 1 ? "each one" : "it"} on your{" "}
               <Link href="/driver/documents" className="underline font-bold">Documents page</Link> and upload the
               renewed document with its new expiration date. Once it&apos;s approved, this notice goes away.
+            </p>
+          </div>
+        </div>
+      )}
+      {verificationDetailsText(dashStats?.verificationDetailsMissing) && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+          <Shield className="size-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-base font-semibold text-amber-700 dark:text-amber-400">
+              Finish your driver verification
+            </p>
+            <p className="text-sm leading-relaxed text-amber-700/90 dark:text-amber-500">
+              Add your {verificationDetailsText(dashStats?.verificationDetailsMissing)} on your{" "}
+              <Link href="/driver/documents" className="underline font-bold">Documents page</Link>, so the Suprah AI
+              team can verify your account. This notice goes away once they&apos;re saved.
             </p>
           </div>
         </div>
