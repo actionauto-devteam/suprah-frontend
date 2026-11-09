@@ -82,7 +82,7 @@ function CustomerShellContent({ children }: CustomerShellProps) {
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => router.push("/customer/settings")} className="cursor-pointer">
-                                        Dashboard Settings
+                                        Profile &amp; Settings
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }} className="text-red-600 cursor-pointer">
