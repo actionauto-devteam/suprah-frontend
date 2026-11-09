@@ -179,7 +179,7 @@ export function OverviewTab() {
         <div className="relative p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 {greeting}
               </p>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground uppercase leading-tight mt-0.5">
@@ -219,7 +219,7 @@ export function OverviewTab() {
               <>
                 <span className="text-border/80 text-xs">·</span>
                 <Link href="/customer/notifications" className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-black">
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-black leading-none">
                     {unreadCount}
                   </span>
                   new alert{unreadCount !== 1 ? "s" : ""}
@@ -296,7 +296,7 @@ export function OverviewTab() {
                         </span>
                       )}
                       {abs === 0 && (
-                        <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-primary/90 backdrop-blur-sm px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-primary-foreground">
+                        <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-primary/90 backdrop-blur-sm px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wider text-primary-foreground">
                           <Star className="h-3 w-3" /> Member Price
                         </span>
                       )}
@@ -469,7 +469,7 @@ export function OverviewTab() {
 
       {/* Quick Actions */}
       <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 px-0.5">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3 px-0.5">
           Quick Actions
         </p>
         <div className="grid grid-cols-2 gap-3">
@@ -531,7 +531,7 @@ export function OverviewTab() {
                   className="flex items-center gap-3 rounded-xl border border-border/30 bg-muted/30 p-3 hover:border-primary/20 transition-colors dark:bg-zinc-800/40"
                 >
                   <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-primary/10 shrink-0 text-center">
-                    <span className="text-[10px] font-bold text-primary uppercase leading-none">
+                    <span className="text-[11px] font-bold text-primary uppercase leading-none">
                       {appt.startTime ? new Date(appt.startTime).toLocaleDateString('en-US', { month: "short", timeZone: "America/Denver" }) : "—"}
                     </span>
                     <span className="text-base font-black text-primary leading-none">
@@ -550,7 +550,7 @@ export function OverviewTab() {
                   </div>
                   <Badge
                     variant="secondary"
-                    className="shrink-0 text-[10px] capitalize rounded-full px-2"
+                    className="shrink-0 text-[11px] capitalize rounded-full px-2"
                   >
                     {appt.type || "appt"}
                   </Badge>
@@ -572,7 +572,7 @@ export function OverviewTab() {
               </div>
               <p className="text-sm font-bold text-foreground">Notifications</p>
               {unreadCount > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-black px-1">
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-black leading-none px-1">
                   {unreadCount}
                 </span>
               )}

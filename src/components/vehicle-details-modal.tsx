@@ -245,10 +245,10 @@ export function VehicleDetailsModal({
 
         <div className="relative flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-border/40 bg-background/95 pl-6 pr-2 py-1.5 backdrop-blur-xl">
           <div className="min-w-0">
-            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-primary/80">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/80">
               Vehicle Inspector
             </p>
-            <p className="text-[9px] leading-tight text-muted-foreground">
+            <p className="text-[11px] leading-tight text-muted-foreground">
               Resize · inventory stays available
             </p>
           </div>

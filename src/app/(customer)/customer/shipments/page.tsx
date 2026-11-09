@@ -438,7 +438,7 @@ export default function MyShipmentsPage() {
           <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <Truck className="size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-400">
+              <span className="text-[11px] font-black uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-400">
                 Shipping
               </span>
             </div>
