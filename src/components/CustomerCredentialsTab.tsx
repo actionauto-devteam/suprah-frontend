@@ -37,6 +37,7 @@ import {
   CreateCustomerInput,
 } from "@/hooks/useCustomers"
 import { VehicleDetailsModal } from "@/components/vehicle-details-modal"
+import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import type { Vehicle } from "@/types/inventory"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
@@ -683,6 +684,7 @@ function CustomerDetail({
   const [vehicleModalOpen, setVehicleModalOpen] = React.useState(false)
   const [vehicleForModal, setVehicleForModal] = React.useState<Vehicle | null>(null)
   const [vehicleSearching, setVehicleSearching] = React.useState(false)
+  const [dialOpen, setDialOpen] = React.useState(false)
   const { getToken } = useAuth()
   const liveRecord = useQuery({
     queryKey: ["customer-record", customer._id],
@@ -831,10 +833,16 @@ function CustomerDetail({
                   <Mail className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-foreground shrink-0" />
                   <span className="text-[13px] text-muted-foreground group-hover:text-foreground transition-colors truncate">{customer.email}</span>
                 </a>
-                <a href={`tel:${customer.phone}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/60 transition-colors group">
+                <button
+                  type="button"
+                  onClick={() => setDialOpen(true)}
+                  disabled={!customer.phone}
+                  aria-label={customer.phone ? `Call ${customer.phone}` : "No phone number"}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60 transition-colors group disabled:cursor-default disabled:hover:bg-transparent"
+                >
                   <Phone className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-foreground shrink-0" />
                   <span className="text-[13px] text-muted-foreground group-hover:text-foreground transition-colors">{customer.phone}</span>
-                </a>
+                </button>
                 {customer.alternatePhone && (
                   <div className="flex items-center gap-3 px-3 py-2.5">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground/25 shrink-0" />
@@ -1037,6 +1045,15 @@ function CustomerDetail({
         onInquiryClick={() => { }}
         onApplyNow={() => { }}
       />
+
+      {dialOpen && (
+        <DialPadDialog
+          open={dialOpen}
+          onOpenChange={setDialOpen}
+          phone={customer.phone || ""}
+          name={`${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || undefined}
+        />
+      )}
     </>
   );
 }

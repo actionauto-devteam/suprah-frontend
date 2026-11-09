@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect } from "react";
 import { TelnyxRTC } from "@telnyx/webrtc";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { fmtShortDateTimeMDT } from "@/lib/timezone";
 import { commActions, getCommState } from "@/lib/communicationStore";
 
 const READY_TIMEOUT_MS = 12_000;
@@ -44,7 +46,12 @@ async function reportCall(body: Record<string, any>) {
 }
 
 interface LoggedCall {
-  call?: { _id?: string; from?: string; lineLabel?: string };
+  call?: {
+    _id?: string;
+    from?: string;
+    lineLabel?: string;
+    callbackPermission?: { attempt?: number; maxAttempts?: number; expiresAt?: string } | null;
+  };
   correlation?: Record<string, unknown>;
 }
 
@@ -240,6 +247,13 @@ export function useTelnyxRTC() {
       } catch (err) {
         commActions.setActiveCall(null);
         throw err;
+      }
+
+      const callback = logged?.call?.callbackPermission;
+      if (callback?.attempt && callback.maxAttempts && callback.expiresAt) {
+        toast.info("Calling back a Do Not Contact customer", {
+          description: `Allowed because they called you. Try ${callback.attempt} of ${callback.maxAttempts}, until ${fmtShortDateTimeMDT(callback.expiresAt)}.`,
+        });
       }
 
       const fromNumber = logged?.call?.from || callerNumber;
