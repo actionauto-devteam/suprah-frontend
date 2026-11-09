@@ -431,8 +431,9 @@ export default function DriverTrackerPage() {
   const cameraActionRef = React.useRef(0);
   const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(null);
   // Follow: choosing a driver follows them straight away when their exact
-  // location is visible; moving the map yourself pauses it (Resume brings it
-  // back); Stop, Show all, or losing sight of the driver's location turns it off.
+  // location is visible; dragging the map yourself pauses it (Resume brings it
+  // back) while zooming keeps following; Stop, Show all, or losing sight of the
+  // driver's location turns it off.
   const [followMode, setFollowMode] = React.useState<FollowMode>("off");
   const followingDriver = followMode === "following";
   // While the map is still flying in on a driver just chosen, following waits
@@ -2439,7 +2440,7 @@ export default function DriverTrackerPage() {
     if (!map || !isMapReady) return;
     let cancelled = false;
     let layer: DriverFleetLayer | null = null;
-    // Moving the map yourself pauses Follow (Resume brings it back).
+    // Dragging the map yourself pauses Follow (Resume brings it back); zooming doesn't.
     const pauseFollowOnManualMove = () => {
       cameraActionRef.current += 1;
       setFollowMode(mode => (mode === "following" ? "paused" : mode));
@@ -2604,6 +2605,17 @@ export default function DriverTrackerPage() {
       if (focusLayerRef.current === layer) focusLayerRef.current = null;
     };
   }, [isMapReady, normalizedToken, googleMapGeneration]);
+
+  // While following, zooming keeps the driver in the middle of the Mapbox map
+  // (Google zooms where the pointer is; the next update brings the driver back).
+  React.useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (GOOGLE_MAPS || !map?.scrollZoom || !isMapReady) return;
+    const zoomOptions = followingDriver ? ({ around: "center" } as const) : undefined;
+    map.scrollZoom.disable();
+    map.scrollZoom.enable(zoomOptions);
+    map.touchZoomRotate?.enable(zoomOptions);
+  }, [followingDriver, isMapReady]);
 
   React.useEffect(() => {
     if (!followingDriver || !selectedDriver || !isMapReady) return;
