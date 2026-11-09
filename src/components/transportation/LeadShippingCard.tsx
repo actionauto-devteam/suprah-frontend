@@ -98,7 +98,7 @@ export function LeadShippingCard({ lead }: { lead: Lead }) {
               )}
             >
               {isLinked && (
-                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                <p className="mb-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                   The quote you opened
                 </p>
               )}

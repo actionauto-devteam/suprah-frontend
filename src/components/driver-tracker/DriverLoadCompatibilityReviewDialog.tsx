@@ -95,7 +95,7 @@ export function DriverLoadCompatibilityReviewDialog({
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
               Assignment
             </p>
             <p className="mt-1 break-all text-sm font-black [overflow-wrap:anywhere]">

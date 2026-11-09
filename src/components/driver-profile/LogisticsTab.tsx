@@ -84,7 +84,7 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
               >
                 <div className={cn("size-4 rounded-full", opt.color)} />
                 <span className="text-sm font-semibold">{opt.label}</span>
-                <span className="text-[10px] text-muted-foreground text-center leading-tight">{opt.description}</span>
+                <span className="text-[11px] text-muted-foreground text-center leading-tight">{opt.description}</span>
               </button>
             ))}
           </div>
@@ -143,7 +143,7 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
               step={25}
               className="w-full"
             />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
+            <div className="flex justify-between text-[11px] text-muted-foreground">
               <span>25 mi</span>
               <span>3,000 mi</span>
             </div>

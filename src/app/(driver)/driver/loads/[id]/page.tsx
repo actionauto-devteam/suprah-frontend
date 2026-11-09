@@ -385,7 +385,7 @@ export default function LoadDetailPage() {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground font-mono">{data.loadNumber || loadId.slice(-8)}</h1>
-                    <Badge className={cn('text-[10px]', theme.bg, theme.text, theme.border)}>{status}</Badge>
+                    <Badge className={cn('text-[11px]', theme.bg, theme.text, theme.border)}>{status}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">{vehicleName || `${data.pickupLocation?.city || "Origin not provided"} → ${data.deliveryLocation?.city || "Destination not provided"}`}</p>
                 </div>
@@ -393,7 +393,7 @@ export default function LoadDetailPage() {
               {data.pricing?.carrierPayAmount != null && data.pricing.carrierPayAmount > 0 && (
                 <div className="text-right hidden sm:block">
                   <span className="text-3xl font-black tabular-nums text-foreground">${data.pricing.carrierPayAmount.toLocaleString()}</span>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Carrier Pay</p>
+                  <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-widest">Carrier Pay</p>
                 </div>
               )}
             </div>
@@ -420,7 +420,7 @@ export default function LoadDetailPage() {
                         {i < stepIdx ? <CheckCircle2 className="size-3.5" /> : i === stepIdx ? <CircleDot className="size-3.5" /> : <span className="size-1.5 rounded-full bg-current" />}
                       </span>
                     </span>
-                    <span className={cn('text-[10px] font-semibold leading-tight', i <= stepIdx ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40')}>{step.label}</span>
+                    <span className={cn('text-[11px] font-semibold leading-tight', i <= stepIdx ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40')}>{step.label}</span>
                   </li>
                 ))}
               </ol>
@@ -531,10 +531,10 @@ export default function LoadDetailPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold">{`${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Unknown Vehicle'}</p>
                         <div className="flex flex-wrap gap-2 mt-0.5">
-                          {v.color && <span className="text-[10px] text-muted-foreground">{v.color}</span>}
-                          {v.condition && <span className="text-[10px] text-muted-foreground">· {v.condition}</span>}
-                          {v.vin && <span className="text-[10px] text-muted-foreground font-mono">VIN: {v.vin}</span>}
-                          {v.trailerType && <Badge variant="outline" className="text-[9px] h-4">{trailerLabel(v.trailerType)}</Badge>}
+                          {v.color && <span className="text-[11px] text-muted-foreground">{v.color}</span>}
+                          {v.condition && <span className="text-[11px] text-muted-foreground">· {v.condition}</span>}
+                          {v.vin && <span className="text-[11px] text-muted-foreground font-mono">VIN: {v.vin}</span>}
+                          {v.trailerType && <Badge variant="outline" className="text-[11px] h-4 leading-none">{trailerLabel(v.trailerType)}</Badge>}
                         </div>
                       </div>
                     </div>
@@ -569,7 +569,7 @@ export default function LoadDetailPage() {
               {data.trailerType && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Trailer Required</span>
-                  <Badge variant="outline" className="text-[10px] h-5">
+                  <Badge variant="outline" className="text-[11px] h-5">
                     {data.trailerType.replace(/_/g, " ")}
                   </Badge>
                 </div>
@@ -589,7 +589,7 @@ export default function LoadDetailPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-bold">Contract Signed</p>
                       {data.driverContract.signedAt && (
-                        <p className="text-[10px] text-muted-foreground">{fmtDateTime(data.driverContract.signedAt)}</p>
+                        <p className="text-[11px] text-muted-foreground">{fmtDateTime(data.driverContract.signedAt)}</p>
                       )}
                     </div>
                   </div>
@@ -645,7 +645,7 @@ export default function LoadDetailPage() {
                 </div>
                 <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
                   {data.proofOfDelivery.submittedAt && <span>Submitted: {fmtDateTime(data.proofOfDelivery.submittedAt)}</span>}
-                  {data.proofOfDelivery.confirmedAt && <Badge className="bg-green-500/10 text-green-600 border-green-500/20 gap-1 text-[10px]"><CheckCircle2 className="size-2.5" />Confirmed {fmtDate(data.proofOfDelivery.confirmedAt)}</Badge>}
+                  {data.proofOfDelivery.confirmedAt && <Badge className="bg-green-500/10 text-green-600 border-green-500/20 gap-1 text-[11px]"><CheckCircle2 className="size-2.5" />Confirmed {fmtDate(data.proofOfDelivery.confirmedAt)}</Badge>}
                   {data.proofOfDelivery.note && <span className="italic">&ldquo;{data.proofOfDelivery.note}&rdquo;</span>}
                 </div>
               </CardContent>
@@ -728,5 +728,5 @@ function ContactInfo({ contact }: { contact: any }) {
 }
 
 function NoteBlock({ label, text }: { label: string; text: string }) {
-  return <div><p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</p><p className="text-sm leading-relaxed">{text}</p></div>;
+  return <div><p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</p><p className="text-sm leading-relaxed">{text}</p></div>;
 }

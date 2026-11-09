@@ -117,7 +117,7 @@ export function VehicleImageLightbox({
           <p className="truncate text-sm font-black tracking-tight text-white">
             {activeItem?.label || "Vehicle"}
           </p>
-          <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
+          <p className="mt-0.5 truncate text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">
             {items.length > 0
               ? `Vehicle ${safeIndex + 1} of ${items.length}`
               : "No vehicle image"}
@@ -227,7 +227,7 @@ export function VehicleImageLightbox({
         className="flex min-h-11 shrink-0 items-center justify-center border-t border-white/10 bg-black/35 px-4 text-center transition-colors hover:bg-white/5 active:bg-white/10"
         aria-label="Close vehicle image viewer"
       >
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">
           <Car className="size-3.5" />
           Tap outside the image to close
         </span>

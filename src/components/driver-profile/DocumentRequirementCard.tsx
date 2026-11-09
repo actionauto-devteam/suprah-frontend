@@ -84,7 +84,7 @@ export function DocumentRequirementCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-medium text-foreground">{item.label}</h3>
             {item.required && (
-              <span className="rounded border border-border px-1.5 py-px text-[10px] text-muted-foreground">
+              <span className="rounded border border-border px-1.5 py-px text-[11px] text-muted-foreground">
                 Required
               </span>
             )}

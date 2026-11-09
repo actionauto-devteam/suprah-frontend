@@ -76,7 +76,7 @@ function DispatcherAvatar({ name, avatar }: { name: string; avatar?: string | nu
   return (
     <Avatar className="size-9 shrink-0 border border-border/60">
       {src && <AvatarImage src={src} alt={name} className="object-cover" />}
-      <AvatarFallback className="bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+      <AvatarFallback className="bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
         {nameInitials(name)}
       </AvatarFallback>
     </Avatar>
@@ -86,7 +86,7 @@ function DispatcherAvatar({ name, avatar }: { name: string; avatar?: string | nu
 function CustomerAvatar({ name }: { name: string }) {
   return (
     <Avatar className="size-9 shrink-0 border border-sky-500/25">
-      <AvatarFallback className="bg-sky-500/10 text-[10px] font-black text-sky-700 dark:text-sky-300">{nameInitials(name)}</AvatarFallback>
+      <AvatarFallback className="bg-sky-500/10 text-[11px] font-black text-sky-700 dark:text-sky-300">{nameInitials(name)}</AvatarFallback>
     </Avatar>
   );
 }
@@ -269,12 +269,12 @@ function DriverDispatchChatView() {
           chips={
             <>
               {chat.loadNumber && (
-                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[11px] font-bold text-sky-700 dark:text-sky-300">
                   <Truck className="size-2.5" aria-hidden="true" /> {chat.loadNumber}
                 </span>
               )}
               {!chat.open && (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">Closed</span>
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">Closed</span>
               )}
             </>
           }
@@ -297,7 +297,7 @@ function DriverDispatchChatView() {
           title={channel.name}
           chips={
             closed ? (
-              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">Closed</span>
+              <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">Closed</span>
             ) : undefined
           }
           subtitle={channel.lastMessagePreview || channel.description || "No messages yet"}
@@ -324,9 +324,9 @@ function DriverDispatchChatView() {
         title={name}
         chips={
           inactive ? (
-            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted-foreground">Inactive</span>
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase text-muted-foreground">Inactive</span>
           ) : row.auto ? (
-            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
               Current load
             </span>
           ) : null
@@ -470,7 +470,7 @@ function DriverDispatchChatView() {
               <div className="p-3">
                 <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-center">
                   <p className="text-xs font-bold text-red-600 dark:text-red-400">Could not load your chats</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">{inbox.error}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{inbox.error}</p>
                   <Button type="button" variant="outline" size="sm" className="max-md:min-h-11 mt-3 h-8 gap-1.5 text-xs" onClick={() => void inbox.refresh()}>
                     <RefreshCw className="size-3.5" /> Try again
                   </Button>

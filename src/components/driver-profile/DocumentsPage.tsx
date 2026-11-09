@@ -1248,7 +1248,7 @@ export const DocumentsPage: React.FC = () => {
                     </span>
                     <span
                       className={cn(
-                        'block text-[10px] sm:text-[11px] font-medium',
+                        'block text-[11px] sm:text-[11px] font-medium',
                         active ? 'text-foreground' : 'text-muted-foreground',
                       )}
                     >

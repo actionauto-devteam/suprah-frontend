@@ -192,7 +192,7 @@ export function DriverLocationRequiredGate() {
               </div>
 
               <div className="rounded-2xl border border-border/60 bg-muted/30 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                   What to do
                 </p>
                 {inNativeApp ? (
@@ -277,7 +277,7 @@ export function DriverLocationRequiredGate() {
 
           <div className="flex items-start gap-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
               {locationRequirementReason === "dispatch_retained_load"
                 ? "Dispatch requires GPS while retained loads stay assigned. SUPRAH reconnects location without interrupting your page whenever possible."
                 : "SUPRAH first reconnects GPS without interrupting your page. A one-time automatic refresh is used only if the browser cannot activate the restored location permission without it."}

@@ -138,7 +138,7 @@
                 placeholder="Give Dispatch any information needed to make the decision."
                 className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
-              <p className="text-right text-[10px] text-muted-foreground">{message.length}/1500</p>
+              <p className="text-right text-[11px] text-muted-foreground">{message.length}/1500</p>
             </div>
           </div>
 

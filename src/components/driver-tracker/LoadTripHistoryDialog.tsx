@@ -181,7 +181,7 @@ export function LoadTripHistoryDialog({ open, onOpenChange, loadId }: LoadTripHi
               {newestFirst.slice(0, shown).map((point) => (
                 <li key={`${point.measuredAt}:${point.source}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
                   <span className="min-w-44 font-medium">{formatWhen(point.measuredAt)}</span>
-                  <Badge variant="outline" className="text-[10px]">{point.loadStatus}</Badge>
+                  <Badge variant="outline" className="text-[11px]">{point.loadStatus}</Badge>
                   <span className="text-muted-foreground">{SOURCE_LABELS[point.source] ?? point.source}</span>
                   {history.drivers.length > 1 && (
                     <span className="text-muted-foreground">{driverNames.get(point.driverId) ?? "Driver"}</span>

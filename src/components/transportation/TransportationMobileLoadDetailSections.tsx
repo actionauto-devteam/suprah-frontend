@@ -175,7 +175,7 @@ function DetailField({
           : "border-border/60 bg-background/45",
       )}
     >
-      <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground">
         {icon}
         <span className="min-w-0 break-words">{label}</span>
       </div>
@@ -210,7 +210,7 @@ function RouteBlock({
     <div className="min-w-0 rounded-xl border border-border/60 bg-background/45 p-3">
       <div
         className={cn(
-          "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em]",
+          "flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em]",
           tone === "emerald" ? "text-emerald-500" : "text-cyan-500",
         )}
       >
@@ -225,7 +225,7 @@ function RouteBlock({
         </p>
       ) : null}
       {contact ? (
-        <p className="mt-1.5 flex min-w-0 items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground">
+        <p className="mt-1.5 flex min-w-0 items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
           <User className="mt-0.5 size-3 shrink-0" />
           <span className="min-w-0 break-words">{contact}</span>
         </p>
@@ -275,12 +275,12 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
       {journey ? (
         <section className="rounded-xl border border-border/60 bg-background/45 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
               Journey Progress
             </span>
             <Badge
               className={cn(
-                "border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                "border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider",
                 JOURNEY_THEME[journey].badge,
               )}
             >
@@ -314,12 +314,12 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
         )}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">
             Current Schedule Focus
           </span>
           <Badge
             className={cn(
-              "border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+              "border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider",
               STATUS_BADGE[load.status],
             )}
           >
@@ -431,7 +431,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
               {item.isCurrent ? (
                 <span
                   className={cn(
-                    "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest",
+                    "rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-widest",
                     item.tone === "emerald" &&
                       "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                     item.tone === "cyan" &&
@@ -444,7 +444,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
                 </span>
               ) : null}
             </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground">
               {item.label}
             </p>
             <p className="mt-1 break-words text-sm font-black tracking-tight text-foreground">
@@ -454,7 +454,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
                   : formatScheduleDate(item.value)
                 : "Not set"}
             </p>
-            <p className="mt-1 break-words text-[10px] leading-relaxed text-muted-foreground">
+            <p className="mt-1 break-words text-[11px] leading-relaxed text-muted-foreground">
               {item.helper}
             </p>
           </div>
@@ -478,7 +478,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
       {load.proofOfPickup?.imageUrl ? (
         <section className="overflow-hidden rounded-xl border border-orange-500/30 bg-orange-500/[0.04]">
           <div className="border-b border-orange-500/20 px-3.5 py-2.5">
-            <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-orange-700 dark:text-orange-300">
+            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-orange-700 dark:text-orange-300">
               <ImageIcon className="size-3.5" /> Pickup Proof
             </p>
           </div>
@@ -488,7 +488,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
             className="max-h-60 w-full object-contain bg-muted/20"
           />
           <div className="space-y-1 px-3.5 py-3">
-            <p className="text-[10px] font-semibold text-muted-foreground">
+            <p className="text-[11px] font-semibold text-muted-foreground">
               Submitted {formatDateTime(load.proofOfPickup.submittedAt)}
             </p>
             {load.proofOfPickup.note ? (
@@ -502,7 +502,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
 
       {load.dates?.notes ? (
         <div className="rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
             Schedule Notes
           </p>
           <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/85">
@@ -515,7 +515,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
         <div className="rounded-xl border border-border/60 bg-background/45 p-3">
           {load.additionalInfo?.notes ? (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Notes
               </p>
               <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">
@@ -525,7 +525,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
           ) : null}
           {load.additionalInfo?.instructions ? (
             <div className={load.additionalInfo?.notes ? "mt-3 border-t border-border/50 pt-3" : ""}>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Instructions
               </p>
               <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">
@@ -566,7 +566,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
+        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
           Vehicles on {load.loadNumber}
         </p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
@@ -599,7 +599,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
               ) : (
                 <div className="flex h-32 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20">
                   <ImageIcon className="size-7 text-muted-foreground/45" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                     No photo
                   </span>
                 </div>
@@ -609,7 +609,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
               </span>
             </button>
 
-            <span className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur">
+            <span className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-white backdrop-blur">
               Vehicle {index + 1}
             </span>
           </div>
@@ -620,13 +620,13 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
                 <h3 className="break-words text-sm font-black tracking-tight text-foreground">
                   {getVehicleName(vehicle, index)}
                 </h3>
-                <p className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
                   VIN: {vehicle.vin || "Not provided"}
                 </p>
               </div>
               <Badge
                 className={cn(
-                  "border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                  "border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider",
                   vehicle.condition === "Operable"
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                     : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -646,7 +646,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
 
             {vehicle.carrierNotes ? (
               <div className="mt-3 rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+                <p className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground">
                   Carrier Notes
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-foreground/85">
@@ -678,7 +678,7 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
       <section className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/8 via-background to-cyan-500/4 p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">
               {primaryLabel}
             </p>
             <p className="mt-1 break-words text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
@@ -686,7 +686,7 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
             </p>
           </div>
           <div className="rounded-xl border border-border/60 bg-background/55 px-3 py-2.5">
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
               Route Distance
             </p>
             <p className="mt-0.5 break-words font-mono text-sm font-black text-foreground">
@@ -762,7 +762,7 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
       </div>
 
       <div className="rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
           Financial Context
         </p>
         <p className="mt-1.5 break-words text-[11px] leading-relaxed text-muted-foreground">

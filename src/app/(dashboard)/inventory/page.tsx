@@ -1240,7 +1240,7 @@ function InventoryContent() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
+                  <span className="text-[11px] font-black uppercase tracking-[0.25em] text-primary/80">
                     Dealership
                   </span>
                 </div>

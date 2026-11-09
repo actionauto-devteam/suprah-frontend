@@ -515,7 +515,7 @@ export function DriverDispatchAlertDialog({
                     <Label htmlFor="driver-alert-quick-message">
                       {quickPreset === 'custom' ? 'Message' : 'Additional message (optional)'}
                     </Label>
-                    <span className="text-[10px] text-muted-foreground">{message.length}/500</span>
+                    <span className="text-[11px] text-muted-foreground">{message.length}/500</span>
                   </div>
                   <Textarea
                     id="driver-alert-quick-message"
@@ -616,7 +616,7 @@ export function DriverDispatchAlertDialog({
 
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <div className="rounded-lg border border-border/50 bg-background/60 p-2.5">
-                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                           <MapPin className="size-3" /> Pickup
                         </div>
                         <p className="mt-1 text-xs font-semibold">{locationLabel(selectedLoad.pickup)}</p>
@@ -627,7 +627,7 @@ export function DriverDispatchAlertDialog({
                         )}
                       </div>
                       <div className="rounded-lg border border-border/50 bg-background/60 p-2.5">
-                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                           <MapPin className="size-3" /> Delivery
                         </div>
                         <p className="mt-1 text-xs font-semibold">{locationLabel(selectedLoad.delivery)}</p>
@@ -662,7 +662,7 @@ export function DriverDispatchAlertDialog({
 
                     {selectedLoad.additionalInfo?.instructions && (
                       <div className="mt-3 rounded-lg border border-border/50 bg-background/60 p-2.5">
-                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
                           Existing instructions
                         </p>
                         <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">
@@ -678,7 +678,7 @@ export function DriverDispatchAlertDialog({
                     <Label htmlFor="driver-alert-message">
                       {alertType === 'custom' ? 'Alert message' : 'Additional instruction (optional)'}
                     </Label>
-                    <span className="text-[10px] text-muted-foreground">{message.length}/500</span>
+                    <span className="text-[11px] text-muted-foreground">{message.length}/500</span>
                   </div>
                   <Textarea
                     id="driver-alert-message"

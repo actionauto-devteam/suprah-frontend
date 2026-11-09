@@ -71,7 +71,7 @@ export function ConditionReportCard({
 
         {signature && (
           <div className="space-y-2 rounded-xl border border-border/60 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Customer signature at delivery</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Customer signature at delivery</p>
             {signature.signatureDataUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -104,7 +104,7 @@ function StopReport({
   if (!reports.length) {
     return (
       <div className="rounded-xl border border-dashed border-border/70 p-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{title}</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{title}</p>
         <p className="mt-1 text-xs text-muted-foreground">Nothing recorded.</p>
       </div>
     )
@@ -114,7 +114,7 @@ function StopReport({
     <div className="space-y-3 rounded-xl border border-border/60 p-3">
       {reports.map((report) => (
         <div key={report.id} className="space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
             {title}
             {showDriver && report.driverName ? ` · ${report.driverName}` : ""}
             {report.updatedAt ? ` · ${fmt(report.updatedAt)}` : ""}
@@ -139,7 +139,7 @@ function StopReport({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={photo.url} alt="Vehicle condition photo" className="size-full object-cover" />
                     {photo.area && (
-                      <span className="absolute bottom-0.5 left-0.5 max-w-[calc(100%-0.25rem)] truncate rounded bg-black/65 px-1 py-px text-[10px] font-semibold text-white">
+                      <span className="absolute bottom-0.5 left-0.5 max-w-[calc(100%-0.25rem)] truncate rounded bg-black/65 px-1 py-px text-[11px] font-semibold text-white">
                         {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
                       </span>
                     )}

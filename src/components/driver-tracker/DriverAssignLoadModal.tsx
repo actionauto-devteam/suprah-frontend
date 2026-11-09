@@ -170,27 +170,27 @@ export function DriverAssignLoadModal({
               </p>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {eq?.truckMake && (
-                  <Badge className="h-auto max-w-full whitespace-normal break-words bg-muted px-2 py-1 text-[10px] leading-tight text-muted-foreground [overflow-wrap:anywhere]">
+                  <Badge className="h-auto max-w-full whitespace-normal break-words bg-muted px-2 py-1 text-[11px] leading-tight text-muted-foreground [overflow-wrap:anywhere]">
                     {eq.truckMake} {eq.truckModel || ""}
                   </Badge>
                 )}
                 {eq?.trailerType && (
-                  <Badge className="h-auto max-w-full gap-1 whitespace-normal break-words border-purple-200 bg-purple-500/10 px-2 py-1 text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
+                  <Badge className="h-auto max-w-full gap-1 whitespace-normal break-words border-purple-200 bg-purple-500/10 px-2 py-1 text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
                     <Truck className="size-3 shrink-0" />
                     {trailerLabel(eq.trailerType)}
                   </Badge>
                 )}
                 {eq?.maxVehicleCapacity != null && (
-                  <Badge className="h-auto bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-600 dark:text-indigo-400">
+                  <Badge className="h-auto bg-indigo-500/10 px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-400">
                     Cap: {eq.maxVehicleCapacity}
                   </Badge>
                 )}
-                <Badge className="h-auto bg-muted px-2 py-1 text-[10px] text-muted-foreground">
+                <Badge className="h-auto bg-muted px-2 py-1 text-[11px] text-muted-foreground">
                   {driver?.shipments?.length || 0} current load
                   {(driver?.shipments?.length || 0) !== 1 ? "s" : ""}
                 </Badge>
                 <Badge
-                  className={`h-auto max-w-full whitespace-normal break-words px-2 py-1 text-[10px] leading-tight [overflow-wrap:anywhere] ${
+                  className={`h-auto max-w-full whitespace-normal break-words px-2 py-1 text-[11px] leading-tight [overflow-wrap:anywhere] ${
                     driver?.assignable
                       ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
                       : "border-amber-500/20 bg-amber-500/10 text-amber-700"
@@ -299,7 +299,7 @@ export function DriverAssignLoadModal({
                           )}
 
                           {load.requestedPickupDate && (
-                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/70">
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground/70">
                               <Calendar className="size-3 shrink-0" />
                               <span>
                                 Pickup: {formatScheduleDate(load.requestedPickupDate)}
@@ -309,18 +309,18 @@ export function DriverAssignLoadModal({
 
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {load.trailerTypeRequired && (
-                              <Badge className="h-auto max-w-full gap-1 whitespace-normal break-words border-purple-200 bg-purple-500/10 px-2 py-1 text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
+                              <Badge className="h-auto max-w-full gap-1 whitespace-normal break-words border-purple-200 bg-purple-500/10 px-2 py-1 text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
                                 <Truck className="size-3 shrink-0" />
                                 {trailerLabel(load.trailerTypeRequired)}
                               </Badge>
                             )}
                             {load.vehicleCount != null && (
-                              <Badge className="h-auto bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-600 dark:text-indigo-400">
+                              <Badge className="h-auto bg-indigo-500/10 px-2 py-1 text-[11px] text-indigo-600 dark:text-indigo-400">
                                 {load.vehicleCount} vehicle{load.vehicleCount !== 1 ? "s" : ""}
                               </Badge>
                             )}
                             {load.carrierPayAmount != null && (
-                              <Badge className="h-auto bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                              <Badge className="h-auto bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-600 dark:text-emerald-400">
                                 ${load.carrierPayAmount.toLocaleString()}
                               </Badge>
                             )}

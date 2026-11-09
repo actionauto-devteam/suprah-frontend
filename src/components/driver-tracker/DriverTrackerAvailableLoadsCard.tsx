@@ -215,17 +215,17 @@ export function DriverTrackerAvailableLoadsCard({
                     </p>
                     <div className="flex min-w-0 flex-wrap gap-1">
                       {load.isPostedToBoard && (
-                        <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-blue-600 [overflow-wrap:anywhere] border-blue-300 dark:border-blue-500/40 dark:text-blue-400">
+                        <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-blue-600 [overflow-wrap:anywhere] border-blue-300 dark:border-blue-500/40 dark:text-blue-400">
                           <Megaphone className="mr-0.5 size-2.5 shrink-0" />Board
                         </Badge>
                       )}
                       {load.trailerTypeRequired && (
-                        <Badge variant="outline" className="min-h-5 h-auto max-w-full whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-300 dark:border-purple-500/40 dark:text-purple-400">
+                        <Badge variant="outline" className="min-h-5 h-auto max-w-full whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-300 dark:border-purple-500/40 dark:text-purple-400">
                           <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(load.trailerTypeRequired)}
                         </Badge>
                       )}
                       {load.vehicleCount && load.vehicleCount > 0 && (
-                        <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere] border-indigo-300 text-indigo-600 dark:border-indigo-500/40 dark:text-indigo-400">
+                        <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere] border-indigo-300 text-indigo-600 dark:border-indigo-500/40 dark:text-indigo-400">
                           {load.vehicleCount} vehicle{load.vehicleCount !== 1 ? "s" : ""}
                         </Badge>
                       )}
@@ -245,7 +245,7 @@ export function DriverTrackerAvailableLoadsCard({
                     </div>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-[10px] text-muted-foreground/70">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-[11px] text-muted-foreground/70">
                     {load.requestedPickupDate && (
                       <span className="inline-flex min-w-0 items-start gap-1">
                         <Calendar className="mt-0.5 size-2.5 shrink-0" />
@@ -325,12 +325,12 @@ export function DriverTrackerAvailableLoadsCard({
                   </p>
                   <div className="flex min-w-0 flex-wrap gap-1">
                     {assignLoad.trailerTypeRequired && (
-                      <Badge variant="outline" className="min-h-5 h-auto max-w-full whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-300 dark:border-purple-500/40 dark:text-purple-400">
+                      <Badge variant="outline" className="min-h-5 h-auto max-w-full whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-300 dark:border-purple-500/40 dark:text-purple-400">
                         <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(assignLoad.trailerTypeRequired)}
                       </Badge>
                     )}
                     {assignLoad.vehicleCount && assignLoad.vehicleCount > 0 && (
-                      <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere] border-indigo-300 text-indigo-600 dark:border-indigo-500/40 dark:text-indigo-400">
+                      <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere] border-indigo-300 text-indigo-600 dark:border-indigo-500/40 dark:text-indigo-400">
                         {assignLoad.vehicleCount} vehicle{assignLoad.vehicleCount !== 1 ? "s" : ""}
                       </Badge>
                     )}
@@ -413,11 +413,11 @@ export function DriverTrackerAvailableLoadsCard({
                           {driver.driver?.name || "Unknown"}
                         </p>
                         {driver.driver?.email && (
-                          <p className="break-all text-xs sm:text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                          <p className="break-all text-xs sm:text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                             {driver.driver.email}
                           </p>
                         )}
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-[10px] text-muted-foreground">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-[11px] text-muted-foreground">
                           <span>{driver.shipments?.length || 0} load{(driver.shipments?.length || 0) !== 1 ? "s" : ""}</span>
                           {eq?.truckMake && (
                             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
@@ -428,18 +428,18 @@ export function DriverTrackerAvailableLoadsCard({
 
                         <div className="flex min-w-0 flex-wrap gap-1">
                           {eq?.trailerType && (
-                            <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-200 dark:border-purple-500/30 dark:text-purple-400">
+                            <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-200 dark:border-purple-500/30 dark:text-purple-400">
                               <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(eq.trailerType)}
                             </Badge>
                           )}
                           {eq?.maxVehicleCapacity != null && eq.maxVehicleCapacity > 0 && (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words bg-indigo-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-indigo-600 [overflow-wrap:anywhere] border-indigo-200 dark:border-indigo-500/30 dark:text-indigo-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words bg-indigo-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-indigo-600 [overflow-wrap:anywhere] border-indigo-200 dark:border-indigo-500/30 dark:text-indigo-400">
                               Cap: {eq.maxVehicleCapacity}
                             </Badge>
                           )}
                           {availabilityMatch !== "unknown" && (
                             <Badge
-                              className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere] ${
+                              className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere] ${
                                 availabilityMatch === "match"
                                   ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400"
                                   : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"
@@ -456,25 +456,25 @@ export function DriverTrackerAvailableLoadsCard({
                             </Badge>
                           )}
                           {capacityMatch !== "unknown" ? (
-                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere] ${capacityMatch === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere] ${capacityMatch === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
                               {capacityMatch === "match" ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <XCircle className="mr-0.5 size-2.5 shrink-0" />}
                               {capacityMatch === "match"
                                 ? `Capacity ${compatibility?.capacity.requiredVehicles}/${compatibility?.capacity.maxVehicles}`
                                 : `Capacity ${compatibility?.capacity.requiredVehicles}/${compatibility?.capacity.maxVehicles} · Exceeded`}
                             </Badge>
                           ) : (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
                               <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Capacity Not Verified
                             </Badge>
                           )}
                           {trailerMatch !== "unknown" && (
-                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere] ${trailerMatch === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"}`}>
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere] ${trailerMatch === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"}`}>
                               {trailerMatch === "match" ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />}
                               Trailer {trailerMatch === "match" ? "Match" : "Mismatch"}
                             </Badge>
                           )}
                           {eq?.isComplianceExpired && (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
                               <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Expired
                             </Badge>
                           )}

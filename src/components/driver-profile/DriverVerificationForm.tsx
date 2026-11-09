@@ -370,14 +370,14 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
 
             {optionalDocs.length > 0 && (
               <>
-                <div className="flex items-center gap-3 pt-3 pb-1"><div className="h-px flex-1 bg-border" /><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">More documents</span><div className="h-px flex-1 bg-border" /></div>
+                <div className="flex items-center gap-3 pt-3 pb-1"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">More documents</span><div className="h-px flex-1 bg-border" /></div>
                 {optionalDocs.map(req => {
                   const ups = documents.filter(d => d.type === req.type);
                   return (
                     <div key={req.type} className="rounded-xl border border-border p-3 flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-foreground">{req.label}</p>
-                        {ups[0] && <p className="truncate text-[10px] text-muted-foreground" title={ups[0].fileName}>{ups[0].fileName}</p>}
+                        {ups[0] && <p className="truncate text-[11px] text-muted-foreground" title={ups[0].fileName}>{ups[0].fileName}</p>}
                       </div>
                       <Button variant="outline" size="sm" onClick={() => openUploadFor(req.type)} className="gap-1.5 rounded-lg"><Upload className="size-3.5" /></Button>
                     </div>

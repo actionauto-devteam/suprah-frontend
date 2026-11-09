@@ -74,7 +74,7 @@ export function DriverLoadRecommendationBadges({
       {service.status === "within" && (
         <Badge
           variant="outline"
-          className="border-emerald-500/30 bg-emerald-500/5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400"
+          className="border-emerald-500/30 bg-emerald-500/5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400"
         >
           <MapPin className="mr-1 size-3 shrink-0" />
           Within {service.serviceRadiusMiles ?? "saved"} mi service area
@@ -84,7 +84,7 @@ export function DriverLoadRecommendationBadges({
       {service.status === "outside" && (
         <Badge
           variant="outline"
-          className="border-amber-500/30 bg-amber-500/5 text-[10px] font-bold text-amber-700 dark:text-amber-400"
+          className="border-amber-500/30 bg-amber-500/5 text-[11px] font-bold text-amber-700 dark:text-amber-400"
         >
           <MapPin className="mr-1 size-3 shrink-0" />
           Outside {service.serviceRadiusMiles ?? "saved"} mi service area
@@ -94,7 +94,7 @@ export function DriverLoadRecommendationBadges({
       {showUnknown && service.status === "unknown" && (
         <Badge
           variant="outline"
-          className="border-border/60 bg-muted/20 text-[10px] font-bold text-muted-foreground"
+          className="border-border/60 bg-muted/20 text-[11px] font-bold text-muted-foreground"
         >
           <MapPin className="mr-1 size-3 shrink-0" />
           Service area not verified
@@ -104,7 +104,7 @@ export function DriverLoadRecommendationBadges({
       {route.status === "preferred" && (
         <Badge
           variant="outline"
-          className="max-w-full border-violet-500/30 bg-violet-500/5 text-[10px] font-bold text-violet-700 dark:text-violet-400"
+          className="max-w-full border-violet-500/30 bg-violet-500/5 text-[11px] font-bold text-violet-700 dark:text-violet-400"
           title={route.matchedRoute || undefined}
         >
           <Route className="mr-1 size-3 shrink-0" />
@@ -122,7 +122,7 @@ export function DriverLoadRecommendationBadges({
       {route.status === "not_preferred" && (
         <Badge
           variant="outline"
-          className="border-border/70 bg-muted/15 text-[10px] font-bold text-muted-foreground"
+          className="border-border/70 bg-muted/15 text-[11px] font-bold text-muted-foreground"
         >
           <Route className="mr-1 size-3 shrink-0" />
           Route not preferred
@@ -132,7 +132,7 @@ export function DriverLoadRecommendationBadges({
       {showUnknown && route.status === "unknown" && (
         <Badge
           variant="outline"
-          className="border-border/60 bg-muted/20 text-[10px] font-bold text-muted-foreground"
+          className="border-border/60 bg-muted/20 text-[11px] font-bold text-muted-foreground"
         >
           <Route className="mr-1 size-3 shrink-0" />
           Route preference not configured
@@ -142,7 +142,7 @@ export function DriverLoadRecommendationBadges({
       {distanceText ? (
         <Badge
           variant="outline"
-          className="border-blue-500/30 bg-blue-500/5 text-[10px] font-bold text-blue-700 dark:text-blue-400"
+          className="border-blue-500/30 bg-blue-500/5 text-[11px] font-bold text-blue-700 dark:text-blue-400"
         >
           <Navigation2 className="mr-1 size-3 shrink-0" />
           {distanceText}
@@ -151,7 +151,7 @@ export function DriverLoadRecommendationBadges({
       ) : showUnknown ? (
         <Badge
           variant="outline"
-          className="border-border/60 bg-muted/20 text-[10px] font-bold text-muted-foreground"
+          className="border-border/60 bg-muted/20 text-[11px] font-bold text-muted-foreground"
         >
           <Navigation2 className="mr-1 size-3 shrink-0" />
           Pickup proximity unavailable

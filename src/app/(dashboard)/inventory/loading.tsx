@@ -15,7 +15,7 @@ export default function InventoryLoading() {
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-primary/80">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/80">
               Dealership
             </p>
             <h1 className="mt-1 text-xl font-black uppercase tracking-tight text-foreground sm:text-3xl">

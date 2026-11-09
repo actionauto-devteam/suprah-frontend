@@ -75,7 +75,7 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
           <AvatarFallback className="bg-primary/10 text-sm font-bold text-primary">{name.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Suprah AI · Driver focus</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Suprah AI · Driver focus</p>
           <h3 className="mt-1 break-words text-base font-bold leading-tight sm:text-lg">{name}</h3>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 font-semibold ${fresh ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground"}`}>
@@ -89,13 +89,13 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
 
       <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
         <div className="min-w-0 rounded-lg border border-border/60 bg-background/45 p-3">
-          <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><Package className="size-3.5 text-primary" />Active load</p>
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><Package className="size-3.5 text-primary" />Active load</p>
           <p className="mt-1.5 break-all text-sm font-semibold">{load?.trackingNumber || load?.id || (driver.activeLoadCount ? "Load details unavailable" : "No active load")}</p>
           {load && <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"><span className="break-words">{load.origin || "Pickup not provided"}</span><ArrowRight className="size-3 shrink-0 text-primary" /><span className="break-words">{load.destination || "Delivery not provided"}</span></p>}
           {driver.shipments.length > 1 && <p className="mt-1 text-xs text-primary">+{driver.shipments.length - 1} more · View Details & loads</p>}
         </div>
         <div className="min-w-0 rounded-lg border border-border/60 bg-background/45 p-3">
-          <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="size-3.5 text-primary" />Location updates</p>
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="size-3.5 text-primary" />Location updates</p>
           <dl className="mt-1.5 space-y-1 text-xs">
             <div><dt className="inline text-muted-foreground">Measured: </dt><dd className="inline font-medium">{formatTrackingTime(driver.locationRecordedAt)}</dd></div>
             <div><dt className="inline text-muted-foreground">Confirmed: </dt><dd className="inline font-medium">{formatTrackingTime(driver.lastSeenAt)}</dd></div>

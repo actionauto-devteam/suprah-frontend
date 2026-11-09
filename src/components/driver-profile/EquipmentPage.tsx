@@ -167,7 +167,7 @@ const Counter = ({
     <div className="text-center min-w-20">
       <motion.span key={value} initial={{ scale: 1.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         className={cn('font-black tabular-nums block', color, lg ? 'text-4xl' : 'text-3xl')}>{value}</motion.span>
-      <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-widest">{label}</p>
+      <p className="text-[11px] text-muted-foreground mt-1 font-bold uppercase tracking-widest">{label}</p>
     </div>
     <button type="button" onClick={() => onChange(Math.min(max, value + 1))}
       className={cn('rounded-2xl border-2 border-border/60 flex items-center justify-center font-bold transition-all active:scale-90 hover:border-primary/40', lg ? 'size-14 text-2xl' : 'size-11 text-xl')}>+</button>
@@ -406,7 +406,7 @@ export const EquipmentPage: React.FC = () => {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Equipment & Rig</h1>
-                    <Badge className={cn('text-[10px] font-black px-2.5 h-5 bg-linear-to-r text-white border-0 shadow-lg', th.grad, th.glow)}>{sel?.capacity || 'Not configured'}</Badge>
+                    <Badge className={cn('text-[11px] font-black px-2.5 h-5 bg-linear-to-r text-white border-0 shadow-lg', th.grad, th.glow)}>{sel?.capacity || 'Not configured'}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">Configure your truck, trailer, and capabilities</p>
                 </div>
@@ -414,7 +414,7 @@ export const EquipmentPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="hidden sm:block text-right">
                   <span className="text-2xl font-bold tabular-nums text-foreground">{pct}%</span>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                  <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-widest">
                     {equipmentReadiness.complete ? 'Ready' : 'Setup'}
                   </p>
                 </div>
@@ -433,7 +433,7 @@ export const EquipmentPage: React.FC = () => {
                   Required for Equipment Readiness: {equipmentReadiness.missing.map((item) => item.label).join(', ')}
                 </p>
               )}
-              <p className="mt-1 text-[10px] text-muted-foreground/80">
+              <p className="mt-1 text-[11px] text-muted-foreground/80">
                 Progress is saved automatically before you move to another Equipment section.
               </p>
             </div>
@@ -609,7 +609,7 @@ export const EquipmentPage: React.FC = () => {
                           <Label className="text-xs font-bold text-muted-foreground">Custom Trailer Name *</Label>
                           <Input value={form.customTrailerName} onChange={e => patch({ customTrailerName: e.target.value })} placeholder="e.g. Custom 4-Car Enclosed Wedge" maxLength={80}
                             className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                          <p className="text-[10px] text-muted-foreground">Describe your trailer so dispatchers know what you haul</p>
+                          <p className="text-[11px] text-muted-foreground">Describe your trailer so dispatchers know what you haul</p>
                         </motion.div>
                       )}
                     </div>

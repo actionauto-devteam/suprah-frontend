@@ -342,7 +342,7 @@ export function DriverTrackerLoadsCard({
                         {shipments.length} load{shipments.length !== 1 ? "s" : ""}
                       </span>
                       {item.equipment?.trailerType && (
-                        <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words border-purple-200 bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
+                        <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words border-purple-200 bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
                           <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(item.equipment.trailerType)}
                         </Badge>
                       )}
@@ -360,12 +360,12 @@ export function DriverTrackerLoadsCard({
                         isFocused ? "bg-blue-500/[0.08] ring-2 ring-blue-500/40 sm:bg-blue-500/[0.08]" : ""
                       }`}
                     >
-                      <Badge variant="outline" className="min-h-6 h-auto max-w-full whitespace-normal break-all px-2 py-1 text-xs sm:text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] border-border/50">
+                      <Badge variant="outline" className="min-h-6 h-auto max-w-full whitespace-normal break-all px-2 py-1 text-xs sm:text-[11px] font-semibold leading-tight [overflow-wrap:anywhere] border-border/50">
                         <Package className="mr-0.5 size-2.5 shrink-0" />
                         {s.trackingNumber || s.id.slice(-6)}
                       </Badge>
                       {s.status && (
-                        <Badge variant="outline" className={cn("min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere]", STATUS_BADGE[s.status] || "border-border/50")}>
+                        <Badge variant="outline" className={cn("min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere]", STATUS_BADGE[s.status] || "border-border/50")}>
                           {(s.status === "In-Transit" || s.status === "In-Route") && <Navigation2 className="mr-0.5 size-2.5 shrink-0" />}
                           {s.status === "Picked Up" && <Truck className="mr-0.5 size-2.5 shrink-0" />}
                           {s.status === "Accepted" && <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" />}
@@ -373,12 +373,12 @@ export function DriverTrackerLoadsCard({
                         </Badge>
                       )}
                       {s.requiresDispatchReconfirmation && (
-                        <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
+                        <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
                           <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Review Required
                         </Badge>
                       )}
                       {(s as any).proofPending && (
-                        <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-amber-600 [overflow-wrap:anywhere] animate-pulse dark:text-amber-400">
+                        <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-amber-600 [overflow-wrap:anywhere] animate-pulse dark:text-amber-400">
                           <Camera className="mr-0.5 size-2.5 shrink-0" />Proof
                         </Badge>
                       )}
@@ -424,17 +424,17 @@ export function DriverTrackerLoadsCard({
             {currentViewDriver?.equipment && (
               <div className="mt-1 flex min-w-0 flex-wrap gap-1">
                 {currentViewDriver.equipment.truckMake && (
-                  <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words bg-muted px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-muted-foreground [overflow-wrap:anywhere] border-border/50">
+                  <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words bg-muted px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-muted-foreground [overflow-wrap:anywhere] border-border/50">
                     {currentViewDriver.equipment.truckMake} {currentViewDriver.equipment.truckModel || ""}
                   </Badge>
                 )}
                 {currentViewDriver.equipment.trailerType && (
-                  <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words border-purple-200 bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
+                  <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words border-purple-200 bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
                     <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(currentViewDriver.equipment.trailerType)}
                   </Badge>
                 )}
                 {currentViewDriver.equipment.maxVehicleCapacity != null && (
-                  <Badge className="min-h-5 h-auto whitespace-normal break-words border-indigo-200 bg-indigo-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-indigo-600 [overflow-wrap:anywhere] dark:border-indigo-500/30 dark:text-indigo-400">
+                  <Badge className="min-h-5 h-auto whitespace-normal break-words border-indigo-200 bg-indigo-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-indigo-600 [overflow-wrap:anywhere] dark:border-indigo-500/30 dark:text-indigo-400">
                     Cap: {currentViewDriver.equipment.maxVehicleCapacity}
                   </Badge>
                 )}
@@ -498,11 +498,11 @@ export function DriverTrackerLoadsCard({
 
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end sm:gap-2">
                     {(shipment as any).proofPending && (
-                      <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-amber-600 [overflow-wrap:anywhere] animate-pulse dark:text-amber-400">
+                      <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-amber-600 [overflow-wrap:anywhere] animate-pulse dark:text-amber-400">
                         <Camera className="mr-0.5 size-2.5 shrink-0" />Proof
                       </Badge>
                     )}
-                    <Badge variant="outline" className={cn("min-h-6 h-auto whitespace-normal break-words px-2 py-1 text-xs sm:text-[10px] font-semibold leading-tight [overflow-wrap:anywhere]", (shipment.status && STATUS_BADGE[shipment.status]) || "border-border/50")}>
+                    <Badge variant="outline" className={cn("min-h-6 h-auto whitespace-normal break-words px-2 py-1 text-xs sm:text-[11px] font-semibold leading-tight [overflow-wrap:anywhere]", (shipment.status && STATUS_BADGE[shipment.status]) || "border-border/50")}>
                       {shipment.status || "—"}
                     </Badge>
                     <ExternalLink className="hidden size-3.5 shrink-0 text-muted-foreground/40 sm:block" />
@@ -562,7 +562,7 @@ export function DriverTrackerLoadsCard({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-emerald-500/25 px-2.5 text-xs sm:text-[10px] font-semibold text-emerald-700 hover:bg-emerald-500/10 sm:h-8 sm:w-auto dark:text-emerald-400"
+                        className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-emerald-500/25 px-2.5 text-xs sm:text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/10 sm:h-8 sm:w-auto dark:text-emerald-400"
                         disabled={keepingAssigned === shipment.id || removing === shipment.id || reassigning === shipment.id}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -577,7 +577,7 @@ export function DriverTrackerLoadsCard({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-destructive/20 px-2.5 text-xs sm:text-[10px] font-semibold text-destructive hover:bg-destructive/10 sm:h-8 sm:w-auto"
+                        className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-destructive/20 px-2.5 text-xs sm:text-[11px] font-semibold text-destructive hover:bg-destructive/10 sm:h-8 sm:w-auto"
                         disabled={
                           keepingAssigned === shipment.id ||
                           removing === shipment.id ||
@@ -603,7 +603,7 @@ export function DriverTrackerLoadsCard({
                       <Button
                         size="sm"
                         variant="outline"
-                        className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-border/50 px-2.5 text-xs sm:text-[10px] font-semibold hover:bg-primary/5 sm:h-8 sm:w-auto"
+                        className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-border/50 px-2.5 text-xs sm:text-[11px] font-semibold hover:bg-primary/5 sm:h-8 sm:w-auto"
                         disabled={keepingAssigned === shipment.id || removing === shipment.id || reassigning === shipment.id}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -700,11 +700,11 @@ export function DriverTrackerLoadsCard({
                           {d.driver?.name || "Unknown"}
                         </p>
                         {d.driver?.email && (
-                          <p className="break-all text-xs sm:text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                          <p className="break-all text-xs sm:text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                             {d.driver.email}
                           </p>
                         )}
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-[10px] text-muted-foreground">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-[11px] text-muted-foreground">
                           <span>{d.shipments?.length || 0} load{(d.shipments?.length || 0) !== 1 ? "s" : ""}</span>
                           {eq?.truckMake && (
                             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
@@ -714,17 +714,17 @@ export function DriverTrackerLoadsCard({
                         </div>
                         <div className="flex min-w-0 flex-wrap gap-1">
                           {eq?.trailerType && (
-                            <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words border-purple-200 bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
+                            <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words border-purple-200 bg-purple-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-purple-600 [overflow-wrap:anywhere] dark:border-purple-500/30 dark:text-purple-400">
                               <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(eq.trailerType)}
                             </Badge>
                           )}
                           {eq?.maxVehicleCapacity != null && eq.maxVehicleCapacity > 0 && (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-indigo-200 bg-indigo-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-indigo-600 [overflow-wrap:anywhere] dark:border-indigo-500/30 dark:text-indigo-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-indigo-200 bg-indigo-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-indigo-600 [overflow-wrap:anywhere] dark:border-indigo-500/30 dark:text-indigo-400">
                               Cap: {eq.maxVehicleCapacity}
                             </Badge>
                           )}
                           {availability !== "unknown" && (
-                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight [overflow-wrap:anywhere] ${availability === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"}`}>
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight [overflow-wrap:anywhere] ${availability === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"}`}>
                               {availability === "match" ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />}
                               {availability === "match"
                                 ? `Available ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()
@@ -732,12 +732,12 @@ export function DriverTrackerLoadsCard({
                             </Badge>
                           )}
                           {capacity === "match" ? (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-emerald-200 bg-emerald-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-emerald-600 [overflow-wrap:anywhere] dark:border-emerald-500/30 dark:text-emerald-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-emerald-200 bg-emerald-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-emerald-600 [overflow-wrap:anywhere] dark:border-emerald-500/30 dark:text-emerald-400">
                               <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" />
                               Capacity {compatibility?.capacity.requiredVehicles}/{compatibility?.capacity.maxVehicles}
                             </Badge>
                           ) : (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
                               {capacity === "exceeded" ? <XCircle className="mr-0.5 size-2.5 shrink-0" /> : <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />}
                               {capacity === "exceeded"
                                 ? `Capacity ${compatibility?.capacity.requiredVehicles}/${compatibility?.capacity.maxVehicles} · Exceeded`
@@ -745,7 +745,7 @@ export function DriverTrackerLoadsCard({
                             </Badge>
                           )}
                           {trailer === "mismatch" && (
-                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-200 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[10px] leading-tight text-amber-700 [overflow-wrap:anywhere] dark:border-amber-500/30 dark:text-amber-400">
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-200 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[11px] leading-tight text-amber-700 [overflow-wrap:anywhere] dark:border-amber-500/30 dark:text-amber-400">
                               <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Trailer Mismatch
                             </Badge>
                           )}

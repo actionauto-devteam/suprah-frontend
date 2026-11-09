@@ -253,7 +253,7 @@ function OverviewCard({
         </span>
         <span
           className={cn(
-            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+            "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider",
             active
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : "border-border/60 text-muted-foreground",
@@ -336,7 +336,7 @@ export function TransportationMobileFilters({
           <SlidersHorizontal className="size-3.5" />
           Filters
           {generalFilterCount > 0 ? (
-            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
               {generalFilterCount}
             </span>
           ) : null}
@@ -363,7 +363,7 @@ export function TransportationMobileFilters({
           <ListFilter className="size-3.5" />
           Status
           {statusFilterCount > 0 ? (
-            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
               {statusFilterCount}
             </span>
           ) : null}

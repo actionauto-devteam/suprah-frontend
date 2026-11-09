@@ -84,7 +84,7 @@ export function VehicleDamageOutline({
             </rect>
           )),
         )}
-        <text x="100" y="24" textAnchor="middle" className="pointer-events-none fill-muted-foreground text-[10px]">
+        <text x="100" y="24" textAnchor="middle" className="pointer-events-none fill-muted-foreground text-[11px]">
           FRONT
         </text>
       </svg>

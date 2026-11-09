@@ -2788,7 +2788,7 @@ export default function DriverTrackerPage() {
           </nav>
           <div className="mt-3 flex items-center gap-2">
             <span className="size-2 shrink-0 rounded-full bg-primary" />
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-primary/80">
+            <span className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/80">
               Suprah Driver Operations
             </span>
           </div>

@@ -138,7 +138,7 @@ export function PendingLoadRequestAssignmentDialog({
                   <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
                     {requester.driverName}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     {requestedAtLabel(requester.requestedAt)}
                   </p>
                 </div>
@@ -148,8 +148,8 @@ export function PendingLoadRequestAssignmentDialog({
                 variant="outline"
                 className={
                   requester.selected
-                    ? "shrink-0 border-emerald-500/25 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400"
-                    : "shrink-0 border-red-500/25 bg-red-500/10 text-[10px] text-red-700 dark:text-red-400"
+                    ? "shrink-0 border-emerald-500/25 bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400"
+                    : "shrink-0 border-red-500/25 bg-red-500/10 text-[11px] text-red-700 dark:text-red-400"
                 }
               >
                 {requester.selected ? (
