@@ -384,7 +384,7 @@ function VehicleImage({
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted dark:bg-zinc-800">
           <TruckIcon className="h-8 w-8 text-muted-foreground/20" />
-          <span className="text-[10px] font-medium text-muted-foreground/40 tracking-wide">
+          <span className="text-[11px] font-medium text-muted-foreground/40 tracking-wide">
             No image
           </span>
         </div>
@@ -393,7 +393,7 @@ function VehicleImage({
       {showStatusBadge && statusCfg && (
         <div
           className={cn(
-            "absolute left-2.5 top-2.5 z-10 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold backdrop-blur-md shadow-sm",
+            "absolute left-2.5 top-2.5 z-10 flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold backdrop-blur-md shadow-sm",
             statusCfg.pill,
           )}
         >
@@ -414,7 +414,7 @@ function VehicleImage({
       {showDaysOnLot && vehicle.daysOnLot !== undefined && vehicle.daysOnLot > 0 && (
         <div
           className={cn(
-            "absolute z-10 rounded-full bg-black/65 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm",
+            "absolute z-10 rounded-full bg-black/65 px-2.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm",
             mobileDaysOnLotTopRight
               ? onToggleSave
                 ? "top-2.5 right-12 sm:top-auto sm:right-2.5 sm:bottom-2.5"
@@ -452,7 +452,7 @@ function VehicleImage({
           disabled={!isComparing && canCompareMore === false}
           aria-label={isComparing ? "Remove from comparison" : "Add to comparison"}
           className={cn(
-            "absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-bold backdrop-blur-md transition-all duration-200 shadow-sm",
+            "absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold backdrop-blur-md transition-all duration-200 shadow-sm",
             isComparing
               ? "bg-primary text-primary-foreground"
               : "bg-black/45 text-white hover:bg-black/65",
@@ -623,7 +623,7 @@ export function CarInventoryCard({
                 <span className="text-xs text-muted-foreground/60 line-through tabular-nums">
                   ${price.toLocaleString()}
                 </span>
-                <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                <span className="text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
                   {tierName} -{discountPct}%
                 </span>
               </div>
@@ -669,7 +669,7 @@ export function CarInventoryCard({
           {statusCfg && (
             <Badge
               className={cn(
-                "mt-0.5 flex h-5 max-w-full items-center gap-1 rounded-full px-2 text-[10px] font-bold leading-none whitespace-nowrap",
+                "mt-0.5 flex h-5 max-w-full items-center gap-1 rounded-full px-2 text-[11px] font-bold leading-none whitespace-nowrap",
                 statusCfg.pill,
               )}
             >
@@ -744,7 +744,7 @@ export function CarInventoryCard({
           <>
             <div className="grid grid-cols-3 gap-1.5 sm:hidden">
               <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
                   <GaugeIcon className="h-3 w-3 shrink-0 text-emerald-500/80" />
                   Mileage
                 </span>
@@ -754,7 +754,7 @@ export function CarInventoryCard({
               </div>
 
               <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
                   <MapPinIcon className="h-3 w-3 shrink-0 text-cyan-500/80" />
                   Location
                 </span>
@@ -764,7 +764,7 @@ export function CarInventoryCard({
               </div>
 
               <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
                   <Clock3 className="h-3 w-3 shrink-0 text-amber-500/80" />
                   Days on lot
                 </span>
@@ -802,18 +802,18 @@ export function CarInventoryCard({
 
         <div className={cn("flex flex-wrap gap-1", mobileOptimized && "hidden sm:flex")}>
           {vehicle.bodyStyle && (
-            <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium rounded-full">
+            <Badge variant="secondary" className="h-5 px-2 text-[11px] font-medium rounded-full">
               {vehicle.bodyStyle}
             </Badge>
           )}
           {vehicle.transmission && (
-            <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium gap-1 rounded-full">
+            <Badge variant="secondary" className="h-5 px-2 text-[11px] font-medium gap-1 rounded-full">
               <Settings2 className="h-2.5 w-2.5" />
               {vehicle.transmission.split(" ")[0]}
             </Badge>
           )}
           {vehicle.fuelType && (
-            <Badge variant="secondary" className="h-5 px-2 text-[10px] font-medium gap-1 rounded-full">
+            <Badge variant="secondary" className="h-5 px-2 text-[11px] font-medium gap-1 rounded-full">
               <Fuel className="h-2.5 w-2.5" />
               {vehicle.fuelType}
             </Badge>
@@ -829,7 +829,7 @@ export function CarInventoryCard({
           {mobileOptimized ? (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_9.75rem] items-end gap-2 sm:block">
               <div className="min-w-0">
-                <p className="mb-1 text-[9px] font-black uppercase tracking-[0.06em] text-muted-foreground/70 sm:hidden">
+                <p className="mb-1 text-[11px] font-black uppercase tracking-[0.06em] text-muted-foreground/70 sm:hidden">
                   Price
                 </p>
                 {!hasPrice ? (
@@ -840,7 +840,7 @@ export function CarInventoryCard({
                       <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                         ${memberPrice.toLocaleString()}
                       </span>
-                      <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                      <span className="text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
                         {tierName} -{discountPct}%
                       </span>
                     </div>
@@ -860,7 +860,7 @@ export function CarInventoryCard({
                   className="flex min-w-0 flex-col items-end justify-center rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] text-right sm:hidden"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <span className="flex w-full items-center justify-end gap-1 text-right text-[9px] font-black uppercase leading-none tracking-[0.04em] text-muted-foreground/75">
+                  <span className="flex w-full items-center justify-end gap-1 text-right text-[11px] font-black uppercase leading-none tracking-[0.04em] text-muted-foreground/75">
                     <CalendarClock className="h-3 w-3 shrink-0 text-primary/70" />
                     <span className="whitespace-nowrap">Price updated</span>
                   </span>

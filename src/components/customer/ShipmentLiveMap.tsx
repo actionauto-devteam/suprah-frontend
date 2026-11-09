@@ -355,7 +355,7 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
           Your driver
         </li>
         <li className="flex items-center gap-1.5">
-          <span aria-hidden="true" className="flex size-4 items-center justify-center rounded-[4px] border-2 border-white text-[9px] font-black text-white shadow-sm" style={{ background: COLORS.delivery }}>
+          <span aria-hidden="true" className="flex size-4 items-center justify-center rounded-[4px] border-2 border-white text-[11px] font-black leading-none text-white shadow-sm" style={{ background: COLORS.delivery }}>
             D
           </span>
           {view.delivery ? "Delivery point" : "Delivery point (not on the map yet)"}

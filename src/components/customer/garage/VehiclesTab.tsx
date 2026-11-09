@@ -169,7 +169,7 @@ export function VehiclesTab({
                           Active Vehicle
                         </p>
                         {(vehicle as any).source === "DEALERSHIP_TRANSFER" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 backdrop-blur-md max-w-full truncate">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 backdrop-blur-md max-w-full truncate">
                             ✓ Added by{(vehicle as any).dealershipName ? ` ${(vehicle as any).dealershipName}` : " dealership"}
                           </span>
                         )}
@@ -196,7 +196,7 @@ export function VehiclesTab({
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-bold text-foreground">Vehicle Health</p>
                       <div className={cn(
-                        "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold",
+                        "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold",
                         dueSoon
                           ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                           : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
@@ -218,14 +218,14 @@ export function VehiclesTab({
                           </span>
                           <button
                             onClick={() => onUpdateMileage(vehicle)}
-                            className="text-[10px] text-primary font-semibold hover:underline"
+                            className="text-[11px] text-primary font-semibold hover:underline"
                           >
                             Update
                           </button>
                         </div>
                       </div>
                       <Progress value={svcProgress} className="h-2 rounded-full" />
-                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                      <p className="text-[11px] text-muted-foreground mt-1.5">
                         Next service ~{estimatedNext.toLocaleString()} mi
                       </p>
                     </div>

@@ -449,12 +449,12 @@ function Gallery({
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between sm:left-4 sm:right-4 sm:top-4">
           <div className="flex flex-col gap-1">
             {vehicle.certified && (
-              <Badge className="w-fit border-none bg-blue-600/85 text-[10px] font-bold text-white backdrop-blur-sm">
+              <Badge className="w-fit border-none bg-blue-600/85 text-[11px] font-bold text-white backdrop-blur-sm">
                 <Shield className="mr-1 h-2.5 w-2.5" /> CPO
               </Badge>
             )}
             {vehicle.isNewVehicle && (
-              <Badge className="w-fit border-none bg-primary/85 text-[10px] font-bold text-white backdrop-blur-sm">
+              <Badge className="w-fit border-none bg-primary/85 text-[11px] font-bold text-white backdrop-blur-sm">
                 <Sparkles className="mr-1 h-2.5 w-2.5" /> New
               </Badge>
             )}
@@ -788,7 +788,7 @@ export function VehicleDetailView({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "h-5 text-[10px] font-semibold",
+                        "h-5 text-[11px] font-semibold",
                         statusColor,
                       )}
                     >
@@ -796,7 +796,7 @@ export function VehicleDetailView({
                     </Badge>
                   )}
                   {vehicle.certified && (
-                    <Badge className="h-5 border-none bg-blue-500/12 text-[10px] font-semibold text-blue-700 dark:text-blue-400">
+                    <Badge className="h-5 border-none bg-blue-500/12 text-[11px] font-semibold text-blue-700 dark:text-blue-400">
                       <Shield className="mr-1 h-3 w-3" /> CPO
                     </Badge>
                   )}
@@ -853,7 +853,7 @@ export function VehicleDetailView({
                   <Badge
                     variant="outline"
                     className={cn(
-                      "mt-1.5 h-5 text-[10px] font-semibold",
+                      "mt-1.5 h-5 text-[11px] font-semibold",
                       statusColor,
                     )}
                   >
@@ -865,7 +865,7 @@ export function VehicleDetailView({
                 {!hasPrice ? (
                   <>
                     <p className="text-sm font-black leading-tight text-primary">Price Pending</p>
-                    <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
                       Pricing is being finalized.
                     </p>
                   </>
@@ -902,7 +902,7 @@ export function VehicleDetailView({
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     {label}
                   </p>
                   <p className="w-full break-words text-center text-xs font-bold leading-tight text-foreground [overflow-wrap:anywhere]">
@@ -915,12 +915,12 @@ export function VehicleDetailView({
 
           {compactHeader && (
             <div className="border-b bg-background px-4 py-3 sm:px-5 lg:px-6">
-              <h3 className="mb-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              <h3 className="mb-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                 Key Details
               </h3>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <div className="min-w-0">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     VIN
                   </p>
                   <p className="break-all font-mono text-xs font-semibold text-foreground">
@@ -928,7 +928,7 @@ export function VehicleDetailView({
                   </p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     Stock #
                   </p>
                   <p className="break-words text-xs font-semibold text-foreground">
@@ -943,7 +943,7 @@ export function VehicleDetailView({
               surface. Inspector mode moves its three primary actions into a
               pinned footer while keeping every secondary action available here. */}
           <section className="border-b border-border/50 bg-background px-3 py-3 lg:hidden">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">
+            <p className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">
               Vehicle Actions
             </p>
             {!mobileInspector && onApplyNow && (
@@ -1051,7 +1051,7 @@ export function VehicleDetailView({
             {tab === "overview" && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  <h3 className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                     <Car className="h-3.5 w-3.5" /> Description
                   </h3>
                   {vehicle.comments &&
@@ -1072,7 +1072,7 @@ export function VehicleDetailView({
                 </div>
                 <Separator />
                 <div>
-                  <h3 className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  <h3 className="mb-3 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                     Quick Facts
                   </h3>
                   <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -1133,7 +1133,7 @@ export function VehicleDetailView({
 
                 <div className="space-y-2.5 lg:hidden">
                   <Separator />
-                  <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                     <MapPin className="h-3 w-3 text-primary/70" /> Location
                   </p>
                   <div className="overflow-hidden rounded-xl border border-border/50">
@@ -1153,7 +1153,7 @@ export function VehicleDetailView({
                       {!mapLoaded && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/80">
                           <Loader2 className="h-4 w-4 animate-spin text-primary/70" />
-                          <span className="text-[10px] font-semibold text-muted-foreground">Loading map</span>
+                          <span className="text-[11px] font-semibold text-muted-foreground">Loading map</span>
                         </div>
                       )}
                     </div>
@@ -1161,7 +1161,7 @@ export function VehicleDetailView({
                       <p className="break-words text-xs font-semibold">
                         {vehicle.dealerName || organization?.name || "Your Dealership"}
                       </p>
-                      <p className="mt-0.5 break-words text-[10px] text-muted-foreground">
+                      <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
                         {displayLocation}
                       </p>
                     </div>
@@ -1282,7 +1282,7 @@ export function VehicleDetailView({
                 ].map((section, si) => (
                   <div key={section.title}>
                     {si > 0 && <Separator className="mb-6" />}
-                    <h4 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                    <h4 className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-primary">
                       <section.icon className="h-3.5 w-3.5" />
                       {section.title}
                     </h4>
@@ -1305,7 +1305,7 @@ export function VehicleDetailView({
               <div className="space-y-4">
                 {options.length > 0 ? (
                   <>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                       Installed Options & Equipment
                     </h3>
                     <div className="columns-1 gap-x-8 sm:columns-2 lg:columns-3">
@@ -1349,7 +1349,7 @@ export function VehicleDetailView({
                     </h3>
                     <Badge
                       variant="outline"
-                      className="border-primary/25 text-[10px] font-bold text-primary"
+                      className="border-primary/25 text-[11px] font-bold text-primary"
                     >
                       Admin Only
                     </Badge>
@@ -1378,7 +1378,7 @@ export function VehicleDetailView({
                         key={label}
                         className="rounded-xl border border-border/50 bg-background p-3 text-center dark:bg-zinc-900/60"
                       >
-                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                           {label}
                         </p>
                         <p className={cn("mt-1 text-lg font-black", color)}>
@@ -1389,7 +1389,7 @@ export function VehicleDetailView({
                               : "—"}
                         </p>
                         {sub && (
-                          <p className="text-[10px] font-semibold text-emerald-600/70 dark:text-emerald-400/70">
+                          <p className="text-[11px] font-semibold text-emerald-600/70 dark:text-emerald-400/70">
                             {sub} margin
                           </p>
                         )}
@@ -1496,7 +1496,7 @@ export function VehicleDetailView({
               <div className="px-5 pt-5 pb-4">
                 {!hasPrice ? (
                   <>
-                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                    <p className="mb-0.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                       Our Price
                     </p>
                     <p className="text-3xl font-black tracking-tight text-primary">Price Pending</p>
@@ -1506,7 +1506,7 @@ export function VehicleDetailView({
                   </>
                 ) : (
                   <>
-                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                    <p className="mb-0.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                       {hasMemberDiscount ? `${vehicle.tierName} Member Price` : "Our Price"}
                     </p>
                     {hasMemberDiscount && (
@@ -1640,7 +1640,7 @@ export function VehicleDetailView({
 
             {/* Highlights grid */}
             <div className="space-y-2.5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Highlights
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -1678,7 +1678,7 @@ export function VehicleDetailView({
 
             {/* Location map */}
             <div className="space-y-2.5">
-              <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                 <MapPin className="h-3 w-3 text-primary/70" /> Location
               </p>
               <div className="overflow-hidden rounded-xl border border-border/50">
@@ -1706,7 +1706,7 @@ export function VehicleDetailView({
                     <p className="text-xs font-semibold">
                       {vehicle.dealerName || organization?.name || "Your Dealership"}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground">
                       {displayLocation}
                     </p>
                   </div>
