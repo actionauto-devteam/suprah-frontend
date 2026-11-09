@@ -7,7 +7,6 @@ import {
   CarFront,
   MapIcon,
   Wallet,
-  Settings,
   CreditCard,
   ShoppingBag,
   MessageCircle,
@@ -314,11 +313,12 @@ export function CustomerSidebar() {
                                 </TooltipContent>
                               </Tooltip>
 
-                              {/* Chevron toggle — separate button, desktop only */}
+                              {/* Chevron toggle — separate button; wider on phones so it's easy to tap without hitting the link. */}
                               <CollapsiblePrimitive.Trigger asChild>
                                 <button
+                                  type="button"
                                   className={cn(
-                                    "group-data-[collapsible=icon]:hidden shrink-0 flex items-center justify-center h-8 w-7 rounded-lg transition-all",
+                                    "group-data-[collapsible=icon]:hidden shrink-0 flex items-center justify-center h-8 w-7 max-md:w-11 rounded-lg transition-all",
                                     isActive
                                       ? "text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20"
                                       : "text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60",
@@ -426,27 +426,16 @@ export function CustomerSidebar() {
       {/* ── Footer ───────────────────────────────────────────────────────────── */}
       <SidebarFooter className="px-2 py-3 border-t border-zinc-100 dark:border-zinc-800/60">
         <SidebarMenu className="gap-px">
+          {/* Profile and Settings both opened this same page; one entry says what it is (2026-11-09). */}
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              tooltip="Profile"
+              tooltip="Profile & Settings"
               className="rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all"
             >
               <Link href="/customer/settings" onClick={closeMobileSidebar}>
                 <User className="text-zinc-400" />
-                <span className="text-[13px]">Profile</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              tooltip="Settings"
-              className="rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all"
-            >
-              <Link href="/customer/settings" onClick={closeMobileSidebar}>
-                <Settings className="text-zinc-400" />
-                <span className="text-[13px]">Settings</span>
+                <span className="text-[13px]">Profile &amp; Settings</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
