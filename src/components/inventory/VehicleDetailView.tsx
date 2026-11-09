@@ -39,6 +39,7 @@ import { toast } from "@/lib/readable-toast";
 import type { Vehicle } from "@/types/inventory";
 import { useOrg } from "@/hooks/useOrg";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { splitVehicleOptions } from "@/lib/vehicle-options";
 
 const FALLBACK = "/vehicle-placeholder.jpg";
 
@@ -691,12 +692,8 @@ export function VehicleDetailView({
     ...(isAdmin ? [{ id: "internal" as Tab, label: "Staff" }] : []),
   ];
 
-  const options = vehicle.options
-    ? vehicle.options
-      .split(/[,\n;]+/)
-      .map((o) => o.trim())
-      .filter(Boolean)
-    : [];
+  // One entry per feature, even when the feed runs them together (lib/vehicle-options).
+  const options = splitVehicleOptions(vehicle.options);
 
   const statusColor =
     {
@@ -1320,7 +1317,7 @@ export function VehicleDetailView({
                           <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10">
                             <CheckCircle2 className="h-3 w-3 text-primary" />
                           </span>
-                          <span className="text-sm text-foreground">{opt}</span>
+                          <span className="min-w-0 break-words text-sm text-foreground">{opt}</span>
                         </div>
                       ))}
                     </div>
