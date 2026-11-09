@@ -1,5 +1,6 @@
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 import { trackingState, validCoordinates, formatTrackingTime } from "@/lib/driver-tracking-view";
+import { stopsFollowing } from "@/lib/map-follow";
 
 type FleetState = { drivers: DriverTrackingItem[]; selectedId: string | null; now: number };
 export type DriverFleetLayer = { update: (state: FleetState) => void; dispose: () => void };
@@ -135,17 +136,23 @@ export function createDriverFleetLayer(map: any, mapboxgl: any, onSelect: (drive
     if (!map.getLayer(POINTS)) return;
     map.getCanvas().style.cursor = map.queryRenderedFeatures(event.point, { layers: [POINTS, CLUSTERS] }).length ? "pointer" : "";
   }
-  function manual(event: any) { if (event.originalEvent) onManualPan(); }
+  // Dragging (mouse or one finger) or the arrow keys pause Follow; zooming
+  // keeps following, as on the customer's map and the Driver Page.
+  function manual(event: any) { if (stopsFollowing(event.originalEvent)) onManualPan(); }
+  function manualKeys(event: { originalEvent?: Event }) {
+    const original = event.originalEvent;
+    if (original?.type === "keydown" && stopsFollowing(original as KeyboardEvent)) onManualPan();
+  }
   map.on("style.load", render);
   map.on("click", click);
   map.on("mousemove", cursor);
   map.on("dragstart", manual);
-  map.on("movestart", manual); // Includes keyboard panning, but not programmatic follow moves.
+  map.on("movestart", manualKeys); // Keyboard panning only: not zooming or programmatic follow moves.
   return {
     update(next) { revision++; state = next; render(); },
     dispose() {
       disposed = true; geocode?.abort(); places.clear(); selectedMarker?.remove(); popup?.remove();
-      map.off("style.load", render); map.off("click", click); map.off("mousemove", cursor); map.off("dragstart", manual); map.off("movestart", manual);
+      map.off("style.load", render); map.off("click", click); map.off("mousemove", cursor); map.off("dragstart", manual); map.off("movestart", manualKeys);
       if (map.getStyle()) {
         for (const id of [LABELS, POINTS, COUNTS, CLUSTERS]) if (map.getLayer(id)) map.removeLayer(id);
         if (map.getSource(SOURCE)) map.removeSource(SOURCE);

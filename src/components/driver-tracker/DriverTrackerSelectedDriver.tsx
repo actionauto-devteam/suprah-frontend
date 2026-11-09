@@ -11,7 +11,8 @@ import { LoadRouteSummary } from "./LoadRoutePanel";
 
 /**
  * Follow keeps the map on the driver, and starts by itself when a driver is
- * chosen. Moving the map yourself pauses it (Resume brings it back); Stop or
+ * chosen. Dragging the map yourself pauses it (Resume brings it back), while
+ * zooming keeps following; Stop or
  * losing sight of the driver's location turns it off.
  */
 export type FollowMode = "off" | "following" | "paused";
@@ -49,8 +50,8 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
   const followLabel = mode === "following" ? "Stop following" : mode === "paused" ? "Resume following" : "Follow driver";
   const followDisabled = mode !== "following" && (!validCoordinates(driver.coords) || !mapReady);
   const followStatus = mode === "following"
-    ? (fresh ? "Following confirmed updates. Moving the map pauses it." : "Waiting for a fresh confirmed location. Moving the map pauses it.")
-    : mode === "paused" ? "Following is paused because you moved the map." : null;
+    ? (fresh ? "Following confirmed updates. Dragging the map pauses it." : "Waiting for a fresh confirmed location. Dragging the map pauses it.")
+    : mode === "paused" ? "Following is paused because you dragged the map." : null;
   const stopWhilePaused = mode === "paused" && onStopFollowing
     ? <Button type="button" variant="link" className="h-auto min-h-11 px-1 py-0 text-xs" onClick={onStopFollowing}>Stop following</Button>
     : null;

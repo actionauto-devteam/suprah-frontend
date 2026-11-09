@@ -1,5 +1,6 @@
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import { MAP_MESSAGES, logMapProblem } from "./map-messages";
+import { stopsFollowing } from "./map-follow";
 
 /*
  * Google Maps for the Driver Tracker, the Driver Page, the driver's
@@ -206,26 +207,20 @@ export function createGoogleMap(
 }
 
 /**
- * Calls onUserMove when a person moves the map themselves: dragging, the
- * mouse wheel, a two-finger pinch, or the keyboard. Moves made by the code
- * (following a driver) don't count. Returns a function that stops listening.
+ * Calls onUserMove when a person moves the map themselves: dragging it or the
+ * arrow keys. Zooming (the wheel, a pinch, + and −) doesn't count, so Follow
+ * keeps the driver in view at the new zoom, as on the other maps (2026-11-09).
+ * Moves made by the code (following a driver) don't count either. Returns a
+ * function that stops listening.
  */
 export function watchUserMapMoves(map: google.maps.Map, container: HTMLElement, onUserMove: () => void): () => void {
   const drag = map.addListener("dragstart", onUserMove);
-  const wheel = () => onUserMove();
-  const pinch = (event: TouchEvent) => {
-    if (event.touches.length > 1) onUserMove();
-  };
   const keys = (event: KeyboardEvent) => {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "+", "-", "="].includes(event.key)) onUserMove();
+    if (stopsFollowing(event)) onUserMove();
   };
-  container.addEventListener("wheel", wheel, { passive: true });
-  container.addEventListener("touchstart", pinch, { passive: true });
   container.addEventListener("keydown", keys);
   return () => {
     drag.remove();
-    container.removeEventListener("wheel", wheel);
-    container.removeEventListener("touchstart", pinch);
     container.removeEventListener("keydown", keys);
   };
 }
