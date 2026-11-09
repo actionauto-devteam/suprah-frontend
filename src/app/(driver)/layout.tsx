@@ -177,7 +177,7 @@ function DriverLayoutContent({
         <header className="driver-topbar flex min-h-16 shrink-0 items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)] border-b border-gray-200 dark:border-white/5 bg-background/80 backdrop-blur-xl sticky top-0 z-40">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1 size-11" />
-            <div className="min-w-0"><span className="block text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">SUPRAH AI</span><span className="block text-xs font-semibold text-foreground">Driver Portal</span></div>
+            <div className="min-w-0"><span className="block text-[11px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Suprah AI</span><span className="block text-xs font-semibold text-foreground">Driver Portal</span></div>
           </div>
           <div className="flex items-center gap-1 sm:gap-3">
             <div className="hidden min-[400px]:block"><MountainTimeClock compact /></div>
