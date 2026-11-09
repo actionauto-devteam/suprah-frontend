@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { resolveImageUrl } from "@/lib/utils";
-import { Settings, User, LogOut } from "lucide-react";
+import { User, LogOut } from "lucide-react";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import {
   AlertDialog,
@@ -145,19 +145,13 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {/* Profile and Settings both opened this same page; one entry says what it is (2026-11-09). */}
                   <DropdownMenuItem
                     onClick={() => router.push("/customer/settings")}
                     className="cursor-pointer gap-2 rounded-xl mx-1"
                   >
                     <User className="h-4 w-4 text-muted-foreground" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => router.push("/customer/settings")}
-                    className="cursor-pointer gap-2 rounded-xl mx-1"
-                  >
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                    Settings
+                    Profile &amp; Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
