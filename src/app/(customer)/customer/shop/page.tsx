@@ -30,8 +30,7 @@ import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchSavedVehicles, saveVehicle, removeSavedVehicle } from "@/lib/api/savedVehicles";
+import { useWishlist } from "@/hooks/useWishlist";
 import { ComparisonTray } from "@/components/customer/ComparisonTray";
 import { BookTestDriveModal } from "@/components/customer/BookTestDriveModal";
 import { TradeInEstimatorModal } from "@/components/customer/TradeInEstimatorModal";
@@ -222,31 +221,12 @@ function ShopVehiclesContent() {
   const [viewMode, setViewMode] = useInventoryViewPreference("grid");
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const fetchSequenceRef = React.useRef(0);
-  const queryClient = useQueryClient();
-
-  const { data: savedVehiclesData = [] } = useQuery({
-    queryKey: ["savedVehicles"],
-    queryFn: fetchSavedVehicles,
-  });
-  const savedVehicleIds = React.useMemo(
-    () => new Set((savedVehiclesData as Vehicle[]).map((v: Vehicle) => v.id)),
-    [savedVehiclesData],
-  );
-  const saveMutation = useMutation({
-    mutationFn: saveVehicle,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["savedVehicles"] }),
-  });
-  const unsaveMutation = useMutation({
-    mutationFn: removeSavedVehicle,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["savedVehicles"] }),
-  });
-  const handleToggleSave = React.useCallback(
-    (vehicle: Vehicle, newState: boolean) => {
-      if (newState) saveMutation.mutate(vehicle.id);
-      else unsaveMutation.mutate(vehicle.id);
-    },
-    [saveMutation, unsaveMutation],
-  );
+  // The heart changes as soon as it's tapped and says so if saving fails (2026-11-09).
+  const {
+    available: savedVehiclesData,
+    savedIds: savedVehicleIds,
+    toggleSave: handleToggleSave,
+  } = useWishlist();
 
   const [comparedVehicles, setComparedVehicles] = React.useState<Vehicle[]>([]);
   const comparedIds = React.useMemo(
@@ -744,6 +724,8 @@ function ShopVehiclesContent() {
         onBookTestDrive={() => { setDetailsOpen(false); setIsTestDriveOpen(true); }}
         isComparing={selectedVehicle ? comparedIds.has(selectedVehicle.id) : false}
         onToggleCompare={toggleCompare}
+        isSaved={selectedVehicle ? savedVehicleIds.has(selectedVehicle.id) : false}
+        onToggleSave={handleToggleSave}
         mobilePresentation="inspector"
       />
       <VehicleInquiryModal

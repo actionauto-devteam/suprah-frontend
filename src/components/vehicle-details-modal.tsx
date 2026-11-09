@@ -23,6 +23,9 @@ interface VehicleDetailsModalProps {
   onBookTestDrive?: () => void;
   isComparing?: boolean;
   onToggleCompare?: (vehicleId: string) => void;
+  /** Customer pages: save the car to the Wishlist from its details. */
+  isSaved?: boolean;
+  onToggleSave?: (vehicle: Vehicle, nextSaved: boolean) => void;
   /**
    * Defaults to the existing full-screen mobile detail surface. Inventory and
    * Shop opt into the non-blocking inspector; Saved Vehicles and other callers
@@ -58,6 +61,8 @@ export function VehicleDetailsModal({
   onBookTestDrive,
   isComparing,
   onToggleCompare,
+  isSaved,
+  onToggleSave,
   mobilePresentation = "fullscreen",
 }: VehicleDetailsModalProps) {
   const isMobile = useIsMobile();
@@ -283,6 +288,8 @@ export function VehicleDetailsModal({
             onInquiryClick={onInquiryClick}
             onApplyNow={onApplyNow}
             onCreateLoad={onCreateLoad}
+            isSaved={isSaved}
+            onToggleSave={onToggleSave}
             staffActions={staffActions}
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}
@@ -336,6 +343,8 @@ export function VehicleDetailsModal({
             onInquiryClick={onInquiryClick}
             onApplyNow={onApplyNow}
             onCreateLoad={onCreateLoad}
+            isSaved={isSaved}
+            onToggleSave={onToggleSave}
             staffActions={staffActions}
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}

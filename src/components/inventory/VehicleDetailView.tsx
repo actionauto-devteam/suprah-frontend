@@ -31,6 +31,7 @@ import {
   TrendingUp,
   GitCompareArrows,
   Loader2,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,32 @@ import { useOrg } from "@/hooks/useOrg";
 import { resolveImageUrl, cn } from "@/lib/utils";
 
 const FALLBACK = "/vehicle-placeholder.jpg";
+
+/** Customers can save a car to their Wishlist from its details too (2026-11-09). */
+function WishlistToggle({
+  vehicle,
+  isSaved,
+  onToggleSave,
+  className,
+}: {
+  vehicle: Vehicle;
+  isSaved: boolean;
+  onToggleSave: (vehicle: Vehicle, nextSaved: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      aria-pressed={isSaved}
+      className={cn("gap-1.5 border-border/60 font-semibold", className)}
+      onClick={() => onToggleSave(vehicle, !isSaved)}
+    >
+      <Heart className={cn("h-4 w-4 shrink-0 text-rose-500", isSaved && "fill-rose-500")} aria-hidden="true" />
+      {isSaved ? "Saved to Wishlist" : "Save to Wishlist"}
+    </Button>
+  );
+}
 
 type Tab = "overview" | "specs" | "features" | "internal";
 
@@ -60,6 +87,9 @@ interface VehicleDetailViewProps {
   onToggleCompare?: (vehicleId: string) => void;
   /** Extra staff actions shown after Create Managed Load (Inventory's Change status). */
   staffActions?: React.ReactNode;
+  /** Customer pages pass the Wishlist, so the car can be saved from its details. */
+  isSaved?: boolean;
+  onToggleSave?: (vehicle: Vehicle, nextSaved: boolean) => void;
 }
 
 function cleanDescription(text: string, v?: Vehicle): string {
@@ -592,6 +622,8 @@ export function VehicleDetailView({
   isComparing,
   onToggleCompare,
   staffActions,
+  isSaved = false,
+  onToggleSave,
 }: VehicleDetailViewProps) {
   const { userRole, isSuperAdmin, organization } = useOrg();
   const isAdmin =
@@ -968,6 +1000,14 @@ export function VehicleDetailView({
                   <MessageSquare className="h-3.5 w-3.5 shrink-0 text-blue-500" />
                   Ask the dealership
                 </Button>
+              )}
+              {!mobileInspector && onToggleSave && (
+                <WishlistToggle
+                  vehicle={vehicle}
+                  isSaved={isSaved}
+                  onToggleSave={onToggleSave}
+                  className="min-h-10 h-auto whitespace-normal px-2 py-2 text-xs"
+                />
               )}
               {onCreateLoad && (
                 <Button
@@ -1487,6 +1527,14 @@ export function VehicleDetailView({
                   Ask the dealership
                 </Button>
               )}
+              {onToggleSave && (
+                <WishlistToggle
+                  vehicle={vehicle}
+                  isSaved={isSaved}
+                  onToggleSave={onToggleSave}
+                  className="min-h-10 h-auto whitespace-normal px-2 py-2 text-[11px]"
+                />
+              )}
             </div>
           </section>
         )}
@@ -1564,6 +1612,9 @@ export function VehicleDetailView({
                   <MessageSquare className="h-4 w-4 text-blue-500" /> Ask the
                   dealership
                 </Button>
+              )}
+              {onToggleSave && (
+                <WishlistToggle vehicle={vehicle} isSaved={isSaved} onToggleSave={onToggleSave} className="h-11 w-full" />
               )}
               {onBookTestDrive && (
                 <Button

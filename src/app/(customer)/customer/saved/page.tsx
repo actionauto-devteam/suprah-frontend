@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Heart,
   ShoppingBag,
@@ -19,7 +18,8 @@ import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
-import { fetchSavedVehicles, removeSavedVehicle } from "@/lib/api/savedVehicles";
+import { useWishlist } from "@/hooks/useWishlist";
+import { wishlistCarName } from "@/lib/wishlist";
 import { useAuth } from "@/providers/AuthProvider";
 import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
 import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
@@ -27,7 +27,7 @@ import { userErrorMessage } from "@/lib/user-error";
 import { toast } from "sonner";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 
 type SortKey = "default" | "priceAsc" | "priceDesc" | "yearDesc";
 
@@ -41,18 +41,18 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ComponentType<{ c
 function WishlistContent() {
   const { getToken } = useAuth();
   const customerContact = useCustomerQuoteContact();
-  const queryClient = useQueryClient();
   const [sortBy, setSortBy] = React.useState<SortKey>("default");
 
-  const { data: savedVehicles = [], isLoading } = useQuery({
-    queryKey: ["savedVehicles"],
-    queryFn: fetchSavedVehicles,
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: removeSavedVehicle,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["savedVehicles"] }),
-  });
+  // Cars still for sale show as cards; sold or removed ones are listed below
+  // so they can be removed (2026-11-09).
+  const {
+    isLoading,
+    available: savedVehicles,
+    unavailable: unavailableVehicles,
+    savedIds,
+    toggleSave,
+    removeCar,
+  } = useWishlist();
 
   const {
     selectedVehicle,
@@ -84,12 +84,6 @@ function WishlistContent() {
       throw new Error(userErrorMessage(error, "send your shipping quote request"));
     }
   };
-
-  const handleToggleSave = (vehicle: Vehicle, _newState: boolean) => {
-    removeMutation.mutate(vehicle.id);
-  };
-
-  const savedIds = new Set(savedVehicles.map((v: Vehicle) => v.id));
 
   const totalEstValue = React.useMemo(
     () => (savedVehicles as Vehicle[]).reduce((sum, v) => sum + (v.price ?? 0), 0),
@@ -285,7 +279,7 @@ function WishlistContent() {
                   onGetQuote={handleGetQuote}
                   onVehicleClick={handleVehicleClick}
                   isSaved={savedIds.has(vehicle.id)}
-                  onToggleSave={handleToggleSave}
+                  onToggleSave={toggleSave}
                 />
               ))}
             </div>
@@ -299,6 +293,52 @@ function WishlistContent() {
           </div>
         )}
       </div>
+
+      {/* ─── No longer available ──────────────────────────────────────── */}
+      {!isLoading && unavailableVehicles.length > 0 && (
+        <section aria-labelledby="wishlist-unavailable" className="space-y-2.5">
+          <div>
+            <h2 id="wishlist-unavailable" className="text-sm font-bold text-foreground">
+              No longer available
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              These cars were sold or taken off sale. Remove them to keep your Wishlist tidy.
+            </p>
+          </div>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {unavailableVehicles.map((vehicle) => {
+              const name = wishlistCarName(vehicle);
+              const photo = vehicle.image
+                ? /^https?:\/\//i.test(vehicle.image) ? vehicle.image : resolveImageUrl(vehicle.image)
+                : "";
+              return (
+                <li key={vehicle.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-border/50 bg-card p-2.5">
+                  {photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photo} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover opacity-60 grayscale" />
+                  ) : (
+                    <div className="h-14 w-20 shrink-0 rounded-lg bg-muted" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground" title={name}>{name}</p>
+                    <p className="text-xs text-muted-foreground">No longer available</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 rounded-lg max-sm:min-h-11"
+                    onClick={() => removeCar(vehicle)}
+                    aria-label={`Remove ${name} from your Wishlist`}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* ─── Modals ───────────────────────────────────────────────────── */}
       <ShippingQuoteModal
@@ -317,6 +357,8 @@ function WishlistContent() {
         onInquiryClick={handleCheckAvailability}
         onApplyNow={handleApplyNow}
         shippingQuote={selectedVehicle ? shippingRates[selectedVehicle.id] : null}
+        isSaved={selectedVehicle ? savedIds.has(selectedVehicle.id) : false}
+        onToggleSave={toggleSave}
       />
       <VehicleInquiryModal
         isOpen={openModals.inquiry}
