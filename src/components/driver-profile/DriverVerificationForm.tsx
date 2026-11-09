@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { userErrorMessage } from '@/lib/user-error';
-import { REQUIRED_DOCUMENTS, documentTypeOptions, US_STATES } from './driver-profile-constants';
+import { DOCUMENT_EXPIRY_TYPES, REQUIRED_DOCUMENTS, documentTypeOptions, US_STATES } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
 import { Stepper, type StepperStep } from './Stepper';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -150,8 +150,12 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
     setShowUploadDialog(true);
   };
 
+  // The same rule as the Documents page: these documents need a date.
+  const uploadNeedsExpiry = DOCUMENT_EXPIRY_TYPES.has(uploadType);
+
   const handleUpload = async () => {
     if (!uploadFile || !uploadLabel.trim()) { toast.error("Choose a file and enter a name for the document."); return; }
+    if (uploadNeedsExpiry && !uploadExpiry) { toast.error("Enter the expiration date for this document."); return; }
     setUploading(true);
     try {
       // Phone photos are shrunk first, so they fit the 5 MB limit and stay readable.
@@ -562,8 +566,8 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
               <Input value={uploadLabel} onChange={e => setUploadLabel(e.target.value)} placeholder="e.g. CDL Front Side" maxLength={100} className="h-11" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-muted-foreground">Expiration Date</Label>
-              <Input type="date" value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)} className="h-11" />
+              <Label htmlFor="application-upload-expiry" className="text-xs font-bold text-muted-foreground">Expiration Date{uploadNeedsExpiry ? ' *' : ''}</Label>
+              <Input id="application-upload-expiry" type="date" value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)} required={uploadNeedsExpiry} className="h-11" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">File</Label>
@@ -595,7 +599,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowUploadDialog(false)} className="flex-1">Cancel</Button>
-            <Button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadLabel.trim()} className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+            <Button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadLabel.trim() || (uploadNeedsExpiry && !uploadExpiry)} className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
               {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} {uploading ? 'Uploading...' : 'Upload'}
             </Button>
           </DialogFooter>

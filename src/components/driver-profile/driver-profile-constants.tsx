@@ -69,6 +69,19 @@ export const documentTypeOptions: { value: ComplianceDocumentType; label: string
     { value: 'other', label: 'Other' },
 ];
 
+/**
+ * Documents that need an expiration date when they're uploaded, on the
+ * Documents page and in the sign-up application alike. Must match needsExpiry
+ * in the backend's driverProfile.controller, which refuses them without one.
+ */
+export const DOCUMENT_EXPIRY_TYPES: ReadonlySet<string> = new Set<ComplianceDocumentType>([
+    'drivers_license',
+    'medical_card',
+    'insurance_certificate',
+    'liability_insurance',
+    'cargo_insurance',
+]);
+
 export const REQUIRED_DOCUMENTS: { type: ComplianceDocumentType; label: string; required: boolean; description: string }[] = [
     { type: 'drivers_license', label: "Commercial Driver's License (CDL)", required: true, description: 'Valid CDL — front and back required' },
     { type: 'medical_card', label: 'DOT Medical Card', required: false, description: 'Current DOT physical examination certificate' },

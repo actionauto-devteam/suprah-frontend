@@ -67,6 +67,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  DOCUMENT_EXPIRY_TYPES,
   REQUIRED_DOCUMENTS,
   documentTypeOptions,
   US_STATES,
@@ -345,14 +346,6 @@ const getLatestDocumentExpiration = (
 
   return toDateInputValue(matching[0]?.expiresAt);
 };
-
-const DOCUMENT_EXPIRY_TYPES = new Set([
-  'drivers_license',
-  'medical_card',
-  'insurance_certificate',
-  'liability_insurance',
-  'cargo_insurance',
-]);
 
 export const DocumentsPage: React.FC = () => {
   const { getToken } = useAuth();
