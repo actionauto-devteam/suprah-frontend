@@ -21,6 +21,7 @@ import {
   STATE_ZIP_MAP,
 } from "./types"
 import type { ValidationIssue } from "./validation"
+import { usPhoneDigits, usPhoneIncomplete } from "./phone"
 import { LocationMapPicker, mapPickerAvailable, type PickedLocation } from "./LocationMapPicker"
 
 // ─── Route step: pickup + delivery ───────────────────────────────────────────
@@ -430,19 +431,20 @@ function LocationCard({
         <Field
           label="Phone"
           importance="recommended"
-          hint="Useful for pickup or delivery coordination."
+          hint={
+            usPhoneIncomplete(value.phone)
+              ? "Enter all 10 digits, including the area code."
+              : "Useful for pickup or delivery coordination."
+          }
         >
+          {/* Pasted numbers like +1 (801) 555-0100 keep their 10 digits (2026-11-10). */}
           <IconInput
             icon={Phone}
             placeholder="(555) 555-5555"
             value={value.phone ?? ""}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 10)
-              onChange({ ...value, phone: digits })
-            }}
+            onChange={(e) => onChange({ ...value, phone: usPhoneDigits(e.target.value) })}
             type="tel"
             inputMode="numeric"
-            maxLength={14}
           />
         </Field>
 
