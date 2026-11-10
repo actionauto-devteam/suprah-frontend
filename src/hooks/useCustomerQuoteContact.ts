@@ -20,8 +20,9 @@ export function useCustomerQuoteContact(): Partial<ShippingQuoteFormData> {
 /**
  * The signed-in customer's account phone, to fill in the shipping quote form
  * (2026-11-10). It's read from their profile only once the form is open, and
- * kept for a few minutes. The customer can change it; the dealership calls
- * the number on the form. Empty when the account has no usable phone.
+ * kept for a minute, so a phone just changed in Settings shows up. The
+ * customer can change it; the dealership calls the number on the form.
+ * Empty when the account has no usable phone.
  */
 export function useCustomerAccountPhone(formOpen: boolean): string {
   const { user } = useUser();
@@ -33,7 +34,7 @@ export function useCustomerAccountPhone(formOpen: boolean): string {
       return usableQuotePhone(response.data?.data?.personalInfo?.phone);
     },
     enabled: formOpen && Boolean(userId),
-    staleTime: 10 * 60 * 1000,
+    staleTime: 60 * 1000,
     retry: false,
   });
   return data ?? "";
