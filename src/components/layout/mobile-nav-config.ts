@@ -11,6 +11,7 @@ import {
     Crown,
     FolderKanban,
     Gift,
+    Heart,
     HeartHandshake,
     LayoutDashboard,
     Mail,
@@ -138,4 +139,14 @@ export const customerNav: BottomNavItem[] = [
     { label: "Shop", href: "/customer/shop", icon: Car },
     { label: "Wallet", href: "/customer/payments", icon: Wallet },
     { label: "Refer", href: "/customer/refer", icon: Gift },
+];
+
+// Inside the iPhone app: only finished sections (Rewards, Wallet and Refer are
+// still in development, see lib/customer-in-development), so finished ones
+// take their place (2026-11-11).
+export const customerAppNav: BottomNavItem[] = [
+    { label: "Home", href: "/customer", icon: Wrench },
+    { label: "Shipments", href: "/customer/shipments", icon: Truck },
+    { label: "Shop", href: "/customer/shop", icon: Car },
+    { label: "Wishlist", href: "/customer/saved", icon: Heart },
 ];

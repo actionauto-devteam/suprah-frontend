@@ -66,7 +66,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useProfileContext } from "@/context/ProfileContext";
 import { resolveImageUrl, cn } from "@/lib/utils";
-import { IN_DEVELOPMENT_LABEL, inDevelopmentFor } from "@/lib/customer-in-development";
+import { IN_DEVELOPMENT_LABEL, inDevelopmentFor, shownInApp } from "@/lib/customer-in-development";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 
 const navSections = [
   {
@@ -169,6 +170,13 @@ export function CustomerSidebar() {
   const { data: membership } = useMyMembership();
   const { organization } = useOrg();
   const { setOpenMobile } = useSidebar();
+  // Inside the iPhone app, sections still in development are left out (2026-11-11).
+  const isNativeApp = useIsNativeApp();
+  const visibleSections = isNativeApp
+    ? navSections
+        .map((section) => ({ ...section, items: section.items.filter((item) => shownInApp(item.url)) }))
+        .filter((section) => section.items.length > 0)
+    : navSections;
 
   // On a phone the sidebar covers the page; close it once a page is picked.
   // Only the phone's open state changes, so the computer sidebar stays as it is.
@@ -263,7 +271,7 @@ export function CustomerSidebar() {
       {/* ── Navigation ───────────────────────────────────────────────────────── */}
       <SidebarContent className="px-2 py-0">
         <TooltipProvider delayDuration={400}>
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <SidebarGroup key={section.label} className="py-0.5 px-0">
               <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 h-6 px-2 group-data-[collapsible=icon]:hidden">
                 {section.label}

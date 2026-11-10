@@ -54,6 +54,16 @@ export const IN_DEVELOPMENT_SECTIONS: Record<string, InDevelopmentNotice> = {
   },
 }
 
+/**
+ * Inside the iPhone app, sections still in development are left out of the
+ * menus and their pages go back to My Garage: Apple rejects apps that show
+ * unfinished features (2026-11-11). The website still shows them with their
+ * notice.
+ */
+export function shownInApp(pathname: string | null | undefined): boolean {
+  return inDevelopmentFor(pathname) === null
+}
+
 /** The notice for this page (or one of its sub-pages), or null when the section is finished. */
 export function inDevelopmentFor(pathname: string | null | undefined): InDevelopmentNotice | null {
   const path = String(pathname ?? "").split(/[?#]/)[0].replace(/\/+$/, "")

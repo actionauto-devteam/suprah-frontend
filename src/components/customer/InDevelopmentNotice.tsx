@@ -1,19 +1,31 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import * as React from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Construction } from "lucide-react"
 import { SUPPORT_EMAIL } from "@/lib/support-contact"
 import { inDevelopmentFor } from "@/lib/customer-in-development"
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 
 /**
  * "Still under development" at the top of a customer portal section that
  * isn't finished yet (see lib/customer-in-development): what works now, what
  * isn't ready, and who to contact. Shows nothing on finished pages.
+ *
+ * Inside the iPhone app those sections aren't offered, so a link that still
+ * leads to one goes back to My Garage instead (2026-11-11).
  */
 export function InDevelopmentNotice() {
   const pathname = usePathname()
+  const router = useRouter()
+  const isNativeApp = useIsNativeApp()
   const notice = inDevelopmentFor(pathname)
-  if (!notice) return null
+
+  React.useEffect(() => {
+    if (isNativeApp && notice) router.replace("/customer")
+  }, [isNativeApp, notice, router])
+
+  if (!notice || isNativeApp) return null
 
   return (
     <section
