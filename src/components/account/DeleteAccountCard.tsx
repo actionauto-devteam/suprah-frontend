@@ -5,12 +5,12 @@ import { Loader2, Trash2 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { toast } from "@/lib/readable-toast"
-import { userErrorMessage } from "@/lib/user-error"
 import {
   ACCOUNT_DELETION_ENDPOINT,
   ACCOUNT_DELETION_TEXT,
   DELETE_CONFIRM_WORD,
   deletionConfirmed,
+  deletionErrorMessage,
   type DeletingAccount,
 } from "@/lib/account-deletion"
 import { Button } from "@/components/ui/button"
@@ -35,7 +35,7 @@ interface DeleteAccountCardProps {
  * Lets a driver or customer delete their own account (2026-11-11). They see
  * what's removed and what stays, type DELETE, and are signed out once it's
  * done. If something stops it (a load or shipment in progress, an unpaid
- * payout), the reason is shown in plain words.
+ * payout, an email not verified yet), the reason is shown in plain words.
  */
 export function DeleteAccountCard({ account, variant = "card" }: DeleteAccountCardProps) {
   const { getToken, signOut } = useAuth()
@@ -65,7 +65,7 @@ export function DeleteAccountCard({ account, variant = "card" }: DeleteAccountCa
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
     } catch (requestError) {
-      setError(userErrorMessage(requestError, "delete your account"))
+      setError(deletionErrorMessage(requestError))
       setDeleting(false)
       return
     }
