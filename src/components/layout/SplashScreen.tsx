@@ -45,7 +45,7 @@ const letterVariants: Variants = {
 
 export const SplashScreen = () => {
   const pathname = usePathname();
-  const skipForSupraSpace = isSupraSpacePathname(pathname);
+  const skipForSupraSpace = isSupraSpacePathname(pathname) || Boolean(pathname?.startsWith("/feedback/"));
 
   // Rewrites can expose different pathnames on the server and in the browser.
   // Start hidden on both, then decide whether to show the splash before paint.

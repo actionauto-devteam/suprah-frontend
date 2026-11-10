@@ -42,6 +42,9 @@ import {
 } from "@/lib/api/customerRecords";
 import { CUSTOMER_LIST_FLAG, displayPhone, relativeTime } from "./CustomerRecordsList";
 import { CustomerLifecycleTimeline } from "./CustomerLifecycleTimeline";
+import { CustomerDealsTab } from "./CustomerDealsTab";
+import { CustomerFeedbackTab } from "./CustomerFeedbackTab";
+import { CustomerSupportTab } from "./CustomerSupportTab";
 import { cn } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -341,6 +344,13 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
   const router = useRouter();
   const [tab, setTab] = React.useState("overview");
 
+  React.useEffect(() => {
+    try {
+      const requested = new URLSearchParams(window.location.search).get("tab");
+      if (requested && ["deals", "feedback", "support"].includes(requested)) setTab(requested);
+    } catch {}
+  }, []);
+
   const query = useQuery({
     queryKey: ["customer-record", customerId],
     queryFn: async () => fetchCustomerProfile(await getToken(), customerId),
@@ -524,6 +534,9 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
           <TabsTrigger value="vehicles" className="h-9 flex-none px-3">Vehicles</TabsTrigger>
           <TabsTrigger value="purchases" className="h-9 flex-none px-3">Purchases</TabsTrigger>
           <TabsTrigger value="appointments" className="h-9 flex-none px-3">Appointments</TabsTrigger>
+          <TabsTrigger value="deals" className="h-9 flex-none px-3">Deals</TabsTrigger>
+          <TabsTrigger value="feedback" className="h-9 flex-none px-3">Feedback</TabsTrigger>
+          <TabsTrigger value="support" className="h-9 flex-none px-3">Support</TabsTrigger>
           <TabsTrigger value="details" className="h-9 flex-none px-3">Customer info</TabsTrigger>
         </TabsList>
 
@@ -685,6 +698,18 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
           </div>
           <CustomerLifecycleTimeline customerId={customerId} />
           <p className="text-[11px] text-muted-foreground">Open a lead to read the full conversation.</p>
+        </TabsContent>
+
+        <TabsContent value="deals">
+          <CustomerDealsTab customerId={customerId} leads={profile.relatedLeads} />
+        </TabsContent>
+
+        <TabsContent value="feedback">
+          <CustomerFeedbackTab customerId={customerId} />
+        </TabsContent>
+
+        <TabsContent value="support">
+          <CustomerSupportTab customerId={customerId} />
         </TabsContent>
 
         <TabsContent value="details">

@@ -77,6 +77,7 @@ const PUBLIC_ROUTES = [
   "/vehicle",
   "/embed",
   "/referral",
+  "/feedback/",
   "/offline",
   "/support",
   "/meet",
