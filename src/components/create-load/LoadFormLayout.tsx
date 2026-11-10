@@ -275,6 +275,12 @@ export function LoadFormLayout({
   const [dates, setDates] = React.useState<LoadDates>(() =>
     isEdit ? mapDatesFromLoad(initialLoad!.dates) : emptyDates(),
   )
+  // The dates the load was saved with: an old first available date that
+  // wasn't changed doesn't stop an edit from saving (2026-11-10).
+  const savedDates = React.useMemo(
+    () => (isEdit ? mapDatesFromLoad(initialLoad!.dates) : undefined),
+    [isEdit, initialLoad],
+  )
   const [additionalInfo, setAdditionalInfo] = React.useState<LoadAdditionalInfo>(
     () =>
       isEdit
@@ -384,10 +390,11 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         makeAvailable: postType === "assign-carrier" && !isEdit ? makeAvailable : false,
         // Editing has no Driver step, so it never asks for a driver.
         requireDriver: !isEdit,
+        savedDates,
         askSoldOnDelivery: !fromQuote,
         soldOnDelivery,
       }),
-    [postType, pickup, delivery, vehicles, trailerType, dates, contract, pricing, selectedDriverId, makeAvailable, isEdit, fromQuote, soldOnDelivery],
+    [postType, pickup, delivery, vehicles, trailerType, dates, savedDates, contract, pricing, selectedDriverId, makeAvailable, isEdit, fromQuote, soldOnDelivery],
   )
 
   // A load converted from a quote starts as a Draft: drivers can't see it and

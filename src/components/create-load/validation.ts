@@ -117,7 +117,12 @@ export function validateVehicles(
   return { valid: issues.length === 0, issues, warnings };
 }
 
-export function validateDates(dates: LoadDates): StepValidation {
+/**
+ * `saved` is the load's saved dates when editing: a first available date that
+ * has passed but wasn't changed doesn't stop the edit from saving, the same as
+ * the server (2026-11-10). A newly chosen date must still be today or later.
+ */
+export function validateDates(dates: LoadDates, saved?: LoadDates): StepValidation {
   const issues: ValidationIssue[] = [];
 
   // Schedule fields are Mountain business-calendar dates. Comparing
@@ -128,10 +133,11 @@ export function validateDates(dates: LoadDates): StepValidation {
   const pickupBy = scheduleDateKey(dates.pickupDeadline);
   const deliverBy = scheduleDateKey(dates.deliveryDeadline);
 
-  if (first && first < today) {
+  const unchangedSavedDate = Boolean(saved) && first === scheduleDateKey(saved?.firstAvailable);
+  if (first && first < today && !unchangedSavedDate) {
     issues.push({
       field: "dates.firstAvailable",
-      message: "Cannot select a date in the past",
+      message: "The first available date can't be in the past. Choose today or a later date.",
     });
   }
 
@@ -248,6 +254,8 @@ export function validateAll(input: {
    * (drivers are assigned from Driver Tracker), so it can't require one.
    */
   requireDriver?: boolean;
+  /** When editing, the load's saved dates (an old date that wasn't changed doesn't block saving). */
+  savedDates?: LoadDates;
   /** Ask whether the car is sold to the person receiving it (not for a load made from a quote). */
   askSoldOnDelivery?: boolean;
   soldOnDelivery?: boolean | null;
@@ -256,7 +264,7 @@ export function validateAll(input: {
     validateLocation(input.pickup, "pickup"),
     validateLocation(input.delivery, "delivery"),
     validateVehicles(input.vehicles, input.trailerType),
-    validateDates(input.dates),
+    validateDates(input.dates, input.savedDates),
     validateContract(input.contract),
     validatePricing(input.postType, input.pricing),
     validateSoldOnDelivery(input.askSoldOnDelivery === true, input.soldOnDelivery),
