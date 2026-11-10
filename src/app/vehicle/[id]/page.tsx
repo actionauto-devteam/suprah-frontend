@@ -56,7 +56,7 @@ export default function VehiclePage() {
 
     if (loading) {
         return (
-            <ContextualShell hideNav hideThemeToggle logoText="SupraAi" logoIcon="S">
+            <ContextualShell hideNav hideThemeToggle logoText="Suprah AI" logoIcon="S">
                 <div className="max-w-7xl mx-auto p-6 space-y-8 animate-pulse">
                     <Skeleton className="h-12 w-64" />
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -73,7 +73,7 @@ export default function VehiclePage() {
 
     if (error) {
         return (
-            <ContextualShell hideNav hideThemeToggle logoText="SupraAi" logoIcon="S">
+            <ContextualShell hideNav hideThemeToggle logoText="Suprah AI" logoIcon="S">
                 <div className="min-h-[60vh] flex items-center justify-center p-6">
                     <div className="max-w-md w-full bg-background p-8 rounded-2xl border shadow-lg text-center space-y-6">
                         <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
@@ -95,7 +95,7 @@ export default function VehiclePage() {
     if (!vehicle) return null
 
     return (
-        <ContextualShell hideNav hideThemeToggle logoText="SupraAi" logoIcon="S">
+        <ContextualShell hideNav hideThemeToggle logoText="Suprah AI" logoIcon="S">
             <div className="max-w-7xl mx-auto w-full p-4 lg:p-8">
                 {/* Responsive Title Section */}
                 <div className="mb-8 group">
