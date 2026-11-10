@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDown, ArrowUp, Bell, CalendarCheck, ClipboardList, Clock3, Flag, GitBranch, Mail, MessageSquare, Plus, Search, Sparkles, Star, UserMinus, UserPlus, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Bell, CalendarCheck, ClipboardList, Clock3, Flag, GitBranch, Handshake, Mail, MessageSquare, MoveRight, Plus, Search, Sparkles, Star, UserCheck, UserMinus, UserPlus, Users, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -29,6 +29,10 @@ export const STEP_ICONS: Record<AutomationStepType, React.ComponentType<{ classN
   send_ai_follow_up: Sparkles,
   create_task: ClipboardList,
   update_lead_status: Flag,
+  assign_lead_group: Users,
+  assign_dynamic: UserCheck,
+  create_deal: Handshake,
+  move_deal: MoveRight,
   wait: Clock3,
   branch: GitBranch,
 }
@@ -137,7 +141,46 @@ function StepEditor({ step, options, readOnly, onChange }: {
     )
   }
   if (step.type === "send_review_invitation") {
-    return <p className="text-xs text-muted-foreground">Texts the customer a thank-you with the review link saved in CRM Settings. If no link is saved, it asks how everything went instead.</p>
+    return <p className="text-xs text-muted-foreground">Texts the customer a thank-you with a link to rate their visit from 1 to 5 stars. The page also shows the review link saved in CRM Settings to every customer, whatever they rate. Ratings show on the Customer Record, and 1 or 2 stars creates a task for managers.</p>
+  }
+  if (step.type === "assign_lead_group") {
+    const groups = options.leadGroups || []
+    return (
+      <div className="space-y-1">
+        <label htmlFor={`step-${step.id}-group`} className="text-xs font-semibold">Lead Group</label>
+        <select id={`step-${step.id}-group`} className={FIELD_CLASS} value={String(config.groupId || "")} disabled={readOnly} onChange={(event) => onChange({ ...config, groupId: event.target.value })}>
+          <option value="">Pick a Lead Group</option>
+          {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.members} {group.members === 1 ? "member" : "members"})</option>)}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          {groups.length ? "Members take turns getting the lead, one after another. Everyone in the group is notified." : "No Lead Groups yet. Create one in CRM Settings > Lead Groups first."}
+        </p>
+      </div>
+    )
+  }
+  if (step.type === "assign_dynamic") {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Gives the lead to the team member who handled the trigger: for call triggers, who answered the call; for appointment triggers, who booked it; for every other trigger, who last texted the customer. If nobody on the team did, the lead stays as it is and the Monitor says why.
+      </p>
+    )
+  }
+  if (step.type === "create_deal" || step.type === "move_deal") {
+    const stages = (options.dealStages || []).filter((stage) => step.type === "move_deal" || stage.open)
+    return (
+      <div className="space-y-1">
+        <label htmlFor={`step-${step.id}-stage`} className="text-xs font-semibold">{step.type === "create_deal" ? "Start the deal in" : "Move the deal to"}</label>
+        <select id={`step-${step.id}-stage`} className={FIELD_CLASS} value={String(config.stage || "")} disabled={readOnly} onChange={(event) => onChange({ ...config, stage: event.target.value })}>
+          {step.type === "move_deal" && <option value="">Pick a stage</option>}
+          {stages.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          {step.type === "create_deal"
+            ? "Creates a deal on the Deal Board for the lead and its vehicle, owned by the lead's assigned team member. Skipped if the lead already has an open deal."
+            : "Moves the lead's open deal on the Deal Board. Skipped if the lead has no open deal. It never marks the lead Sold."}
+        </p>
+      </div>
+    )
   }
   if (step.type === "send_notification") {
     return (

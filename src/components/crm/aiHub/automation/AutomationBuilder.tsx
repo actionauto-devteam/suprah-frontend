@@ -117,6 +117,8 @@ function stepsProblem(steps: AutomationStep[], trigger: AutomationDraft["trigger
     if (step.type === "update_lead_status" && !config.status) return `${label}: pick the new status.`
     if (step.type === "send_notification" && config.recipients === "people" && !(config.userIds as string[] | undefined)?.length) return `${label}: pick who gets the notification.`
     if (step.type === "assign_team_member" && !config.userId) return `${label}: pick the team member.`
+    if (step.type === "assign_lead_group" && !config.groupId) return `${label}: pick the Lead Group.`
+    if (step.type === "move_deal" && !config.stage) return `${label}: pick the stage.`
     if (step.type === "wait" && !(Number(config.amount) >= 1)) return `${label}: set how long to wait.`
     if ((TIMED_STEP_TYPES.has(step.type) || step.type === "branch") && stepTiming(config).when === "before" && !allowsBeforeTrigger(trigger)) return `${label}: "Deliver before trigger" only works with appointment or On a Date triggers.`
     if (step.type !== "branch") continue

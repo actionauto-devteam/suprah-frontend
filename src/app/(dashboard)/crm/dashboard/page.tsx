@@ -22,6 +22,7 @@ import {
   Bot,
   BarChart3,
   Contact,
+  Handshake,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -216,6 +217,7 @@ export default function CrmDashboardPage() {
   const quickActions = [
     { icon: <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Leads", route: "/crm/leads" },
     { icon: <Contact className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Customer Records", route: "/crm/customers" },
+    { icon: <Handshake className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Deal Board", route: "/crm/deals" },
     { icon: <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Service Hub", route: "/crm/appointments/dashboard" },
     { icon: <CalendarCheck className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Appointments", route: "/crm/appointments" },
 

@@ -14,6 +14,10 @@ export type AutomationStepType =
   | "send_ai_follow_up"
   | "create_task"
   | "update_lead_status"
+  | "assign_lead_group"
+  | "assign_dynamic"
+  | "create_deal"
+  | "move_deal"
   | "wait"
   | "branch"
 
@@ -111,6 +115,8 @@ export interface AutomationOptions {
   inventoryVariables?: string[]
   priceDropMinimum?: number
   dateRunLimit?: number
+  leadGroups?: Array<{ id: string; name: string; members: number }>
+  dealStages?: Array<{ value: string; label: string; open: boolean }>
 }
 
 export type AutomationDraft = Pick<Automation, "name" | "locations" | "trigger" | "steps">
@@ -201,7 +207,7 @@ export function audienceSummary(filters: AutomationFilter[], options: Pick<Autom
 }
 
 export const STEP_HELP: Record<AutomationStepType, string> = {
-  send_review_invitation: "Text the customer your review link.",
+  send_review_invitation: "Text the customer a link to rate their visit.",
   send_message: "Text the customer. \"Reply STOP to opt out.\" is added at the end if it is missing.",
   send_appointment_confirmation: "Text the customer their next appointment and ask them to confirm.",
   send_email: "Email the customer.",
@@ -211,6 +217,10 @@ export const STEP_HELP: Record<AutomationStepType, string> = {
   send_ai_follow_up: "The AI agent writes and sends a follow-up text.",
   create_task: "Add a task for your team on this lead.",
   update_lead_status: "Change the lead's status.",
+  assign_lead_group: "Give the lead to the next person in a Lead Group and notify the group.",
+  assign_dynamic: "Give the lead to the team member who handled the trigger.",
+  create_deal: "Start a deal on the Deal Board for this lead.",
+  move_deal: "Move this lead's open deal to another stage.",
   wait: "Pause before the next step.",
   branch: "Only the first condition that matches will be executed.",
 }
@@ -278,6 +288,10 @@ function baseStep(type: AutomationStepType): AutomationStep {
     send_ai_follow_up: { instructions: "" },
     create_task: { recipients: "assigned", userIds: [], task: "" },
     update_lead_status: { status: "" },
+    assign_lead_group: { groupId: "" },
+    assign_dynamic: {},
+    create_deal: { stage: "new" },
+    move_deal: { stage: "" },
     wait: { amount: 1, unit: "days" },
     branch: { paths: [newBranchPath()], else: { doNothing: false, steps: [] } },
   }
