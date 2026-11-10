@@ -27,7 +27,7 @@ const form = {
   tradeIn: { hasTradeIn: false },
 };
 
-test('the full-page form sends the same record the finance pop-up fills', () => {
+test('the full-page form sends every answer to the dealership', () => {
   assert.deepEqual(financeApplicationPayload('veh-1', form), {
     vehicleId: 'veh-1',
     personalInfo: {
@@ -38,6 +38,9 @@ test('the full-page form sends the same record the finance pop-up fills', () => 
       dob: '1990-04-12',
       ssn: '123-45-6789',
       address: { street: '12 Main St', city: 'Orem', state: 'UT', zip: '84057' },
+      applicationType: 'individual',
+      maritalStatus: 'single',
+      driversLicenseNumber: 'D1234567',
     },
     employmentInfo: {
       employer: 'Acme',
@@ -45,7 +48,19 @@ test('the full-page form sends the same record the finance pop-up fills', () => 
       income: '62000',
       incomeFrequency: 'Yearly',
       yearsAtJob: '3 years 6 months',
+      workPhone: undefined,
+      payFrequency: 'bi-weekly',
     },
+    residence: { housingStatus: 'rent', monthlyPayment: 1200, yearsAtAddress: 2, monthsAtAddress: 3 },
+    reference: { name: 'Sam', relationship: 'Friend', phone: '8015550101' },
+    tradeIn: { hasTradeIn: false },
+  });
+});
+
+test('a trade-in is sent with its details', () => {
+  const withTrade = { ...form, tradeIn: { hasTradeIn: true, tradeYear: '2015', tradeMake: ' Honda ', tradeModel: 'Civic', tradeMileage: '' } };
+  assert.deepEqual(financeApplicationPayload('veh-1', withTrade).tradeIn, {
+    hasTradeIn: true, year: '2015', make: 'Honda', model: 'Civic', mileage: undefined,
   });
 });
 

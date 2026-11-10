@@ -25,9 +25,10 @@ export function useFinancePersistence({
     if (savedData) {
       try {
         const parsedData = JSON.parse(savedData)
-        // SSN should not be persisted for security
+        // The SSN and driver's license number are never kept in the browser (2026-11-10)
         if (parsedData.personal) {
           delete parsedData.personal.ssn
+          delete parsedData.personal.dlNumber
         }
         form.reset(parsedData)
       } catch (e) {
@@ -42,10 +43,10 @@ export function useFinancePersistence({
     if (!isReady) return
 
     const subscription = form.watch((value) => {
-      // Don't save SSN
+      // Don't save the SSN or driver's license number
       const dataToSave = { ...value }
       if (dataToSave.personal) {
-        dataToSave.personal = { ...dataToSave.personal, ssn: '' }
+        dataToSave.personal = { ...dataToSave.personal, ssn: '', dlNumber: '' }
       }
       localStorage.setItem(key, JSON.stringify(dataToSave))
     })
