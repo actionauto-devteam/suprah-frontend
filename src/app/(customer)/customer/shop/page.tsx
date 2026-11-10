@@ -11,7 +11,7 @@ import { ShopInventoryFilters } from "@/components/shop-inventory-filters";
 import { InventoryPagination } from "@/components/inventory-pagination";
 import { useAuth } from "@/providers/AuthProvider";
 import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
-import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
+import { useCustomerAccountPhone, useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
 import { userErrorMessage } from "@/lib/user-error";
 import {
   EMPTY_SHOP_FILTERS,
@@ -263,6 +263,7 @@ function ShopVehiclesContent() {
     handleVideo,
     handleGetQuote,
   } = useInventoryActions();
+  const accountPhone = useCustomerAccountPhone(openModals.shipping);
 
   // Filters come from the page address, so the sidebar's Shop shortcuts and
   // shared links work even while Shop is already open (see shop-filters).
@@ -711,6 +712,7 @@ function ShopVehiclesContent() {
         vehicles={vehicles}
         defaultVehicle={selectedVehicle}
         initialData={customerContact}
+        accountPhone={accountPhone}
         onCalculate={handleCalculateQuote}
       />
       <VehicleDetailsModal

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { requestShippingQuote, shippingRequestSentMessage } from "@/lib/api/customerQuoteRequests";
-import { useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
+import { useCustomerAccountPhone, useCustomerQuoteContact } from "@/hooks/useCustomerQuoteContact";
 import { userErrorMessage } from "@/lib/user-error";
 import { toast } from "sonner";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
@@ -95,6 +95,7 @@ function CompareContent() {
     handleApplyNow,
     handleGetQuote,
   } = useInventoryActions();
+  const accountPhone = useCustomerAccountPhone(openModals.shipping);
 
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {
     try {
@@ -324,6 +325,7 @@ function CompareContent() {
         vehicles={vehicles}
         defaultVehicle={selectedVehicle}
         initialData={customerContact}
+        accountPhone={accountPhone}
         onCalculate={handleCalculateQuote}
       />
     </div>
