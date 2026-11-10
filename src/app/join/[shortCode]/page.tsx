@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Building2,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,13 @@ import { cn } from "@/lib/utils";
 import { userErrorMessage } from "@/lib/user-error";
 import { passwordRulesMessage } from "@/lib/password-rules";
 import { PasswordRulesChecklist } from "@/components/auth/PasswordRulesChecklist";
+import { useAuth, useUser } from "@/providers/AuthProvider";
+import {
+  EMAIL_ALREADY_HAS_ACCOUNT_STATUS,
+  joinSignInHref,
+  joinSignedInNote,
+  joinSuccess,
+} from "@/lib/join-link";
 
 type Step = "loading" | "invalid" | "form" | "submitting" | "success";
 type InvalidReason = "not_found" | "used" | "expired";
@@ -48,6 +56,11 @@ export default function JoinPage() {
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState("");
+  // The email already has an account: offer to sign in instead (2026-11-11).
+  const [existingAccount, setExistingAccount] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
+  const { isSignedIn, signOut } = useAuth();
+  const { user } = useUser();
 
   // Validate the invite link on mount
   React.useEffect(() => {
@@ -85,6 +98,7 @@ export default function JoinPage() {
     if (passwordProblem) { setError(passwordProblem); return; }
 
     setStep("submitting");
+    setExistingAccount(false);
     try {
       await apiClient.post(`/api/auth/invite/${shortCode}/register`, {
         name: name.trim(),
@@ -95,6 +109,7 @@ export default function JoinPage() {
     } catch (err: any) {
       const msg = userErrorMessage(err, "create your account");
       setError(msg);
+      setExistingAccount((err as { response?: { status?: number } })?.response?.status === EMAIL_ALREADY_HAS_ACCOUNT_STATUS);
       setStep("form");
     }
   };
@@ -159,6 +174,31 @@ export default function JoinPage() {
                 </div>
               </div>
 
+              {isSignedIn ? (
+                // Someone is already signed in: this link makes a new account,
+                // so it isn't mixed up with theirs (2026-11-11).
+                <div className="space-y-4 text-center">
+                  <p role="alert" className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200 break-words">
+                    {joinSignedInNote(org.accountType, user?.primaryEmailAddress?.emailAddress ?? "")}
+                  </p>
+                  <Button
+                    type="button"
+                    disabled={signingOut}
+                    onClick={async () => {
+                      setSigningOut(true);
+                      try {
+                        await signOut({ redirectUrl: `/join/${shortCode}` });
+                      } catch {
+                        setSigningOut(false);
+                      }
+                    }}
+                    className="w-full h-11 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                  >
+                    {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" aria-hidden="true" />}
+                    Sign out and continue
+                  </Button>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="name" className="text-white/70 text-sm">Full name</Label>
@@ -213,10 +253,22 @@ export default function JoinPage() {
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-400 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
-                  </p>
+                  <div role="alert" className="space-y-2">
+                    <p className="text-sm text-red-400 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {error}
+                    </p>
+                    {existingAccount && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => router.push(joinSignInHref(org.accountType, email))}
+                        className="w-full h-11 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                      >
+                        Sign in instead
+                      </Button>
+                    )}
+                  </div>
                 )}
 
                 <Button
@@ -234,6 +286,7 @@ export default function JoinPage() {
                   )}
                 </Button>
               </form>
+              )}
             </>
           )}
 
@@ -244,20 +297,19 @@ export default function JoinPage() {
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
               <div>
+                {/* What's next for this kind of account (2026-11-11). */}
                 <h2 className="text-lg font-semibold text-white">
-                  {org?.accountType === "driver" ? "Application submitted!" : "Account created!"}
+                  {joinSuccess(org?.accountType ?? "customer", org?.orgName ?? "the dealership").title}
                 </h2>
-                <p className="mt-1 text-sm text-white/50">
-                  {org?.accountType === "driver"
-                    ? "Suprah AI will review your application and email you once it's approved."
-                    : "Check your email — we sent your login details."}
+                <p className="mt-1 text-sm text-white/60">
+                  {joinSuccess(org?.accountType ?? "customer", org?.orgName ?? "the dealership").message}
                 </p>
               </div>
               <Button
-                onClick={() => router.push("/sign-in")}
-                className="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={() => router.push(joinSignInHref(org?.accountType ?? "customer", email))}
+                className="mt-2 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
               >
-                Go to sign in
+                {joinSuccess(org?.accountType ?? "customer", org?.orgName ?? "the dealership").button}
               </Button>
             </div>
           )}
