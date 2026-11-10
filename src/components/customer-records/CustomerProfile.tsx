@@ -16,7 +16,6 @@ import {
   MapPin,
   MessageSquare,
   Phone,
-  Receipt,
   RefreshCw,
   RotateCcw,
   Save,
@@ -45,6 +44,7 @@ import { CustomerLifecycleTimeline } from "./CustomerLifecycleTimeline";
 import { CustomerDealsTab } from "./CustomerDealsTab";
 import { CustomerFeedbackTab } from "./CustomerFeedbackTab";
 import { CustomerSupportTab } from "./CustomerSupportTab";
+import { CustomerOwnedVehicles, CustomerPurchasesTab } from "./CustomerPurchasesTab";
 import { cn } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -515,7 +515,7 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
 
       <p className="flex items-start gap-2 text-[11px] text-muted-foreground" data-testid="customer-unlinked-note">
         <Info className="mt-px h-3.5 w-3.5 shrink-0" />
-        Purchases, owned vehicles and service visits aren&apos;t linked to Customer Records yet, so they aren&apos;t counted here.
+        Purchases are on the Purchases tab. Service visits and vehicles saved in the customer app aren&apos;t linked to Customer Records yet.
       </p>
 
       {Boolean(summary.leadsNeedingReview) && (
@@ -620,45 +620,11 @@ export function CustomerProfile({ customerId }: { customerId: string }) {
             )}
             <p className="mt-2 text-[11px] text-muted-foreground">Taken from the customer&apos;s inquiries. Asking about a vehicle doesn&apos;t mean they own it.</p>
           </SectionCard>
-          <SectionCard title="Owned vehicles" icon={<Car className="h-4 w-4 text-muted-foreground" />}>
-            <EmptyNote>
-              Owned vehicles are kept on customer app accounts (My Garage), and those accounts aren&apos;t linked to Customer Records yet. No vehicle is
-              shown as owned until that link is verified.
-            </EmptyNote>
-          </SectionCard>
+          <CustomerOwnedVehicles customerId={customerId} />
         </TabsContent>
 
         <TabsContent value="purchases" className="space-y-3">
-          <SectionCard title="Verified purchases" icon={<Receipt className="h-4 w-4 text-muted-foreground" />}>
-            <EmptyNote>
-              Sales recorded in Garage Review are tied to customer app accounts, not to Customer Records, so no verified purchases can be shown here yet.
-            </EmptyNote>
-          </SectionCard>
-          <SectionCard title={`Leads marked Sold (${profile.purchases.leadsMarkedSold.length})`} icon={<Info className="h-4 w-4 text-muted-foreground" />}>
-            {profile.purchases.leadsMarkedSold.length ? (
-              <ul className="space-y-2">
-                {profile.purchases.leadsMarkedSold.map((lead) => (
-                  <li key={lead.leadId} className="flex flex-col gap-1.5 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <LeadStatusPill status={lead.status} />
-                      <p className="wrap-break-word text-sm font-medium">{lead.vehicle || "No vehicle listed"}</p>
-                      <p className="text-xs text-muted-foreground">{lead.markedAt ? `Marked ${dateOrDash(lead.markedAt)}` : "Date not recorded"}</p>
-                    </div>
-                    <Link
-                      href={`/crm/leads?leadId=${lead.leadId}`}
-                      className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium hover:bg-muted sm:h-9"
-                    >
-                      Open lead
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyNote>No leads for this customer are marked Sold.</EmptyNote>
-            )}
-            <p className="mt-2 text-[11px] text-muted-foreground">A lead status of Sold is set by staff on the lead. It isn&apos;t proof of a completed sale.</p>
-          </SectionCard>
+          <CustomerPurchasesTab customerId={customerId} leads={profile.relatedLeads} soldLeads={profile.purchases.leadsMarkedSold} />
         </TabsContent>
 
         <TabsContent value="appointments" className="space-y-3">

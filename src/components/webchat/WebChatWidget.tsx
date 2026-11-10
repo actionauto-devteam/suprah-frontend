@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, MessageCircle, Send, X } from "lucide-react"
+import { CheckCircle2, Loader2, MessageCircle, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,6 +26,8 @@ interface StoredSession {
   sessionId: string
   token: string
   savedAt: number
+  byText?: boolean
+  textedTo?: string | null
 }
 
 interface WebChatWidgetProps {
@@ -124,6 +126,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   const [error, setError] = React.useState("")
   const [config, setConfig] = React.useState<WebChatConfig | null>(null)
   const [staffTyping, setStaffTyping] = React.useState(false)
+  const [notice, setNotice] = React.useState("")
+  const textMode = Boolean(config?.textMode) && !knownVisitor
 
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const openRef = React.useRef(open)
@@ -179,7 +183,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   )
 
   React.useEffect(() => {
-    if (!session) return
+    if (!session || session.byText) return
 
     let cancelled = false
     let timer: number | undefined
@@ -195,6 +199,13 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             : undefined
           const result = await syncWebChat(session.sessionId, session.token, after)
           if (cancelled) return
+
+          if (result.continuedByText) {
+            const next: StoredSession = { ...session, byText: true, textedTo: result.textedTo }
+            writeSession(storageKey, next)
+            setSession(next)
+            return
+          }
 
           setStaffTyping(result.staffTyping)
           const known = new Set(messagesRef.current.map((message) => message._id))
@@ -222,7 +233,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [session, endSession])
+  }, [session, endSession, storageKey])
 
   const handleOpen = () => {
     setOpen(true)
@@ -238,15 +249,26 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     const text = draft.trim()
 
     if (!trimmedName || !trimmedContact || !text) {
-      setError(knownVisitor ? "Type your message, then send it." : "Please add your name, a phone number or email, and a message.")
+      setError(
+        knownVisitor
+          ? "Type your message, then send it."
+          : textMode
+            ? "Please add your name, your mobile number, and a message."
+            : "Please add your name, a phone number or email, and a message.",
+      )
+      return
+    }
+    if (textMode && trimmedContact.replace(/\D/g, "").length < 10) {
+      setError("Please enter your mobile number with the area code, so we can text you.")
       return
     }
 
     setBusy(true)
     setError("")
+    setNotice("")
 
     try {
-      const isEmail = trimmedContact.includes("@")
+      const isEmail = !textMode && trimmedContact.includes("@")
       const result = await startWebChat({
         vehicleId,
         orgKey,
@@ -256,17 +278,20 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
         message: text,
         pageUrl: window.location.href,
         clientRequestId: clientRequestIdRef.current,
+        ...(textMode ? { continueByText: true } : {}),
       })
 
       const stored: StoredSession = {
         sessionId: result.sessionId,
         token: result.token,
         savedAt: Date.now(),
+        ...(result.continuedByText ? { byText: true, textedTo: result.textedTo || null } : {}),
       }
       writeSession(storageKey, stored)
       setMessages(result.messages)
       setSession(stored)
       setDraft("")
+      if (result.textNotice) setNotice(result.textNotice)
     } catch (err) {
       setError(getErrorMessage(err, "We couldn't start the chat. Please try again."))
     } finally {
@@ -366,13 +391,53 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
         </button>
       </div>
 
-      {session ? (
+      {session?.byText ? (
+        <div
+          className="flex flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center"
+          style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+          data-testid="webchat-texted"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <CheckCircle2 className="h-6 w-6" />
+          </span>
+          <p className="text-base font-semibold" role="status">
+            {name.trim() ? `Thanks, ${name.trim().split(/\s+/)[0]}!` : "Thanks!"} We just texted you.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            We sent a text to {session.textedTo || "your phone"}. Reply to it to keep chatting with us.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-2"
+            onClick={() => {
+              writeSession(storageKey, null)
+              setSession(null)
+              setMessages([])
+              setError("")
+              setNotice("")
+              clientRequestIdRef.current =
+                typeof crypto !== "undefined" && "randomUUID" in crypto
+                  ? crypto.randomUUID()
+                  : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+            }}
+          >
+            Send another message
+          </Button>
+          <PoweredBySuprah className="mt-2" />
+        </div>
+      ) : session ? (
         <>
           <div
             ref={listRef}
             className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
             aria-live="polite"
           >
+            {notice && (
+              <p className="rounded-lg bg-muted px-3 py-2 text-center text-xs text-muted-foreground" role="status">
+                {notice}
+              </p>
+            )}
             {messages.map((message) => (
               <div
                 key={message._id}
@@ -462,7 +527,10 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
           <p className="text-sm text-muted-foreground">
-            {config?.greeting || "Have a question? Send us a message and we'll reply right here."}
+            {config?.greeting ||
+              (textMode
+                ? "Have a question? Send us a message and we'll text you back."
+                : "Have a question? Send us a message and we'll reply right here.")}
           </p>
 
           {config?.withinHours === false && (
@@ -488,13 +556,14 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
 
           <div className="space-y-1.5">
             <label htmlFor="webchat-contact" className="text-xs font-medium">
-              Phone or email
+              {textMode ? "Mobile number" : "Phone or email"}
             </label>
             <Input
               id="webchat-contact"
               value={contact}
               onChange={(event) => setContact(event.target.value)}
-              maxLength={120}
+              maxLength={textMode ? 30 : 120}
+              {...(textMode ? { type: "tel", inputMode: "tel" as const, autoComplete: "tel" } : {})}
             />
           </div>
           </>
@@ -523,8 +592,13 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
 
           <Button type="submit" disabled={busy} className="mt-auto w-full">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Start chat
+            {textMode ? "Text me" : "Start chat"}
           </Button>
+          {textMode && (
+            <p className="text-[11px] leading-snug text-muted-foreground" data-testid="webchat-text-consent">
+              By sending, you agree to get text messages from {config?.dealershipName || "us"} at this number. Message and data rates may apply. Reply STOP to opt out.
+            </p>
+          )}
           <PoweredBySuprah />
         </form>
       )}

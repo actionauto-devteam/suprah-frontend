@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronLeft, ChevronRight, Contact, RefreshCw, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Contact, FileUp, RefreshCw, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/providers/AuthProvider";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import {
   customerRecordErrorStatus,
+  fetchCustomerCatchUpStatus,
   fetchCustomerRecords,
   type CustomerRecordListItem,
   type CustomerRecordSort,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/api/customerRecords";
 import { cn } from "@/lib/utils";
 import { CustomerCatchUpNote } from "@/components/customer-records/CustomerCatchUpNote";
+import { ImportSalesDialog } from "@/components/customer-records/ImportSalesDialog";
 
 const STATUS_OPTIONS: Array<{ value: CustomerRecordStatus; label: string }> = [
   { value: "active", label: "Active" },
@@ -145,6 +147,13 @@ export function CustomerRecordsList() {
   const sort = readSort(searchParams.get("sort"));
   const page = readPage(searchParams.get("page"));
   const [input, setInput] = React.useState(urlSearch);
+  const [importing, setImporting] = React.useState(false);
+  const adminView = useQuery({
+    queryKey: ["customer-records", "catch-up-status"],
+    queryFn: async () => fetchCustomerCatchUpStatus(await getToken()),
+    staleTime: 30_000,
+    retry: false,
+  });
 
   const updateParams = React.useCallback(
     (changes: Record<string, string | number | null>) => {
@@ -197,14 +206,27 @@ export function CustomerRecordsList() {
             Customers and the leads connected to them by a matching email or phone number.
           </p>
         </div>
-        {data && (
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            {data.total.toLocaleString()} {data.total === 1 ? "customer" : "customers"}
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {data && (
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              {data.total.toLocaleString()} {data.total === 1 ? "customer" : "customers"}
+            </p>
+          )}
+          {adminView.data?.canView && (
+            <button
+              type="button"
+              onClick={() => setImporting(true)}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-muted sm:h-9"
+            >
+              <FileUp className="h-4 w-4" />
+              Import sales
+            </button>
+          )}
+        </div>
       </div>
 
       <CustomerCatchUpNote />
+      <ImportSalesDialog open={importing} onOpenChange={setImporting} />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1">

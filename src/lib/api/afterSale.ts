@@ -196,6 +196,99 @@ export async function deleteDeal(token: string | null, id: string): Promise<void
   await apiClient.delete(`/api/crm/deals/${encodeURIComponent(id)}`, { headers: authHeaders(token) });
 }
 
+export interface PurchaseVehicleInput {
+  label?: string;
+  year?: string;
+  make?: string;
+  model?: string;
+  trim?: string;
+  vin?: string;
+  stock?: string;
+}
+
+export interface CustomerPurchaseItem {
+  id: string;
+  customerId: string | null;
+  leadId: string | null;
+  dealId: string | null;
+  vehicle: { label: string; year: string; make: string; model: string; trim: string; vin: string; stock: string };
+  salePrice: number | null;
+  soldAt: string;
+  salesperson: { id: string | null; name: string };
+  source: "deal" | "lead_sold" | "manual" | "import";
+  sourceLabel: string;
+  notes: string;
+  createdBy: { userId: string; name: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerPurchaseList {
+  items: CustomerPurchaseItem[];
+  team: Array<{ id: string; name: string }>;
+}
+
+export interface PurchaseInput {
+  vehicle: PurchaseVehicleInput;
+  salePrice: number | null;
+  soldAt: string;
+  salespersonId: string | null;
+  notes: string;
+  leadId?: string | null;
+}
+
+export interface SalesImportRow {
+  row: number;
+  email?: string;
+  phone?: string;
+  vin?: string;
+  stock?: string;
+  year?: string;
+  make?: string;
+  model?: string;
+  trim?: string;
+  salePrice?: string;
+  soldAt?: string;
+  salesperson?: string;
+  notes?: string;
+}
+
+export interface SalesImportResult {
+  added: number;
+  duplicates: number;
+  unmatched: number;
+  invalid: number;
+  problems: Array<{ row: number; reason: string }>;
+}
+
+export async function fetchCustomerPurchases(token: string | null, customerId: string): Promise<CustomerPurchaseList> {
+  const response = await apiClient.get(`/api/crm/customer-records/${encodeURIComponent(customerId)}/purchases`, { headers: authHeaders(token) });
+  return response.data?.data as CustomerPurchaseList;
+}
+
+export async function createCustomerPurchase(token: string | null, customerId: string, body: PurchaseInput): Promise<CustomerPurchaseItem> {
+  const response = await apiClient.post(`/api/crm/customer-records/${encodeURIComponent(customerId)}/purchases`, body, { headers: authHeaders(token) });
+  return response.data?.data as CustomerPurchaseItem;
+}
+
+export async function updateCustomerPurchase(token: string | null, customerId: string, purchaseId: string, body: Partial<PurchaseInput>): Promise<CustomerPurchaseItem> {
+  const response = await apiClient.patch(
+    `/api/crm/customer-records/${encodeURIComponent(customerId)}/purchases/${encodeURIComponent(purchaseId)}`,
+    body,
+    { headers: authHeaders(token) },
+  );
+  return response.data?.data as CustomerPurchaseItem;
+}
+
+export async function deleteCustomerPurchase(token: string | null, customerId: string, purchaseId: string): Promise<void> {
+  await apiClient.delete(`/api/crm/customer-records/${encodeURIComponent(customerId)}/purchases/${encodeURIComponent(purchaseId)}`, { headers: authHeaders(token) });
+}
+
+export async function importSales(token: string | null, rows: SalesImportRow[]): Promise<SalesImportResult> {
+  const response = await apiClient.post("/api/crm/customer-records/purchases/import", { rows }, { headers: authHeaders(token) });
+  return response.data?.data as SalesImportResult;
+}
+
 export function formatMoney(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   return value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: value % 1 ? 2 : 0 });
