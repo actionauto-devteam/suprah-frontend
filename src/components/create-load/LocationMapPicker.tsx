@@ -1,11 +1,22 @@
 "use client"
 
 import * as React from "react"
-import { Crosshair, Loader2, MapPinned } from "lucide-react"
+import { Crosshair, Loader2, MapPinned, Search } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { useTheme } from "@/context/ThemeContext"
+import { userErrorMessage } from "@/lib/user-error"
+import { BASE_MAP_PROVIDER, createBaseMap, type BaseMap, type BaseMarker, type BaseMapView } from "@/lib/base-map"
+import {
+  addressLine,
+  foundFromAddress,
+  foundFromPlace,
+  PLACE_SEARCH_MIN_LENGTH,
+  type Found,
+  type PlaceSuggestion,
+} from "@/components/create-load/map-picker-places"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -14,31 +25,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  createGoogleMap,
-  GOOGLE_MAPS_KEY_REJECTED,
-  googleMapsConfig,
-  latLngLiteral,
-  loadGoogleMaps,
-  loadGooglePlaces,
-  onGoogleMapsAuthFailure,
-  type MapCamera,
-} from "@/lib/google-maps"
 
 // ─── Create Load: "Pick on map" ──────────────────────────────────────────────
 // The dispatcher searches for the place or clicks the map, then drags the pin
 // to the exact spot (gate, dock, building). Location Name (for a business),
-// Address, City, State, ZIP and Country are filled from Google; everything else
-// on the stop stays for the dispatcher. The pin is saved with the load and the
+// Address, City, State, ZIP and Country are filled in; everything else on the
+// stop stays for the dispatcher. The pin is saved with the load and the
 // driver's "Open in Google Maps" navigates to it.
 //
-// Shown only when Google Maps is set up (lib/google-maps.ts). The search box
-// needs "Places API (New)"; without it the dispatcher can still click the map.
+// Amazon Location since 2026-11-11: search and addresses come from our server
+// (Amazon places), and the map is Amazon's, or Mapbox until the Amazon browser
+// key is set up (lib/base-map). No Google place ID is saved any more; the
+// driver navigates to the pin and address.
 
-const GOOGLE_MAPS = googleMapsConfig()
-const US_CENTER: [number, number] = [-98.5795, 39.8283]
-
-export const mapPickerAvailable = Boolean(GOOGLE_MAPS)
+export const mapPickerAvailable = BASE_MAP_PROVIDER !== null
 
 type Position = { lat: number; lng: number }
 
@@ -53,52 +53,10 @@ export type PickedLocation = {
   placeId?: string
 }
 
-type Found = {
-  source: "search" | "map"
-  name: string
-  address: string
-  city: string
-  state: string
-  zip: string
-  country: string
-  placeId?: string
-  /** A searched street address or business: kept when the pin is fine-tuned. */
-  exact: boolean
-}
-
 type Lookup = "idle" | "pending" | "empty" | "unavailable" | "failed"
 
-function fromPlace(place: google.maps.places.Place): Found {
-  const components = place.addressComponents ?? []
-  const part = (type: string, short = false) => {
-    const match = components.find((component) => component.types.includes(type))
-    return ((short ? match?.shortText : match?.longText) ?? "").trim()
-  }
-  const street = [part("street_number"), part("route", true)].filter(Boolean).join(" ")
-  const types = place.types ?? []
-  const business = types.includes("establishment") || types.includes("point_of_interest")
-  return {
-    source: "search",
-    name: business ? (place.displayName ?? "").trim() : "",
-    address: street,
-    city:
-      part("locality") ||
-      part("postal_town") ||
-      part("sublocality") ||
-      part("administrative_area_level_3") ||
-      part("neighborhood"),
-    state: part("administrative_area_level_1", true),
-    zip: part("postal_code"),
-    country: part("country", true),
-    placeId: place.id,
-    exact: Boolean(street) || business,
-  }
-}
-
-const addressLine = (found: Found) =>
-  [found.address, found.city, [found.state, found.zip].filter(Boolean).join(" ")]
-    .filter(Boolean)
-    .join(", ")
+const US_CENTER: Position = { lat: 39.8283, lng: -98.5795 }
+const SEARCH_DELAY_MS = 350
 
 interface LocationMapPickerProps {
   title: string
@@ -110,190 +68,240 @@ interface LocationMapPickerProps {
 export function LocationMapPicker({ title, initialPosition, onClose, onApply }: LocationMapPickerProps) {
   const { getToken } = useAuth()
   const { theme } = useTheme()
+  const mapTheme = theme === "dark" ? "dark" : "light"
   const mapRef = React.useRef<HTMLDivElement | null>(null)
-  const searchRef = React.useRef<HTMLDivElement | null>(null)
   const [pin, setPin] = React.useState<Position | null>(initialPosition ?? null)
   const [found, setFound] = React.useState<Found | null>(null)
   const [adjusted, setAdjusted] = React.useState(false)
   const [lookup, setLookup] = React.useState<Lookup>("idle")
   const [mapStatus, setMapStatus] = React.useState<{ kind: "loading" | "ready" | "error"; message?: string }>({ kind: "loading" })
+  const [view, setView] = React.useState<BaseMapView>("map")
+
+  // Search box
+  const listId = React.useId()
+  const [query, setQuery] = React.useState("")
+  const [results, setResults] = React.useState<PlaceSuggestion[]>([])
+  const [activeIndex, setActiveIndex] = React.useState(-1)
+  const [searching, setSearching] = React.useState(false)
+  const [listOpen, setListOpen] = React.useState(false)
   const [searchNote, setSearchNote] = React.useState<string | null>(null)
 
-  // Read by the map's event listeners, which are set up once per map.
+  // Read by the map's listeners, which are set up once per map.
+  const baseMapRef = React.useRef<BaseMap | null>(null)
+  const markerRef = React.useRef<BaseMarker | null>(null)
   const pinRef = React.useRef<Position | null>(initialPosition ?? null)
   const foundRef = React.useRef<Found | null>(null)
   const getTokenRef = React.useRef(getToken)
-  const lookUpAtPinRef = React.useRef<(() => void) | null>(null)
+  const lookupRequest = React.useRef(0)
+  const searchRequest = React.useRef(0)
   React.useEffect(() => {
     getTokenRef.current = getToken
   }, [getToken])
 
-  React.useEffect(() => {
-    const config = GOOGLE_MAPS
-    const container = mapRef.current
-    const searchContainer = searchRef.current
-    if (!config || !container) return
-    let cancelled = false
-    let camera: MapCamera | null = null
-    let lookupRequest = 0
+  const authHeaders = React.useCallback(async () => {
+    const token = await getTokenRef.current()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }, [])
 
-    const updateFound = (next: Found | null) => {
-      foundRef.current = next
-      setFound(next)
-    }
+  const updateFound = React.useCallback((next: Found | null) => {
+    foundRef.current = next
+    setFound(next)
+  }, [])
 
-    const stopAuthWatch = onGoogleMapsAuthFailure(() => {
-      if (!cancelled) setMapStatus({ kind: "error", message: GOOGLE_MAPS_KEY_REJECTED })
-    })
-
-    const lookUpAddress = async (position: Position) => {
-      const request = ++lookupRequest
+  const lookUpAddress = React.useCallback(
+    async (position: Position) => {
+      const request = ++lookupRequest.current
       setLookup("pending")
       setAdjusted(false)
       try {
-        const token = await getTokenRef.current()
         const response = await apiClient.get("/api/loads/address-at", {
           params: { lat: position.lat, lng: position.lng },
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: await authHeaders(),
         })
-        if (cancelled || request !== lookupRequest) return
+        if (request !== lookupRequest.current) return
         const data = response.data?.data
-        const address = data?.address
-        if (!address) {
+        if (!data?.address) {
           updateFound(null)
           setLookup(data?.available === false ? "unavailable" : "empty")
           return
         }
-        updateFound({
-          source: "map",
-          name: "",
-          address: String(address.address ?? ""),
-          city: String(address.city ?? ""),
-          state: String(address.state ?? ""),
-          zip: String(address.zip ?? ""),
-          country: String(address.country ?? ""),
-          placeId: undefined,
-          exact: false,
-        })
+        updateFound(foundFromAddress(data.address))
         setLookup("idle")
       } catch {
-        if (cancelled || request !== lookupRequest) return
+        if (request !== lookupRequest.current) return
         updateFound(null)
         setLookup("failed")
       }
-    }
+    },
+    [authHeaders, updateFound],
+  )
 
-    void (async () => {
-      let libraries
-      try {
-        libraries = await loadGoogleMaps(config)
-      } catch {
-        if (!cancelled) setMapStatus({ kind: "error", message: "Google Maps couldn't load. Check the connection and try again." })
+  const showPin = React.useCallback((position: Position) => {
+    pinRef.current = position
+    setPin(position)
+    const map = baseMapRef.current
+    if (!map) return
+    if (markerRef.current) markerRef.current.setPosition(position)
+    else {
+      const marker = map.addMarker(position, { draggable: true })
+      marker.onDragEnd((next) => placePinRef.current(next))
+      markerRef.current = marker
+    }
+  }, [])
+
+  // A click or a drag: keep a searched address when only fine-tuning, otherwise look it up.
+  const placePin = React.useCallback(
+    (position: Position) => {
+      showPin(position)
+      const current = foundRef.current
+      if (current?.source === "search" && current.exact) {
+        setAdjusted(true)
         return
       }
-      if (cancelled || !mapRef.current) return
+      void lookUpAddress(position)
+    },
+    [lookUpAddress, showPin],
+  )
+  const placePinRef = React.useRef(placePin)
+  React.useEffect(() => {
+    placePinRef.current = placePin
+  }, [placePin])
 
-      const start = pinRef.current
-      const created = createGoogleMap(libraries, mapRef.current, {
-        config,
-        theme: theme === "dark" ? "dark" : "light",
-        center: start ? [start.lng, start.lat] : US_CENTER,
-        zoom: start ? 18 : 4,
-      })
-      camera = created.camera
-      const map = created.map
-      // Satellite helps find the right gate or dock.
-      map.setOptions({
-        zoomControl: true,
-        mapTypeControl: true,
-        mapTypeControlOptions: { mapTypeIds: ["roadmap", "hybrid"] },
-        draggableCursor: "crosshair",
-      })
-      const marker = new libraries.marker.AdvancedMarkerElement({
-        map: start ? map : null,
-        position: start,
-        gmpDraggable: true,
-        title: "Drag to the exact spot",
-      })
-
-      const placePin = (position: Position) => {
-        marker.position = position
-        marker.map = map
-        pinRef.current = position
-        setPin(position)
-        const current = foundRef.current
-        if (current?.source === "search" && current.exact) {
-          // Fine-tuning a searched address or business: keep its address; the
-          // driver navigates to the pin, so Google's place ID no longer applies.
-          updateFound({ ...current, placeId: undefined })
-          setAdjusted(true)
-          return
-        }
-        void lookUpAddress(position)
+  // The map, created once; the theme and Map/Satellite change its look.
+  React.useEffect(() => {
+    const container = mapRef.current
+    if (!container) return
+    let cancelled = false
+    void (async () => {
+      let map: BaseMap | null = null
+      try {
+        const start = pinRef.current
+        map = await createBaseMap(container, {
+          center: start ?? US_CENTER,
+          zoom: start ? 17 : 4,
+          theme: mapTheme,
+        })
+      } catch {
+        map = null
       }
-      lookUpAtPinRef.current = () => {
-        if (pinRef.current) void lookUpAddress(pinRef.current)
+      if (cancelled) {
+        map?.remove()
+        return
       }
-
-      marker.addEventListener("gmp-dragend", () => {
-        const position = latLngLiteral(marker.position)
-        if (position) placePin(position)
+      if (!map) {
+        setMapStatus({ kind: "error", message: "The map couldn't load. Check the connection and try again." })
+        return
+      }
+      baseMapRef.current = map
+      map.onLoadError(() => {
+        if (!cancelled) setMapStatus({ kind: "error", message: "The map couldn't load. Check the connection and try again." })
       })
-      map.addListener("click", (event: google.maps.MapMouseEvent) => {
-        const position = event.latLng?.toJSON()
-        if (position) placePin(position)
-      })
-      map.addListener("tilesloaded", () => {
+      map.onStyleReady(() => {
         if (!cancelled) setMapStatus({ kind: "ready" })
       })
-
-      // Search box (Places API (New)).
-      let places: google.maps.PlacesLibrary
-      try {
-        places = await loadGooglePlaces(config)
-      } catch {
-        if (!cancelled) setSearchNote("Search isn't available yet. Click the map where the driver should go.")
-        return
-      }
-      if (cancelled || !searchContainer) return
-      const search = new places.PlaceAutocompleteElement({ includedRegionCodes: ["us"] })
-      search.style.width = "100%"
-      searchContainer.replaceChildren(search)
-      search.addEventListener("gmp-select", (event) => {
-        void (async () => {
-          try {
-            const place = event.placePrediction.toPlace()
-            await place.fetchFields({ fields: ["id", "displayName", "formattedAddress", "location", "addressComponents", "types"] })
-            if (cancelled) return
-            lookupRequest += 1 // A pending pin lookup no longer applies.
-            const next = fromPlace(place)
-            updateFound(next)
-            setLookup("idle")
-            setAdjusted(false)
-            setSearchNote(null)
-            const position = latLngLiteral(place.location)
-            if (!position) return
-            marker.position = position
-            marker.map = map
-            pinRef.current = position
-            setPin(position)
-            map.panTo(position)
-            map.setZoom(next.exact ? 18 : 13)
-          } catch {
-            if (!cancelled) setSearchNote("That place couldn't be loaded. Try again, or click the map where the driver should go.")
-          }
-        })()
-      })
+      map.onClick((position) => placePinRef.current(position))
+      if (pinRef.current) showPin(pinRef.current)
     })()
-
     return () => {
       cancelled = true
-      stopAuthWatch()
-      lookUpAtPinRef.current = null
-      searchContainer?.replaceChildren()
-      camera?.remove()
+      markerRef.current = null
+      baseMapRef.current?.remove()
+      baseMapRef.current = null
     }
-  }, [theme])
+    // The map is made once; its look follows the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  React.useEffect(() => {
+    baseMapRef.current?.setLook(mapTheme, view)
+  }, [mapTheme, view])
+
+  // Search as the dispatcher types (after a short pause).
+  React.useEffect(() => {
+    const text = query.trim()
+    const request = ++searchRequest.current
+    if (text.length < PLACE_SEARCH_MIN_LENGTH) {
+      setResults([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    const timer = window.setTimeout(async () => {
+      try {
+        const near = baseMapRef.current?.center()
+        const response = await apiClient.get("/api/loads/place-search", {
+          params: { q: text, ...(near ? { lat: near.lat, lng: near.lng } : {}) },
+          headers: await authHeaders(),
+        })
+        if (request !== searchRequest.current) return
+        const data = response.data?.data
+        if (data?.available === false) {
+          setResults([])
+          setSearchNote("Search isn't available yet. Click the map where the driver should go.")
+        } else {
+          const places: PlaceSuggestion[] = Array.isArray(data?.places) ? data.places : []
+          setResults(places)
+          setActiveIndex(places.length ? 0 : -1)
+          setListOpen(true)
+          setSearchNote(places.length ? null : "Nothing found. Try another name or address, or click the map.")
+        }
+      } catch (error) {
+        if (request !== searchRequest.current) return
+        setResults([])
+        setSearchNote(userErrorMessage(error, "search for that place"))
+      } finally {
+        if (request === searchRequest.current) setSearching(false)
+      }
+    }, SEARCH_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [query, authHeaders])
+
+  const choose = async (suggestion: PlaceSuggestion) => {
+    setListOpen(false)
+    setQuery(suggestion.title)
+    searchRequest.current += 1 // Typing the title shouldn't search again.
+    setSearching(false)
+    lookupRequest.current += 1 // A pending pin lookup no longer applies.
+    setLookup("pending")
+    try {
+      const response = await apiClient.get("/api/loads/place-details", {
+        params: { id: suggestion.id },
+        headers: await authHeaders(),
+      })
+      const place = response.data?.data?.place
+      const next = place ? foundFromPlace(place) : null
+      if (!next || !place.position) {
+        setLookup("idle")
+        setSearchNote("That place couldn't be loaded. Try again, or click the map where the driver should go.")
+        return
+      }
+      updateFound(next)
+      setLookup("idle")
+      setAdjusted(false)
+      setSearchNote(null)
+      showPin(place.position)
+      baseMapRef.current?.flyTo(place.position, next.exact ? 17 : 13)
+    } catch (error) {
+      setLookup("idle")
+      setSearchNote(userErrorMessage(error, "load that place"))
+    }
+  }
+
+  const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!listOpen || results.length === 0) return
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      setActiveIndex((index) => (index + 1) % results.length)
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      setActiveIndex((index) => (index <= 0 ? results.length - 1 : index - 1))
+    } else if (event.key === "Enter" && activeIndex >= 0) {
+      event.preventDefault()
+      void choose(results[activeIndex])
+    } else if (event.key === "Escape") {
+      setListOpen(false)
+    }
+  }
 
   const busy = lookup === "pending"
   const apply = () => {
@@ -306,9 +314,10 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
       zip: found?.zip ?? "",
       country: found?.country ?? "",
       coordinates: { lat: Number(pin.lat.toFixed(7)), lng: Number(pin.lng.toFixed(7)) },
-      placeId: found?.placeId,
     })
   }
+
+  const showList = listOpen && results.length > 0
 
   return (
     <Dialog open onOpenChange={(next) => { if (!next) onClose() }}>
@@ -324,11 +333,77 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
         </DialogHeader>
 
         <div className="space-y-3">
-          <div ref={searchRef} className="min-h-10" aria-label="Search for a place" />
-          {searchNote && <p className="text-xs text-muted-foreground">{searchNote}</p>}
+          <div className="relative">
+            <label htmlFor={`${listId}-input`} className="sr-only">
+              Search for a business or address
+            </label>
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id={`${listId}-input`}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setListOpen(true)
+              }}
+              onKeyDown={onSearchKey}
+              onBlur={() => window.setTimeout(() => setListOpen(false), 150)}
+              onFocus={() => results.length && setListOpen(true)}
+              placeholder="Search for a business or address"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={showList}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={showList && activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined}
+              className="h-11 pl-9 pr-9"
+            />
+            {searching && (
+              <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden="true" />
+            )}
+            {showList && (
+              <ul
+                id={listId}
+                role="listbox"
+                aria-label="Places found"
+                className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-lg"
+              >
+                {results.map((result, index) => (
+                  <li
+                    key={result.id}
+                    id={`${listId}-option-${index}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => void choose(result)}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    className={`cursor-pointer rounded-lg px-3 py-2 text-sm ${index === activeIndex ? "bg-muted" : ""}`}
+                  >
+                    <p className="font-medium text-foreground">{result.title}</p>
+                    {result.label && result.label !== result.title && (
+                      <p className="text-xs text-muted-foreground">{result.label}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {searchNote && <p className="text-xs text-muted-foreground" role="status">{searchNote}</p>}
 
           <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
-            <div ref={mapRef} className="h-[50vh] min-h-72 w-full" />
+            <div ref={mapRef} className="h-[50vh] min-h-72 w-full cursor-crosshair" />
+            <div className="absolute left-2 top-2 z-10 inline-flex overflow-hidden rounded-lg border border-border/70 bg-background/95 text-xs font-semibold shadow-sm" role="group" aria-label="Map style">
+              {(["map", "satellite"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={view === option}
+                  onClick={() => setView(option)}
+                  className={`min-h-9 px-3 ${view === option ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}
+                >
+                  {option === "map" ? "Map" : "Satellite"}
+                </button>
+              ))}
+            </div>
             {mapStatus.kind !== "ready" && (
               <div className="absolute inset-0 flex items-center justify-center bg-muted/50 px-4 text-center" role="status">
                 {mapStatus.kind === "loading" ? (
@@ -360,7 +435,7 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
                     <button
                       type="button"
                       className="font-semibold text-primary underline-offset-2 hover:underline"
-                      onClick={() => lookUpAtPinRef.current?.()}
+                      onClick={() => pinRef.current && void lookUpAddress(pinRef.current)}
                     >
                       Use the address at the pin instead
                     </button>
@@ -372,10 +447,10 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
                 {lookup === "idle"
                   ? "This is the saved pin. Drag it, click the map or search to move it."
                   : lookup === "unavailable"
-                  ? "Addresses can't be looked up yet. The pin will be saved; fill in the address fields yourself."
-                  : lookup === "failed"
-                    ? "The address lookup didn't work. The pin will be saved; check the address fields."
-                    : "No street address was found at this spot. The pin will be saved; fill in the address fields yourself."}
+                    ? "Addresses can't be looked up yet. The pin will be saved; fill in the address fields yourself."
+                    : lookup === "failed"
+                      ? "The address lookup didn't work. The pin will be saved; check the address fields."
+                      : "No street address was found at this spot. The pin will be saved; fill in the address fields yourself."}
               </p>
             )}
           </div>
