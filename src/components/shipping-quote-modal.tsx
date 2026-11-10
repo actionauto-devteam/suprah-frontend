@@ -40,6 +40,8 @@ interface ShippingQuoteModalProps {
   onCalculate: (formData: ShippingQuoteFormData) => Promise<void>;
   defaultVehicle?: Vehicle | null;
   initialData?: Partial<ShippingQuoteFormData>;
+  /** Customer pages: the account's phone, filled in when the phone field is empty. */
+  accountPhone?: string;
 }
 
 type QuoteFieldImportance = "required" | "recommended" | "optional";
@@ -87,6 +89,7 @@ export function ShippingQuoteModal({
   onCalculate,
   defaultVehicle,
   initialData,
+  accountPhone,
 }: ShippingQuoteModalProps) {
   const [isCalculating, setIsCalculating] = React.useState(false);
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(
@@ -138,6 +141,13 @@ export function ShippingQuoteModal({
       }
     }
   }, [open, vehicles, defaultVehicle, initialData]);
+
+  // The account's phone fills in an empty phone field; a number the customer
+  // typed is kept, even when the page refreshes its cars (2026-11-10).
+  React.useEffect(() => {
+    if (!open || !accountPhone) return;
+    setFormData((prev) => (prev.phone.trim() ? prev : { ...prev, phone: accountPhone }));
+  }, [open, accountPhone]);
 
   // Auto-populate only reliable origin details from inventory.
   // Street stays empty unless we genuinely know it; do not invent one.
@@ -578,6 +588,11 @@ export function ShippingQuoteModal({
               </div>
               {errors.phone && (
                 <p className="text-xs text-destructive">{errors.phone}</p>
+              )}
+              {!errors.phone && accountPhone && formData.phone === accountPhone && (
+                <p className="text-xs text-muted-foreground">
+                  From your account. Change it if the dealership should call a different number.
+                </p>
               )}
             </div>
           </div>
