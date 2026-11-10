@@ -17,7 +17,7 @@ export function PublicShell({
     children, 
     hideNav = false, 
     hideThemeToggle = false, 
-    logoText = "Suprah.AI",
+    logoText = "Suprah AI",
     logoIcon = "S"
 }: PublicShellProps) {
     return (
