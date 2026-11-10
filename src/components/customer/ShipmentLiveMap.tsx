@@ -326,9 +326,12 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
               </button>
             )}
             {view.driver && (
+              // Says "Following driver" with a live dot while the map follows
+              // them, so it's clear it's on (2026-11-10).
               <button
                 type="button"
                 aria-pressed={following}
+                title={following ? "Stop following your driver" : "Follow your driver"}
                 onClick={() => setFollowingMode(!following)}
                 className={cn(
                   "flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold shadow-sm backdrop-blur-sm max-sm:min-h-11",
@@ -337,8 +340,15 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
                     : "border-border/60 bg-background/90 text-foreground hover:bg-background",
                 )}
               >
-                <Navigation className={cn("size-3.5", following ? "text-white" : "text-emerald-600 dark:text-emerald-400")} aria-hidden="true" />
-                Follow driver
+                {following ? (
+                  <span className="relative flex size-2 shrink-0" aria-hidden="true">
+                    <span className="absolute inline-flex size-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
+                    <span className="relative inline-flex size-2 rounded-full bg-white" />
+                  </span>
+                ) : (
+                  <Navigation className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                )}
+                {following ? "Following driver" : "Follow driver"}
               </button>
             )}
           </div>

@@ -1303,6 +1303,9 @@ export default function DriverDashboardPage() {
     nextStopPosition,
   );
 
+  // The map is really following: it's set to follow and has the driver's position.
+  const followingLive = followingSelf && Boolean(lastCoords);
+
   // Recenters on the driver and follows them again.
   const centerOnMe = () => {
     followingSelfRef.current = true;
@@ -2204,9 +2207,9 @@ export default function DriverDashboardPage() {
                 </div>
               )}
 
-              {/* One predictable, theme-aware map-control stack. Keeping zoom and
-                  recenter in the same group prevents the custom location action from
-                  overlapping or visually fighting with the map controls at any viewport. */}
+              {/* One predictable, theme-aware map-control stack for zoom and the
+                  next stop. Follow my location has its own labelled button at the
+                  top left, so drivers can spot it (2026-11-10). */}
               <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
                 <TooltipProvider delayDuration={250}>
                   <div className="overflow-hidden rounded-md border border-border/70 bg-background/95 text-foreground shadow-lg backdrop-blur-md divide-y divide-border/60">
@@ -2242,25 +2245,6 @@ export default function DriverDashboardPage() {
                       <TooltipContent side="left" className="text-xs">Zoom out</TooltipContent>
                     </Tooltip>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          aria-label={followingSelf ? "Following your location" : "Follow my location"}
-                          className={cn(
-                            "size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10",
-                            followingSelf && "bg-primary/10 text-primary",
-                          )}
-                          onClick={centerOnMe}
-                        >
-                          <LocateFixed className="size-4" strokeWidth={2.1} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">{followingSelf ? "Following your location" : "Follow my location"}</TooltipContent>
-                    </Tooltip>
-
                     {nextStopMapState.stop && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -2286,6 +2270,40 @@ export default function DriverDashboardPage() {
                   </div>
                 </TooltipProvider>
               </div>
+
+              {/* Follow my location, labelled and in the open: filled green with a
+                  live dot while the map follows the driver's position; tap again
+                  to stop (2026-11-10). Dragging the map also stops it. Before the
+                  map has a position it offers Follow my location, which finds it. */}
+              <button
+                type="button"
+                aria-pressed={followingLive}
+                title={followingLive ? "Stop following your location" : "Keep the map on your location"}
+                onClick={() => {
+                  if (!followingLive) {
+                    centerOnMe();
+                    return;
+                  }
+                  followingSelfRef.current = false;
+                  setFollowingSelf(false);
+                }}
+                className={cn(
+                  "absolute top-2 left-2 sm:top-3 sm:left-3 z-10 flex min-h-11 max-w-[calc(100%-5rem)] items-center gap-2 rounded-full border px-3.5 text-sm font-bold shadow-lg backdrop-blur-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  followingLive
+                    ? "border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800"
+                    : "border-border/70 bg-background/95 text-foreground hover:bg-muted",
+                )}
+              >
+                {followingLive ? (
+                  <span className="relative flex size-2.5 shrink-0" aria-hidden="true">
+                    <span className="absolute inline-flex size-full rounded-full bg-white opacity-75 motion-safe:animate-ping" />
+                    <span className="relative inline-flex size-2.5 rounded-full bg-white" />
+                  </span>
+                ) : (
+                  <LocateFixed className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                )}
+                <span className="truncate">{followingLive ? "Following your location" : "Follow my location"}</span>
+              </button>
 
               <div
                 role="status"
