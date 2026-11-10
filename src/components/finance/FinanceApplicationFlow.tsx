@@ -48,6 +48,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
+import { financeApplicationPayload } from "@/lib/finance-application-payload";
+import { userErrorMessage } from "@/lib/user-error";
 import { useAuth } from "@/providers/AuthProvider";
 import type { Vehicle } from "@/types/inventory";
 import { motion, AnimatePresence } from "framer-motion";
@@ -212,7 +214,7 @@ export function FinanceApplicationFlow({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const onSubmit = async () => {
+  const onSubmit = async (data: FinanceApplicationData) => {
     // Hard Lockdown: If on the final review step, require the
     // explicit confirmation checkbox before proceeding.
     if (step === 6 && !isConfirmed) {
@@ -229,14 +231,18 @@ export function FinanceApplicationFlow({
     setIsSubmitting(true);
     try {
       // Never log the application: it holds the SSN, date of birth, license number and income (2026-11-09).
-      // Connect to production API here
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Sent to the car's dealership, the same way the finance pop-up sends it
+      // (it used to only pretend to send). The saved draft stays if it fails.
+      const token = await getToken();
+      await apiClient.submitFinanceApplication(financeApplicationPayload(vehicleId, data), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       setIsSuccess(true);
       clearPersistence();
       if (onComplete) onComplete();
-    } catch (e) {
-      toast.error("Failed to submit application. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "send your finance application"));
     } finally {
       setIsSubmitting(false);
     }
@@ -256,8 +262,8 @@ export function FinanceApplicationFlow({
             Application Submitted!
           </h1>
           <p className="text-xl text-muted-foreground">
-            Thank you for your application. Our finance team will review your
-            information and contact you within 24 hours.
+            Thank you. Your application was sent to the dealership&apos;s finance
+            team, who will review it and contact you.
           </p>
           <div className="pt-8">
             <Button
