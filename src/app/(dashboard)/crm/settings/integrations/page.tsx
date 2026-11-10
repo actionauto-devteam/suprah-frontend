@@ -88,6 +88,8 @@ export default function IntegrationsSettingsPage() {
   const [savedWebchatEnabled, setSavedWebchatEnabled] = React.useState(true);
   const [webchatGreeting, setWebchatGreeting] = React.useState("");
   const [savedWebchatGreeting, setSavedWebchatGreeting] = React.useState("");
+  const [webchatTextMode, setWebchatTextMode] = React.useState(false);
+  const [savedWebchatTextMode, setSavedWebchatTextMode] = React.useState(false);
   const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
   const [physicalMailingAddress, setPhysicalMailingAddress] = React.useState("");
   const [savedPhysicalMailingAddress, setSavedPhysicalMailingAddress] = React.useState("");
@@ -142,6 +144,9 @@ export default function IntegrationsSettingsPage() {
           setSavedWebchatEnabled(enabled);
           setWebchatGreeting(greeting);
           setSavedWebchatGreeting(greeting);
+          const textMode = settingsData?.webchatTextMode === true;
+          setWebchatTextMode(textMode);
+          setSavedWebchatTextMode(textMode);
           const mailingAddress = settingsData?.physicalMailingAddress || "";
           setPhysicalMailingAddress(mailingAddress);
           setSavedPhysicalMailingAddress(mailingAddress);
@@ -337,7 +342,9 @@ export default function IntegrationsSettingsPage() {
     }
 
     const webchatSettingsDirty =
-        webchatEnabled !== savedWebchatEnabled || webchatGreeting.trim() !== savedWebchatGreeting
+        webchatEnabled !== savedWebchatEnabled ||
+        webchatGreeting.trim() !== savedWebchatGreeting ||
+        webchatTextMode !== savedWebchatTextMode
 
     const handleSaveWebchatSettings = async () => {
         if (!isAdmin) return
@@ -346,11 +353,12 @@ export default function IntegrationsSettingsPage() {
             const t = await getToken()
             await apiClient.patch(
                 "/api/crm/org-settings",
-                { webchatEnabled, webchatGreeting: webchatGreeting.trim() },
+                { webchatEnabled, webchatGreeting: webchatGreeting.trim(), webchatTextMode },
                 { headers: { Authorization: `Bearer ${t}` } },
             )
             setSavedWebchatEnabled(webchatEnabled)
             setSavedWebchatGreeting(webchatGreeting.trim())
+            setSavedWebchatTextMode(webchatTextMode)
             toast.success("Webchat settings saved", {
                 description: webchatEnabled
                     ? "The chat widget is live on your public vehicle pages."
@@ -863,6 +871,19 @@ export default function IntegrationsSettingsPage() {
                                     <Switch
                                         checked={webchatEnabled}
                                         onCheckedChange={setWebchatEnabled}
+                                        disabled={!isAdmin || isSavingWebchat}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3 max-w-xl">
+                                    <div className="min-w-0">
+                                        <label htmlFor="webchat-text-mode" className="text-sm font-semibold text-foreground">Continue chats by text</label>
+                                        <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md mt-0.5">The chat asks for a mobile number. When the visitor sends their message, we text them right away and the conversation continues by text in the Lead Inbox. If the number can&apos;t be texted, the chat stays on the website.</p>
+                                    </div>
+                                    <Switch
+                                        id="webchat-text-mode"
+                                        checked={webchatTextMode}
+                                        onCheckedChange={setWebchatTextMode}
                                         disabled={!isAdmin || isSavingWebchat}
                                     />
                                 </div>

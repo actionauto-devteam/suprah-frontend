@@ -17,12 +17,16 @@ export interface StartWebChatPayload {
   message: string;
   pageUrl?: string;
   clientRequestId?: string;
+  continueByText?: boolean;
 }
 
 export interface StartWebChatResult {
   sessionId: string;
   token: string;
   messages: WebChatVisitorMessage[];
+  continuedByText?: boolean;
+  textedTo?: string | null;
+  textNotice?: string | null;
 }
 
 export const startWebChat = async (
@@ -52,6 +56,8 @@ export const sendWebChatMessage = async (
 export interface SyncResult {
   messages: WebChatVisitorMessage[];
   staffTyping: boolean;
+  continuedByText: boolean;
+  textedTo: string | null;
 }
 
 export const syncWebChat = async (
@@ -66,6 +72,8 @@ export const syncWebChat = async (
   return {
     messages: res.data.data.messages || [],
     staffTyping: Boolean(res.data.data.staffTyping),
+    continuedByText: Boolean(res.data.data.continuedByText),
+    textedTo: res.data.data.textedTo || null,
   };
 };
 
@@ -73,6 +81,8 @@ export interface WebChatConfig {
   enabled: boolean;
   greeting: string;
   withinHours: boolean;
+  textMode?: boolean;
+  dealershipName?: string;
 }
 
 export const getWebchatConfig = async (
@@ -87,5 +97,7 @@ export const getWebchatConfig = async (
     enabled: data?.enabled !== false,
     greeting: data?.greeting || "",
     withinHours: data?.withinHours !== false,
+    textMode: data?.textMode === true,
+    dealershipName: data?.dealershipName || "",
   };
 };
