@@ -16,7 +16,7 @@ function load(file) {
   return cjs.exports;
 }
 
-const { staffSignUpHref, staffSignInHref, staffInvitePath, staffInviteVisitor, inviteRoleLabel } = load(path.join(SRC, 'lib/staff-invite'));
+const { staffSignUpHref, staffSignInHref, staffInvitePath, staffInviteVisitor, inviteRoleLabel, staffInviteGuide, staffSignUpBlocker } = load(path.join(SRC, 'lib/staff-invite'));
 
 test('"Create my account" opens the staff sign-up form with the invitation, and comes back to it', () => {
   const href = new URL(staffSignUpHref('abc123'), 'https://x');
@@ -46,4 +46,51 @@ test('roles read naturally', () => {
   assert.equal(inviteRoleLabel('member'), 'Member');
   assert.equal(inviteRoleLabel('admin'), 'Admin');
   assert.equal(inviteRoleLabel(''), 'Member');
+});
+
+const invite = (accountStatus, extra = {}) => ({
+  email: "maria@dealer.com", organizationName: "Action Auto Utah", inviterName: "Jo", role: "member", accountStatus, ...extra,
+});
+
+test("a new email: what creating the account does, with both buttons", () => {
+  const guide = staffInviteGuide({ visitor: "signed-out", invite: invite("none") });
+  assert.deepEqual(guide.actions, ["create", "sign-in"]);
+  assert.match(guide.note, /straight to Action Auto Utah's dashboard as Member/);
+});
+
+test("a customer account is told it becomes staff and loses the customer portal, before and when accepting", () => {
+  const signedOut = staffInviteGuide({ visitor: "signed-out", invite: invite("customer") });
+  assert.deepEqual(signedOut.actions, ["sign-in"]);
+  assert.equal(signedOut.signInLabel, "Sign in to accept");
+  assert.match(signedOut.note, /becomes? .*staff account at Action Auto Utah|into a staff account at Action Auto Utah/);
+  assert.match(signedOut.note, /My Garage, Wishlist and My Shipments won't be available/);
+  const signedIn = staffInviteGuide({ visitor: "invited-account", invite: invite("customer") });
+  assert.deepEqual(signedIn.actions, ["accept"]);
+  assert.equal(signedIn.acceptLabel, "Accept and switch to staff");
+  assert.equal(signedIn.tone, "warning");
+});
+
+test("a driver email is told it can't be used for staff, with nothing to press but sign out", () => {
+  const signedOut = staffInviteGuide({ visitor: "signed-out", invite: invite("driver") });
+  assert.deepEqual(signedOut.actions, []);
+  assert.match(signedOut.note, /is registered as a driver account, so it can't be used for a staff account. Ask Jo to send the invitation to a different email./);
+  assert.deepEqual(staffInviteGuide({ visitor: "driver-account", invite: invite("driver") }).actions, ["sign-out"]);
+});
+
+test("staff at another dealership are told they will move", () => {
+  const guide = staffInviteGuide({ visitor: "invited-account", invite: invite("other-dealership-staff") });
+  assert.equal(guide.acceptLabel, "Accept and move to Action Auto Utah");
+  assert.match(guide.note, /won't have access to your current dealership/);
+});
+
+test("another signed-in account is asked to sign out", () => {
+  const guide = staffInviteGuide({ visitor: "other-account", invite: invite("none"), signedInEmail: "boss@dealer.com" });
+  assert.deepEqual(guide.actions, ["sign-out"]);
+  assert.match(guide.note, /signed in as boss@dealer.com/);
+});
+
+test("the staff sign-up form refuses emails that already have an account", () => {
+  assert.equal(staffSignUpBlocker(invite("none")), null);
+  assert.match(staffSignUpBlocker(invite("customer")), /already has an account. Sign in instead/);
+  assert.match(staffSignUpBlocker(invite("driver")), /registered as a driver account/);
 });

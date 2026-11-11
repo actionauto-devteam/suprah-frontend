@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { passwordRulesMessage } from "@/lib/password-rules";
 import { userErrorMessage } from "@/lib/user-error";
-import { inviteRoleLabel, type StaffInvite } from "@/lib/staff-invite";
+import { inviteRoleLabel, staffSignUpBlocker, type StaffInvite } from "@/lib/staff-invite";
 import { PasswordRulesChecklist } from "./PasswordRulesChecklist";
 import {
   AUTH_INPUT_CLASS,
@@ -71,6 +71,9 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
         }
         setInvite(data);
         if (data?.email) setEmail(data.email);
+        // An email that already has an account (or is a driver's) can't make a new one here.
+        const blocker = staffSignUpBlocker(data);
+        if (blocker) setInviteProblem(blocker);
       })
       .catch((err: unknown) => {
         if (!cancelled) setInviteProblem(userErrorMessage(err, "open this invitation"));
@@ -225,6 +228,12 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
               title="Create account"
               subtitle={invite ? `Join ${invite.organizationName} as ${inviteRoleLabel(invite.role)}` : undefined}
             />
+
+            {invite && !inviteProblem && (
+              <p className="text-sm text-muted-foreground">
+                After you confirm your email with a code, you&apos;ll go straight to {invite.organizationName}&apos;s dashboard as {inviteRoleLabel(invite.role)}.
+              </p>
+            )}
 
             {inviteProblem && (
               <div
