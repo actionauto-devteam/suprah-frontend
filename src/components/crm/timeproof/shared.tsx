@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ChevronRight } from "lucide-react"
+import Link from "next/link"
+import { ChevronRight, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toMDT } from "@/lib/timezone"
 
@@ -567,6 +568,24 @@ export const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive 
           </div>
         )
       })}
+    </div>
+  )
+}
+
+export function ViewUsersNoAccess() {
+  return (
+    <div className="min-h-screen bg-background timeproof-scope flex flex-col items-center justify-center text-center px-6 gap-3">
+      <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center">
+        <Lock className="h-6 w-6 text-muted-foreground/40" />
+      </div>
+      <p className="text-sm font-semibold text-muted-foreground/80">No access</p>
+      <p className="text-xs text-muted-foreground/60 max-w-xs">You don&apos;t have View Users access. Ask an admin who has it to turn it on for you.</p>
+      <Link
+        href="/crm/timeproof-clock"
+        className="mt-2 h-9 px-4 inline-flex items-center rounded-xl border border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+      >
+        Back to Timeproof Clock
+      </Link>
     </div>
   )
 }

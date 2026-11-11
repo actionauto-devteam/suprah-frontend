@@ -1069,7 +1069,7 @@ function normalizeFinalMessageMarkup(text: string): string {
     .split('\n')
     .map(line => {
       if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return '';
-      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) {
+      if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line) && (line.match(/\*\*/g) || []).length % 2 === 1) {
         return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
       }
       return line;
@@ -1151,7 +1151,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string, mention
 }
 
 function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly string[] = []): React.ReactNode {
-  const label = MEDIA_LABELS[msg.type];
+  const label = msg.type === 'voice' || msg.type === 'poll' || msg.type === 'event' ? MEDIA_LABELS[msg.type] : undefined;
   if (label) return label;
 
   // Keep Mini Space on the same recovery and block-layout path as the full
@@ -2049,10 +2049,14 @@ function htmlToMarkdown(el: HTMLElement): string {
     }
 
     const hasInlineContent = Boolean(inner.trim());
-    if (hasInlineContent && elementIsBold && !inherited.bold) inner = `**${inner}**`;
-    if (hasInlineContent && elementIsItalic && !inherited.italic) inner = `_${inner}_`;
-    if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = `__${inner}__`;
-    if (hasInlineContent && elementIsStrike && !inherited.strike) inner = `~~${inner}~~`;
+    const wrapEachLine = (value: string, marker: string) => value
+      .split('\n')
+      .map(line => (line.trim() ? `${marker}${line}${marker}` : line))
+      .join('\n');
+    if (hasInlineContent && elementIsBold && !inherited.bold) inner = wrapEachLine(inner, '**');
+    if (hasInlineContent && elementIsItalic && !inherited.italic) inner = wrapEachLine(inner, '_');
+    if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = wrapEachLine(inner, '__');
+    if (hasInlineContent && elementIsStrike && !inherited.strike) inner = wrapEachLine(inner, '~~');
     if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
     else if ((tag === 'code' || isMonospace) && hasInlineContent && !element.closest('pre')) inner = '`' + inner.replace(/`/g, '') + '`';
     else if (tag === 'blockquote') inner = inner
@@ -2197,6 +2201,15 @@ function insertRichHtmlAtRichEditorSelection(root: HTMLElement, html: string): R
   const template = root.ownerDocument.createElement('template');
   template.innerHTML = html;
   const fragment = template.content;
+  const firstContent = Array.from(fragment.childNodes).find(node => node.nodeType !== Node.TEXT_NODE || node.textContent?.trim());
+  if (
+    firstContent
+    && firstContent.nodeType === Node.ELEMENT_NODE
+    && /^(?:DIV|P)$/.test(firstContent.nodeName)
+    && !(firstContent as Element).querySelector('div, p, ul, ol, li, table, blockquote, pre, h1, h2, h3, h4, h5, h6')
+  ) {
+    (firstContent as Element).replaceWith(...Array.from(firstContent.childNodes));
+  }
   const lastInserted = fragment.lastChild;
   if (!lastInserted) return range.cloneRange();
 
@@ -2674,14 +2687,20 @@ function clipboardHtmlToEditorHtml(html: string): string {
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
     const semanticClassFormatting = getSupraSpaceClipboardSemanticClassFormatting(element.getAttribute('class'));
     let formatted = inner;
+    const explicitNormalWeight = fontWeight === 'normal'
+      || fontWeight === 'lighter'
+      || (/^\d+$/.test(fontWeight) && Number.parseInt(fontWeight, 10) < 600);
 
     if (
-      tag === 'strong'
-      || tag === 'b'
-      || fontWeight === 'bold'
-      || fontWeight === 'bolder'
-      || Number.parseInt(fontWeight || '0', 10) >= 600
-      || semanticClassFormatting.bold
+      !explicitNormalWeight
+      && (
+        tag === 'strong'
+        || tag === 'b'
+        || fontWeight === 'bold'
+        || fontWeight === 'bolder'
+        || Number.parseInt(fontWeight || '0', 10) >= 600
+        || semanticClassFormatting.bold
+      )
     ) formatted = `<strong>${formatted}</strong>`;
     if (tag === 'em' || tag === 'i' || /^(?:italic|oblique)$/i.test(element.style.fontStyle) || semanticClassFormatting.italic) {
       formatted = `<em>${formatted}</em>`;
@@ -2841,12 +2860,20 @@ function markdownTextToEditorHtml(text: string): string {
 
   const renderStyledInline = (value: string): string => {
     const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{highlight:(#[0-9a-fA-F]{3,8})\}|\{\/highlight\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
-    let result = '';
+    const styleMarker = /\u3000\uE000(\d+)\uE000\u3000/g;
+    const tags: RegExpExecArray[] = [];
+    let protectedValue = '';
     let cursor = 0;
     let match: RegExpExecArray | null;
 
-    const wrap = (html: string): string => {
-      if (!html) return html;
+    while ((match = styleTag.exec(value)) !== null) {
+      protectedValue += `${value.slice(cursor, match.index)}\u3000\uE000${tags.length}\uE000\u3000`;
+      tags.push(match);
+      cursor = match.index + match[0].length;
+    }
+    protectedValue += value.slice(cursor);
+
+    const openStyleSpan = (): string => {
       const styles: string[] = [];
       if (activeColor) styles.push(`color:${activeColor}`);
       if (activeHighlight) styles.push(`background-color:${activeHighlight}`);
@@ -2856,37 +2883,48 @@ function markdownTextToEditorHtml(text: string): string {
       if (activeFontSize !== SS4_DEFAULT_FONT_SIZE) {
         styles.push(`font-size:${activeFontSize}px`);
       }
-      return styles.length
-        ? `<span style="${styles.join(';')}">${html}</span>`
-        : html;
+      return styles.length ? `<span style="${styles.join(';')}">` : '';
     };
 
-    while ((match = styleTag.exec(value)) !== null) {
-      result += wrap(applyInlineMarkdown(value.slice(cursor, match.index)));
-      if (match[1]) activeColor = match[1].toLowerCase();
-      else if (match[0].toLowerCase() === '{/color}') activeColor = null;
-      else if (match[2]) activeHighlight = match[2].toLowerCase();
-      else if (match[0].toLowerCase() === '{/highlight}') activeHighlight = null;
-      else if (match[3]) {
-        const family = match[3].toLowerCase() as SS4FontFamilyId;
+    const applyStyleTag = (tag: RegExpExecArray) => {
+      if (tag[1]) activeColor = tag[1].toLowerCase();
+      else if (tag[0].toLowerCase() === '{/color}') activeColor = null;
+      else if (tag[2]) activeHighlight = tag[2].toLowerCase();
+      else if (tag[0].toLowerCase() === '{/highlight}') activeHighlight = null;
+      else if (tag[3]) {
+        const family = tag[3].toLowerCase() as SS4FontFamilyId;
         activeFontFamily = SS4_FONT_FAMILIES.some(option => option.id === family)
           ? family
           : SS4_DEFAULT_FONT_FAMILY;
-      } else if (match[0].toLowerCase() === '{/font}') {
+      } else if (tag[0].toLowerCase() === '{/font}') {
         activeFontFamily = SS4_DEFAULT_FONT_FAMILY;
-      } else if (match[4]) {
-        const size = Number.parseInt(match[4], 10) as SS4FontSize;
+      } else if (tag[4]) {
+        const size = Number.parseInt(tag[4], 10) as SS4FontSize;
         activeFontSize = SS4_FONT_SIZES.includes(size)
           ? size
           : SS4_DEFAULT_FONT_SIZE;
-      } else if (match[0].toLowerCase() === '{/size}') {
+      } else if (tag[0].toLowerCase() === '{/size}') {
         activeFontSize = SS4_DEFAULT_FONT_SIZE;
       }
-      cursor = match.index + match[0].length;
+    };
+
+    const html = applyInlineMarkdown(protectedValue);
+    if (!html.replace(styleMarker, '')) {
+      tags.forEach(applyStyleTag);
+      return '';
     }
 
-    result += wrap(applyInlineMarkdown(value.slice(cursor)));
-    return result;
+    const firstSpan = openStyleSpan();
+    let openSpan = firstSpan;
+    const body = html.replace(styleMarker, (_marker, index: string) => {
+      applyStyleTag(tags[Number(index)]);
+      const nextSpan = openStyleSpan();
+      const closing = openSpan ? '</span>' : '';
+      openSpan = nextSpan;
+      return `${closing}${nextSpan}`;
+    });
+
+    return `${firstSpan}${body}${openSpan ? '</span>' : ''}`.replace(/<span style="[^"]*"><\/span>/g, '');
   };
 
   const stack: Array<{ tag: 'ul' | 'ol'; depth: number; start?: number; items: string[] }> = [];

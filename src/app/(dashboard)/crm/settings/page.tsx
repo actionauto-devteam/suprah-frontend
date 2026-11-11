@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { goBackOr } from "@/lib/navigation";
 import {
   Loader2,
   ArrowLeft,
@@ -109,7 +110,8 @@ export default function CrmSettingsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/crm/dashboard")}
+            onClick={() => goBackOr(router, "/crm/dashboard")}
+            aria-label="Back"
             className="h-9 w-9 p-0 rounded-xl border border-border/40 hover:bg-muted/50 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />

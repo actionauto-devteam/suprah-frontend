@@ -87,6 +87,7 @@ interface CrmUserData {
   trayDeviceAuthEnabled?: boolean
   monitoringMode?: "off" | "always" | "switching"
   deviceSwitch?: { enabled: boolean; activeDevice: "desktop" | "mobile" | null; autoSwitch?: boolean }
+  payrollAccess?: boolean
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
@@ -1509,7 +1510,7 @@ export default function TimeprofClockPage() {
             </p>
           )}
           <div className="ml-auto shrink-0 flex items-center gap-1.5 sm:gap-2">
-            {(user.role === "admin" || user.role === "manager") && (
+            {(user.role === "admin" || user.role === "manager") && user.payrollAccess && (
               <button
                 onClick={() => router.push("/crm/timeproof/users")}
                 className="h-9 px-2.5 sm:px-3 rounded-xl border border-border/40 flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground text-[11px] font-bold"

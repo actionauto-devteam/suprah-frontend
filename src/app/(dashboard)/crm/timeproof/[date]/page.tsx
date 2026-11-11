@@ -31,6 +31,8 @@ import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { ActivityLogCard } from "@/components/crm/timeproof/ActivityLogCard"
 import { MobileMonitoringPanel } from "@/components/crm/timeproof/MobileMonitoringPanel"
+import { ViewUsersNoAccess } from "@/components/crm/timeproof/shared"
+import { useCrmUser } from "@/hooks/useCrmUser"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Screenshot {
@@ -711,6 +713,7 @@ export default function ScreenshotGalleryPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { user: currentUser } = useCrmUser()
 
   const dateStr = params.date as string
   const userId = searchParams.get("userId") ?? undefined
@@ -730,6 +733,7 @@ export default function ScreenshotGalleryPage() {
     initialTab === "activity" ? "activity" : initialTab === "mobile" ? "mobile" : "screenshots",
   )
   const [mobileTabEnabled, setMobileTabEnabled] = React.useState(false)
+  const [viewForbidden, setViewForbidden] = React.useState(false)
 
   React.useEffect(() => {
     if (!userId) return
@@ -772,7 +776,10 @@ export default function ScreenshotGalleryPage() {
           const accountModel = res.data?.data?.user?.accountModel
           setIsLotTechMain(accountModel === "User")
         })
-        .catch(() => setIsLotTechMain(false))
+        .catch((e) => {
+          if (e?.response?.status === 403) setViewForbidden(true)
+          setIsLotTechMain(false)
+        })
       return
     }
     const crmToken = localStorage.getItem("crm_token")
@@ -783,7 +790,7 @@ export default function ScreenshotGalleryPage() {
 
   // Screenshot + break fetch — only runs for CRM users (isLotTechMain === false)
   React.useEffect(() => {
-    if (isLotTechMain !== false) return
+    if (isLotTechMain !== false || viewForbidden) return
     const token = localStorage.getItem("crm_token")
     if (!token) { router.replace("/crm"); return }
 
@@ -839,7 +846,7 @@ export default function ScreenshotGalleryPage() {
       })
       .catch((e: any) => setError(e?.response?.data?.message || "Failed to load screenshots."))
       .finally(() => setLoading(false))
-  }, [dateStr, userId, router, isLotTechMain])
+  }, [dateStr, userId, router, isLotTechMain, viewForbidden])
 
   const breaks = React.useMemo(() => actualBreaksToSegments(actualBreaks), [actualBreaks])
   const idleCount = idlePeriodsCount
@@ -946,6 +953,7 @@ export default function ScreenshotGalleryPage() {
   }
 
   // All hooks declared — conditional renders safe from here
+  if (userId && (viewForbidden || (currentUser && !currentUser.payrollAccess))) return <ViewUsersNoAccess />
   if (isLotTechMain === null) return null
   if (isLotTechMain === true) {
     return <LotTechDayView dateStr={dateStr} totalSecondsFromParam={totalSecondsFromParam} formattedDate={formattedDate} userId={userId} />

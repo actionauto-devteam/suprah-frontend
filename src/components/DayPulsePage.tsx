@@ -44,6 +44,8 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { toMDT } from "@/lib/timezone"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
+import { createPortal } from "react-dom"
+import { AttachmentLightbox } from "@/components/chat/AttachmentLightbox"
 
 // PART 1 - Department definitions + color tokens
 
@@ -670,7 +672,15 @@ function AttachmentPreviewModal({
   heading: string
   onClose: () => void
 }) {
-  const imageLike = isImageAttachment(attachment)
+  if (isImageAttachment(attachment)) {
+    return createPortal(
+      <AttachmentLightbox
+        attachment={{ src: attachment.url, type: "image", name: attachment.originalName }}
+        onClose={onClose}
+      />,
+      document.body,
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
@@ -687,24 +697,16 @@ function AttachmentPreviewModal({
         </div>
         <div className="grid gap-4 p-5 md:grid-cols-[1.6fr_1fr]">
           <div className="rounded-2xl border border-border/40 bg-muted/15 p-3 flex items-center justify-center min-h-65 overflow-hidden">
-            {imageLike ? (
-              <img
-                src={attachment.thumbnailUrl || attachment.url}
-                alt={attachment.originalName}
-                className="max-h-90 w-full rounded-xl object-contain"
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-3 text-center px-6 py-10">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
-                  {attachment.mimeType.includes("pdf") || attachment.mimeType.includes("word") ? (
-                    <FileText className="h-7 w-7" />
-                  ) : (
-                    <ImageIcon className="h-7 w-7" />
-                  )}
-                </div>
-                <p className="max-w-xs text-sm leading-6 text-muted-foreground/70">This file type opens in a new tab for a full preview.</p>
+            <div className="flex flex-col items-center gap-3 text-center px-6 py-10">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+                {attachment.mimeType.includes("pdf") || attachment.mimeType.includes("word") ? (
+                  <FileText className="h-7 w-7" />
+                ) : (
+                  <ImageIcon className="h-7 w-7" />
+                )}
               </div>
-            )}
+              <p className="max-w-xs text-sm leading-6 text-muted-foreground/70">This file type opens in a new tab for a full preview.</p>
+            </div>
           </div>
           <div className="space-y-3">
             <div className="rounded-2xl border border-border/40 bg-muted/15 p-4 space-y-1.5">
