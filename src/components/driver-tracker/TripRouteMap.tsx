@@ -3,111 +3,103 @@
 import * as React from "react";
 import { Loader2, MapPinned } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
-import {
-  createGoogleMap,
-  GOOGLE_MAPS_KEY_REJECTED,
-  googleMapsConfig,
-  loadGoogleMaps,
-  onGoogleMapsAuthFailure,
-  type MapCamera,
-} from "@/lib/google-maps";
+import { BASE_MAP_PROVIDER, createBaseMap, type BaseMap, type BaseMapTheme, type LngLat } from "@/lib/base-map";
 
-const GOOGLE_MAPS = googleMapsConfig();
 // One color per driver when a load changed hands during the trip.
 const ROUTE_COLORS = ["#2563eb", "#9333ea", "#0d9488", "#ea580c"];
 
 export type TripRoutePoint = { driverId: string; lat: number; lng: number };
 
-function pinElement(label: string, color: string) {
+function pinElement(label: string, color: string, title: string) {
   const element = document.createElement("div");
   element.style.cssText = `padding:2px 8px;border-radius:999px;background:${color};border:2px solid #fff;color:#fff;font:700 11px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.3);white-space:nowrap`;
   element.textContent = label;
+  element.title = title;
   return element;
 }
 
+/** Each driver's part of the trip, in the order they drove it. */
+export function tripPaths(points: TripRoutePoint[]): Array<{ driverId: string; path: LngLat[] }> {
+  const paths = new Map<string, LngLat[]>();
+  for (const point of points) {
+    const path = paths.get(point.driverId) ?? [];
+    path.push({ lat: point.lat, lng: point.lng });
+    paths.set(point.driverId, path);
+  }
+  return [...paths.entries()].map(([driverId, path]) => ({ driverId, path }));
+}
+
 /**
- * The recorded trip drawn on a Google map: the route line (one color per
- * driver), a Start pin and a Latest pin. Shown only once Google Maps is set
- * up; the position list next to it works either way.
+ * The recorded trip on a map: the route line (one color per driver), a Start
+ * pin and a Latest pin. Amazon Location's map, or Mapbox until the Amazon
+ * browser key is set up (lib/base-map, 2026-11-11); before, it needed Google
+ * and was hidden without it. The position list next to it works either way.
  */
 export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]; driverNames: Map<string, string> }) {
   const { theme } = useTheme();
+  const mapTheme: BaseMapTheme = theme === "dark" ? "dark" : "light";
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const mapRef = React.useRef<BaseMap | null>(null);
   const [status, setStatus] = React.useState<{ kind: "loading" | "ready" | "error"; message?: string }>({ kind: "loading" });
 
-  const driverOrder = React.useMemo(() => [...new Set(points.map((point) => point.driverId))], [points]);
+  const paths = React.useMemo(() => tripPaths(points), [points]);
+  // The map is made with the theme at that moment; later changes go through setLook below.
+  const themeRef = React.useRef(mapTheme);
+  React.useEffect(() => {
+    themeRef.current = mapTheme;
+  }, [mapTheme]);
 
   React.useEffect(() => {
-    const config = GOOGLE_MAPS;
-    if (!config || !containerRef.current || points.length === 0) return;
+    const container = containerRef.current;
+    if (!BASE_MAP_PROVIDER || !container || points.length === 0) return;
     let cancelled = false;
-    let camera: MapCamera | null = null;
-    const stopAuthWatch = onGoogleMapsAuthFailure(() => {
-      if (!cancelled) setStatus({ kind: "error", message: GOOGLE_MAPS_KEY_REJECTED });
-    });
+    const failed = () => {
+      if (!cancelled) setStatus({ kind: "error", message: "The map couldn't load. The list below still has every position." });
+    };
+    setStatus({ kind: "loading" });
 
-    loadGoogleMaps(config)
-      .then((libraries) => {
-        if (cancelled || !containerRef.current) return;
-        const first = points[0];
-        const last = points[points.length - 1];
-        const created = createGoogleMap(libraries, containerRef.current, {
-          config,
-          theme: theme === "dark" ? "dark" : "light",
-          center: [first.lng, first.lat],
-          zoom: 11,
-          // Moves with one finger or the mouse, with no "ctrl + scroll" or
-          // "two fingers" note over it, like the other Driver Tracker maps
-          // (2026-11-06).
+    void (async () => {
+      const first = points[0];
+      const last = points[points.length - 1];
+      let map: BaseMap | null = null;
+      try {
+        map = await createBaseMap(container, { center: first, zoom: 11, theme: themeRef.current });
+      } catch {
+        map = null;
+      }
+      if (cancelled) {
+        map?.remove();
+        return;
+      }
+      if (!map) return failed();
+      mapRef.current = map;
+      map.onLoadError(failed);
+      // Lines are part of the map style, so they're drawn again after a theme change.
+      map.onStyleReady(() => {
+        paths.forEach(({ path }, index) => {
+          map?.setLine(`trip-route-${index}`, path, { color: ROUTE_COLORS[index % ROUTE_COLORS.length] });
         });
-        camera = created.camera;
-        const map = created.map;
-
-        const paths = new Map<string, google.maps.LatLngLiteral[]>();
-        for (const point of points) {
-          const path = paths.get(point.driverId) ?? [];
-          path.push({ lat: point.lat, lng: point.lng });
-          paths.set(point.driverId, path);
-        }
-        driverOrder.forEach((driverId, index) => {
-          new libraries.maps.Polyline({
-            map,
-            path: paths.get(driverId) ?? [],
-            strokeColor: ROUTE_COLORS[index % ROUTE_COLORS.length],
-            strokeOpacity: 0.9,
-            strokeWeight: 4,
-          });
-        });
-
-        new libraries.marker.AdvancedMarkerElement({ map, position: { lat: first.lat, lng: first.lng }, content: pinElement("Start", "#059669"), title: "First recorded position" });
-        if (points.length > 1) {
-          new libraries.marker.AdvancedMarkerElement({ map, position: { lat: last.lat, lng: last.lng }, content: pinElement("Latest", "#dc2626"), title: "Latest recorded position", zIndex: 10 });
-          map.fitBounds(
-            {
-              north: Math.max(...points.map((point) => point.lat)),
-              south: Math.min(...points.map((point) => point.lat)),
-              east: Math.max(...points.map((point) => point.lng)),
-              west: Math.min(...points.map((point) => point.lng)),
-            },
-            40,
-          );
-        }
-        map.addListener("tilesloaded", () => {
-          if (!cancelled) setStatus({ kind: "ready" });
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setStatus({ kind: "error", message: "The map couldn't load. The list below still has every position." });
+        if (!cancelled) setStatus({ kind: "ready" });
       });
+      map.addMarker(first, { element: pinElement("Start", "#059669", "First recorded position") });
+      if (points.length > 1) {
+        map.addMarker(last, { element: pinElement("Latest", "#dc2626", "Latest recorded position") });
+        map.fitTo(points, { padding: 40 });
+      }
+    })();
 
     return () => {
       cancelled = true;
-      stopAuthWatch();
-      camera?.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
-  }, [points, driverOrder, theme]);
+  }, [points, paths]);
 
-  if (!GOOGLE_MAPS || points.length === 0) return null;
+  React.useEffect(() => {
+    mapRef.current?.setLook(mapTheme, "map");
+  }, [mapTheme]);
+
+  if (!BASE_MAP_PROVIDER || points.length === 0) return null;
 
   return (
     <div className="space-y-2">
@@ -127,9 +119,9 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
           </div>
         )}
       </div>
-      {driverOrder.length > 1 && (
+      {paths.length > 1 && (
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Route colors">
-          {driverOrder.map((driverId, index) => (
+          {paths.map(({ driverId }, index) => (
             <li key={driverId} className="inline-flex items-center gap-1.5">
               <span className="h-1 w-4 rounded-full" style={{ background: ROUTE_COLORS[index % ROUTE_COLORS.length] }} />
               {driverNames.get(driverId) ?? "Driver"}
