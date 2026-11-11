@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Loader2,
   AlertCircle,
-  CheckCircle2,
   Eye,
   EyeOff,
   Building2,
@@ -23,11 +22,12 @@ import { useAuth, useUser } from "@/providers/AuthProvider";
 import {
   EMAIL_ALREADY_HAS_ACCOUNT_STATUS,
   joinSignInHref,
+  joinFormNote,
   joinSignedInNote,
-  joinSuccess,
+  joinVerifyHref,
 } from "@/lib/join-link";
 
-type Step = "loading" | "invalid" | "form" | "submitting" | "success";
+type Step = "loading" | "invalid" | "form" | "submitting";
 type InvalidReason = "not_found" | "used" | "expired";
 
 interface OrgInfo {
@@ -105,7 +105,8 @@ export default function JoinPage() {
         email: email.trim().toLowerCase(),
         password,
       });
-      setStep("success");
+      // Next: the 6-digit code from the email, which also signs them in (2026-11-11).
+      router.push(joinVerifyHref(email));
     } catch (err: any) {
       const msg = userErrorMessage(err, "create your account");
       setError(msg);
@@ -173,6 +174,11 @@ export default function JoinPage() {
                   <h1 className="text-xl font-bold text-white mt-0.5">{org.orgName}</h1>
                 </div>
               </div>
+
+              {/* What this link creates and what comes next (2026-11-11). */}
+              <p className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                {joinFormNote(org.accountType, org.orgName)}
+              </p>
 
               {isSignedIn ? (
                 // Someone is already signed in: this link makes a new account,
@@ -288,30 +294,6 @@ export default function JoinPage() {
               </form>
               )}
             </>
-          )}
-
-          {/* Success */}
-          {step === "success" && (
-            <div className="flex flex-col items-center gap-4 py-8 text-center">
-              <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-              </div>
-              <div>
-                {/* What's next for this kind of account (2026-11-11). */}
-                <h2 className="text-lg font-semibold text-white">
-                  {joinSuccess(org?.accountType ?? "customer", org?.orgName ?? "the dealership").title}
-                </h2>
-                <p className="mt-1 text-sm text-white/60">
-                  {joinSuccess(org?.accountType ?? "customer", org?.orgName ?? "the dealership").message}
-                </p>
-              </div>
-              <Button
-                onClick={() => router.push(joinSignInHref(org?.accountType ?? "customer", email))}
-                className="mt-2 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
-              >
-                {joinSuccess(org?.accountType ?? "customer", org?.orgName ?? "the dealership").button}
-              </Button>
-            </div>
           )}
 
         </div>
