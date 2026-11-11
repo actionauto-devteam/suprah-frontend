@@ -42,3 +42,16 @@ export function sanitizeRedirectUrl(url: string | null | undefined): string | nu
   if (decoded.startsWith("/sign-in") || decoded.startsWith("/sign-up")) return null;
   return decoded;
 }
+
+type BackRouter = { back: () => void; push: (href: string) => void };
+
+export function goBackOr(router: BackRouter, fallback: string): void {
+  if (typeof window === "undefined") {
+    router.push(fallback);
+    return;
+  }
+  const nav = (window as Window & { navigation?: { canGoBack?: boolean } }).navigation;
+  const canGoBack = typeof nav?.canGoBack === "boolean" ? nav.canGoBack : window.history.length > 1;
+  if (canGoBack) router.back();
+  else router.push(fallback);
+}

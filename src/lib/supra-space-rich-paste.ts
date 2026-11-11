@@ -121,6 +121,8 @@ const SELECTION_COPY_SEMANTIC_TAGS = new Set([
   'a', 'b', 'blockquote', 'br', 'code', 'del', 'em', 'font', 'i', 'li', 'mark', 'ol', 'pre', 's', 'span', 'strike', 'strong', 'u', 'ul',
 ]);
 
+const SELECTION_COPY_ANCESTOR_FORMAT_TAGS = new Set(['b', 'del', 'em', 'i', 's', 'strike', 'strong', 'u']);
+
 export function hasSupraSpaceTextSelection(): boolean {
   if (typeof window === 'undefined') return false;
   const selection = window.getSelection();
@@ -145,8 +147,20 @@ export function getSupraSpaceSelectionClipboardData(
     return null;
   }
 
+  const range = selection.getRangeAt(0);
   const wrapper = container.ownerDocument.createElement('div');
-  wrapper.append(selection.getRangeAt(0).cloneContents());
+  wrapper.append(range.cloneContents());
+  const commonAncestor = range.commonAncestorContainer;
+  for (
+    let ancestor: Node | null = commonAncestor.nodeType === Node.ELEMENT_NODE ? commonAncestor : commonAncestor.parentNode;
+    ancestor && ancestor !== container && container.contains(ancestor);
+    ancestor = ancestor.parentNode
+  ) {
+    if (!(ancestor instanceof HTMLElement) || !SELECTION_COPY_ANCESTOR_FORMAT_TAGS.has(ancestor.tagName.toLowerCase())) continue;
+    const formatShell = ancestor.cloneNode(false) as HTMLElement;
+    formatShell.append(...Array.from(wrapper.childNodes));
+    wrapper.append(formatShell);
+  }
   Array.from(wrapper.querySelectorAll<HTMLElement>('*')).reverse().forEach(element => {
     const tag = element.tagName.toLowerCase();
     if (!SELECTION_COPY_SEMANTIC_TAGS.has(tag)) {

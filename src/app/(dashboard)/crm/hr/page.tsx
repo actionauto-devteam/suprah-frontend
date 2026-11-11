@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { goBackOr } from "@/lib/navigation";
 import {
   Loader2,
   ArrowLeft,
@@ -657,8 +658,21 @@ function OffboardingTab({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 
+function readTab(value: string | null): Tab {
+  return value === "onboarding" || value === "offboarding" ? value : "milestones";
+}
+
 export default function TeamEngagementPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen w-full bg-background" />}>
+      <TeamEngagementView />
+    </React.Suspense>
+  );
+}
+
+function TeamEngagementView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = React.useState<CrmUserData | null>(null);
   // Read synchronously on first render instead of waiting for the /api/crm/me round trip to
   // resolve before handing it to the tabs below — the token is already sitting in
@@ -669,7 +683,14 @@ export default function TeamEngagementPage() {
     typeof window !== "undefined" ? localStorage.getItem("crm_token") ?? "" : "",
   );
   const [authChecked, setAuthChecked] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<Tab>("milestones");
+  const activeTab = readTab(searchParams.get("tab"));
+  const setActiveTab = React.useCallback((tab: Tab) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (tab === "milestones") next.delete("tab");
+    else next.set("tab", tab);
+    const query = next.toString();
+    window.history.replaceState(null, "", query ? `/crm/hr?${query}` : "/crm/hr");
+  }, [searchParams]);
 
   React.useEffect(() => {
     if (!token) {
@@ -723,7 +744,8 @@ export default function TeamEngagementPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/crm/dashboard")}
+            onClick={() => goBackOr(router, "/crm/dashboard")}
+            aria-label="Back"
             className="h-9 w-9 p-0 rounded-xl border border-border/40 hover:bg-muted/50 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />

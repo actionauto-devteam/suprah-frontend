@@ -35,7 +35,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import {
   DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar, MobileCalendarList,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
-  generateIdleLogHtml, type IdlePeriod, computeExactPayout, PAYROLL_DE_MINIMIS_SECONDS,
+  generateIdleLogHtml, type IdlePeriod, computeExactPayout, PAYROLL_DE_MINIMIS_SECONDS, ViewUsersNoAccess,
 } from "@/components/crm/timeproof/shared"
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1008,6 +1008,8 @@ export default function AdminUserTimeprofPage() {
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }
+
+  if (currentUser && !currentUser.payrollAccess) return <ViewUsersNoAccess />
 
   /* ── Page ── */
   return (
