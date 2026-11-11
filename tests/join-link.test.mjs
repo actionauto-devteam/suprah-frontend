@@ -16,7 +16,7 @@ function load(file) {
   return cjs.exports;
 }
 
-const { joinNextPath, joinSignInHref, joinSuccess, joinSignedInNote } = load(path.join(SRC, 'lib/join-link'));
+const { joinNextPath, joinSignInHref, joinVerifyHref, joinSignedInNote } = load(path.join(SRC, 'lib/join-link'));
 
 test('each kind of link leads to its own next step after signing in', () => {
   assert.equal(joinNextPath('driver'), '/driver/pending');
@@ -28,14 +28,10 @@ test('each kind of link leads to its own next step after signing in', () => {
   assert.equal(new URL(joinSignInHref('customer', 'maria@example.com'), 'https://x').searchParams.get('redirect_url'), '/customer');
 });
 
-test('the driver is told to sign in and finish the application, not just to wait', () => {
-  const driver = joinSuccess('driver', 'Suprah AI');
-  assert.equal(driver.button, 'Continue to your application');
-  assert.match(driver.message, /sign in and finish your application/);
-  const customer = joinSuccess('customer', 'Action Auto Utah');
-  assert.equal(customer.title, 'Account created!');
-  assert.match(customer.message, /Action Auto Utah is ready/);
-  assert.doesNotMatch(customer.message, /email/i);
+test('after creating the account, the 6-digit code page for that email', () => {
+  const next = new URL(joinVerifyHref(' Sam@Example.com '), 'https://x');
+  assert.equal(next.pathname, '/verify-email');
+  assert.equal(next.searchParams.get('email'), 'sam@example.com');
 });
 
 test('someone already signed in is asked to sign out first', () => {
@@ -48,6 +44,9 @@ test('someone already signed in is asked to sign out first', () => {
 
 test('the form says what the link creates and what comes next', () => {
   const { joinFormNote } = load(path.join(SRC, 'lib/join-link'));
-  assert.match(joinFormNote('driver', 'Suprah AI'), /^This creates a driver account\. Next, you'll sign in and finish your application/);
-  assert.equal(joinFormNote('customer', 'Action Auto Utah'), 'This creates a customer account with Action Auto Utah, where you can shop cars, save favorites and follow shipments.');
+  assert.match(joinFormNote('driver', 'Suprah AI'), /^This creates a driver account\. Next, you'll confirm your email with a 6-digit code, then finish your application/);
+  assert.equal(
+    joinFormNote('customer', 'Action Auto Utah'),
+    'This creates a customer account with Action Auto Utah, where you can shop cars, save favorites and follow shipments. Next, you\'ll confirm your email with a 6-digit code.',
+  );
 });

@@ -2,7 +2,8 @@
 // Each link only sets up its own kind of account: a driver goes on to finish
 // the driver application, a customer goes to that dealership's customer
 // portal. Someone already signed in is asked to sign out first, so the new
-// account is never mixed up with theirs.
+// account is never mixed up with theirs. The new account confirms its email
+// with the 6-digit code first, like every other sign-up.
 
 export type JoinAccountType = "customer" | "driver"
 
@@ -13,28 +14,19 @@ export const joinNextPath = (accountType: JoinAccountType) => (accountType === "
 export const joinSignInHref = (accountType: JoinAccountType, email: string) =>
   `/sign-in?email=${encodeURIComponent(email.trim())}&redirect_url=${encodeURIComponent(joinNextPath(accountType))}`
 
-export function joinSuccess(accountType: JoinAccountType, orgName: string): { title: string; message: string; button: string } {
-  if (accountType === "driver") {
-    return {
-      title: "Driver account created",
-      message:
-        "Next, sign in and finish your application: upload your documents and sign the driver agreement. The Suprah AI team reviews it and emails you once you're approved.",
-      button: "Continue to your application",
-    }
-  }
-  return {
-    title: "Account created!",
-    message: `Your customer account with ${orgName} is ready. Sign in to start shopping.`,
-    button: "Continue",
-  }
-}
+/**
+ * After creating the account: the page for the 6-digit code from the email.
+ * The code confirms the person owns the email; it then signs them in and
+ * opens the driver application or the customer portal.
+ */
+export const joinVerifyHref = (email: string) => `/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`
 
 /** What the link creates and what comes next, shown above the form (2026-11-11). */
 export function joinFormNote(accountType: JoinAccountType, orgName: string): string {
   if (accountType === "driver") {
-    return "This creates a driver account. Next, you'll sign in and finish your application (documents and agreement), and the Suprah AI team reviews it before you can take loads."
+    return "This creates a driver account. Next, you'll confirm your email with a 6-digit code, then finish your application (documents and agreement). The Suprah AI team reviews it before you can take loads."
   }
-  return `This creates a customer account with ${orgName}, where you can shop cars, save favorites and follow shipments.`
+  return `This creates a customer account with ${orgName}, where you can shop cars, save favorites and follow shipments. Next, you'll confirm your email with a 6-digit code.`
 }
 
 /** Shown instead of the form when someone is already signed in. */
