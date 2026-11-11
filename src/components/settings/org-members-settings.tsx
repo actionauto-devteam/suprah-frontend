@@ -139,11 +139,21 @@ export function OrganizationMembersSettings() {
                 headers: { Authorization: `Bearer ${token}` }
             })
         },
-        onSuccess: () => {
+        onSuccess: (response) => {
             setIsInviteOpen(false)
             setInviteEmail("")
             setInviteRole("member")
-            toast.success(`Invitation sent to ${inviteEmail}`)
+            // Says when accepting will change an existing account (2026-11-11).
+            const existingAccount = response?.data?.data?.existingAccount
+            toast.success(`Invitation sent to ${inviteEmail}`, {
+                description:
+                    existingAccount === "customer"
+                        ? "This email has a customer account. When they accept, it becomes a staff account and they lose the customer portal on that email."
+                        : existingAccount === "other-dealership-staff"
+                            ? "This email has a staff account at another dealership. When they accept, it moves to your dealership."
+                            : undefined,
+                duration: existingAccount ? 10000 : undefined,
+            })
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || "Failed to send invitation")
@@ -330,14 +340,20 @@ export function OrganizationMembersSettings() {
                                     <form onSubmit={handleInvite}>
                                         <div className="space-y-4 py-4">
                                             <div className="space-y-2">
-                                                <label className="text-sm font-medium">Email Address</label>
+                                                <label htmlFor="invite-member-email" className="text-sm font-medium">Email Address</label>
                                                 <Input
+                                                    id="invite-member-email"
                                                     type="email"
                                                     placeholder="colleague@example.com"
                                                     value={inviteEmail}
                                                     onChange={(e) => setInviteEmail(e.target.value)}
+                                                    aria-describedby="invite-member-email-note"
                                                     required
                                                 />
+                                                {/* What inviting this email will do (2026-11-11). */}
+                                                <p id="invite-member-email-note" className="text-xs text-muted-foreground">
+                                                    Use the email they&apos;ll use for work. A driver&apos;s email can&apos;t be used for staff, and a customer&apos;s email becomes a staff account when they accept.
+                                                </p>
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-sm font-medium">Role</label>
