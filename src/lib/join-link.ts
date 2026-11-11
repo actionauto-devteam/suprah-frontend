@@ -29,6 +29,14 @@ export function joinSuccess(accountType: JoinAccountType, orgName: string): { ti
   }
 }
 
+/** What the link creates and what comes next, shown above the form (2026-11-11). */
+export function joinFormNote(accountType: JoinAccountType, orgName: string): string {
+  if (accountType === "driver") {
+    return "This creates a driver account. Next, you'll sign in and finish your application (documents and agreement), and the Suprah AI team reviews it before you can take loads."
+  }
+  return `This creates a customer account with ${orgName}, where you can shop cars, save favorites and follow shipments.`
+}
+
 /** Shown instead of the form when someone is already signed in. */
 export function joinSignedInNote(accountType: JoinAccountType, signedInEmail: string): string {
   const who = signedInEmail.trim() || "another account"

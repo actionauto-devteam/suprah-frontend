@@ -45,3 +45,9 @@ test('someone already signed in is asked to sign out first', () => {
   );
   assert.match(joinSignedInNote('driver', ''), /signed in as another account\. This link creates a new driver account/);
 });
+
+test('the form says what the link creates and what comes next', () => {
+  const { joinFormNote } = load(path.join(SRC, 'lib/join-link'));
+  assert.match(joinFormNote('driver', 'Suprah AI'), /^This creates a driver account\. Next, you'll sign in and finish your application/);
+  assert.equal(joinFormNote('customer', 'Action Auto Utah'), 'This creates a customer account with Action Auto Utah, where you can shop cars, save favorites and follow shipments.');
+});

@@ -23,6 +23,7 @@ import { useAuth, useUser } from "@/providers/AuthProvider";
 import {
   EMAIL_ALREADY_HAS_ACCOUNT_STATUS,
   joinSignInHref,
+  joinFormNote,
   joinSignedInNote,
   joinSuccess,
 } from "@/lib/join-link";
@@ -173,6 +174,11 @@ export default function JoinPage() {
                   <h1 className="text-xl font-bold text-white mt-0.5">{org.orgName}</h1>
                 </div>
               </div>
+
+              {/* What this link creates and what comes next (2026-11-11). */}
+              <p className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                {joinFormNote(org.accountType, org.orgName)}
+              </p>
 
               {isSignedIn ? (
                 // Someone is already signed in: this link makes a new account,
