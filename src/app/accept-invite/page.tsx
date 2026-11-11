@@ -25,7 +25,7 @@ function AcceptInviteContent() {
     const searchParams = useSearchParams()
     const token = searchParams.get("token")
     const router = useRouter()
-    const { getToken, isLoaded, isSignedIn, refreshUser, signOut } = useAuth()
+    const { getToken, isLoaded, isSignedIn, signOut } = useAuth()
     const { user } = useUser()
 
     const [isLoading, setIsLoading] = useState(true)
@@ -47,9 +47,10 @@ function AcceptInviteContent() {
                 const data = response.data?.data || response.data
                 setInvitation(data)
 
-                // Already accepted and signed in: the dashboard takes it from here.
+                // Already accepted and signed in: the dashboard takes it from here,
+                // loaded fresh so the session matches the account (2026-11-11).
                 if (data.isAlreadyAccepted && isSignedIn) {
-                    router.push("/")
+                    window.location.assign("/")
                 }
             } catch (err: unknown) {
                 setError(userErrorMessage(err, "open this invitation"))
@@ -79,10 +80,18 @@ function AcceptInviteContent() {
             await apiClient.acceptInvite(token!, {
                 headers: { Authorization: `Bearer ${authToken}` }
             })
-            // Refresh user state to update onboardingCompleted and organizationId
-            await refreshUser()
-            // Redirect to dashboard
-            router.push("/")
+            // The account is now staff at this dealership, but the sign-in in
+            // this browser still describes the old account (dealership
+            // features refused it until signing in again). Clear the old CRM
+            // session and load the dashboard fresh, which signs the session in
+            // again as the new staff account (2026-11-11).
+            try {
+                localStorage.removeItem("crm_token")
+            } catch {
+                // Storage can be unavailable; the dashboard gets a new CRM session either way.
+            }
+            window.dispatchEvent(new Event("supraspace:refresh-crm-token"))
+            window.location.assign("/")
         } catch (err: unknown) {
             setError(userErrorMessage(err, "accept this invitation"))
             setIsAccepting(false)
