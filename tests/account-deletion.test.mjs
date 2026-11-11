@@ -17,7 +17,18 @@ function load(file) {
   return cjs.exports;
 }
 
-const { ACCOUNT_DELETION_ENDPOINT, ACCOUNT_DELETION_TEXT, deletionConfirmed, deletionErrorMessage } = load(path.join(SRC, 'lib/account-deletion'));
+const {
+  ACCOUNT_DELETION_BODY,
+  ACCOUNT_DELETION_ENDPOINT,
+  ACCOUNT_DELETION_TEXT,
+  DELETION_HELP,
+  RETENTION_ACKNOWLEDGEMENT,
+  RETENTION_NOTICE,
+  RETENTION_POLICY_HREF,
+  deletionConfirmed,
+  deletionErrorMessage,
+  deletionReady,
+} = load(path.join(SRC, 'lib/account-deletion'));
 const refused = (status, message) => ({ response: { status, data: { message } } });
 
 test("drivers use the Driver Portal's address, which works before approval; customers use their profile's", () => {
@@ -28,6 +39,26 @@ test("drivers use the Driver Portal's address, which works before approval; cust
 test('the delete button works once DELETE is typed', () => {
   for (const typed of ['DELETE', 'delete', ' Delete ']) assert.equal(deletionConfirmed(typed), true, typed);
   for (const typed of ['', 'DELET', 'DELETE ME', 'remove']) assert.equal(deletionConfirmed(typed), false, typed);
+});
+
+test('before deleting, they are told what Suprah AI keeps and why, and must tick that they understand', () => {
+  for (const words of [RETENTION_NOTICE, RETENTION_ACKNOWLEDGEMENT]) {
+    assert.match(words, /Suprah AI keeps some transaction records and personal information/);
+    assert.match(words, /compliance, accounting, tax laws and fraud prevention/);
+  }
+  assert.match(RETENTION_ACKNOWLEDGEMENT, /^I understand that/);
+  assert.equal(RETENTION_POLICY_HREF, '/privacy-policy#data-retention');
+  assert.deepEqual({ ...ACCOUNT_DELETION_BODY }, { acknowledgedRetention: true });
+});
+
+test('delete works only once the acknowledgement is ticked and DELETE is typed', () => {
+  assert.equal(deletionReady({ acknowledged: true, confirmText: 'delete' }), true);
+  assert.equal(deletionReady({ acknowledged: false, confirmText: 'DELETE' }), false);
+  assert.equal(deletionReady({ acknowledged: true, confirmText: '' }), false);
+});
+
+test('anyone having a problem is told how to reach Suprah AI support', () => {
+  assert.equal(DELETION_HELP, 'Having a problem deleting your account? Contact Suprah AI support at support@suprahai.com.');
 });
 
 test('each account says plainly what goes, what stays and when it is blocked', () => {

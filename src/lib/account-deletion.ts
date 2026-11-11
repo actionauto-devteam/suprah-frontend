@@ -21,6 +21,29 @@ export function deletionConfirmed(text: string): boolean {
   return text.trim().toUpperCase() === DELETE_CONFIRM_WORD
 }
 
+// What Suprah AI keeps after an account is deleted, and the acknowledgement
+// the person ticks before deleting (2026-11-11). The server refuses a
+// deletion without it, so no app can skip this notice.
+export const RETENTION_NOTICE =
+  "Suprah AI keeps some transaction records and personal information after your account is deleted, for legal compliance, accounting, tax laws and fraud prevention."
+
+export const RETENTION_ACKNOWLEDGEMENT =
+  "I understand that Suprah AI keeps some transaction records and personal information for compliance, accounting, tax laws and fraud prevention."
+
+/** Where the privacy policy explains how long records are kept. */
+export const RETENTION_POLICY_HREF = "/privacy-policy#data-retention"
+
+export const DELETION_HELP_LEAD = "Having a problem deleting your account? Contact Suprah AI support at"
+export const DELETION_HELP = `${DELETION_HELP_LEAD} ${SUPPORT_EMAIL}.`
+
+/** Sent with the deletion: the person ticked the acknowledgement. */
+export const ACCOUNT_DELETION_BODY = { acknowledgedRetention: true } as const
+
+/** Delete works once the acknowledgement is ticked and DELETE is typed. */
+export function deletionReady(input: { acknowledged: boolean; confirmText: string }): boolean {
+  return input.acknowledged === true && deletionConfirmed(input.confirmText)
+}
+
 // The sign-in check can refuse before the deletion is even looked at. Its
 // messages are about features in general, so they're said again in terms of
 // deleting the account, with what to do (2026-11-11).
