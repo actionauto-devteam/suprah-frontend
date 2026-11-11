@@ -35,6 +35,8 @@ export function BulkInviteDialog() {
         sent: string[];
         failed: string[];
         alreadyMember: string[];
+        /** Emails of driver accounts, which can't be staff (2026-11-11). */
+        driverAccounts?: string[];
     } | null>(null)
 
     const handleInvite = async () => {
@@ -142,6 +144,16 @@ export function BulkInviteDialog() {
                                 </div>
                             )}
 
+                            {(results.driverAccounts?.length ?? 0) > 0 && (
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-2 text-amber-600 font-medium">
+                                        <AlertCircle className="h-4 w-4" />
+                                        Driver accounts (can't be staff)
+                                    </span>
+                                    <span className="font-bold">{results.driverAccounts?.length}</span>
+                                </div>
+                            )}
+
                             {results.failed.length > 0 && (
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="flex items-center gap-2 text-destructive font-medium">
@@ -152,6 +164,13 @@ export function BulkInviteDialog() {
                                 </div>
                             )}
                         </div>
+
+                        {(results.driverAccounts?.length ?? 0) > 0 && (
+                            <div className="text-xs text-muted-foreground bg-amber-500/5 p-2 rounded border border-amber-500/20 break-words">
+                                <p className="font-bold mb-1">These emails belong to driver accounts, which can't also be dealership staff. Use a different email for each of them:</p>
+                                <p>{results.driverAccounts?.join(", ")}</p>
+                            </div>
+                        )}
 
                         {results.failed.length > 0 && (
                             <div className="text-xs text-muted-foreground bg-destructive/5 p-2 rounded border border-destructive/10">
