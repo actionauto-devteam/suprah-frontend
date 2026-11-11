@@ -148,7 +148,7 @@ export function BulkInviteDialog() {
                                 <div className="flex items-center justify-between text-sm">
                                     <span className="flex items-center gap-2 text-amber-600 font-medium">
                                         <AlertCircle className="h-4 w-4" />
-                                        Driver accounts (can't be staff)
+                                        Driver accounts (can&apos;t be staff)
                                     </span>
                                     <span className="font-bold">{results.driverAccounts?.length}</span>
                                 </div>
@@ -167,7 +167,7 @@ export function BulkInviteDialog() {
 
                         {(results.driverAccounts?.length ?? 0) > 0 && (
                             <div className="text-xs text-muted-foreground bg-amber-500/5 p-2 rounded border border-amber-500/20 break-words">
-                                <p className="font-bold mb-1">These emails belong to driver accounts, which can't also be dealership staff. Use a different email for each of them:</p>
+                                <p className="font-bold mb-1">These emails belong to driver accounts, which can&apos;t also be dealership staff. Use a different email for each of them:</p>
                                 <p>{results.driverAccounts?.join(", ")}</p>
                             </div>
                         )}
