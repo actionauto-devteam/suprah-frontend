@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSignUp } from "@/providers/AuthProvider";
 import { AuthLogo } from "./AuthLogo";
 import { AuthHeading } from "./AuthHeading";
@@ -23,6 +23,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { passwordRulesMessage } from "@/lib/password-rules";
+import { userErrorMessage } from "@/lib/user-error";
+import { inviteRoleLabel, type StaffInvite } from "@/lib/staff-invite";
 import { PasswordRulesChecklist } from "./PasswordRulesChecklist";
 import {
   AUTH_INPUT_CLASS,
@@ -50,12 +52,39 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dealershipOpen, setDealershipOpen] = useState(false);
+  // The invitation this sign-up is for: its email is filled in and locked, so
+  // the account is created for the person who was invited (2026-11-11).
+  const [invite, setInvite] = useState<StaffInvite | null>(null);
+  const [inviteProblem, setInviteProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    let cancelled = false;
+    apiClient
+      .validateInvite(inviteToken)
+      .then((response) => {
+        if (cancelled) return;
+        const data = (response.data?.data || response.data) as StaffInvite;
+        if (data?.isAlreadyAccepted) {
+          setInviteProblem("This invitation was already accepted. Sign in to continue.");
+          return;
+        }
+        setInvite(data);
+        if (data?.email) setEmail(data.email);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setInviteProblem(userErrorMessage(err, "open this invitation"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   // Submit for the "details" (name/email/password) form — only reachable via
   // an org team-member invite link now.
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password || !inviteToken) return;
+    if (!name || !email || !password || !inviteToken || inviteProblem) return;
     setError(null);
     const passwordProblem = passwordRulesMessage(password);
     if (passwordProblem) {
@@ -191,7 +220,21 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
             {...containerVariants}
             className="space-y-6"
           >
-            <AuthHeading kicker="Team Invite" title="Create account" />
+            <AuthHeading
+              kicker="Team Invite"
+              title="Create account"
+              subtitle={invite ? `Join ${invite.organizationName} as ${inviteRoleLabel(invite.role)}` : undefined}
+            />
+
+            {inviteProblem && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 p-4 text-sm font-medium bg-destructive/10 text-destructive rounded-md border border-destructive/20"
+              >
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span>{inviteProblem}</span>
+              </div>
+            )}
 
             <form onSubmit={handleDetailsSubmit} className="space-y-6">
               <div className="space-y-4">
@@ -211,11 +254,18 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
                   <Input
                     type="email"
                     placeholder="name@example.com"
-                    className={`${AUTH_INPUT_CLASS} h-13`}
+                    className={`${AUTH_INPUT_CLASS} h-13 ${invite ? "opacity-80" : ""}`}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    readOnly={Boolean(invite)}
+                    aria-describedby={invite ? "invite-email-note" : undefined}
                     required
                   />
+                  {invite && (
+                    <p id="invite-email-note" className="text-xs text-muted-foreground">
+                      The invitation is for this email.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label className={AUTH_LABEL_CLASS}>Password</Label>
@@ -244,7 +294,7 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || Boolean(inviteProblem)}
                 className={`${AUTH_PRIMARY_BUTTON_CLASS} h-13 text-base transition-all active:scale-[0.98]`}
               >
                 {isLoading ? (

@@ -5,31 +5,39 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, CheckCircle2, XCircle } from "lucide-react"
-import { useAuth } from "@/providers/AuthProvider"
+import { Loader2, CheckCircle2, XCircle, LogOut, UserPlus, LogIn } from "lucide-react"
+import { useAuth, useUser } from "@/providers/AuthProvider"
+import { userErrorMessage } from "@/lib/user-error"
+import {
+    inviteRoleLabel,
+    staffInvitePath,
+    staffInviteVisitor,
+    staffSignInHref,
+    staffSignUpHref,
+    type StaffInvite,
+} from "@/lib/staff-invite"
 
-interface InvitationDetails {
-    organizationName: string;
-    inviterName: string;
-    email: string;
-    role: string;
-}
-
+// Staff invitation (2026-11-11): someone without an account creates their
+// staff account for the invited email; someone signed in as another account
+// (or as a driver) is never attached to the invitation by mistake. See
+// lib/staff-invite.
 function AcceptInviteContent() {
     const searchParams = useSearchParams()
     const token = searchParams.get("token")
     const router = useRouter()
-    const { getToken, isLoaded, isSignedIn, refreshUser } = useAuth()
+    const { getToken, isLoaded, isSignedIn, refreshUser, signOut } = useAuth()
+    const { user } = useUser()
 
     const [isLoading, setIsLoading] = useState(true)
     const [isAccepting, setIsAccepting] = useState(false)
+    const [isSigningOut, setIsSigningOut] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [invitation, setInvitation] = useState<InvitationDetails | null>(null)
+    const [invitation, setInvitation] = useState<StaffInvite | null>(null)
 
     useEffect(() => {
         const validateToken = async () => {
             if (!token) {
-                setError("Missing invitation token")
+                setError("This invitation link is incomplete. Open it again from the invitation email.")
                 setIsLoading(false)
                 return
             }
@@ -39,14 +47,12 @@ function AcceptInviteContent() {
                 const data = response.data?.data || response.data
                 setInvitation(data)
 
-                // If already accepted and user is signed in, we might want to redirect
+                // Already accepted and signed in: the dashboard takes it from here.
                 if (data.isAlreadyAccepted && isSignedIn) {
-                    // Check if they are already in an organization (likely the one they just joined via OAuth)
-                    // We'll give it a moment or just redirect to home where the dashboard logic handles it
                     router.push("/")
                 }
-            } catch (err: any) {
-                setError(err.response?.data?.message || "Invalid or expired invitation")
+            } catch (err: unknown) {
+                setError(userErrorMessage(err, "open this invitation"))
             } finally {
                 setIsLoading(false)
             }
@@ -57,13 +63,16 @@ function AcceptInviteContent() {
         }
     }, [token, isLoaded])
 
-    const handleAccept = async () => {
-        if (!isSignedIn) {
-            // Redirect to sign in, preserving the return URL and adding the token for signup awareness
-            router.push(`/sign-in?token=${token}&redirect_url=${encodeURIComponent(`/accept-invite?token=${token}`)}`)
-            return
-        }
+    const visitor = invitation
+        ? staffInviteVisitor({
+            isSignedIn,
+            inviteEmail: invitation.email,
+            signedInEmail: user?.primaryEmailAddress?.emailAddress,
+            signedInRole: user?.role,
+        })
+        : "signed-out"
 
+    const handleAccept = async () => {
         setIsAccepting(true)
         try {
             const authToken = await getToken()
@@ -74,9 +83,19 @@ function AcceptInviteContent() {
             await refreshUser()
             // Redirect to dashboard
             router.push("/")
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Failed to accept invitation")
+        } catch (err: unknown) {
+            setError(userErrorMessage(err, "accept this invitation"))
             setIsAccepting(false)
+        }
+    }
+
+    // Sign out and come back to this invitation, to continue with the invited email.
+    const signOutAndContinue = async () => {
+        setIsSigningOut(true)
+        try {
+            await signOut({ redirectUrl: staffInvitePath(token!) })
+        } catch {
+            setIsSigningOut(false)
         }
     }
 
@@ -88,57 +107,104 @@ function AcceptInviteContent() {
         )
     }
 
+    const signedInEmail = user?.primaryEmailAddress?.emailAddress ?? ""
+
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
             <Card className="w-full max-w-md">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         {error ? <XCircle className="text-destructive" /> : <CheckCircle2 className="text-green-500" />}
-                        {error ? "Invitation Error" : "You're Invited!"}
+                        {error ? "Invitation problem" : "You're invited!"}
                     </CardTitle>
                     <CardDescription>
-                        {error ? "We couldn't process your invitation." : `You've been invited to join an organization.`}
+                        {error
+                            ? "We couldn't continue with this invitation."
+                            : `You've been invited to join ${invitation?.organizationName ?? "a dealership"} on Suprah AI.`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {invitation && (
                         <div className="space-y-4">
-                            <div className="p-4 bg-muted rounded-lg space-y-2">
-                                <p className="text-sm font-medium">Organization</p>
-                                <p className="text-lg font-bold">{invitation.organizationName}</p>
-                                <div className="border-t border-border my-2" />
-                                <p className="text-sm font-medium">Invited By</p>
-                                <p>{invitation.inviterName}</p>
-                                <p className="text-sm font-medium mt-2">Role</p>
-                                <p className="capitalize">{invitation.role}</p>
-                            </div>
-                            {!isSignedIn && (
-                                <p className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded">
-                                    You will need to sign in or create an account to accept this invitation.
+                            <dl className="p-4 bg-muted rounded-lg space-y-2">
+                                <div>
+                                    <dt className="text-sm font-medium">Dealership</dt>
+                                    <dd className="text-lg font-bold break-words">{invitation.organizationName}</dd>
+                                </div>
+                                <div className="border-t border-border pt-2">
+                                    <dt className="text-sm font-medium">Invited by</dt>
+                                    <dd className="break-words">{invitation.inviterName}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm font-medium">Role</dt>
+                                    <dd>{inviteRoleLabel(invitation.role)}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-sm font-medium">For</dt>
+                                    <dd className="break-all">{invitation.email}</dd>
+                                </div>
+                            </dl>
+                            {!error && visitor === "signed-out" && (
+                                <p className="text-sm text-muted-foreground">
+                                    {invitation.isAlreadyAccepted
+                                        ? "This invitation was already accepted. Sign in to continue."
+                                        : `Create your staff account with ${invitation.email}, or sign in if you already have an account with that email.`}
+                                </p>
+                            )}
+                            {!error && visitor === "other-account" && (
+                                <p role="alert" className="text-sm rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200 break-words">
+                                    This invitation is for {invitation.email}, but you&apos;re signed in as {signedInEmail || "another account"}.
+                                    Sign out to continue with the invited email.
+                                </p>
+                            )}
+                            {!error && visitor === "driver-account" && (
+                                <p role="alert" className="text-sm rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
+                                    {invitation.email} already has a driver account, and driver accounts can&apos;t also be dealership staff.
+                                    Ask {invitation.inviterName} to send the invitation to a different email.
                                 </p>
                             )}
                         </div>
                     )}
                     {error && (
-                        <div className="p-4 bg-destructive/10 text-destructive rounded-lg">
+                        <div role="alert" className="mt-4 p-4 bg-destructive/10 text-destructive rounded-lg">
                             {error}
                         </div>
                     )}
                 </CardContent>
-                <CardFooter>
-                    {invitation && !error && (
-                        <Button
-                            className="w-full"
-                            onClick={handleAccept}
-                            disabled={isAccepting}
-                        >
+                <CardFooter className="flex flex-col gap-2">
+                    {invitation && !error && visitor === "signed-out" && (
+                        <>
+                            {!invitation.isAlreadyAccepted && (
+                                <Button className="w-full h-11 gap-2" onClick={() => router.push(staffSignUpHref(token!))}>
+                                    <UserPlus className="h-4 w-4" aria-hidden="true" />
+                                    Create my account
+                                </Button>
+                            )}
+                            <Button
+                                variant={invitation.isAlreadyAccepted ? "default" : "outline"}
+                                className="w-full h-11 gap-2"
+                                onClick={() => router.push(staffSignInHref(token!, invitation.email))}
+                            >
+                                <LogIn className="h-4 w-4" aria-hidden="true" />
+                                I already have an account
+                            </Button>
+                        </>
+                    )}
+                    {invitation && !error && visitor === "invited-account" && (
+                        <Button className="w-full h-11" onClick={handleAccept} disabled={isAccepting}>
                             {isAccepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isSignedIn ? "Accept Invitation" : "Sign In to Accept"}
+                            Accept invitation
+                        </Button>
+                    )}
+                    {invitation && (visitor === "other-account" || visitor === "driver-account") && (
+                        <Button variant="outline" className="w-full h-11 gap-2" onClick={signOutAndContinue} disabled={isSigningOut}>
+                            {isSigningOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" aria-hidden="true" />}
+                            Sign out and continue
                         </Button>
                     )}
                     {error && (
-                        <Button variant="outline" className="w-full" onClick={() => router.push("/")}>
-                            Go to Home
+                        <Button variant="outline" className="w-full h-11" onClick={() => router.push("/")}>
+                            Go to Suprah AI
                         </Button>
                     )}
                 </CardFooter>

@@ -45,7 +45,8 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [email, setEmail] = useState("");
+  // Invitation and invite-link pages pass the email to fill in (2026-11-11).
+  const [email, setEmail] = useState(() => searchParams.get("email")?.trim() ?? "");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
