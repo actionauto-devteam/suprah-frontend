@@ -143,16 +143,22 @@ export function OrganizationMembersSettings() {
             setIsInviteOpen(false)
             setInviteEmail("")
             setInviteRole("member")
-            // Says when accepting will change an existing account (2026-11-11).
-            const existingAccount = response?.data?.data?.existingAccount
+            // The invitation is saved even when the email didn't go out;
+            // inviting again resends the same invitation (2026-11-11).
+            if (response?.data?.data?.emailSent === false) {
+                toast.error(`The invitation for ${inviteEmail} was saved, but the email didn't send.`, {
+                    description: "Wait a few minutes, then invite the same email again to resend it.",
+                    duration: 10000,
+                })
+                return
+            }
+            // Only for the dealership's own customers: accepting makes it a staff account (2026-11-11).
+            const ownCustomer = response?.data?.data?.existingAccount === "customer"
             toast.success(`Invitation sent to ${inviteEmail}`, {
-                description:
-                    existingAccount === "customer"
-                        ? "This email has a customer account. When they accept, it becomes a staff account and they lose the customer portal on that email."
-                        : existingAccount === "other-dealership-staff"
-                            ? "This email has a staff account at another dealership. When they accept, it moves to your dealership."
-                            : undefined,
-                duration: existingAccount ? 10000 : undefined,
+                description: ownCustomer
+                    ? "This email is one of your customers. When they accept, it becomes a staff account and they lose the customer portal on that email."
+                    : undefined,
+                duration: ownCustomer ? 10000 : undefined,
             })
         },
         onError: (error: any) => {
