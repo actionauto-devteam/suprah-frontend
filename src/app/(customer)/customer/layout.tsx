@@ -16,7 +16,8 @@ import { ProfileProvider } from "@/context/ProfileContext";
 import { useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { customerNav } from "@/components/layout/mobile-nav-config";
+import { customerAppNav, customerNav } from "@/components/layout/mobile-nav-config";
+import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { useRouter } from "next/navigation";
 import { useAuthActions, useUser } from "@/providers/AuthProvider";
@@ -53,6 +54,8 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const { userRole, isLoaded, organization } = useOrg();
   const { theme } = useTheme();
   const router = useRouter();
+  // Inside the iPhone app the bottom bar offers only finished sections (2026-11-11).
+  const isNativeApp = useIsNativeApp();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -173,7 +176,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
               {children}
             </div>
           </main>
-          <MobileBottomNav items={customerNav} />
+          <MobileBottomNav items={isNativeApp ? customerAppNav : customerNav} />
         </SidebarInset>
         {/* The dealership AI Agent chat, on every customer page. */}
         <CustomerAgentChat />
