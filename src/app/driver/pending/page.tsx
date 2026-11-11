@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, CheckCircle2, XCircle, LogOut, RefreshCw } from "lucide-react";
 import { DriverVerificationForm } from "@/components/driver-profile/DriverVerificationForm";
+import { DeleteAccountCard } from "@/components/account/DeleteAccountCard";
 import { SUPPORT_EMAIL } from "@/lib/support-contact";
 
 export default function DriverPendingPage() {
@@ -122,15 +123,19 @@ export default function DriverPendingPage() {
               your account.
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => signOut({ redirectUrl: "/sign-in" })}
-            className="h-11 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
-          >
-            <LogOut className="size-3.5" />
-            Sign Out
-          </Button>
+          {/* Drivers can delete their account before approval too (2026-11-11). */}
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+            <DeleteAccountCard account="driver" variant="button" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              className="h-11 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+            >
+              <LogOut className="size-3.5" />
+              Sign Out
+            </Button>
+          </div>
         </div>
         <DriverVerificationForm
           onComplete={() => {
@@ -265,7 +270,7 @@ export default function DriverPendingPage() {
             </>
           )}
 
-          <div className="pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-1 pt-2">
             <Button
               variant="ghost"
               size="sm"
@@ -275,6 +280,8 @@ export default function DriverPendingPage() {
               <LogOut className="size-3.5" />
               Sign Out
             </Button>
+            {/* Drivers can delete their account before approval too (2026-11-11). */}
+            {status !== "loading" && <DeleteAccountCard account="driver" variant="button" />}
           </div>
         </CardContent>
       </Card>
