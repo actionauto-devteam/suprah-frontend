@@ -47,6 +47,13 @@ test('nothing unsafe or empty opens', () => {
   assert.equal(vehiclePageLink(undefined), null);
 });
 
+test('the window uses one wording and wraps on small phones', () => {
+  const dialog = fs.readFileSync(path.join(SRC, 'components/inventory/VehicleVideoDialog.tsx'), 'utf8');
+  assert.ok(dialog.includes("View on the dealership's website"));
+  assert.ok(!/dealer's|this car/.test(dialog));
+  assert.ok(dialog.includes('h-auto min-h-11 max-w-full gap-2 whitespace-normal'));
+});
+
 test('Inventory and Shop both show the Video window', () => {
   for (const file of ['app/(dashboard)/inventory/page.tsx', 'app/(customer)/customer/shop/page.tsx']) {
     const source = fs.readFileSync(path.join(SRC, file), 'utf8');

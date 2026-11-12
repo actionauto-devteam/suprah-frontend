@@ -20,9 +20,10 @@ interface VehicleVideoDialogProps {
 }
 
 /**
- * The Video button's window (2026-11-13). Plays the car's video when it has
- * one (a video file, YouTube or Vimeo); otherwise says there's no video yet
- * and offers the car's page on the dealer's website when there is one.
+ * The Video button's window (2026-11-13). Plays the vehicle's video when it
+ * has one (a video file, YouTube or Vimeo); otherwise says there's no video yet
+ * and offers the vehicle's page on the dealership's website when there is one.
+ * Text and the button wrap, so it reads on the smallest phones.
  */
 export function VehicleVideoDialog({ open, onOpenChange, vehicle }: VehicleVideoDialogProps) {
   const video = vehicleVideo(vehicle?.videoUrl)
@@ -39,8 +40,8 @@ export function VehicleVideoDialog({ open, onOpenChange, vehicle }: VehicleVideo
       <DialogContent className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="break-words pr-6 [overflow-wrap:anywhere]">{name} video</DialogTitle>
-          <DialogDescription>
-            {video && !failed ? "Press play to watch. Full screen is in the player's corner." : "Videos the dealership adds for this car play here."}
+          <DialogDescription className="break-words">
+            {video && !failed ? "Press play to watch. Full screen is in the player's corner." : "Videos the dealership adds for this vehicle play here."}
           </DialogDescription>
         </DialogHeader>
 
@@ -69,21 +70,21 @@ export function VehicleVideoDialog({ open, onOpenChange, vehicle }: VehicleVideo
         ) : (
           <div role="status" className="flex flex-col items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-4 py-8 text-center">
             <VideoOff className="size-8 text-muted-foreground" aria-hidden="true" />
-            <p className="font-semibold text-foreground">
+            <p className="break-words font-semibold text-foreground">
               {failed ? "This video can't play here." : "No video for this vehicle yet."}
             </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
+            <p className="max-w-sm break-words text-sm text-muted-foreground">
               {failed
                 ? "Open it in a new tab to watch it."
                 : dealerPage
-                  ? "You can still see this car's photos and details on the dealer's website."
+                  ? "You can still see this vehicle's photos and details on the dealership's website."
                   : "Check the photos and details in the vehicle's listing instead."}
             </p>
             {(failed && video) || dealerPage ? (
-              <Button asChild variant="outline" className="mt-2 h-11 gap-2">
+              <Button asChild variant="outline" className="mt-2 h-auto min-h-11 max-w-full gap-2 whitespace-normal py-2 text-center">
                 <a href={failed && video ? video.src : dealerPage ?? undefined} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="size-4" aria-hidden="true" />
-                  {failed ? "Open the video" : "View on the dealer's website"}
+                  {failed ? "Open the video" : "View on the dealership's website"}
                 </a>
               </Button>
             ) : null}
