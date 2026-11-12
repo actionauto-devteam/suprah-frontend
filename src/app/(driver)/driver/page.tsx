@@ -480,7 +480,6 @@ export default function DriverDashboardPage() {
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
-  const centeredOnOwnLocationRef = React.useRef(false);
   // The map follows the driver's own position until they drag it to look
   // around; Follow my location brings it back (2026-11-06).
   const [followingSelf, setFollowingSelf] = React.useState(true);
@@ -1108,7 +1107,7 @@ export default function DriverDashboardPage() {
 
       if (!markerRef.current) {
         const el = document.createElement("div");
-        el.innerHTML = `<div style="width:22px;height:22px;border-radius:50%;background:#10b981;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);position:relative"><div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid #10b981;opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div></div>`;
+        el.innerHTML = OWN_LOCATION_MARKER_HTML;
         markerRef.current = new mapboxgl.Marker({ element: el })
           .setLngLat([lastCoords.lng, lastCoords.lat])
           .addTo(map);
