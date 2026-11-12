@@ -14,6 +14,8 @@
  * installed MapLibre after an upgrade.
  */
 
+import "@/styles/map-credit.css"
+
 export type LngLat = { lat: number; lng: number }
 export type BaseMapTheme = "light" | "dark"
 /** "satellite" shows photos with road names, to find the right gate or dock. */
@@ -75,8 +77,6 @@ export interface BaseMap {
   fitTo(points: LngLat[], options?: { padding?: number; maxZoom?: number }): void
   center(): LngLat
   setLook(theme: BaseMapTheme, view: BaseMapView): void
-  /** The map data credit as plain text, shown under the map (mapCreditText). */
-  credit(): string
   /** Draws or updates a line; call it from onStyleReady. */
   setLine(id: string, points: LngLat[], options: { color: string; width?: number }): void
   remove(): void
@@ -111,6 +111,7 @@ type Library = {
   Map: new (options: object) => LibraryMap
   Marker: new (options?: object) => LibraryMarker
   NavigationControl: new (options?: object) => unknown
+  AttributionControl: new (options?: object) => unknown
 }
 
 async function loadLibrary(provider: BaseMapProvider): Promise<Library> {
@@ -147,8 +148,7 @@ export async function createBaseMap(
     attributionControl: false,
   })
   map.addControl(new library.NavigationControl({ showCompass: false }), "top-right")
-  // No credit button on the map: the page shows the credit as plain text under
-  // it (mapCreditText, 2026-11-12).
+  addMapCredit(map as unknown as CreditMap, library)
 
   let loaded = false
   map.once("load", () => {
@@ -209,9 +209,6 @@ export async function createBaseMap(
         ],
         { padding: fitOptions.padding ?? 48, maxZoom: fitOptions.maxZoom ?? 15, duration: 0 },
       )
-    },
-    credit() {
-      return mapCreditText(map as unknown as StyledSources, provider)
     },
     center() {
       const at = map.getCenter()
@@ -298,37 +295,28 @@ export function liveMapLabelFont(map: StyledMap): string[] | undefined {
 }
 
 // ─── The map data credit (2026-11-12) ────────────────────────────────────────
-// The map providers' terms (Mapbox, OpenStreetMap, Amazon) require their
-// credit with the map. Instead of the (i) button on the map, which people
-// tapped by accident, it's a plain line of text under the map: nothing to
-// click, and nothing covering the map.
 
-// Any map with a style (Mapbox or MapLibre); only the sources' credits are read.
-type StyledSources = { getStyle?: () => unknown }
-
-const DEFAULT_CREDIT: Record<BaseMapProvider, string> = {
-  mapbox: "© Mapbox © OpenStreetMap",
-  amazon: "© Amazon Location Service © OpenStreetMap",
+type CreditMap = {
+  addControl(control: unknown, position?: string): unknown
+  once(type: string, listener: () => void): unknown
+  getContainer?: () => HTMLElement
 }
+type CreditLibrary = { AttributionControl: new (options?: object) => unknown }
+export type MapCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right"
 
-const ENTITIES: Record<string, string> = { "&copy;": "©", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " }
-
-/** The loaded style's credit as plain text, without links or "Improve this map"; the provider's usual credit until the style has loaded. */
-export function mapCreditText(map: StyledSources | null | undefined, provider: BaseMapProvider | null = BASE_MAP_PROVIDER): string {
-  const parts: string[] = []
-  const style = map?.getStyle?.() as { sources?: Record<string, { attribution?: unknown } | undefined> } | undefined
-  const sources = style?.sources ?? {}
-  for (const source of Object.values(sources)) {
-    const html = typeof source?.attribution === "string" ? source.attribution : ""
-    const text = html
-      .replace(/<[^>]*>/g, " ")
-      .replace(/&[a-z#0-9]+;/gi, (entity) => ENTITIES[entity.toLowerCase()] ?? " ")
-      .replace(/improve this map/gi, " ")
-    for (const piece of text.split("©")) {
-      const name = piece.replace(/\s+/g, " ").trim()
-      if (name && !parts.includes(name)) parts.push(name)
-    }
-  }
-  if (parts.length > 0) return parts.map((name) => `© ${name}`).join(" ")
-  return provider ? DEFAULT_CREDIT[provider] : ""
+/**
+ * The map data credit Mapbox's terms require: the (i) button with © Mapbox ©
+ * OpenStreetMap inside, kept quiet by styles/map-credit.css. Put it in a
+ * corner the page doesn't use for its own buttons. MapLibre (Amazon's map)
+ * opens it at first, so it's closed once the map has loaded; Mapbox starts
+ * closed. Maps made with createBaseMap get it already.
+ */
+export function addMapCredit(map: CreditMap, library: CreditLibrary, corner: MapCorner = "bottom-right"): void {
+  map.addControl(new library.AttributionControl({ compact: true }), corner)
+  map.once("load", () => {
+    map.getContainer?.().querySelectorAll(".maplibregl-compact-show").forEach((element) => {
+      element.classList.remove("maplibregl-compact-show")
+      element.removeAttribute("open")
+    })
+  })
 }

@@ -19,7 +19,7 @@ import { mapRouteOf } from "@/lib/load-route-lines";
 import { placeAddressText, placePin, type LoadPlace } from "@/lib/load-navigation";
 import type { FollowMode } from "@/components/driver-tracker/DriverTrackerSelectedDriver";
 import { geolocation } from "@/lib/geolocation";
-import { LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from "@/lib/base-map";
+import { addMapCredit, LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from "@/lib/base-map";
 import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
 import { followModeOnFocus, trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
 import { isActiveLoadStatus } from "@/lib/load-status";
@@ -2236,6 +2236,8 @@ export default function DriverTrackerPage() {
       });
 
       mapInstanceRef.current = map;
+      // The quiet (i) map credit Mapbox requires, beside the logo (2026-11-12).
+      addMapCredit(map, mapboxgl, "bottom-right");
       setMapNotice(MAP_MESSAGES.loading);
 
       let loaded = false;

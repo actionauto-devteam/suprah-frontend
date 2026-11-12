@@ -43,7 +43,6 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
   const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
   const mapRef = React.useRef<BaseMap | null>(null);
   const [status, setStatus] = React.useState<{ kind: "loading" | "ready" | "error"; message?: string }>({ kind: "loading" });
-  const [credit, setCredit] = React.useState("");
 
   const paths = React.useMemo(() => tripPaths(points), [points]);
   // The map is made with the theme at that moment; later changes go through setLook below.
@@ -81,10 +80,7 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
         paths.forEach(({ path }, index) => {
           map?.setLine(`trip-route-${index}`, path, { color: ROUTE_COLORS[index % ROUTE_COLORS.length] });
         });
-        if (!cancelled) {
-          setStatus({ kind: "ready" });
-          setCredit(map?.credit() ?? "");
-        }
+        if (!cancelled) setStatus({ kind: "ready" });
       });
       map.addMarker(first, { element: pinElement("Start", "#059669", "First recorded position") });
       if (points.length > 1) {
@@ -124,8 +120,6 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
           </div>
         )}
       </div>
-      {/* The map data credit the map providers require, as plain text (2026-11-12). */}
-      {credit && <p className="-mt-1 text-right text-[11px] text-muted-foreground">{credit}</p>}
       {paths.length > 1 && (
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Route colors">
           {paths.map(({ driverId }, index) => (
