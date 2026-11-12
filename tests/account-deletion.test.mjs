@@ -88,7 +88,7 @@ test("says what is blocking the deletion when the sign-in check refuses", () => 
 test("the server's own reason (a load in progress, staff accounts) is shown as it is", () => {
   const load = 'You have load LD-1042 in progress. Deliver it or ask dispatch to take it back, then you can delete your account.';
   assert.equal(deletionErrorMessage(refused(409, load)), load);
-  const staff = "Staff accounts can't be deleted here. Ask your dealership admin to remove your account.";
+  const staff = "Staff accounts are deleted through a request to your dealership admin. Open your Profile and press Request account deletion.";
   assert.equal(deletionErrorMessage(refused(403, staff)), staff);
   assert.match(deletionErrorMessage({ request: {}, message: 'Network Error' }), /couldn't delete your account because the server couldn't be reached/);
 });

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationMembersSettings } from "@/components/settings/org-members-settings";
+import { StaffDeletionRequestsPanel } from "@/components/settings/StaffDeletionRequestsPanel";
 import { ReportsFilesTab } from "@/components/settings/ReportsFilesTab";
 import { SystemSettingsTab } from "@/components/settings/SystemSettingsTab";
 
@@ -82,6 +83,8 @@ function SettingsContent() {
             </CardHeader>
             <CardContent className="p-4 sm:p-6 min-h-100">
               <OrganizationMembersSettings />
+              {/* Staff account deletion requests to approve or reject (2026-11-12). */}
+              <StaffDeletionRequestsPanel />
             </CardContent>
           </Card>
         </TabsContent>
