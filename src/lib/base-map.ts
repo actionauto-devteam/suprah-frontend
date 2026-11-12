@@ -109,6 +109,7 @@ type Library = {
   Map: new (options: object) => LibraryMap
   Marker: new (options?: object) => LibraryMarker
   NavigationControl: new (options?: object) => unknown
+  AttributionControl: new (options?: object) => unknown
 }
 
 async function loadLibrary(provider: BaseMapProvider): Promise<Library> {
@@ -142,9 +143,20 @@ export async function createBaseMap(
     style: styleFor(look.theme, look.view),
     center: toPair(options.center),
     zoom: options.zoom,
-    attributionControl: { compact: true },
+    attributionControl: false,
   })
   map.addControl(new library.NavigationControl({ showCompass: false }), "top-right")
+  // The map data credit (Mapbox, OpenStreetMap, Amazon) as a small (i) button
+  // that shows it when tapped (2026-11-12). Their terms require the credit on
+  // the map, so it isn't removed. MapLibre (Amazon's map) opens it at first,
+  // so it's closed once the map has loaded; Mapbox starts closed.
+  map.addControl(new library.AttributionControl({ compact: true }), "bottom-right")
+  map.once("load", () => {
+    container.querySelectorAll(".maplibregl-compact-show").forEach((element) => {
+      element.classList.remove("maplibregl-compact-show")
+      element.removeAttribute("open")
+    })
+  })
 
   let loaded = false
   map.once("load", () => {
