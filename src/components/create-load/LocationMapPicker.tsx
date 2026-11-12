@@ -69,7 +69,9 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
   const { getToken } = useAuth()
   const { theme } = useTheme()
   const mapTheme = theme === "dark" ? "dark" : "light"
-  const mapRef = React.useRef<HTMLDivElement | null>(null)
+  // The map's box. A pop-up window adds its content a moment after it opens,
+  // so the map is made once the box is on the page (2026-11-12).
+  const [mapContainer, setMapContainer] = React.useState<HTMLDivElement | null>(null)
   const [pin, setPin] = React.useState<Position | null>(initialPosition ?? null)
   const [found, setFound] = React.useState<Found | null>(null)
   const [adjusted, setAdjusted] = React.useState(false)
@@ -169,7 +171,7 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
 
   // The map, created once; the theme and Map/Satellite change its look.
   React.useEffect(() => {
-    const container = mapRef.current
+    const container = mapContainer
     if (!container) return
     let cancelled = false
     void (async () => {
@@ -208,9 +210,9 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
       baseMapRef.current?.remove()
       baseMapRef.current = null
     }
-    // The map is made once; its look follows the effect below.
+    // The map is made once its box exists; its look follows the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [mapContainer])
 
   React.useEffect(() => {
     baseMapRef.current?.setLook(mapTheme, view)
@@ -390,7 +392,7 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
           {searchNote && <p className="text-xs text-muted-foreground" role="status">{searchNote}</p>}
 
           <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
-            <div ref={mapRef} className="h-[50vh] min-h-72 w-full cursor-crosshair" />
+            <div ref={setMapContainer} className="h-[50vh] min-h-72 w-full cursor-crosshair" />
             <div className="absolute left-2 top-2 z-10 inline-flex overflow-hidden rounded-lg border border-border/70 bg-background/95 text-xs font-semibold shadow-sm" role="group" aria-label="Map style">
               {(["map", "satellite"] as const).map((option) => (
                 <button
