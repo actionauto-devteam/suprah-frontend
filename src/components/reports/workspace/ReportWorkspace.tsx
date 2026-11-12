@@ -914,7 +914,9 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1880px] min-w-0 space-y-4 px-3 py-4 sm:px-4 xl:px-5">
+      {/* Extra room at the bottom on phones, so the last report and its page
+          buttons clear the floating Hide and Menu buttons (2026-11-13). */}
+      <main className="mx-auto w-full max-w-[1880px] min-w-0 space-y-4 px-3 pt-4 pb-16 sm:px-4 md:pb-4 xl:px-5">
         <section className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/80 bg-card p-4 shadow-sm lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 max-w-3xl">
             <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
