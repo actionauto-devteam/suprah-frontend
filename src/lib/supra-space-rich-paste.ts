@@ -101,6 +101,142 @@ export function getSupraSpaceClipboardSemanticClassFormatting(
   };
 }
 
+export function supraSpaceClipboardHeadingLooksBold(heading: HTMLElement): boolean {
+  const weightKind = (weight: string): 'normal' | 'bold' | null => {
+    if (weight === 'normal' || weight === 'lighter' || (/^\d+$/.test(weight) && Number.parseInt(weight, 10) < 600)) return 'normal';
+    if (weight === 'bold' || weight === 'bolder' || Number.parseInt(weight || '0', 10) >= 600) return 'bold';
+    return null;
+  };
+  const explicitWeight = (element: HTMLElement): 'normal' | 'bold' | null => {
+    const inline = weightKind(element.style.fontWeight.trim().toLowerCase());
+    if (inline) return inline;
+    const tag = element.tagName.toLowerCase();
+    return tag === 'b' || tag === 'strong' ? 'bold' : null;
+  };
+  const stylesheetWeight = (): string => {
+    const tag = heading.tagName.toLowerCase();
+    const css = Array.from(heading.ownerDocument.querySelectorAll('style'))
+      .map(style => style.textContent || '')
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/<!--|-->/g, '');
+    let weight = '';
+    for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!rule[1].split(',').some(selector => selector.trim().toLowerCase() === tag)) continue;
+      weight = rule[2].match(/font-weight\s*:\s*([^;]+)/i)?.[1].trim().toLowerCase() || weight;
+    }
+    return weight;
+  };
+  if ((explicitWeight(heading) || weightKind(stylesheetWeight())) === 'normal') return false;
+  const walker = heading.ownerDocument.createTreeWalker(heading, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim()) continue;
+    let element = node.parentElement;
+    while (element && element !== heading && !explicitWeight(element)) element = element.parentElement;
+    if (!element || element === heading) return true;
+  }
+  return false;
+}
+
+export function removeSupraSpaceInvisibleMarkersBeforeCaret(root: HTMLElement): boolean {
+  const selection = root.ownerDocument.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return false;
+
+  const trailingMarkers = /[\u200B-\u200D\u2060\uFEFF]+$/;
+  const onlyMarkers = /^[\u200B-\u200D\u2060\uFEFF]*$/;
+  const blockTags = new Set(['DIV', 'P', 'LI', 'UL', 'OL', 'BLOCKQUOTE', 'PRE', 'TABLE', 'TR', 'TD', 'TH']);
+  const previousLeaf = (start: Node): Node | null => {
+    let node: Node | null = start;
+    while (node && node !== root) {
+      if (node.previousSibling) {
+        node = node.previousSibling;
+        while (node.lastChild) node = node.lastChild;
+        return node;
+      }
+      node = node.parentNode;
+      if (!node || node === root || blockTags.has(node.nodeName)) return null;
+    }
+    return null;
+  };
+  const removeWithEmptySpans = (node: Node) => {
+    let parent = node.parentNode;
+    node.parentNode?.removeChild(node);
+    while (parent && parent !== root && parent.nodeName === 'SPAN' && !parent.textContent && !parent.childNodes.length) {
+      const next = parent.parentNode;
+      next?.removeChild(parent);
+      parent = next;
+    }
+  };
+
+  const caretNode = range.startContainer;
+  let caretOffset = range.startOffset;
+  const afterCaret = caretNode.nodeType === Node.ELEMENT_NODE ? caretNode.childNodes[caretOffset] ?? null : null;
+  let changed = false;
+  let leaf: Node | null;
+
+  if (caretNode.nodeType === Node.TEXT_NODE) {
+    const text = caretNode as Text;
+    const trailing = text.data.slice(0, caretOffset).match(trailingMarkers)?.[0] || '';
+    if (trailing) {
+      text.deleteData(caretOffset - trailing.length, trailing.length);
+      caretOffset -= trailing.length;
+      changed = true;
+    }
+    leaf = caretOffset > 0 ? null : previousLeaf(text);
+  } else if (caretOffset > 0) {
+    leaf = caretNode.childNodes[caretOffset - 1];
+    while (leaf && leaf.lastChild) leaf = leaf.lastChild;
+  } else {
+    leaf = previousLeaf(caretNode);
+  }
+
+  while (leaf) {
+    if (leaf.nodeType === Node.TEXT_NODE) {
+      const text = leaf as Text;
+      if (onlyMarkers.test(text.data)) {
+        const previous = previousLeaf(text);
+        removeWithEmptySpans(text);
+        changed = true;
+        leaf = previous;
+        continue;
+      }
+      const trailing = text.data.match(trailingMarkers)?.[0] || '';
+      if (trailing) {
+        text.deleteData(text.data.length - trailing.length, trailing.length);
+        changed = true;
+      }
+      break;
+    }
+    if (leaf.nodeName === 'SPAN' && !leaf.childNodes.length) {
+      const previous = previousLeaf(leaf);
+      removeWithEmptySpans(leaf);
+      changed = true;
+      leaf = previous;
+      continue;
+    }
+    break;
+  }
+
+  if (!changed) return false;
+  const nextRange = root.ownerDocument.createRange();
+  if (caretNode.nodeType === Node.TEXT_NODE && caretNode.isConnected) {
+    nextRange.setStart(caretNode, caretOffset);
+  } else if (afterCaret && afterCaret.isConnected) {
+    nextRange.setStartBefore(afterCaret);
+  } else if (caretNode.isConnected) {
+    nextRange.selectNodeContents(caretNode);
+    nextRange.collapse(false);
+  } else {
+    return true;
+  }
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+  return true;
+}
+
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
   if (ordered) {
     return value.replace(/^\s*\d+[.)](?:\s+|(?=\S)|\s*$)/u, '');

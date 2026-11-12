@@ -146,7 +146,7 @@ export function MultiSelectFilter({
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-foreground/70" aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(92vw,220px)] p-0" align="end">
+      <PopoverContent className="w-[min(92vw,220px)] p-0" align="end" collisionPadding={16}>
         <Command>
           {searchable && <CommandInput placeholder={searchPlaceholder} />}
           <CommandList ref={listRef} onScroll={updateScrollDirection}>

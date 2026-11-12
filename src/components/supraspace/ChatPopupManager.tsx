@@ -15,7 +15,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
@@ -976,9 +976,9 @@ function normalizeMultilineMarkdownBlocks(text: string): string {
     const canLocalize = (inner: string, marker: string) => inner.includes('\n')
       && !inner.includes(marker) && !inner.includes('\uE000') && !inner.includes('\n\n');
     return markup
-      .replace(/\*\*(?![\s*])([\s\S]*?)(?<![\s*])\*\*/g, (match, inner: string) => canLocalize(inner, '**') ? perLine(inner, '**') : match)
-      .replace(/(?<!_)__(?![\s_])([\s\S]*?)(?<![\s_])__(?!_)/g, (match, inner: string) => canLocalize(inner, '__') ? perLine(inner, '__') : match)
-      .replace(/~~(?![\s~])([\s\S]*?)(?<![\s~])~~/g, (match, inner: string) => canLocalize(inner, '~~') ? perLine(inner, '~~') : match)
+      .replace(/\*\*(?![\s*])([\s\S]*?)(?<!\*)\*\*/g, (match, inner: string) => canLocalize(inner, '**') ? perLine(inner, '**') : match)
+      .replace(/(?<!_)__(?![\s_])([\s\S]*?)(?<!_)__(?!_)/g, (match, inner: string) => canLocalize(inner, '__') ? perLine(inner, '__') : match)
+      .replace(/~~(?![\s~])([\s\S]*?)(?<!~)~~/g, (match, inner: string) => canLocalize(inner, '~~') ? perLine(inner, '~~') : match)
       .replace(/(?<![\w_])_(?![_\s])([\s\S]*?)(?<![\s_])_(?![\w_])/g, (match, inner: string) => canLocalize(inner, '_') ? perLine(inner, '_') : match);
   });
 }
@@ -1213,7 +1213,7 @@ function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly 
         renderInlineMd(cell.replace(/<br>/g, '\n'), isOwn, `table-${blockIndex}-${rowIndex}-${cellIndex}`, mentionAliases),
       ));
       addSeparation('block');
-      result.push(<span key={`table-${blockIndex++}`} className="block max-w-full overflow-x-auto my-1.5"><table className="border-collapse text-[11px]" style={{ minWidth: '100%' }}><thead><tr style={{ background: 'rgba(255,255,255,.12)' }}>{renderCells(table.header, 'th', 0)}</tr></thead>{table.rows.length > 0 && <tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{renderCells(row, 'td', rowIndex + 1)}</tr>)}</tbody>}</table></span>);
+      result.push(<span key={`table-${blockIndex++}`} className="block max-w-full overflow-x-auto my-1.5"><table className="border-collapse text-[11px]" style={{ width: 'max-content', minWidth: '100%' }}><thead><tr style={{ background: 'rgba(255,255,255,.12)' }}>{renderCells(table.header, 'th', 0)}</tr></thead>{table.rows.length > 0 && <tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{renderCells(row, 'td', rowIndex + 1)}</tr>)}</tbody>}</table></span>);
       hasRenderedContent = true;
       lineIndex = table.endIndex;
       continue;
@@ -2051,7 +2051,12 @@ function htmlToMarkdown(el: HTMLElement): string {
     const hasInlineContent = Boolean(inner.trim());
     const wrapEachLine = (value: string, marker: string) => value
       .split('\n')
-      .map(line => (line.trim() ? `${marker}${line}${marker}` : line))
+      .map(line => {
+        const body = line.trim();
+        if (!body) return line;
+        const start = line.indexOf(body);
+        return `${line.slice(0, start)}${marker}${body}${marker}${line.slice(start + body.length)}`;
+      })
       .join('\n');
     if (hasInlineContent && elementIsBold && !inherited.bold) inner = wrapEachLine(inner, '**');
     if (hasInlineContent && elementIsItalic && !inherited.italic) inner = wrapEachLine(inner, '_');
@@ -2481,7 +2486,7 @@ function clipboardHtmlToListAwareText(html: string): string {
       const text = normalizeInline(buffer);
       buffer = '';
       if (!text) return;
-      lines.push(isHeading && !/^\*\*[\s\S]*\*\*$/.test(text) ? `**${text}**` : text);
+      lines.push(isHeading && supraSpaceClipboardHeadingLooksBold(element) && !/^\*\*[\s\S]*\*\*$/.test(text) ? `**${text}**` : text);
       produced = true;
     };
 
@@ -2723,7 +2728,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       return `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${wrapStyles(element, formatted || escapeHtmlText(href))}</a>`;
     }
     if (/^h[1-6]$/.test(tag)) {
-      return `<div>${wrapStyles(element, `<strong>${formatted}</strong>`)}</div>`;
+      return `<div>${wrapStyles(element, supraSpaceClipboardHeadingLooksBold(element) ? `<strong>${formatted}</strong>` : formatted)}</div>`;
     }
     if (['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside'].includes(tag)) {
       return `<div data-ss4-paste-paragraph="true">${wrapStyles(element, formatted || '<br>')}</div>`;
@@ -4377,6 +4382,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
   const pinRequestIdsRef = React.useRef(new Set<string>());
   const [pinnedOpen, setPinnedOpen] = React.useState(false);
+  const [unpinConfirmId, setUnpinConfirmId] = React.useState<string | null>(null);
   const [messageSearchOpen, setMessageSearchOpen] = React.useState(false);
   const syncPinnedMessageIds = React.useCallback((nextMessages: SSMessage[]) => {
     setPinnedMsgIds(prev => {
@@ -6856,6 +6862,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
+      e.preventDefault();
+      document.execCommand('delete');
+      return;
+    }
 
     if (isSupraSpacePlainTextPasteShortcut(e)) {
       pastePlainTextShortcutRef.current = true;
@@ -7215,7 +7226,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 ? 'w-full max-w-full'
                               : imageOnly || gifOnly || hasCaptionedMedia || isRichCard
                               ? 'max-w-[78%]'
-                              : 'max-w-[62%]',
+                              : 'max-w-[62%] has-[table]:max-w-[78%]',
                         )}
                         style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}
                       >
@@ -7354,6 +7365,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               onKeyUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                                if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
+                                  e.preventDefault();
+                                  document.execCommand('delete');
+                                  return;
+                                }
                                 if (isSupraSpacePlainTextPasteShortcut(e)) {
                                   editPastePlainTextShortcutRef.current = true;
                                   window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
@@ -7643,7 +7659,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           </div>
                         ) : (
                           <div className={cn(
-                            'text-[15px] leading-[1.5] md:leading-[1.66] min-w-0',
+                            'text-[15px] leading-[1.5] md:leading-[1.66] min-w-0 has-[table]:max-w-full',
                             bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-2 rounded-2xl',
                             !bareMessage && (isOwn ? 'text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
                           )} data-popup-bubble-id={msg._id} onCopy={event => {
@@ -8587,6 +8603,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </button>
                 <button className={row} onClick={async () => {
                   if (!msg || !moreMenuMsgId || !crmToken) return;
+                  if (isPinned) {
+                    setUnpinConfirmId(moreMenuMsgId);
+                    close();
+                    return;
+                  }
                   if (pinRequestIdsRef.current.has(moreMenuMsgId)) return;
                   pinRequestIdsRef.current.add(moreMenuMsgId);
                   const pinned = !isPinned;
@@ -8708,31 +8729,57 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             setPinnedOpen(false);
             jumpToPopupRepliedMessage(message);
           }}
-          onUnpin={async (id) => {
-            if (isReadOnlyConversation) return;
-            if (pinRequestIdsRef.current.has(id)) return;
-            pinRequestIdsRef.current.add(id);
-            const previousMessage = messages.find(m => m._id === id);
-            const previousPinnedMessages = pinnedMessages;
-            setPinnedMsgIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-            setPinnedMessages(prev => prev.filter(message => message._id !== id));
-            setMessages(prev => prev.map(m => m._id === id ? { ...m, pinnedBy: [], pinnedAt: null } : m));
-            try {
-              await apiClient.post(`/api/supraspace/messages/${id}/pin`, { pinned: false }, { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
-              toast('Message unpinned');
-              void fetchPinnedMessages();
-            } catch {
-              setPinnedMsgIds(prev => { const n = new Set(prev); n.add(id); return n; });
-              if (previousMessage) setMessages(prev => prev.map(m => m._id === id ? previousMessage : m));
-              setPinnedMessages(previousPinnedMessages);
-              void fetchPinnedMessages();
-              toast.error('Could not update pinned message');
-            } finally {
-              pinRequestIdsRef.current.delete(id);
-            }
+          onUnpin={(id) => {
+            if (!isReadOnlyConversation) setUnpinConfirmId(id);
           }}
           onClose={() => setPinnedOpen(false)}
         />
+      )}
+      {unpinConfirmId && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setUnpinConfirmId(null)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Unpin this message?"
+            style={{ background: 'var(--popover)', borderRadius: 18, width: '100%', maxWidth: 320, padding: '22px 18px 18px', border: '1px solid var(--border)', boxShadow: '0 16px 48px rgba(0,0,0,0.45)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <p style={{ margin: 0, textAlign: 'center', fontSize: 15, fontWeight: 700, color: 'var(--popover-foreground)' }}>Unpin this message?</p>
+            <p style={{ margin: '6px 0 18px', textAlign: 'center', fontSize: 12.5, lineHeight: 1.45, color: 'var(--muted-foreground)' }}>It will be removed from the pinned messages for everyone in this conversation.</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setUnpinConfirmId(null)} style={{ flex: 1, height: 40, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--muted)', color: 'var(--popover-foreground)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button type="button" onClick={async () => {
+                const id = unpinConfirmId;
+                setUnpinConfirmId(null);
+                if (isReadOnlyConversation) return;
+                if (pinRequestIdsRef.current.has(id)) return;
+                pinRequestIdsRef.current.add(id);
+                const previousMessage = messages.find(m => m._id === id);
+                const previousPinnedMessages = pinnedMessages;
+                setPinnedMsgIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+                setPinnedMessages(prev => prev.filter(message => message._id !== id));
+                setMessages(prev => prev.map(m => m._id === id ? { ...m, pinnedBy: [], pinnedAt: null } : m));
+                try {
+                  await apiClient.post(`/api/supraspace/messages/${id}/pin`, { pinned: false }, { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+                  toast('Message unpinned');
+                  void fetchPinnedMessages();
+                } catch {
+                  setPinnedMsgIds(prev => { const n = new Set(prev); n.add(id); return n; });
+                  if (previousMessage) setMessages(prev => prev.map(m => m._id === id ? previousMessage : m));
+                  setPinnedMessages(previousPinnedMessages);
+                  void fetchPinnedMessages();
+                  toast.error('Could not update pinned message');
+                } finally {
+                  pinRequestIdsRef.current.delete(id);
+                }
+              }} style={{ flex: 1, height: 40, borderRadius: 12, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Unpin</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       {/* ── Members / invite modal ── */}
@@ -8895,18 +8942,26 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       {chatSettingsOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={settingsRef}
-          style={{
-            position: 'fixed',
-            top: (() => { const h = headerRef.current?.getBoundingClientRect(); return h ? h.bottom + 4 : 80; })(),
-            right: rightPx,
-            zIndex: 10001,
-            width: 260,
-            background: 'var(--popover)',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            overflow: 'hidden',
-          }}
+          style={(() => {
+            const h = headerRef.current?.getBoundingClientRect();
+            const top = h ? h.bottom + 4 : 80;
+            return {
+              position: 'fixed',
+              top,
+              right: rightPx,
+              zIndex: 10001,
+              width: 260,
+              maxHeight: `calc(100dvh - ${top + 8}px)`,
+              background: 'var(--popover)',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+              overflowX: 'hidden',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              scrollbarWidth: 'thin',
+            } satisfies React.CSSProperties;
+          })()}
           onMouseDown={e => e.stopPropagation()}
         >
           {(() => {

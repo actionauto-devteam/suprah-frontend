@@ -73,7 +73,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -1538,6 +1538,11 @@ if (typeof document !== 'undefined') {
     @media (min-width:768px) {
       .ss4-mobile-composer-shell { display:none; }
     }
+    .ss4-msg-column > :has(.ss4-message-table-wrap) { max-width:100%; }
+    .ss4-message-table-wrap { max-width:100%; margin:.45rem 0; overflow-x:auto; border:1px solid var(--border-2); border-radius:.55rem; }
+    .ss4-message-table { width:max-content; min-width:100%; border-collapse:collapse; font-size:.82em; }
+    .ss4-message-table th, .ss4-message-table td { min-width:5rem; padding:.42rem .55rem; border:1px solid var(--border-2); text-align:left; vertical-align:top; }
+    .ss4-message-table th { background:var(--bg-hover); font-weight:700; }
   `;
 }
 
@@ -2131,7 +2136,12 @@ function htmlToMarkdown(el: HTMLElement): string {
     const hasInlineContent = Boolean(inner.trim());
     const wrapEachLine = (value: string, marker: string) => value
       .split('\n')
-      .map(line => (line.trim() ? `${marker}${line}${marker}` : line))
+      .map(line => {
+        const body = line.trim();
+        if (!body) return line;
+        const start = line.indexOf(body);
+        return `${line.slice(0, start)}${marker}${body}${marker}${line.slice(start + body.length)}`;
+      })
       .join('\n');
     if (hasInlineContent && elementIsBold && !inherited.bold) inner = wrapEachLine(inner, '**');
     if (hasInlineContent && elementIsItalic && !inherited.italic) inner = wrapEachLine(inner, '_');
@@ -2952,7 +2962,7 @@ function clipboardHtmlToListAwareText(html: string): string {
       const clean = normalizeListItemText(inlineBuffer);
       inlineBuffer = '';
       if (!clean) return;
-      pushLine(isHeading && !/^\*\*[\s\S]*\*\*$/.test(clean) ? `**${clean}**` : clean);
+      pushLine(isHeading && supraSpaceClipboardHeadingLooksBold(element) && !/^\*\*[\s\S]*\*\*$/.test(clean) ? `**${clean}**` : clean);
       producedContent = true;
     };
 
@@ -3153,7 +3163,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       return `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${wrapStyles(element, formatted || escapeHtmlText(href))}</a>`;
     }
     if (/^h[1-6]$/.test(tag)) {
-      return `<div>${wrapStyles(element, `<strong>${formatted}</strong>`)}</div>`;
+      return `<div>${wrapStyles(element, supraSpaceClipboardHeadingLooksBold(element) ? `<strong>${formatted}</strong>` : formatted)}</div>`;
     }
     if (['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside'].includes(tag)) {
       return `<div data-ss4-paste-paragraph="true">${wrapStyles(element, formatted || '<br>')}</div>`;
@@ -3500,9 +3510,9 @@ function normalizeMultilineMarkdownBlocks(text: string): string {
     const canLocalize = (inner: string, marker: string) => inner.includes('\n')
       && !inner.includes(marker) && !inner.includes('\uE000') && !inner.includes('\n\n');
     return markup
-      .replace(/\*\*(?![\s*])([\s\S]*?)(?<![\s*])\*\*/g, (match, inner: string) => canLocalize(inner, '**') ? perLine(inner, '**') : match)
-      .replace(/(?<!_)__(?![\s_])([\s\S]*?)(?<![\s_])__(?!_)/g, (match, inner: string) => canLocalize(inner, '__') ? perLine(inner, '__') : match)
-      .replace(/~~(?![\s~])([\s\S]*?)(?<![\s~])~~/g, (match, inner: string) => canLocalize(inner, '~~') ? perLine(inner, '~~') : match)
+      .replace(/\*\*(?![\s*])([\s\S]*?)(?<!\*)\*\*/g, (match, inner: string) => canLocalize(inner, '**') ? perLine(inner, '**') : match)
+      .replace(/(?<!_)__(?![\s_])([\s\S]*?)(?<!_)__(?!_)/g, (match, inner: string) => canLocalize(inner, '__') ? perLine(inner, '__') : match)
+      .replace(/~~(?![\s~])([\s\S]*?)(?<!~)~~/g, (match, inner: string) => canLocalize(inner, '~~') ? perLine(inner, '~~') : match)
       .replace(/(?<![\w_])_(?![_\s])([\s\S]*?)(?<![\s_])_(?![\w_])/g, (match, inner: string) => canLocalize(inner, '_') ? perLine(inner, '_') : match);
   });
 }
@@ -6452,6 +6462,11 @@ const Bubble = React.memo(function Bubble({
                 onKeyUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                                if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
+                                  e.preventDefault();
+                                  document.execCommand('delete');
+                                  return;
+                                }
                   if (isSupraSpacePlainTextPasteShortcut(e)) {
                     editPastePlainTextShortcutRef.current = true;
                     window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
@@ -9955,6 +9970,8 @@ export default function SupraSpacePage() {
   const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
   const pinRequestIdsRef = React.useRef(new Set<string>());
   const [pinnedModalOpen, setPinnedModalOpen] = React.useState(false);
+  const [unpinConfirmId, setUnpinConfirmId] = React.useState<string | null>(null);
+  const [pinnedBannerOverrides, setPinnedBannerOverrides] = React.useState<Record<string, string[]>>({});
   const syncPinnedMessageIds = React.useCallback((messages: SSMessage[]) => {
     setPinnedMsgIds(prev => {
       const next = new Set(prev);
@@ -10314,6 +10331,30 @@ export default function SupraSpacePage() {
     () => pinnedMessages.filter(message => !message.isDeleted),
     [pinnedMessages],
   );
+  const pinnedBannerKey = activeId && uid ? `ss4-hidden-pinned-banner:${uid}:${activeId}` : '';
+  const pinnedBannerOverride = pinnedBannerKey ? pinnedBannerOverrides[pinnedBannerKey] : undefined;
+  const hiddenPinnedIds = React.useMemo(() => {
+    if (pinnedBannerOverride) return pinnedBannerOverride;
+    if (!pinnedBannerKey || typeof window === 'undefined') return [];
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(pinnedBannerKey) || '[]');
+      return Array.isArray(stored) ? stored.map(String) : [];
+    } catch {
+      return [];
+    }
+  }, [pinnedBannerKey, pinnedBannerOverride]);
+  const pinnedBannerHidden = activePinnedMsgs.length > 0 && activePinnedMsgs.every(message => hiddenPinnedIds.includes(message._id));
+  const setPinnedBannerHidden = React.useCallback((hidden: boolean) => {
+    if (!pinnedBannerKey) return;
+    const ids = hidden ? activePinnedMsgs.map(message => message._id) : [];
+    setPinnedBannerOverrides(prev => ({ ...prev, [pinnedBannerKey]: ids }));
+    try {
+      if (hidden) window.localStorage.setItem(pinnedBannerKey, JSON.stringify(ids));
+      else window.localStorage.removeItem(pinnedBannerKey);
+    } catch {
+      return;
+    }
+  }, [pinnedBannerKey, activePinnedMsgs]);
   const activeMsgStatus = activeId ? (msgFetchState[activeId] || 'idle') : 'idle';
   const activeConvHasHistorySignal = Boolean(activeConv?.lastMessage || activeConv?.lastMessageAt);
   const msgSeenByMembers = React.useMemo(() => {
@@ -12817,6 +12858,13 @@ export default function SupraSpacePage() {
       pinRequestIdsRef.current.delete(msgId);
     }
   }, [activeId, pinnedMsgIds, uid, token, patchMsg, fetchPinnedMessages, pinnedMessages]);
+  const requestPinToggle = React.useCallback((msgId: string) => {
+    if (pinnedMsgIds.has(msgId)) {
+      setUnpinConfirmId(msgId);
+      return;
+    }
+    void handlePinToggle(msgId);
+  }, [pinnedMsgIds, handlePinToggle]);
 
   const jumpToMessage = React.useCallback((msgId: string) => {
     if (!activeId) return;
@@ -13980,7 +14028,7 @@ export default function SupraSpacePage() {
       uid={uid}
       onReply={setReplyTo}
       onDelete={handleDelete}
-      onPin={handlePinToggle}
+      onPin={requestPinToggle}
       isPinned={pinnedMsgIds.has(message._id)}
       onOpenMedia={setLightbox}
       mediaGallery={activeMediaGallery}
@@ -14003,7 +14051,7 @@ export default function SupraSpacePage() {
       failedSend={failedSends.find(item => item.optimisticMessageId === message._id)}
       onRetryFailed={retryFailedSend}
     />
-  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, activeMentionAliases, failedSends, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pendingFiles.length, pendingGif, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, activeMentionAliases, failedSends, handleDelete, handleEdit, requestPinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pendingFiles.length, pendingGif, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -15302,6 +15350,11 @@ export default function SupraSpacePage() {
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {pinnedBannerHidden && (
+                        <button onClick={() => setPinnedBannerHidden(false)} className="ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8" title="Show pinned message" aria-label="Show pinned message">
+                          <Pin className="h-5 w-5 lg:h-4 lg:w-4" />
+                        </button>
+                      )}
                       <div className="lg:hidden">
                         <AutrixHeaderButton className="h-11 w-11 px-0" />
                       </div>
@@ -15315,7 +15368,7 @@ export default function SupraSpacePage() {
                   { }
                   {(() => {
                     const pinnedMsgs = activePinnedMsgs;
-                    if (pinnedMsgs.length === 0) return null;
+                    if (pinnedMsgs.length === 0 || pinnedBannerHidden) return null;
                     const latest = pinnedMsgs[pinnedMsgs.length - 1];
                     return (
                       <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 transition-colors sm:gap-2.5 sm:px-4 sm:py-2"
@@ -15326,7 +15379,7 @@ export default function SupraSpacePage() {
                           <p className="font-semibold" style={{ fontSize: 10, color: 'var(--accent-text)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Pinned Messages{pinnedMsgs.length > 1 ? ' (' + pinnedMsgs.length + ')' : ''}</p>
                           <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{latest.sender?.fullName || 'Deleted User'}: {messagePreviewText(latest.content) || String.fromCodePoint(128206) + ' Attachment'}</p>
                         </div>
-                        <button onClick={() => handlePinToggle(latest._id)} className="ss4-icon-btn h-6 w-6 shrink-0" title="Unpin"><X className="h-3 w-3" /></button>
+                        <button onClick={() => { setPinnedBannerHidden(true); toast('Pinned message hidden for you. It stays pinned for everyone. Use the pin button at the top to show it again.'); }} className="ss4-icon-btn h-6 w-6 shrink-0" title="Hide pinned message" aria-label="Hide pinned message"><X className="h-3 w-3" /></button>
                       </div>
                     );
                   })()}
@@ -15736,6 +15789,11 @@ export default function SupraSpacePage() {
                               }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                                if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
+                                  e.preventDefault();
+                                  document.execCommand('delete');
+                                  return;
+                                }
                                 if (isSupraSpacePlainTextPasteShortcut(e)) {
                                   pastePlainTextShortcutRef.current = true;
                                   window.setTimeout(() => {
@@ -16813,7 +16871,7 @@ export default function SupraSpacePage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handlePinToggle(m._id)}
+                            onClick={() => setUnpinConfirmId(m._id)}
                             className="h-8 rounded-lg px-3 font-semibold"
                             style={{ fontSize: 12, color: 'var(--danger)', background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.22)' }}
                           >
@@ -17053,6 +17111,24 @@ export default function SupraSpacePage() {
               <div className="flex gap-2">
                 <button onClick={() => setDeleteConfirmConv(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
                 <button onClick={() => { deleteConversation(deleteConfirmConv); setDeleteConfirmConv(null); }} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {unpinConfirmId && (
+          <div className="ss4-overlay fixed inset-0 z-210 flex items-center justify-center p-4" onClick={() => setUnpinConfirmId(null)}>
+            <div role="alertdialog" aria-modal="true" aria-label="Unpin this message?" className="ss4-modal w-full max-w-xs overflow-hidden" onClick={e => e.stopPropagation()}
+              style={{ background: 'var(--surface-2,#1c1d20)', borderRadius: 20, padding: '24px 20px 20px' }}>
+              <div className="flex items-center justify-center mb-4">
+                <div className="h-12 w-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--danger-muted,rgba(239,68,68,0.15))' }}>
+                  <PinOff className="h-5 w-5" style={{ color: 'var(--danger)' }} />
+                </div>
+              </div>
+              <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Unpin this message?</p>
+              <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>It will be removed from the pinned messages for everyone in this conversation.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setUnpinConfirmId(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
+                <button onClick={() => { const id = unpinConfirmId; setUnpinConfirmId(null); if (pinnedMsgIds.has(id)) void handlePinToggle(id); }} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--danger)', color: '#fff' }}>Unpin</button>
               </div>
             </div>
           </div>

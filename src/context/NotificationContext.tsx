@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Notification } from '@/types/notification';
 import { useAuth } from "@/providers/AuthProvider";
-import { initializeSocket } from '@/lib/socket.client';
+import type { Socket } from 'socket.io-client';
+import { initializeSocket, onSocketChange } from '@/lib/socket.client';
 import { playShiftAlertSound, playPingSound } from '@/lib/notification-sound';
 import { resolveNotificationCategory } from '@/components/notifications/notification-utils';
 
@@ -50,7 +51,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const backoffRef = useRef(POLL_INTERVAL);
     const fetchRef = useRef<((options?: FetchNotificationsOptions) => Promise<void>) | undefined>(undefined);
     const activeFetchOptionsRef = useRef<FetchNotificationsOptions>(DEFAULT_FETCH_OPTIONS);
-    const { getToken, isLoaded, isSignedIn } = useAuth();
+    const { getToken, isLoaded, isSignedIn, userId } = useAuth();
+    const userIdRef = useRef<string | null>(userId);
+
+    useEffect(() => {
+        userIdRef.current = userId;
+    }, [userId]);
 
     const fetchNotifications = useCallback(async (options?: FetchNotificationsOptions) => {
         const nextOptions: FetchNotificationsOptions = { ...activeFetchOptionsRef.current };
@@ -292,7 +298,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (!token || cancelled) return;
             const socket = initializeSocket(token);
 
+            const isForAnotherAccount = (notification: Notification) => Boolean(
+                userIdRef.current
+                && notification.userId
+                && String(notification.userId) !== String(userIdRef.current),
+            );
+
             const onNew = (notification: Notification) => {
+                if (isForAnotherAccount(notification)) return;
                 setNotifications(prev => {
                     if (prev.some(n => n._id === notification._id)) return prev;
                     return [notification, ...prev];
@@ -338,6 +351,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             };
 
             const onUpdated = (notification: Notification) => {
+                if (isForAnotherAccount(notification)) return;
                 setNotifications(prev => {
                     const exists = prev.some(n => n._id === notification._id);
                     return exists
@@ -347,17 +361,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 fetchRef.current?.();
             };
 
-            socket.on('notification:new', onNew);
-            socket.on('notification:read', onRead);
-            socket.on('notification:readAll', onReadAll);
-            socket.on('notification:updated', onUpdated);
+            let boundSocket: Socket | null = null;
+            const unbind = () => {
+                if (!boundSocket) return;
+                boundSocket.off('notification:new', onNew);
+                boundSocket.off('notification:read', onRead);
+                boundSocket.off('notification:readAll', onReadAll);
+                boundSocket.off('notification:updated', onUpdated);
+                boundSocket = null;
+            };
+            const bind = (next: Socket) => {
+                if (boundSocket === next) return;
+                unbind();
+                next.on('notification:new', onNew);
+                next.on('notification:read', onRead);
+                next.on('notification:readAll', onReadAll);
+                next.on('notification:updated', onUpdated);
+                boundSocket = next;
+            };
 
-            cleanups.push(
-                () => socket.off('notification:new', onNew),
-                () => socket.off('notification:read', onRead),
-                () => socket.off('notification:readAll', onReadAll),
-                () => socket.off('notification:updated', onUpdated),
-            );
+            bind(socket);
+            const stopWatching = onSocketChange(next => {
+                bind(next);
+                fetchRef.current?.();
+            });
+
+            cleanups.push(stopWatching, unbind);
         };
 
         attachSocketListeners().catch(() => {});
