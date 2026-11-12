@@ -37,6 +37,15 @@ export function toMDT(d: Date | string | number): Date {
   return new Date(date.getTime() + denverOffsetMs(date))
 }
 
+export type DenverDayPeriod = 'morning' | 'afternoon' | 'evening'
+
+export function denverDayPeriod(v: Date | string | number = new Date()): DenverDayPeriod {
+  const hour = toMDT(v).getUTCHours()
+  if (hour >= 5 && hour < 12) return 'morning'
+  if (hour >= 12 && hour < 18) return 'afternoon'
+  return 'evening'
+}
+
 // ── MDT-correct locale helpers (work regardless of browser timezone) ──────────
 
 function d(v: Date | string): Date {

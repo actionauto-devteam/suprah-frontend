@@ -20,7 +20,13 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const OPEN_POLL_MS = 4000
 const CLOSED_POLL_MS = 20000
 const MAX_LENGTH = 1000
+const TEXT_US_MESSAGE_LENGTH = 900
 const DEFAULT_ERROR = "Something went wrong. Please try again."
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function locationKey(value?: string) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+}
 
 interface StoredSession {
   sessionId: string
@@ -51,6 +57,8 @@ interface WebChatWidgetProps {
     /** Where it sits before the customer moves it. */
     className?: string
   }
+  textUs?: boolean
+  defaultLocation?: string
 }
 
 function postEmbedState(open: boolean) {
@@ -110,7 +118,7 @@ function PoweredBySuprah({ className = "" }: { className?: string }) {
   )
 }
 
-export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, prefill, title, launcher }: WebChatWidgetProps) {
+export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, prefill, title, launcher, textUs, defaultLocation }: WebChatWidgetProps) {
   const storageKey = `${STORAGE_PREFIX}${orgKey ? `org:${orgKey}` : `vehicle:${vehicleId}`}`
 
   const [open, setOpen] = React.useState(false)
@@ -127,7 +135,16 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   const [config, setConfig] = React.useState<WebChatConfig | null>(null)
   const [staffTyping, setStaffTyping] = React.useState(false)
   const [notice, setNotice] = React.useState("")
+  const [firstName, setFirstName] = React.useState("")
+  const [lastName, setLastName] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [vehicleInterest, setVehicleInterest] = React.useState("")
+  const [location, setLocation] = React.useState("")
   const textMode = Boolean(config?.textMode) && !knownVisitor
+  const textUsForm = Boolean(textUs) && !knownVisitor
+  const locationOptions = React.useMemo(() => (textUsForm ? config?.locations ?? [] : []), [textUsForm, config])
+  const panelTitle = title ?? (textUs ? "Text Us" : "Chat with us")
+  const visitorFirstName = textUsForm ? firstName.trim() : name.trim().split(/\s+/)[0]
 
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const openRef = React.useRef(open)
@@ -164,6 +181,24 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
       cancelled = true
     }
   }, [vehicleId, orgKey])
+
+  React.useEffect(() => {
+    if (locationOptions.length === 0) return
+    setLocation((current) => {
+      if (current && locationOptions.includes(current)) return current
+      if (locationOptions.length === 1) return locationOptions[0]
+      const wanted = locationKey(defaultLocation)
+      if (!wanted) return ""
+      const exact = locationOptions.find((option) => locationKey(option) === wanted)
+      if (exact) return exact
+      const wantedWords = wanted.split(" ")
+      const partial = locationOptions.filter((option) => {
+        const words = locationKey(option).split(" ")
+        return wantedWords.every((word) => words.includes(word))
+      })
+      return partial.length === 1 ? partial[0] : ""
+    })
+  }, [locationOptions, defaultLocation])
 
   React.useEffect(() => {
     if (open && listRef.current) {
@@ -244,11 +279,29 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     event.preventDefault()
     if (busy) return
 
-    const trimmedName = name.trim()
+    const trimmedName = textUsForm ? `${firstName.trim()} ${lastName.trim()}`.trim() : name.trim()
     const trimmedContact = contact.trim()
     const text = draft.trim()
+    const trimmedEmail = email.trim()
 
-    if (!trimmedName || !trimmedContact || !text) {
+    if (textUsForm) {
+      if (!firstName.trim() || !lastName.trim() || !trimmedContact || !text) {
+        setError("Please add your first name, last name, mobile number, and a message.")
+        return
+      }
+      if (trimmedContact.replace(/\D/g, "").length < 10) {
+        setError("Please enter your mobile number with the area code.")
+        return
+      }
+      if (trimmedEmail && !EMAIL_PATTERN.test(trimmedEmail)) {
+        setError("Please enter a valid email address.")
+        return
+      }
+      if (locationOptions.length > 0 && !location) {
+        setError("Please choose a dealership.")
+        return
+      }
+    } else if (!trimmedName || !trimmedContact || !text) {
       setError(
         knownVisitor
           ? "Type your message, then send it."
@@ -258,7 +311,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
       )
       return
     }
-    if (textMode && trimmedContact.replace(/\D/g, "").length < 10) {
+    if (!textUsForm && textMode && trimmedContact.replace(/\D/g, "").length < 10) {
       setError("Please enter your mobile number with the area code, so we can text you.")
       return
     }
@@ -268,13 +321,24 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     setNotice("")
 
     try {
-      const isEmail = !textMode && trimmedContact.includes("@")
+      const isEmail = !textUsForm && !textMode && trimmedContact.includes("@")
       const result = await startWebChat({
         vehicleId,
         orgKey,
         name: trimmedName,
-        email: isEmail ? trimmedContact : undefined,
-        phone: isEmail ? undefined : trimmedContact,
+        ...(textUsForm
+          ? {
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              phone: trimmedContact,
+              email: trimmedEmail || undefined,
+              vehicleInterest: vehicleId ? undefined : vehicleInterest.trim() || undefined,
+              location: location || undefined,
+            }
+          : {
+              email: isEmail ? trimmedContact : undefined,
+              phone: isEmail ? undefined : trimmedContact,
+            }),
         message: text,
         pageUrl: window.location.href,
         clientRequestId: clientRequestIdRef.current,
@@ -334,17 +398,18 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   if (config?.enabled === false) return null
 
   if (!open) {
-    return (
+    const bubble = (
       <button
         type="button"
         ref={launcher?.setNode}
         onClick={handleOpen}
         onPointerDown={launcher?.handleProps.onPointerDown}
         onClickCapture={launcher?.handleProps.onClickCapture}
-        aria-label={title ? `Open ${title.charAt(0).toLowerCase()}${title.slice(1)}` : "Open chat"}
+        aria-label={textUs ? "Text Us" : title ? `Open ${title.charAt(0).toLowerCase()}${title.slice(1)}` : "Open chat"}
         title={title}
         className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex h-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          textUs ? "gap-2 px-5 text-sm font-semibold whitespace-nowrap" : "w-14",
           embedMode ? "relative" : launcher?.className ?? "fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6",
         )}
         style={
@@ -353,7 +418,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             : { marginBottom: "env(safe-area-inset-bottom)", ...launcher?.handleProps.style, ...launcher?.style }
         }
       >
-        <MessageCircle className="h-6 w-6" />
+        <MessageCircle className={textUs ? "h-5 w-5" : "h-6 w-6"} />
+        {textUs && <span>Text Us</span>}
         {unread > 0 && (
           <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
             {unread > 9 ? "9+" : unread}
@@ -361,24 +427,29 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
         )}
       </button>
     )
+    return embedMode && textUs ? (
+      <div className="fixed inset-0 flex items-center justify-center">{bubble}</div>
+    ) : (
+      bubble
+    )
   }
 
   return (
     <div
       role="dialog"
-      aria-label={title ?? "Chat with us"}
+      aria-label={panelTitle}
       className={cn(
         "flex flex-col bg-background",
         embedMode
-          ? "h-full w-full sm:rounded-2xl sm:border sm:shadow-2xl"
+          ? "fixed inset-0 sm:rounded-2xl sm:border sm:shadow-2xl"
           : "fixed inset-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[34rem] sm:max-h-[calc(100dvh-3rem)] sm:w-96 sm:rounded-2xl sm:border sm:shadow-2xl",
       )}
     >
       <div className="flex items-center justify-between gap-3 bg-primary px-4 py-3 text-primary-foreground sm:rounded-t-2xl">
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-tight">{title ?? "Chat with us"}</p>
+          <p className="text-sm font-semibold leading-tight">{panelTitle}</p>
           <p className="truncate text-xs opacity-80">
-            {contextLabel ? `About the ${contextLabel}` : "Ask us anything"}
+            {contextLabel ? `About the ${contextLabel}` : textUs ? "We'll text you back" : "Ask us anything"}
           </p>
         </div>
         <button
@@ -401,7 +472,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             <CheckCircle2 className="h-6 w-6" />
           </span>
           <p className="text-base font-semibold" role="status">
-            {name.trim() ? `Thanks, ${name.trim().split(/\s+/)[0]}!` : "Thanks!"} We just texted you.
+            {visitorFirstName ? `Thanks, ${visitorFirstName}!` : "Thanks!"} We just texted you.
           </p>
           <p className="text-sm text-muted-foreground">
             We sent a text to {session.textedTo || "your phone"}. Reply to it to keep chatting with us.
@@ -523,6 +594,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
       ) : (
         <form
           onSubmit={handleStart}
+          noValidate
           className="flex flex-1 flex-col gap-3 overflow-y-auto p-4"
           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
@@ -539,7 +611,110 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             </p>
           )}
 
-          {!knownVisitor && (
+          {textUsForm && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0 space-y-1.5">
+                  <label htmlFor="webchat-first-name" className="text-xs font-medium">
+                    First name
+                  </label>
+                  <Input
+                    id="webchat-first-name"
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    autoComplete="given-name"
+                    maxLength={40}
+                    required
+                  />
+                </div>
+                <div className="min-w-0 space-y-1.5">
+                  <label htmlFor="webchat-last-name" className="text-xs font-medium">
+                    Last name
+                  </label>
+                  <Input
+                    id="webchat-last-name"
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    autoComplete="family-name"
+                    maxLength={40}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="webchat-mobile" className="text-xs font-medium">
+                  Mobile number
+                </label>
+                <Input
+                  id="webchat-mobile"
+                  value={contact}
+                  onChange={(event) => setContact(event.target.value)}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  maxLength={30}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="webchat-email" className="text-xs font-medium">
+                  Email <span className="font-normal text-muted-foreground">(optional)</span>
+                </label>
+                <Input
+                  id="webchat-email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  maxLength={120}
+                />
+              </div>
+
+              {!vehicleId && (
+                <div className="space-y-1.5">
+                  <label htmlFor="webchat-vehicle" className="text-xs font-medium">
+                    Vehicle you&apos;re interested in <span className="font-normal text-muted-foreground">(optional)</span>
+                  </label>
+                  <Input
+                    id="webchat-vehicle"
+                    value={vehicleInterest}
+                    onChange={(event) => setVehicleInterest(event.target.value)}
+                    placeholder="e.g. 2021 Toyota Tacoma"
+                    maxLength={80}
+                  />
+                </div>
+              )}
+
+              {locationOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label htmlFor="webchat-location" className="text-xs font-medium">
+                    Dealership
+                  </label>
+                  <select
+                    id="webchat-location"
+                    value={location}
+                    onChange={(event) => setLocation(event.target.value)}
+                    required
+                    className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                  >
+                    <option value="" disabled>
+                      Choose a dealership
+                    </option>
+                    {locationOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+
+          {!knownVisitor && !textUsForm && (
           <>
           <div className="space-y-1.5">
             <label htmlFor="webchat-name" className="text-xs font-medium">
@@ -577,8 +752,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
               id="webchat-message"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              rows={4}
-              maxLength={MAX_LENGTH}
+              rows={textUsForm ? 3 : 4}
+              maxLength={textUsForm ? TEXT_US_MESSAGE_LENGTH : MAX_LENGTH}
               placeholder={contextLabel ? `Is the ${contextLabel} still available?` : "How can we help?"}
               className="resize-none"
             />
@@ -592,7 +767,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
 
           <Button type="submit" disabled={busy} className="mt-auto w-full">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {textMode ? "Text me" : "Start chat"}
+            {textUsForm ? "Send" : textMode ? "Text me" : "Start chat"}
           </Button>
           {textMode && (
             <p className="text-[11px] leading-snug text-muted-foreground" data-testid="webchat-text-consent">

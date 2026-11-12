@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { MDT_TZ } from '@/lib/timezone';
+import { MDT_TZ, denverTzAbbr } from '@/lib/timezone';
 import { cn } from '@/lib/utils';
 
 type MountainTimeClockProps = {
@@ -37,6 +37,7 @@ export function MountainTimeClock({ className, compact = false }: MountainTimeCl
     hour12: true,
     timeZone: MDT_TZ,
   }) ?? '--:-- --';
+  const zone = now ? denverTzAbbr(now) : '';
 
   const date = now?.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -65,6 +66,7 @@ export function MountainTimeClock({ className, compact = false }: MountainTimeCl
             <span className={cn('min-w-15 whitespace-nowrap text-center font-mono font-bold tabular-nums sm:min-w-23', compact ? 'text-[10px]' : 'text-[10px] sm:text-xs')}>
               <span className="sm:hidden">{mobileTime}</span>
               <span className="hidden sm:inline">{time}</span>
+              {zone && <span className="ml-1 text-[8px] opacity-70 sm:text-[9px]">{zone}</span>}
             </span>
           </div>
         </TooltipTrigger>

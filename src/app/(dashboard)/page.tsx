@@ -72,6 +72,7 @@ import { EmployeeOfMonthPanel } from "./components/EmployeeOfMonthPanel";
 // Suprah YapLine — live PTT channels + recent voice activity, embedded
 // directly below the Feeds section per the dashboard layout spec.
 import { YapLineWidget } from "@/components/yapline/YapLineWidget";
+import { denverDayPeriod, denverTzAbbr } from "@/lib/timezone";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Shared bits
@@ -103,16 +104,10 @@ function stripMentions(content: string): string {
   );
 }
 
-function greeting(): string {
-  const hourMST = Number(
-    new Date().toLocaleString("en-US", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "America/Denver",
-    }),
-  );
-  if (hourMST < 12) return "Good morning";
-  if (hourMST < 18) return "Good afternoon";
+function greeting(now: Date): string {
+  const period = denverDayPeriod(now);
+  if (period === "morning") return "Good morning";
+  if (period === "afternoon") return "Good afternoon";
   return "Good evening";
 }
 
@@ -887,7 +882,7 @@ export default function Dashboard() {
                     timeZone: "America/Denver",
                   })}
                   <span className="ml-0.5 text-[8px] font-bold text-muted-foreground/50">
-                    MST
+                    {denverTzAbbr(currentTime)}
                   </span>
                 </span>
               </span>
@@ -899,7 +894,7 @@ export default function Dashboard() {
               </span>
             </h1>
             <p className="mt-1 text-xs font-medium text-muted-foreground/70 sm:text-sm">
-              {greeting()}, {firstName}. Here's your intelligent workspace.
+              {greeting(currentTime)}, {firstName}. Here's your intelligent workspace.
             </p>
           </div>
 

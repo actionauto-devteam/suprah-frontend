@@ -92,6 +92,9 @@ export default function IntegrationsSettingsPage() {
   const [webchatTextMode, setWebchatTextMode] = React.useState(false);
   const [savedWebchatTextMode, setSavedWebchatTextMode] = React.useState(false);
   const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
+  const [webchatOrgKey, setWebchatOrgKey] = React.useState("");
+  const [embedOrigin, setEmbedOrigin] = React.useState("");
+  const [embedCopied, setEmbedCopied] = React.useState(false);
   const [physicalMailingAddress, setPhysicalMailingAddress] = React.useState("");
   const [savedPhysicalMailingAddress, setSavedPhysicalMailingAddress] = React.useState("");
   const [isSavingMailingAddress, setIsSavingMailingAddress] = React.useState(false);
@@ -148,6 +151,7 @@ export default function IntegrationsSettingsPage() {
           const textMode = settingsData?.webchatTextMode === true;
           setWebchatTextMode(textMode);
           setSavedWebchatTextMode(textMode);
+          setWebchatOrgKey(typeof settingsData?.webchatOrgKey === "string" ? settingsData.webchatOrgKey : "");
           const mailingAddress = settingsData?.physicalMailingAddress || "";
           setPhysicalMailingAddress(mailingAddress);
           setSavedPhysicalMailingAddress(mailingAddress);
@@ -362,7 +366,7 @@ export default function IntegrationsSettingsPage() {
             setSavedWebchatTextMode(webchatTextMode)
             toast.success("Webchat settings saved", {
                 description: webchatEnabled
-                    ? "The chat widget is live on your public vehicle pages."
+                    ? "The Text Us button is live on your website and vehicle pages."
                     : "The chat widget is now hidden from visitors."
             })
         } catch (error) {
@@ -373,6 +377,26 @@ export default function IntegrationsSettingsPage() {
             })
         } finally {
             setIsSavingWebchat(false)
+        }
+    }
+
+    React.useEffect(() => {
+        setEmbedOrigin(window.location.origin)
+    }, [])
+
+    const webchatEmbedCode = webchatOrgKey && embedOrigin
+        ? `<script src="${embedOrigin}/webchat-embed.js" data-org="${webchatOrgKey}" async></script>`
+        : ""
+
+    const handleCopyEmbedCode = async () => {
+        if (!webchatEmbedCode) return
+        try {
+            await navigator.clipboard.writeText(webchatEmbedCode)
+            setEmbedCopied(true)
+            toast.success("Embed code copied")
+            window.setTimeout(() => setEmbedCopied(false), 2000)
+        } catch {
+            toast.error("Couldn't copy", { description: "Select the code and copy it by hand." })
         }
     }
 
@@ -848,7 +872,7 @@ export default function IntegrationsSettingsPage() {
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-base font-bold truncate">Website Chat</p>
-                                        <p className="text-xs text-muted-foreground/60 mt-0.5">The chat bubble on your public vehicle pages.</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">The Text Us button on your website and vehicle pages.</p>
                                     </div>
                                 </div>
                                 <Badge className={webchatEnabled ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
@@ -912,6 +936,27 @@ export default function IntegrationsSettingsPage() {
                                         >
                                             {isSavingWebchat ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save webchat settings"}
                                         </Button>
+                                    </div>
+                                )}
+
+                                {webchatEmbedCode && (
+                                    <div className="space-y-1.5 max-w-xl border-t border-border/30 pt-4">
+                                        <p className="text-sm font-semibold text-foreground">Embed code</p>
+                                        <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">Give this code to the people who manage your website. They paste it once, and a &quot;Text Us&quot; button shows on every page. Messages come into the Lead Inbox.</p>
+                                        <div className="flex items-start gap-2">
+                                            <code className="min-w-0 flex-1 select-all break-all rounded-xl border border-border/40 bg-muted/30 px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground" data-testid="webchat-embed-code">
+                                                {webchatEmbedCode}
+                                            </code>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={handleCopyEmbedCode}
+                                                className="h-9 shrink-0 gap-1.5 rounded-xl px-3 text-xs font-bold"
+                                            >
+                                                {embedCopied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                                {embedCopied ? "Copied" : "Copy"}
+                                            </Button>
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -12,8 +12,12 @@ export interface StartWebChatPayload {
   vehicleId?: string;
   orgKey?: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
+  vehicleInterest?: string;
+  location?: string;
   message: string;
   pageUrl?: string;
   clientRequestId?: string;
@@ -83,6 +87,7 @@ export interface WebChatConfig {
   withinHours: boolean;
   textMode?: boolean;
   dealershipName?: string;
+  locations?: string[];
 }
 
 export const getWebchatConfig = async (
@@ -99,5 +104,8 @@ export const getWebchatConfig = async (
     withinHours: data?.withinHours !== false,
     textMode: data?.textMode === true,
     dealershipName: data?.dealershipName || "",
+    locations: Array.isArray(data?.locations)
+      ? data.locations.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+      : [],
   };
 };

@@ -13,7 +13,7 @@ import { apiClient } from '@/lib/api-client';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
 import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } from './composer/delivery-feedback';
 import { createMessageId } from './composer/send-state';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, localizeSupraSpaceMultilineBold, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
@@ -1157,7 +1157,7 @@ function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly 
   // Keep Mini Space on the same recovery and block-layout path as the full
   // timeline. Image attachment type is presentation, not an instruction to
   // expose the stored Markdown caption as literal text.
-  const text = normalizeMessageMarkdownForDisplay(normalizeFinalMessageMarkup(msg.content ?? ''));
+  const text = normalizeMessageMarkdownForDisplay(normalizeFinalMessageMarkup(localizeSupraSpaceMultilineBold(msg.content ?? '')));
   const lines = text.split('\n');
   const bulletRe = POPUP_SOURCE_BULLET_RE;
   const numberedRe = /^(\s*)(\d+)\.\s+(.+)$/;

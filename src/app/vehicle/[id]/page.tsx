@@ -127,6 +127,8 @@ export default function VehiclePage() {
                 <WebChatWidget
                     vehicleId={id}
                     contextLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                    textUs
+                    defaultLocation={vehicle.location?.split(",")[0]}
                 />
             )}
         </ContextualShell>

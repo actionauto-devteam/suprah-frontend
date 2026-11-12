@@ -16,6 +16,7 @@ export default function EmbedChatPage() {
         vehicleId={vehicleId}
         contextLabel={contextLabel}
         embedMode
+        textUs
       />
     </div>
   )

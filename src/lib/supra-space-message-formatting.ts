@@ -334,8 +334,65 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
  * becomes two self-contained styled lines, so the renderer never exposes an
  * opener/closer merely because the wrapper crossed a line boundary.
  */
+function localizeMultilineBoldSpan(match: string, inner: string): string {
+  if (!inner.includes('\n') || inner.includes('\n\n') || inner.includes('') || /\{\{|\}\}/.test(inner)) return match;
+  const tagPattern = new RegExp(STYLE_CONTROL_TAG.source, 'gi');
+  const open: Array<{ kind: string; tag: string }> = [];
+  const lines: string[] = [];
+  for (const line of inner.split('\n')) {
+    const reopen = open.map(entry => entry.tag).join('');
+    for (const tag of line.matchAll(tagPattern)) {
+      const kind = tag[2].toLowerCase();
+      if (!tag[1]) {
+        open.push({ kind, tag: tag[0] });
+        continue;
+      }
+      if (open[open.length - 1]?.kind !== kind) return match;
+      open.pop();
+    }
+    const close = open.slice().reverse().map(entry => `{/${entry.kind}}`).join('');
+    const body = line.trim();
+    if (!body.replace(tagPattern, '').trim()) {
+      lines.push(`${reopen}${line}${close}`);
+      continue;
+    }
+    const start = line.indexOf(body);
+    lines.push(`${line.slice(0, start)}${BOLD_MARKER}${reopen}${body}${close}${BOLD_MARKER}${line.slice(start + body.length)}`);
+  }
+  return open.length ? match : lines.join('\n');
+}
+
+export function localizeSupraSpaceMultilineBold(content: string): string {
+  if (!content || !content.includes('\n') || !content.includes(BOLD_MARKER)) return content;
+  return mapSupraSpaceMarkupOutsideCode(content, markup =>
+    markup.replace(/\*\*(?![\s*])((?:(?!\*\*)[\s\S])*?)(?<!\*)\*\*/g, localizeMultilineBoldSpan),
+  );
+}
+
+function dropRedundantNestedControls(markup: string): string {
+  const stack: Array<{ kind: string; value: string; drop: boolean }> = [];
+  return markup.replace(new RegExp(STYLE_CONTROL_TAG.source, 'gi'), (tag: string, closing: string, rawKind: string, rawValue?: string) => {
+    const kind = rawKind.toLowerCase();
+    if (closing) {
+      for (let i = stack.length - 1; i >= 0; i -= 1) {
+        if (stack[i].kind !== kind) continue;
+        return stack.splice(i, 1)[0].drop ? '' : tag;
+      }
+      return tag;
+    }
+    const value = (rawValue || '').trim().toLowerCase();
+    const current = [...stack].reverse().find(entry => entry.kind === kind && !entry.drop);
+    const drop = Boolean(value) && current?.value === value;
+    stack.push({ kind, value, drop });
+    return drop ? '' : tag;
+  });
+}
+
 export function prepareSupraSpaceMarkupForDisplay(content: string): string {
-  const compatible = normalizeSupraSpaceLegacyMarkup(content);
+  const compatible = mapSupraSpaceMarkupOutsideCode(
+    normalizeSupraSpaceLegacyMarkup(localizeSupraSpaceMultilineBold(content)),
+    dropRedundantNestedControls,
+  );
   if (!compatible || !compatible.includes('\n')) return compatible;
   return mapSupraSpaceMarkupOutsideCode(compatible, markup => {
     const active: Array<{ kind: string; openTag: string }> = [];

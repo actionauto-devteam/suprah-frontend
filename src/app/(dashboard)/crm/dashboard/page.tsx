@@ -33,7 +33,8 @@ import { DashboardNotifications } from "@/components/crm/DashboardNotifications"
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { cn, resolveImageUrl } from "@/lib/utils";
-import { toMDT } from "@/lib/timezone";
+import type { DenverDayPeriod } from "@/lib/timezone";
+import { useDenverDayPeriod } from "@/hooks/useDenverDayPeriod";
 
 interface CrmUserData {
   _id: string;
@@ -46,10 +47,9 @@ interface CrmUserData {
 }
 
 
-function getGreeting(name: string) {
-  const h = toMDT(new Date()).getUTCHours();
-  if (h >= 5 && h < 12) return { text: `Good Morning, ${name}`, icon: <Sun className="h-5 w-5 text-amber-400" />, period: "morning" };
-  if (h >= 12 && h < 18) return { text: `Good Afternoon, ${name}`, icon: <Sunset className="h-5 w-5 text-orange-400" />, period: "afternoon" };
+function getGreeting(name: string, period: DenverDayPeriod) {
+  if (period === "morning") return { text: `Good Morning, ${name}`, icon: <Sun className="h-5 w-5 text-amber-400" />, period: "morning" };
+  if (period === "afternoon") return { text: `Good Afternoon, ${name}`, icon: <Sunset className="h-5 w-5 text-orange-400" />, period: "afternoon" };
   return { text: `Good Evening, ${name}`, icon: <Moon className="h-5 w-5 text-indigo-400" />, period: "evening" };
 }
 
@@ -159,6 +159,7 @@ export default function CrmDashboardPage() {
   const [token, setToken] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);
   const [mounted, setMounted] = React.useState(false);
+  const denverToday = useDenverDayPeriod();
 
   React.useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -209,10 +210,10 @@ export default function CrmDashboardPage() {
   if (!user) return null;
 
   const userAvatarSrc = resolveImageUrl(user.avatar || user.avatarUrl);
-  const greeting = getGreeting(user.fullName.split(" ")[0]);
-  const todayStr = toMDT(new Date()).toLocaleDateString("en-US", {
+  const greeting = getGreeting(user.fullName.split(" ")[0], denverToday.period);
+  const todayStr = `${new Date(`${denverToday.day}T12:00:00Z`).toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC",
-  });
+  })} · ${denverToday.zone}`;
 
   const quickActions = [
     { icon: <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Leads", route: "/crm/leads" },
