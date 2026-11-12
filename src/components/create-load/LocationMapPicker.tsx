@@ -78,6 +78,7 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
   const [lookup, setLookup] = React.useState<Lookup>("idle")
   const [mapStatus, setMapStatus] = React.useState<{ kind: "loading" | "ready" | "error"; message?: string }>({ kind: "loading" })
   const [view, setView] = React.useState<BaseMapView>("map")
+  const [mapCredit, setMapCredit] = React.useState("")
 
   // Search box
   const listId = React.useId()
@@ -199,7 +200,10 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
         if (!cancelled) setMapStatus({ kind: "error", message: "The map couldn't load. Check the connection and try again." })
       })
       map.onStyleReady(() => {
-        if (!cancelled) setMapStatus({ kind: "ready" })
+        if (!cancelled) {
+          setMapStatus({ kind: "ready" })
+          setMapCredit(map?.credit() ?? "")
+        }
       })
       map.onClick((position) => placePinRef.current(position))
       if (pinRef.current) showPin(pinRef.current)
@@ -418,6 +422,9 @@ export function LocationMapPicker({ title, initialPosition, onClose, onApply }: 
               </div>
             )}
           </div>
+
+          {/* The map data credit the map providers require, as plain text (2026-11-12). */}
+          {mapCredit && <p className="-mt-2 text-right text-[11px] text-muted-foreground">{mapCredit}</p>}
 
           <div className="min-h-16 rounded-xl border border-border/60 bg-muted/10 p-3 text-sm" aria-live="polite">
             {!pin ? (
