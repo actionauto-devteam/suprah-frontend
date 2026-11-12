@@ -1,6 +1,10 @@
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 import { trackingState, validCoordinates, formatTrackingTime } from "@/lib/driver-tracking-view";
 import { stopsFollowing } from "@/lib/map-follow";
+import { liveMapLabelFont } from "@/lib/base-map";
+
+/** The driver's area name from the server ("Dallas, TX"), and whether the server can look names up. */
+export type AreaNameLookup = (driverId: string, signal: AbortSignal) => Promise<{ areaName: string | null; available: boolean }>;
 
 type FleetState = { drivers: DriverTrackingItem[]; selectedId: string | null; now: number };
 export type DriverFleetLayer = { update: (state: FleetState) => void; dispose: () => void };
@@ -11,12 +15,12 @@ const POINTS = "suprah-driver-points";
 const LABELS = "suprah-driver-labels";
 const COLORS: Record<string, string> = { "on-route": "#059669", idle: "#d97706", waiting: "#2563eb", "on-break": "#64748b", offline: "#64748b" };
 
-/** Marker color: the activity color while GPS is fresh, gray otherwise. Shared with the Google map layer. */
+/** Marker color: the activity color while GPS is fresh, gray otherwise. */
 export function driverMarkerColor(driver: DriverTrackingItem, now: number) {
   return trackingState(driver, now).kind === "live" ? COLORS[driver.status] ?? "#64748b" : "#64748b";
 }
 
-/** The popup lines for a selected driver. Shared with the Google map layer. */
+/** The popup lines for a selected driver. */
 export function driverPopupLines(driver: DriverTrackingItem, now: number, placeName: string) {
   return [driver.driver?.name || "Driver", trackingState(driver, now).label, `Activity: ${driver.status}`, placeName,
     `GPS: ${formatTrackingTime(driver.locationRecordedAt)}`, `${driver.shipments.length} active load(s)`,
@@ -37,7 +41,7 @@ export function driverFeatureCollection(state: FleetState) {
 
 /** Owns only fleet layers/listeners. No organization-wide subscriptions or additional map provider. */
 export function createDriverFleetLayer(map: any, mapboxgl: any, onSelect: (driver: DriverTrackingItem) => void,
-  onManualPan: () => void, token?: string): DriverFleetLayer {
+  onManualPan: () => void, lookupAreaName?: AreaNameLookup, mapboxFallbackToken?: string): DriverFleetLayer {
   let state: FleetState = { drivers: [], selectedId: null, now: Date.now() };
   let disposed = false;
   let selectedMarker: any = null;
@@ -47,6 +51,27 @@ export function createDriverFleetLayer(map: any, mapboxgl: any, onSelect: (drive
   let placeName = "";
   const places = new Map<string, string>();
   let revision = 0;
+  // Area names come from the server: Amazon Location once it's switched on
+  // (2026-11-12). Mapbox in the browser is used only while the server has no
+  // place service set up.
+  let serverNamesAvailable = Boolean(lookupAreaName);
+
+  async function areaNameFor(driver: DriverTrackingItem, signal: AbortSignal): Promise<string> {
+    if (lookupAreaName && serverNamesAvailable) {
+      try {
+        const { areaName, available } = await lookupAreaName(driver.id, signal);
+        if (available) return areaName ?? "";
+        serverNamesAvailable = false;
+      } catch (error) {
+        if (signal.aborted) throw error;
+      }
+    }
+    if (!mapboxFallbackToken) return "";
+    const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${driver.coords!.lng},${driver.coords!.lat}.json?types=neighborhood,locality,place&limit=1&access_token=${encodeURIComponent(mapboxFallbackToken)}`, { signal });
+    if (!response.ok) throw Error("Geocoding unavailable");
+    const data = await response.json();
+    return String(data.features?.[0]?.place_name ?? "").split(",").slice(0, 2).join(",").trim();
+  }
 
   function selected() { return state.drivers.find(driver => driver.id === state.selectedId && validCoordinates(driver.coords)); }
   function renderPopup(driver: DriverTrackingItem) {
@@ -85,13 +110,12 @@ export function createDriverFleetLayer(map: any, mapboxgl: any, onSelect: (drive
     if (key !== geocodeKey) {
       geocode?.abort(); geocode = null;
       geocodeKey = key; placeName = places.get(key) ?? "";
-      if (token && !placeName) {
+      if (!placeName && (lookupAreaName || mapboxFallbackToken)) {
         geocode = new AbortController();
-        void fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${driver.coords!.lng},${driver.coords!.lat}.json?types=neighborhood,locality,place&limit=1&access_token=${encodeURIComponent(token)}`, { signal: geocode.signal })
-          .then(response => { if (!response.ok) throw Error("Geocoding unavailable"); return response.json(); })
-          .then(data => {
+        void areaNameFor(driver, geocode.signal)
+          .then(name => {
             if (disposed || geocodeKey !== key) return;
-            placeName = String(data.features?.[0]?.place_name ?? "").split(",").slice(0, 2).join(",").trim();
+            placeName = name;
             if (places.size >= 100) places.delete(places.keys().next().value!);
             places.set(key, placeName);
             const current = selected(); if (current) renderPopup(current);
@@ -104,15 +128,17 @@ export function createDriverFleetLayer(map: any, mapboxgl: any, onSelect: (drive
   function render() {
     if (disposed || !map.isStyleLoaded()) return;
     if (!map.getSource(SOURCE)) {
+      const font = liveMapLabelFont(map);
+      const textFont = font ? { "text-font": font } : {};
       map.addSource(SOURCE, { type: "geojson", data: driverFeatureCollection(state), cluster: true, clusterMaxZoom: 14, clusterRadius: 48 });
       map.addLayer({ id: CLUSTERS, type: "circle", source: SOURCE, filter: ["has", "point_count"], paint: {
         "circle-color": "#334155", "circle-radius": ["step", ["get", "point_count"], 22, 25, 27, 100, 32], "circle-stroke-width": 2, "circle-stroke-color": "#ffffff" } });
       map.addLayer({ id: COUNTS, type: "symbol", source: SOURCE, filter: ["has", "point_count"], layout: {
-        "text-field": ["get", "point_count_abbreviated"], "text-size": 13 }, paint: { "text-color": "#ffffff" } });
+        "text-field": ["get", "point_count_abbreviated"], "text-size": 13, ...textFont }, paint: { "text-color": "#ffffff" } });
       map.addLayer({ id: POINTS, type: "circle", source: SOURCE, filter: ["!", ["has", "point_count"]], paint: {
         "circle-color": ["get", "color"], "circle-radius": 17, "circle-stroke-width": 2, "circle-stroke-color": "#ffffff" } });
       map.addLayer({ id: LABELS, type: "symbol", source: SOURCE, filter: ["!", ["has", "point_count"]], layout: {
-        "text-field": ["get", "label"], "text-size": 11, "text-allow-overlap": true }, paint: { "text-color": "#ffffff" } });
+        "text-field": ["get", "label"], "text-size": 11, "text-allow-overlap": true, ...textFont }, paint: { "text-color": "#ffffff" } });
     } else map.getSource(SOURCE).setData(driverFeatureCollection(state));
     renderSelected();
   }

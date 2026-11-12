@@ -1,6 +1,5 @@
 import type mapboxgl from "mapbox-gl";
 import type { Map as MapboxMap } from "mapbox-gl";
-import type { GoogleMapsLibraries } from "@/lib/google-maps";
 import { withinTripRange } from "@/lib/driver-next-stop";
 import { addMapboxRouteLayers, routeLineFeatures, type MapRoute } from "@/lib/load-route-lines";
 
@@ -9,8 +8,8 @@ import { addMapboxRouteLayers, routeLineFeatures, type MapRoute } from "@/lib/lo
  * markers: their loads' stops (P and D squares, the next one ringed), a dashed
  * line to the next stop, the recent route from trip history, and a circle for
  * GPS accuracy. When the best route is known (Amazon Location), the Mapbox
- * map draws the road route instead of the dashed line. One version for Mapbox
- * and one for Google Maps.
+ * map draws the road route instead of the dashed line. Drawn on the shared
+ * map (Amazon's when its key is set, Mapbox until then; lib/base-map).
  */
 
 type Point = { lat: number; lng: number };
@@ -194,75 +193,3 @@ export function createMapboxDriverFocusLayer(map: MapboxMap, mapbox: typeof mapb
   };
 }
 
-// ─── Google Maps ─────────────────────────────────────────────────────────────
-
-export function createGoogleDriverFocusLayer(map: google.maps.Map, libraries: GoogleMapsLibraries): DriverFocusLayer {
-  let disposed = false;
-  const accuracy = new libraries.maps.Circle({
-    map,
-    clickable: false,
-    strokeColor: ROUTE_COLOR,
-    strokeOpacity: 0.45,
-    strokeWeight: 1,
-    fillColor: ROUTE_COLOR,
-    fillOpacity: 0.12,
-    visible: false,
-  });
-  const trail = new libraries.maps.Polyline({ map, clickable: false, strokeColor: ROUTE_COLOR, strokeOpacity: 0.55, strokeWeight: 4 });
-  const nextLine = new libraries.maps.Polyline({
-    map,
-    clickable: false,
-    strokeOpacity: 0,
-    icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.85, strokeColor: ROUTE_COLOR, scale: 3 }, offset: "0", repeat: "14px" }],
-  });
-  const markers = new Map<string, { marker: google.maps.marker.AdvancedMarkerElement; element: HTMLElement; kind: string }>();
-
-  return {
-    update(state) {
-      if (disposed) return;
-      const radius = accuracyRadius(state.accuracyMeters);
-      if (state.position && radius) {
-        accuracy.setCenter(state.position);
-        accuracy.setRadius(radius);
-        accuracy.setVisible(true);
-      } else {
-        accuracy.setVisible(false);
-      }
-      trail.setPath(state.trail.length >= 2 ? state.trail : []);
-      const next = nextLineTo(state);
-      nextLine.setPath(state.position && next ? [state.position, next.position] : []);
-
-      const keep = new Set(state.stops.map((stop) => stop.key));
-      for (const [key, entry] of markers) {
-        if (keep.has(key)) continue;
-        entry.marker.map = null;
-        markers.delete(key);
-      }
-      for (const stop of state.stops) {
-        let entry = markers.get(stop.key);
-        if (!entry || entry.kind !== stop.kind) {
-          if (entry) entry.marker.map = null;
-          const element = stopElement(stop.kind);
-          entry = {
-            marker: new libraries.marker.AdvancedMarkerElement({ map, position: stop.position, content: element, zIndex: 900 }),
-            element,
-            kind: stop.kind,
-          };
-          markers.set(stop.key, entry);
-        } else {
-          entry.marker.position = stop.position;
-        }
-        entry.marker.title = stop.title;
-        styleStop(entry.element, stop);
-      }
-    },
-    dispose() {
-      disposed = true;
-      accuracy.setMap(null);
-      trail.setMap(null);
-      nextLine.setMap(null);
-      for (const entry of markers.values()) entry.marker.map = null;
-      markers.clear();
-    },
-  };
-}

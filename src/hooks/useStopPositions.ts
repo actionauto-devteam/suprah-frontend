@@ -8,7 +8,8 @@ export type StopToPlace = { key: string; place: LoadPlace };
 
 /**
  * Map positions for load stops, looked up once per stop key (the dispatcher's
- * pin, then Google through the backend, then Mapbox). A key is undefined while
+ * pin, then the server's place service, Amazon Location once it's on; Mapbox
+ * only without one). A key is undefined while
  * it's being looked up and null when the stop can't be placed. Put the pin or
  * the address in the key, so an edited stop is looked up again.
  */

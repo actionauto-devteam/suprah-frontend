@@ -11,29 +11,40 @@ const validPosition = (value: unknown): StopPosition | null => {
   return item && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
 };
 
+type PlaceLookupOptions = { getToken: () => Promise<string | null | undefined>; mapboxToken?: string | null };
+
 /**
  * Where a load stop is on the map, most exact first: the pin the dispatcher
- * placed in Create Load, then Google (backend, server key), then Mapbox's
- * geocoder while the maps still run on Mapbox. Null when none can place it.
+ * placed in Create Load, then the address looked up (lookupPlacePosition).
+ * Null when it can't be placed.
  */
-export async function resolveStopPosition(
-  place: LoadPlace,
-  options: { getToken: () => Promise<string | null | undefined>; mapboxToken?: string | null },
-): Promise<StopPosition | null> {
+export async function resolveStopPosition(place: LoadPlace, options: PlaceLookupOptions): Promise<StopPosition | null> {
   const pin = placePin(place);
   if (pin) return pin;
   const query = placeAddressText(place);
-  if (!query) return null;
+  return query ? lookupPlacePosition(query, options) : null;
+}
 
+/**
+ * Where a US place or address is (2026-11-12): the server's place service
+ * first (Amazon Location once it's switched on, Google until then). Mapbox's
+ * geocoder in the browser only when the server has no place service set up or
+ * can't be reached, so with Amazon on every lookup goes through Amazon.
+ */
+export async function lookupPlacePosition(query: string, options: PlaceLookupOptions): Promise<StopPosition | null> {
+  const text = query.trim();
+  if (!text) return null;
   try {
     const token = await options.getToken();
     if (token) {
       const response = await apiClient.get("/api/driver-tracking/places/lookup", {
-        params: { q: query.slice(0, 200) },
+        params: { q: text.slice(0, 200) },
         headers: { Authorization: `Bearer ${token}` },
       });
       const position = validPosition(response.data?.data?.position);
       if (position) return position;
+      // The server's service answered and found nothing: no second lookup.
+      if (response.data?.data?.available !== false) return null;
     }
   } catch {
     // Falls back to Mapbox below.
@@ -43,7 +54,7 @@ export async function resolveStopPosition(
   if (mapboxToken) {
     try {
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${encodeURIComponent(mapboxToken)}&limit=1&country=US`,
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${encodeURIComponent(mapboxToken)}&limit=1&country=US`,
       );
       const json = await response.json();
       const center = json?.features?.[0]?.center;
