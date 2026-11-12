@@ -356,6 +356,22 @@ export default function PrivacyPolicyPage() {
               in this policy, to meet the Dealership Client&rsquo;s legal obligations (such as
               vehicle sales and financing record-keeping requirements), and to resolve disputes.
             </p>
+            <p>
+              When an account is deleted, we remove its sign-in details and the personal details
+              stored on the account. Some information is kept afterwards:
+            </p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <strong className="text-foreground">Kept by Suprah AI:</strong> some transaction
+                records and personal information, such as loads, shipments, payouts, and payment
+                records, for legal compliance, accounting, tax laws, and fraud prevention.
+              </li>
+              <li>
+                <strong className="text-foreground">Kept by Dealership Clients:</strong> their own
+                business records, such as leads, sales, financing, and employee records, to meet
+                their legal obligations.
+              </li>
+            </ul>
           </section>
 
           {/* 9 */}
