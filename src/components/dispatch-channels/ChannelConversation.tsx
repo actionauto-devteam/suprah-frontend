@@ -551,7 +551,8 @@ export function ChannelConversation({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
+        // Never scrolls sideways: long messages wrap onto more lines (2026-11-12).
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 sm:px-5"
         style={{ background: SURFACE_BASE }}
       >
         {loading ? (
