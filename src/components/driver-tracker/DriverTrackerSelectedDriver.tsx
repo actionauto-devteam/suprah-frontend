@@ -1,7 +1,7 @@
 "use client";
 
 import { relativeLocationTime } from "@/lib/driver-tracker-mobile";
-import { Activity, ArrowRight, Crosshair, MapPin, MessageCircle, Package, Radio, X } from "lucide-react";
+import { Activity, ArrowRight, ChevronDown, Crosshair, MapPin, MessageCircle, Package, Radio, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { DriverStatus, DriverTrackingItem } from "@/types/driver-tracking";
@@ -65,7 +65,22 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
       <LoadRouteSummary state={route} audience="staff" variant="line" className="mt-1" />
       <div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" className={"min-h-11 text-xs " + followClass} aria-pressed={mode === "following"} disabled={followDisabled} onClick={onFollow}>{followLabel}</Button><Button type="button" variant="outline" className="min-h-11 text-xs" onClick={onChat}><MessageCircle className="size-4" />Chat</Button><Button type="button" className="col-span-2 min-h-11 text-sm" onClick={onDetails}>Open driver workspace</Button></div>
       {followStatus && <p role="status" className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">{followStatus}{stopWhilePaused}</p>}
-      <details className="mt-2 text-xs text-muted-foreground"><summary className="flex min-h-11 cursor-pointer items-center font-semibold">Location details</summary><p>Measured: {formatTrackingTime(driver.locationRecordedAt)}</p><p className="mt-1">Confirmed: {formatTrackingTime(driver.lastSeenAt)}</p>{accuracy != null && Number.isFinite(accuracy) && <p className="mt-1">Accuracy ±{formatGpsAccuracy(accuracy)}</p>}{!fresh && <p className="mt-1">This may be a last known position.</p>}</details>
+      {/* A row that looks tappable, with an arrow and "Tap to show" (2026-11-12): plain text wasn't recognised as something to open. */}
+      <details className="group mt-2 rounded-lg border border-border/70 bg-muted/20 text-xs text-muted-foreground">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 font-semibold text-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary [&::-webkit-details-marker]:hidden">
+          <MapPin className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Location details</span>
+          <span className="shrink-0 font-medium text-muted-foreground group-open:hidden">Tap to show</span>
+          <span className="hidden shrink-0 font-medium text-muted-foreground group-open:inline">Tap to hide</span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-1 px-3 pb-3">
+          <p>Measured: {formatTrackingTime(driver.locationRecordedAt)}</p>
+          <p>Confirmed: {formatTrackingTime(driver.lastSeenAt)}</p>
+          {accuracy != null && Number.isFinite(accuracy) && <p>Accuracy ±{formatGpsAccuracy(accuracy)}</p>}
+          {!fresh && <p>This may be a last known position.</p>}
+        </div>
+      </details>
     </section>
     <section aria-label="Selected driver" className="relative hidden min-w-0 md:block overflow-hidden rounded-xl border border-primary/25 bg-linear-to-br from-primary/[0.08] via-card to-card p-3 text-card-foreground shadow-sm sm:p-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/70 to-transparent" />

@@ -79,6 +79,7 @@ import {
   Plus,
   Minus,
   ArrowRight,
+  ChevronUp,
   Satellite,
   XCircle,
   AlertTriangle,
@@ -2197,8 +2198,12 @@ export default function DriverDashboardPage() {
                 </div>
               )}
 
-              <details className="absolute bottom-3 right-3 z-10 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2.5">
-                <summary className="cursor-pointer min-h-11 flex items-center text-xs font-bold text-muted-foreground uppercase tracking-wide">Map legend</summary>
+              <details className="group absolute bottom-3 right-3 z-10 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2.5">
+                {/* An arrow shows it opens (2026-11-12). */}
+                <summary className="cursor-pointer list-none min-h-11 flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wide [&::-webkit-details-marker]:hidden">
+                  Map legend
+                  <ChevronUp className="size-3.5 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                </summary>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full bg-primary" />

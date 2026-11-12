@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from '@/lib/base-map';
+import { LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary, mapCreditText } from '@/lib/base-map';
 import { lookupPlacePosition } from '@/lib/driver-next-stop';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -218,6 +218,7 @@ export default function AvailableLoadDetailPage() {
   const [showContract, setShowContract] = React.useState(false);
   const mapRef = React.useRef<HTMLDivElement>(null);
   const mapInstanceRef = React.useRef<any>(null);
+  const [mapCredit, setMapCredit] = React.useState('');
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
   const fetchDetail = React.useCallback(async () => {
@@ -314,14 +315,21 @@ export default function AvailableLoadDetailPage() {
         style: liveMapStyle(theme === 'dark' ? 'dark' : 'light', AVAILABLE_LOAD_MAPBOX_STYLES),
         center,
         zoom: 5,
-        // Inside a scrolling page: one finger scrolls the page, two move the map.
-        cooperativeGestures: true,
+        // Moves with one finger or the mouse, with no "ctrl + scroll" or "two
+        // fingers" note over it, like the other maps (2026-11-06). North stays up.
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
+        // The credit is a plain line under the map instead of an (i) on it.
+        attributionControl: false,
       });
+      map.touchZoomRotate.disableRotation();
       mapInstanceRef.current = map;
-      map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
       map.on('load', () => {
         if (cancelled) return;
+        setMapCredit(mapCreditText(map));
         const points: [number, number][] = [];
 
         const addMarker = (
@@ -576,7 +584,11 @@ export default function AvailableLoadDetailPage() {
         <Card className="overflow-hidden rounded-2xl border-border/40 shadow-xl">
           <CardContent className="p-0">
             {LIVE_MAP_PROVIDER ? (
-              <div ref={mapRef} className="h-75 w-full" />
+              <>
+                <div ref={mapRef} className="h-75 w-full" />
+                {/* The map data credit the map providers require, as plain text (2026-11-12). */}
+                {mapCredit && <p className="px-3 py-1.5 text-right text-[11px] text-muted-foreground">{mapCredit}</p>}
+              </>
             ) : (
               <div className="flex h-75 items-center justify-center bg-muted/30 text-center">
                 <div><MapPin className="mx-auto size-10 text-muted-foreground/30" /><p className="mt-2 text-xs text-muted-foreground">Route map unavailable</p></div>

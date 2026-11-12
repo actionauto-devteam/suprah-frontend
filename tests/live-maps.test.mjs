@@ -106,3 +106,22 @@ test('the driver maps no longer use Google Maps', () => {
   assert.equal(fs.existsSync(path.join(SRC, 'lib/google-maps.ts')), false);
   assert.equal(fs.existsSync(path.join(SRC, 'components/driver-tracker/google-driver-fleet-layer.ts')), false);
 });
+
+test('the map credit as plain text: no links, no "Improve this map", each name once', () => {
+  const { mapCreditText } = load(path.join(SRC, 'lib/base-map'), { NEXT_PUBLIC_MAPBOX_TOKEN: 'pk.token' });
+  const mapboxStyle = {
+    getStyle: () => ({
+      sources: {
+        composite: {
+          attribution: '<a href="https://www.mapbox.com/about/maps/" target="_blank" title="Mapbox">&copy; Mapbox</a> <a href="https://www.openstreetmap.org/about/" target="_blank">&copy; OpenStreetMap</a> <a class="mapbox-improve-map" href="https://www.mapbox.com/contribute/" target="_blank">Improve this map</a>',
+        },
+        extra: { attribution: '© OpenStreetMap' },
+        lines: { type: 'geojson' },
+      },
+    }),
+  };
+  assert.equal(mapCreditText(mapboxStyle, 'mapbox'), '© Mapbox © OpenStreetMap');
+  assert.equal(mapCreditText({ getStyle: () => ({ sources: {} }) }, 'mapbox'), '© Mapbox © OpenStreetMap');
+  assert.equal(mapCreditText(null, 'amazon'), '© Amazon Location Service © OpenStreetMap');
+  assert.equal(mapCreditText(null, null), '');
+});
