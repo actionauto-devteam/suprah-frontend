@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Notification } from '@/types/notification';
 import { useCrmToken } from '@/hooks/useCrmToken';
 import { useAuth } from '@/providers/AuthProvider';
-import { initializeSocket } from '@/lib/socket.client';
+import type { Socket } from 'socket.io-client';
+import { initializeSocket, onSocketChange } from '@/lib/socket.client';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -318,23 +319,38 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
 
             const onConnect = () => reconcile();
 
-            socket.on('crm:notification:new', onNew);
-            socket.on('crm:notification:updated', onUpdated);
-            socket.on('crm:notification:read', onRead);
-            socket.on('crm:notification:readAll', onReadAll);
-            socket.on('crm:notification:deleted', onDeleted);
-            socket.on('crm:notification:deleteAllRead', onDeleteAllRead);
-            socket.on('connect', onConnect);
+            let boundSocket: Socket | null = null;
+            const unbind = () => {
+                if (!boundSocket) return;
+                boundSocket.off('crm:notification:new', onNew);
+                boundSocket.off('crm:notification:updated', onUpdated);
+                boundSocket.off('crm:notification:read', onRead);
+                boundSocket.off('crm:notification:readAll', onReadAll);
+                boundSocket.off('crm:notification:deleted', onDeleted);
+                boundSocket.off('crm:notification:deleteAllRead', onDeleteAllRead);
+                boundSocket.off('connect', onConnect);
+                boundSocket = null;
+            };
+            const bind = (next: Socket) => {
+                if (boundSocket === next) return;
+                unbind();
+                next.on('crm:notification:new', onNew);
+                next.on('crm:notification:updated', onUpdated);
+                next.on('crm:notification:read', onRead);
+                next.on('crm:notification:readAll', onReadAll);
+                next.on('crm:notification:deleted', onDeleted);
+                next.on('crm:notification:deleteAllRead', onDeleteAllRead);
+                next.on('connect', onConnect);
+                boundSocket = next;
+            };
 
-            cleanups.push(
-                () => socket.off('crm:notification:new', onNew),
-                () => socket.off('crm:notification:updated', onUpdated),
-                () => socket.off('crm:notification:read', onRead),
-                () => socket.off('crm:notification:readAll', onReadAll),
-                () => socket.off('crm:notification:deleted', onDeleted),
-                () => socket.off('crm:notification:deleteAllRead', onDeleteAllRead),
-                () => socket.off('connect', onConnect),
-            );
+            bind(socket);
+            const stopWatching = onSocketChange(next => {
+                bind(next);
+                reconcile();
+            });
+
+            cleanups.push(stopWatching, unbind);
         };
 
         attachSocketListeners().catch(() => {});

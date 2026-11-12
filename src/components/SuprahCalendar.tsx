@@ -864,7 +864,7 @@ export default function SuprahCalendar() {
           <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
             <SheetContent
               side="bottom"
-              className="flex max-h-[80dvh] flex-col gap-0 rounded-t-2xl border-border p-0 pb-[max(env(safe-area-inset-bottom),1rem)]"
+              className="flex max-h-[80dvh] flex-col gap-0 rounded-t-2xl border-border p-0 pb-[max(env(safe-area-inset-bottom),1rem)] outline-hidden"
             >
               <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
                 <SheetTitle className="text-base font-semibold">Filters</SheetTitle>
@@ -904,6 +904,7 @@ export default function SuprahCalendar() {
                   emptyLabel="No statuses."
                 />
                 <SavedViewsMenu
+                  inline
                   current={{ teamFilter, typeFilter, statusFilter, query }}
                   onApply={applySavedView}
                 />

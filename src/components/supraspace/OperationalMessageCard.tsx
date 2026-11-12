@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { AlertTriangle, BellRing, Check, Clock3, Copy, FileText, MapPin } from 'lucide-react';
 import { normalizeSupraSpaceExternalQuoteArtifacts } from '@/lib/supra-space-message-formatting';
+import { fmtTimeMDT } from '@/lib/timezone';
 
 export type OperationalMessageKind = 'daypulse' | 'shift-alert';
 
@@ -24,7 +25,7 @@ const DAYPULSE_CROSS_LINE_DELIMITER_PATTERN = /^(\*{1,3})(?=\S)(?![^\n]*\1)([^\n
 function timeLabel(value?: string): string | null {
   if (!value) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return Number.isNaN(date.getTime()) ? null : fmtTimeMDT(date);
 }
 
 function cleanDayPulseLabel(line: string): string {

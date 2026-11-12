@@ -23,7 +23,7 @@ export function timeAgo(dateStr: string): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
 }
 
 /** Consistent glass card shell used across the redesigned dashboard widgets. */

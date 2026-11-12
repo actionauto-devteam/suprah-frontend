@@ -192,13 +192,14 @@ function timeAgo(dateStr: string): string {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   if (d < 7) return `${d}d ago`
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" })
 }
 
 function fullDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString("en-US", {
     weekday: "short", month: "short", day: "numeric",
     year: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZone: "America/Denver", timeZoneName: "short",
   })
 }
 

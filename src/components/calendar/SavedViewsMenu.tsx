@@ -51,9 +51,11 @@ function writeViews(views: CalendarSavedView[]): void {
 export function SavedViewsMenu({
   current,
   onApply,
+  inline = false,
 }: {
   current: CurrentFilters;
   onApply: (view: CalendarSavedView) => void;
+  inline?: boolean;
 }) {
   const [views, setViews] = React.useState<CalendarSavedView[]>([]);
   const [saving, setSaving] = React.useState(false);
@@ -95,6 +97,76 @@ export function SavedViewsMenu({
     current.statusFilter.length > 0 ||
     current.query.trim().length > 0;
 
+  const panel = (
+    <Command>
+      <CommandList>
+        <CommandGroup heading="Saved views">
+          {views.map((v) => (
+            <CommandItem
+              key={v.id}
+              onSelect={() => {
+                onApply(v);
+                setOpen(false);
+              }}
+              className="justify-between"
+            >
+              <span className="truncate">{v.name}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove(v.id);
+                }}
+                aria-label={`Delete "${v.name}"`}
+                className="ml-2 shrink-0 rounded p-0.5 text-muted-foreground transition hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        <CommandEmpty>No saved views yet.</CommandEmpty>
+      </CommandList>
+      <CommandSeparator />
+      <div className="p-2">
+        {saving ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveCurrent();
+                if (e.key === "Escape") setSaving(false);
+              }}
+              placeholder="View name"
+              className="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={saveCurrent}>
+              Save
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasActiveFilters}
+            className="h-7 w-full gap-1.5 text-xs"
+            onClick={() => setSaving(true)}
+          >
+            <Save className="h-3.5 w-3.5" />
+            Save current filters
+          </Button>
+        )}
+      </div>
+    </Command>
+  );
+
+  if (inline) {
+    return <div className="w-full overflow-hidden rounded-lg border border-border">{panel}</div>;
+  }
+
   return (
     <Popover
       open={open}
@@ -113,70 +185,8 @@ export function SavedViewsMenu({
           Views
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(92vw,240px)] p-0" align="end">
-        <Command>
-          <CommandList>
-            <CommandEmpty>No saved views yet.</CommandEmpty>
-            <CommandGroup heading="Saved views">
-              {views.map((v) => (
-                <CommandItem
-                  key={v.id}
-                  onSelect={() => {
-                    onApply(v);
-                    setOpen(false);
-                  }}
-                  className="justify-between"
-                >
-                  <span className="truncate">{v.name}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      remove(v.id);
-                    }}
-                    aria-label={`Delete "${v.name}"`}
-                    className="ml-2 shrink-0 rounded p-0.5 text-muted-foreground transition hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-          <CommandSeparator />
-          <div className="p-2">
-            {saving ? (
-              <div className="flex items-center gap-1.5">
-                <input
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveCurrent();
-                    if (e.key === "Escape") setSaving(false);
-                  }}
-                  placeholder="View name"
-                  className="h-7 min-w-0 flex-1 rounded border border-border bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground"
-                />
-                <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={saveCurrent}>
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!hasActiveFilters}
-                className="h-7 w-full gap-1.5 text-xs"
-                onClick={() => setSaving(true)}
-              >
-                <Save className="h-3.5 w-3.5" />
-                Save current filters
-              </Button>
-            )}
-          </div>
-        </Command>
+      <PopoverContent className="w-[min(92vw,240px)] p-0" align="end" collisionPadding={16}>
+        {panel}
       </PopoverContent>
     </Popover>
   );

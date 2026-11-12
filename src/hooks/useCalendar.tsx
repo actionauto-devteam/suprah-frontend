@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
+import { useAuth } from "@/providers/AuthProvider";
 import type { CalendarItem, EventDraft } from "@/types/calendar.types";
 
 type SocketPayload =
@@ -10,6 +11,7 @@ type SocketPayload =
   | { source: string; id: string };
 
 export function useCalendar(rangeStart: Date, rangeEnd: Date) {
+  const { getToken, isSignedIn } = useAuth();
   const [items, setItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,9 +44,9 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
 
   /** Real-time sync — same events the Appointment calendar emits, over the shared CRM socket connection. */
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("crm_token") : null;
-    if (!token) return;
-    const socket = initializeSocket(token);
+    if (!isSignedIn) return;
+    let cancelled = false;
+    let detach = () => {};
 
     const inRange = (it: CalendarItem) =>
       new Date(it.start) < range.current.to &&
@@ -82,18 +84,28 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
     // happened to change the date range. Refetching on every "connect"
     // (including the first) resyncs it either way.
     const onConnect = () => void refetch();
-    socket.on("connect", onConnect);
 
-    socket.on("calendar:created", onCreated);
-    socket.on("calendar:updated", onUpdated);
-    socket.on("calendar:deleted", onDeleted);
+    void (async () => {
+      const token = await getToken();
+      if (!token || cancelled) return;
+      const socket = initializeSocket(token);
+      socket.on("connect", onConnect);
+      socket.on("calendar:created", onCreated);
+      socket.on("calendar:updated", onUpdated);
+      socket.on("calendar:deleted", onDeleted);
+      detach = () => {
+        socket.off("connect", onConnect);
+        socket.off("calendar:created", onCreated);
+        socket.off("calendar:updated", onUpdated);
+        socket.off("calendar:deleted", onDeleted);
+      };
+    })();
+
     return () => {
-      socket.off("connect", onConnect);
-      socket.off("calendar:created", onCreated);
-      socket.off("calendar:updated", onUpdated);
-      socket.off("calendar:deleted", onDeleted);
+      cancelled = true;
+      detach();
     };
-  }, [refetch]);
+  }, [refetch, getToken, isSignedIn]);
 
   const createItem = useCallback(async (draft: EventDraft) => {
     const res = await apiClient.post<{ item: CalendarItem }>(
