@@ -6,6 +6,7 @@ import { Archive, Car, Loader2, Package, RefreshCw } from "lucide-react";
 import { CarInventoryCard, preloadInventoryVehicleImages } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
 import { DeferredInventoryModal } from "@/components/inventory/DeferredInventoryModal";
+import { VehicleVideoDialog } from "@/components/inventory/VehicleVideoDialog";
 import { VehicleShippingTag } from "@/components/inventory/VehicleShippingTag";
 import { VehicleStatusControl } from "@/components/inventory/VehicleStatusControl";
 import { isVehicleOnTheWay } from "@/lib/vehicle-status";
@@ -478,6 +479,7 @@ function InventoryContent() {
     setInquiryOpen,
     setFinanceOpen,
     setShippingOpen,
+    setVideoOpen,
     handleVehicleClick,
     handleCheckAvailability,
     handleApplyNow,
@@ -1482,6 +1484,9 @@ function InventoryContent() {
           </div>
         )}
       </div>
+
+      {/* The Video button's window: plays the car's video, or says there isn't one yet (2026-11-13). */}
+      <VehicleVideoDialog open={openModals.video} onOpenChange={setVideoOpen} vehicle={selectedVehicle} />
 
       <DeferredInventoryModal open={openModals.shipping} onClose={() => setShippingOpen(false)}>
         <ShippingQuoteModal
