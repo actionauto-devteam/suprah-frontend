@@ -1143,7 +1143,7 @@ function DispatcherConversationList({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2 [scrollbar-width:thin]">
         {threads.length > 0 ? (
           <div className="space-y-1.5">
             {threads.map((thread) => {
@@ -1367,7 +1367,7 @@ export function ConversationDetailsPanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-3 [scrollbar-width:thin]">
         {loading ? (
           <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
             <Loader2 className="mr-2 size-4 animate-spin" /> Loading conversation history…
@@ -3432,7 +3432,8 @@ export function DispatchChatDialog({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div
           ref={timelineScrollRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-3 py-4 [overflow-anchor:none] sm:px-5"
+          // Never scrolls sideways: long messages wrap onto more lines (2026-11-12).
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-background px-3 py-4 [overflow-anchor:none] sm:px-5"
         >
           {currentUserIsDriver && !selectedThreadId ? (
             <div className="flex h-full flex-col items-center justify-center px-6 text-center">
@@ -3574,7 +3575,7 @@ export function DispatchChatDialog({
                     }`}
                   >
                     <div
-                      className={`flex max-w-[88%] sm:max-w-[78%] flex-col ${
+                      className={`flex min-w-0 max-w-[88%] sm:max-w-[78%] flex-col ${
                         mine ? "items-end" : "items-start"
                       }`}
                     >
@@ -3592,8 +3593,8 @@ export function DispatchChatDialog({
                       <div
                         className={
                           mine
-                            ? "min-w-28 rounded-2xl rounded-br-md bg-emerald-600 px-3.5 py-2.5 text-sm text-white shadow-sm"
-                            : "min-w-28 rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 px-3.5 py-2.5 text-sm shadow-sm"
+                            ? "min-w-28 max-w-full rounded-2xl rounded-br-md bg-emerald-600 px-3.5 py-2.5 text-sm text-white shadow-sm"
+                            : "min-w-28 max-w-full rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 px-3.5 py-2.5 text-sm shadow-sm"
                         }
                       >
                         {message.content && (

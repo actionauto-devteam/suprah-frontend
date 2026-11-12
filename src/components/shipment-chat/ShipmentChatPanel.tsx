@@ -392,7 +392,7 @@ export function ShipmentChatPanel({ source, fallbackName, onActivity }: Shipment
         role="log"
         aria-live="polite"
         aria-label={`Messages with ${otherName}`}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4"
       >
         {hasOlder && (
           <li className="flex justify-center">

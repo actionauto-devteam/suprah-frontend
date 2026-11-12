@@ -161,7 +161,7 @@ export function ChatDetailsPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:thin]">
         <div className="flex flex-col items-center px-4 pb-4 pt-7 text-center">
           {avatar}
           <p className="mt-3 max-w-full break-words text-xl font-bold leading-tight [overflow-wrap:anywhere]">{name}</p>

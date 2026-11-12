@@ -96,7 +96,7 @@ export function NewDispatchMessageDialog({
             Write to the dispatcher of a load you have now, or one you delivered in the last 30 days.
           </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 sm:px-5">
           {contacts.length === 0 ? (
             <div className="flex flex-col items-center px-4 py-8 text-center">
               <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10">
