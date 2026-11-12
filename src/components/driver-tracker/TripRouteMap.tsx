@@ -38,7 +38,9 @@ export function tripPaths(points: TripRoutePoint[]): Array<{ driverId: string; p
 export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]; driverNames: Map<string, string> }) {
   const { theme } = useTheme();
   const mapTheme: BaseMapTheme = theme === "dark" ? "dark" : "light";
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  // The map's box. Trip history is a pop-up window that adds its content a
+  // moment after it opens, so the map is made once the box is on the page (2026-11-12).
+  const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
   const mapRef = React.useRef<BaseMap | null>(null);
   const [status, setStatus] = React.useState<{ kind: "loading" | "ready" | "error"; message?: string }>({ kind: "loading" });
 
@@ -50,7 +52,6 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
   }, [mapTheme]);
 
   React.useEffect(() => {
-    const container = containerRef.current;
     if (!BASE_MAP_PROVIDER || !container || points.length === 0) return;
     let cancelled = false;
     const failed = () => {
@@ -93,7 +94,7 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [points, paths]);
+  }, [container, points, paths]);
 
   React.useEffect(() => {
     mapRef.current?.setLook(mapTheme, "map");
@@ -104,7 +105,7 @@ export function TripRouteMap({ points, driverNames }: { points: TripRoutePoint[]
   return (
     <div className="space-y-2">
       <div className="relative h-64 overflow-hidden rounded-xl border border-border/60 bg-muted/20 sm:h-80">
-        <div ref={containerRef} className="h-full w-full" />
+        <div ref={setContainer} className="h-full w-full" />
         {status.kind !== "ready" && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/40 px-4 text-center" role="status">
             {status.kind === "loading" ? (
