@@ -59,6 +59,8 @@ import {
 } from "@/lib/feed-notification-store"
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react"
 import DayPulsePage from "@/components/DayPulsePage"
+import { createPortal } from "react-dom"
+import { AttachmentLightbox } from "@/components/chat/AttachmentLightbox"
 
 
 interface Attachment {
@@ -595,7 +597,15 @@ function Divider({ label, className = "" }: { label?: string; className?: string
 // --- Attachment Preview Modal --------------------------------------------------
 
 function AttachmentPreviewModal({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
-  const imageLike = isImageAttachment(attachment)
+  if (isImageAttachment(attachment)) {
+    return createPortal(
+      <AttachmentLightbox
+        attachment={{ src: attachment.url, type: "image", name: attachment.originalName }}
+        onClose={onClose}
+      />,
+      document.body,
+    )
+  }
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} />
@@ -607,19 +617,15 @@ function AttachmentPreviewModal({ attachment, onClose }: { attachment: Attachmen
           </Button>
         </div>
         <div className="p-5">
-          {imageLike ? (
-            <img src={attachment.url} alt={attachment.originalName} className="max-h-[70vh] w-full rounded-2xl object-contain bg-muted/15" />
-          ) : (
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/40 bg-muted/15 px-6 py-12 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
-                <FileText className="h-6 w-6" />
-              </div>
-              <p className="text-xs text-muted-foreground/60">{formatBytes(attachment.size)}</p>
-              <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs">
-                <a href={attachment.url} target="_blank" rel="noreferrer">Open attachment</a>
-              </Button>
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/40 bg-muted/15 px-6 py-12 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+              <FileText className="h-6 w-6" />
             </div>
-          )}
+            <p className="text-xs text-muted-foreground/60">{formatBytes(attachment.size)}</p>
+            <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs">
+              <a href={attachment.url} target="_blank" rel="noreferrer">Open attachment</a>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -646,7 +652,8 @@ function AttachmentGrid({ attachments, compact = false }: { attachments: Attachm
                 key={a.fileKey}
                 type="button"
                 onClick={() => setPreview(a)}
-                className="overflow-hidden rounded-2xl border border-border/40 bg-muted/15"
+                title="Click to enlarge"
+                className="cursor-zoom-in overflow-hidden rounded-2xl border border-border/40 bg-muted/15"
               >
                 <img
                   src={single ? a.url : (a.thumbnailUrl || a.url)}

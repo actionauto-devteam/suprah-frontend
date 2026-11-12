@@ -409,8 +409,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           {canGrantPayroll && (form.role === "admin" || form.role === "manager") && (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3">
               <div>
-                <Label className="text-xs font-semibold text-foreground">Payroll Access</Label>
-                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Lets this person see other users&apos; Payout Calculator, hourly rate, Payroll Status, and OT Report. Their own payout calculator is always visible to them.</p>
+                <Label className="text-xs font-semibold text-foreground">View Users Access</Label>
+                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Shows the View Users button in Timeproof. Lets this person see everyone&apos;s time records, screenshots, idle recordings, Payout Calculator, hourly rate, Payroll Status, and OT Report. Their own Timeproof is always visible to them.</p>
               </div>
               <Switch
                 checked={form.payrollAccess}

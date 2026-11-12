@@ -4,7 +4,8 @@ import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, AlertTriangle, ImageOff, Download, VideoOff } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
-import type { IdlePeriod } from "@/components/crm/timeproof/shared"
+import { ViewUsersNoAccess, type IdlePeriod } from "@/components/crm/timeproof/shared"
+import { useCrmUser } from "@/hooks/useCrmUser"
 import { toMDT } from "@/lib/timezone"
 
 interface Screenshot {
@@ -81,6 +82,7 @@ export default function IdleRecordScreenshotsPage() {
 
   const dateStr = params.date as string
   const userId = searchParams.get("userId") ?? undefined
+  const { user: currentUser } = useCrmUser()
 
   const [idlePeriods, setIdlePeriods] = React.useState<IdlePeriod[]>([])
   const [screenshots, setScreenshots] = React.useState<Screenshot[]>([])
@@ -146,6 +148,8 @@ export default function IdleRecordScreenshotsPage() {
       .catch((e: any) => setError(e?.response?.data?.message || "Failed to load idle records."))
       .finally(() => setLoading(false))
   }, [dateStr, userId, router])
+
+  if (userId && currentUser && !currentUser.payrollAccess) return <ViewUsersNoAccess />
 
   return (
     <div className="min-h-screen bg-background timeproof-scope">

@@ -24,6 +24,7 @@ import {
 import { apiClient } from "@/lib/api-client"
 import { toMDT } from "@/lib/timezone"
 import { useCrmUser } from "@/hooks/useCrmUser"
+import { ViewUsersNoAccess } from "@/components/crm/timeproof/shared"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { initializeSocket } from "@/lib/socket.client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -556,6 +557,8 @@ export default function AdminShiftBoardPage() {
   const onBreakCount = matchingUsers.filter((u) => matchesStatus(u, "on-break")).length
   const idleCount = matchingUsers.filter((u) => matchesStatus(u, "idle")).length
   const overBreakCount = matchingUsers.filter((u) => u.isLive && u.isBreakExceeded).length
+
+  if (currentUser && !currentUser.payrollAccess) return <ViewUsersNoAccess />
 
   return (
     <div className="min-h-screen bg-background timeproof-scope">

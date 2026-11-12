@@ -7,6 +7,8 @@ import { apiClient } from "@/lib/api-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { resolveImageUrl } from "@/lib/utils"
+import { useCrmUser } from "@/hooks/useCrmUser"
+import { ViewUsersNoAccess } from "@/components/crm/timeproof/shared"
 
 interface FormerEmployee {
   _id: string
@@ -34,6 +36,7 @@ const autoDeleteDate = (offboardedAt: string) =>
 
 export default function FormerEmployeesPage() {
   const router = useRouter()
+  const { user: currentUser } = useCrmUser()
   const [employees, setEmployees] = React.useState<FormerEmployee[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
@@ -54,6 +57,8 @@ export default function FormerEmployeesPage() {
   }, [router])
 
   React.useEffect(() => { fetchData() }, [fetchData])
+
+  if (currentUser && !currentUser.payrollAccess) return <ViewUsersNoAccess />
 
   return (
     <div className="min-h-screen bg-background timeproof-scope">
