@@ -239,3 +239,53 @@ export async function createBaseMap(
     },
   }
 }
+
+// ─── The live maps (2026-11-12) ──────────────────────────────────────────────
+// Driver Tracker, the driver's dashboard and the available-load map draw their
+// own layers, so they take the map library itself: MapLibre with Amazon's
+// style when its key is set, otherwise Mapbox, the same choice as above. Both
+// libraries share the calls those maps make. Google is no longer used.
+
+export type LiveMapLibrary = typeof import("mapbox-gl").default
+export const LIVE_MAP_PROVIDER: BaseMapProvider | null = BASE_MAP_PROVIDER
+
+let liveLibrary: Promise<LiveMapLibrary> | null = null
+
+/** The live maps' library, loaded once; null when no map is set up. */
+export function loadLiveMapLibrary(): Promise<LiveMapLibrary> | null {
+  if (!BASE_MAP_PROVIDER) return null
+  if (!liveLibrary) liveLibrary = loadLibrary(BASE_MAP_PROVIDER).then((library) => library as unknown as LiveMapLibrary)
+  return liveLibrary
+}
+
+/** A live map's style: Amazon's when its key is set, otherwise that map's own Mapbox style. */
+export function liveMapStyle(theme: BaseMapTheme, mapboxStyles: { light: string; dark: string }): string {
+  return BASE_MAP_PROVIDER === "amazon"
+    ? amazonStyleUrl({ key: AMAZON_KEY, region: AMAZON_REGION, theme, view: "map" })
+    : mapboxStyles[theme]
+}
+
+type StyledMap = { getStyle?: () => { layers?: Array<{ type?: string; layout?: Record<string, unknown> }> } | undefined }
+
+// Style expressions start with one of these; a font list never does.
+const EXPRESSION_OPERATORS = new Set(["get", "literal", "step", "match", "case", "coalesce", "interpolate", "array", "string", "concat", "format"])
+
+/** The font list a map style uses for its own labels, or undefined when it has none. */
+export function styleTextFont(map: StyledMap): string[] | undefined {
+  for (const layer of map.getStyle?.()?.layers ?? []) {
+    let font = layer.type === "symbol" ? layer.layout?.["text-font"] : undefined
+    if (Array.isArray(font) && font[0] === "literal" && Array.isArray(font[1])) font = font[1]
+    if (!Array.isArray(font) || font.length === 0 || EXPRESSION_OPERATORS.has(font[0])) continue
+    if (font.every((name) => typeof name === "string")) return font as string[]
+  }
+  return undefined
+}
+
+/**
+ * The font for labels drawn on a live map (cluster counts, driver initials).
+ * Amazon's map only has its own fonts, so those labels use the style's font
+ * there; Mapbox keeps its default.
+ */
+export function liveMapLabelFont(map: StyledMap): string[] | undefined {
+  return BASE_MAP_PROVIDER === "amazon" ? styleTextFont(map) : undefined
+}

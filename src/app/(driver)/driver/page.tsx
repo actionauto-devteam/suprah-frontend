@@ -11,7 +11,6 @@ import {
   WaitingForSignalNotice,
 } from "@/hooks/useSendWhenBackOnline";
 import {
-  createGoogleNextStopLayer,
   createMapboxNextStopLayer,
   NEXT_STOP_COLORS,
   type NextStopLayer,
@@ -22,16 +21,7 @@ import { nextStopForMap, placeAddressText, placePin } from "@/lib/load-navigatio
 import { LoadRouteSummary } from "@/components/driver-tracker/LoadRoutePanel";
 import { useLoadRoute } from "@/hooks/useLoadRoute";
 import { mapRouteOf } from "@/lib/load-route-lines";
-import {
-  createGoogleMap,
-  GOOGLE_MAPS_KEY_REJECTED,
-  googleMapsConfig,
-  loadGoogleMaps,
-  onGoogleMapsAuthFailure,
-  type GoogleMapsLibraries,
-  type LngLatTuple,
-  type MapCamera,
-} from "@/lib/google-maps";
+import { LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from "@/lib/base-map";
 import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
 import { stopsFollowing } from "@/lib/map-follow";
 import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrackingReminder";
@@ -209,9 +199,8 @@ const LIVE_STATUS_LABEL: Record<DriverStatus, string> = {
 const MAP_CENTER: [number, number] = [-98.5795, 39.8283];
 // The best route to the next stop exists while the driver is on the trip.
 const ROUTE_LOAD_STATUSES = ["Accepted", "Picked Up", "In-Transit"];
-// Google Maps once its browser settings are present; Mapbox until then.
-const GOOGLE_MAPS = googleMapsConfig();
 const OWN_LOCATION_MARKER_HTML = `<div style="width:22px;height:22px;border-radius:50%;background:#10b981;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);position:relative"><div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid #10b981;opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div></div>`;
+// Amazon Location's map when its browser key is set, these Mapbox styles until then (lib/base-map, 2026-11-12).
 const MAP_STYLE_BY_THEME = {
   dark: "mapbox://styles/mapbox/navigation-night-v1",
   light: "mapbox://styles/mapbox/streets-v12",
@@ -491,9 +480,6 @@ export default function DriverDashboardPage() {
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
-  const googleMapRef = React.useRef<google.maps.Map | null>(null);
-  const googleLibrariesRef = React.useRef<GoogleMapsLibraries | null>(null);
-  const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
   const centeredOnOwnLocationRef = React.useRef(false);
   // The map follows the driver's own position until they drag it to look
   // around; Follow my location brings it back (2026-11-06).
@@ -501,7 +487,6 @@ export default function DriverDashboardPage() {
   const followingSelfRef = React.useRef(true);
   // The driver's own drag or zoom is under way: following waits for it.
   const mapGestureRef = React.useRef(false);
-  const [googleMapGeneration, setGoogleMapGeneration] = React.useState(0);
 
   const [currentTime, setCurrentTime] = React.useState(new Date());
   React.useEffect(() => {
@@ -832,24 +817,17 @@ export default function DriverDashboardPage() {
       nextStopLayerRef.current = created;
       created.update(nextStopStateRef.current);
     };
-    if (GOOGLE_MAPS) {
-      const googleMap = googleMapRef.current;
-      const libraries = googleLibrariesRef.current;
-      if (!googleMap || !libraries) return;
-      attach(createGoogleNextStopLayer(googleMap, libraries, framedStopsRef.current));
-    } else {
-      void import("mapbox-gl")
-        .then(({ default: mapboxgl }) => {
-          if (!cancelled && mapRef.current === map) attach(createMapboxNextStopLayer(map, mapboxgl, framedStopsRef.current));
-        })
-        .catch(() => {});
-    }
+    void Promise.resolve(loadLiveMapLibrary())
+      .then((mapboxgl) => {
+        if (mapboxgl && !cancelled && mapRef.current === map) attach(createMapboxNextStopLayer(map, mapboxgl, framedStopsRef.current));
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
       layer?.dispose();
       if (nextStopLayerRef.current === layer) nextStopLayerRef.current = null;
     };
-  }, [mapReady, googleMapGeneration]);
+  }, [mapReady]);
   const pendingRequestsByRecency = React.useMemo(
     () =>
       [...pendingLoadRequests].sort(
@@ -969,35 +947,34 @@ export default function DriverDashboardPage() {
   }, [currentLoadId, currentLoadHasPendingRelease]);
 
   React.useEffect(() => {
-    if (GOOGLE_MAPS || !mapboxToken || !mapContainerRef.current || mapRef.current) return;
+    if (!LIVE_MAP_PROVIDER || !mapContainerRef.current || mapRef.current) return;
 
     let cancelled = false;
 
     const initMap = async () => {
       try {
-        const mapboxgl = (await import("mapbox-gl")).default;
-        if (cancelled || !mapContainerRef.current) return;
+        const mapboxgl = await loadLiveMapLibrary();
+        if (cancelled || !mapContainerRef.current || !mapboxgl) return;
 
         // Problems show as a still message (mapError), never under the
         // loading spinner (mapNotice), which would look like endless loading.
-        if (!mapboxToken.startsWith("pk.")) {
+        if (LIVE_MAP_PROVIDER === "mapbox" && !mapboxToken?.startsWith("pk.")) {
           logMapProblem("Driver Page", "The Mapbox token isn't a public pk. token");
           setMapError(MAP_MESSAGES.unavailable);
           return;
         }
 
-        if (!mapboxgl.supported()) {
+        if (typeof mapboxgl.supported === "function" && !mapboxgl.supported()) {
           setMapError(MAP_MESSAGES.unsupported);
           return;
         }
 
-        mapboxgl.accessToken = mapboxToken;
         setMapNotice(MAP_MESSAGES.loading);
 
         mapThemeRef.current = theme;
         const map = new mapboxgl.Map({
           container: mapContainerRef.current,
-          style: MAP_STYLE_BY_THEME[theme],
+          style: liveMapStyle(theme, MAP_STYLE_BY_THEME),
           center: MAP_CENTER,
           zoom: 4,
           attributionControl: false,
@@ -1085,116 +1062,6 @@ export default function DriverDashboardPage() {
     };
   }, [mapboxToken]);
 
-  // Google Maps. The color scheme is fixed when a Google map is created, so a
-  // theme change creates the map again at the same place and zoom.
-  React.useEffect(() => {
-    const config = GOOGLE_MAPS;
-    if (!config || !mapContainerRef.current) return;
-    let cancelled = false;
-    let camera: MapCamera | null = null;
-    let loadTimeout = 0;
-    let keyTarget: HTMLElement | null = null;
-    const stopFollowing = () => {
-      followingSelfRef.current = false;
-      setFollowingSelf(false);
-    };
-    const onArrowKeys = (event: KeyboardEvent) => {
-      if (stopsFollowing(event)) stopFollowing();
-    };
-
-    const stopAuthWatch = onGoogleMapsAuthFailure(() => {
-      if (cancelled) return;
-      setMapNotice(null);
-      setMapError(GOOGLE_MAPS_KEY_REJECTED);
-    });
-
-    const initGoogleMap = async () => {
-      let libraries: GoogleMapsLibraries;
-      try {
-        libraries = await loadGoogleMaps(config);
-      } catch (error) {
-        if (cancelled) return;
-        logMapProblem("Driver Page", error);
-        setMapNotice(null);
-        setMapError(MAP_MESSAGES.failed);
-        return;
-      }
-      if (cancelled || !mapContainerRef.current) return;
-
-      const view = googleViewRef.current;
-      setMapNotice(view ? MAP_MESSAGES.updating : MAP_MESSAGES.loading);
-      const created = createGoogleMap(libraries, mapContainerRef.current, {
-        config,
-        theme: theme === "dark" ? "dark" : "light",
-        center: view?.center ?? MAP_CENTER,
-        zoom: view?.zoom ?? 4,
-      });
-      camera = created.camera;
-      googleMapRef.current = created.map;
-      googleLibrariesRef.current = libraries;
-      mapRef.current = camera;
-      // Dragging the map or the arrow keys stop following the driver.
-      created.map.addListener("dragstart", stopFollowing);
-      keyTarget = mapContainerRef.current;
-      keyTarget.addEventListener("keydown", onArrowKeys);
-      markerRef.current = null;
-      // The location marker is created again on the new map.
-      setGoogleMapGeneration((generation) => generation + 1);
-
-      loadTimeout = window.setTimeout(() => {
-        if (!cancelled) setMapNotice(MAP_MESSAGES.slow);
-      }, 8000);
-      created.map.addListener("tilesloaded", () => {
-        window.clearTimeout(loadTimeout);
-        if (cancelled) return;
-        setMapReady(true);
-        setMapNotice(null);
-      });
-      // Remember the view, so a theme change reopens the map at the same place.
-      created.map.addListener("idle", () => {
-        const center = created.map.getCenter();
-        if (center) googleViewRef.current = { center: [center.lng(), center.lat()], zoom: created.map.getZoom() ?? 4 };
-      });
-    };
-    void initGoogleMap();
-
-    return () => {
-      cancelled = true;
-      stopAuthWatch();
-      keyTarget?.removeEventListener("keydown", onArrowKeys);
-      window.clearTimeout(loadTimeout);
-      camera?.remove();
-      if (mapRef.current === camera) mapRef.current = null;
-      googleMapRef.current = null;
-      markerRef.current = null;
-    };
-  }, [theme]);
-
-  // The driver's own location on the Google map.
-  React.useEffect(() => {
-    const map = googleMapRef.current;
-    const libraries = googleLibrariesRef.current;
-    if (!GOOGLE_MAPS || !map || !libraries || !mapReady || !lastCoords) return;
-    const position = { lat: lastCoords.lat, lng: lastCoords.lng };
-    if (markerRef.current) {
-      markerRef.current.position = position;
-      // Following: the map moves with the driver at the zoom they chose.
-      if (followingSelfRef.current) mapRef.current?.easeTo({ center: [lastCoords.lng, lastCoords.lat] });
-      return;
-    }
-    const element = document.createElement("div");
-    element.innerHTML = OWN_LOCATION_MARKER_HTML;
-    markerRef.current = new libraries.marker.AdvancedMarkerElement({ map, position, content: element, title: "Your location" });
-    // Center on the first position only (with the next stop when there is
-    // one); a theme change keeps the driver's view.
-    if (!centeredOnOwnLocationRef.current) {
-      centeredOnOwnLocationRef.current = true;
-      if (!nextStopLayerRef.current?.fit({ preferDriverWhenFar: true })) {
-        mapRef.current?.flyTo({ center: [lastCoords.lng, lastCoords.lat], zoom: 14, essential: true });
-      }
-    }
-  }, [lastCoords, mapReady, googleMapGeneration]);
-
   // Keep Mapbox synchronized with the responsive dashboard card height.
   // The map and Driver Status cards share the same desktop grid row, and the
   // status card can grow when GPS requirements or status requests appear.
@@ -1223,20 +1090,21 @@ export default function DriverDashboardPage() {
 
   React.useEffect(() => {
     const map = mapRef.current;
-    if (GOOGLE_MAPS || !map || mapThemeRef.current === theme) return;
+    if (!map || mapThemeRef.current === theme) return;
     mapThemeRef.current = theme;
     setMapNotice(MAP_MESSAGES.updating);
-    map.setStyle(MAP_STYLE_BY_THEME[theme]);
+    map.setStyle(liveMapStyle(theme, MAP_STYLE_BY_THEME));
     const handleIdle = () => setMapNotice(null);
     map.once("idle", handleIdle);
   }, [theme]);
 
   React.useEffect(() => {
     const map = mapRef.current;
-    if (GOOGLE_MAPS || !map || !mapReady || !lastCoords) return;
+    if (!map || !mapReady || !lastCoords) return;
 
     const updateMarker = async () => {
-      const mapboxgl = (await import("mapbox-gl")).default;
+      const mapboxgl = await loadLiveMapLibrary();
+      if (!mapboxgl) return;
 
       if (!markerRef.current) {
         const el = document.createElement("div");
@@ -2179,7 +2047,7 @@ export default function DriverDashboardPage() {
         <Card className="w-full border-border/70 shadow-sm overflow-hidden bg-card p-0 gap-0">
           <CardContent className="p-0">
             <div className="relative h-[clamp(300px,38vh,360px)] sm:h-[clamp(340px,42vh,430px)] lg:h-[clamp(360px,45vh,500px)] overflow-hidden bg-muted">
-              {GOOGLE_MAPS || mapboxToken ? (
+              {LIVE_MAP_PROVIDER ? (
                 <>
                   <div
                     ref={mapContainerRef}

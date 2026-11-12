@@ -1,6 +1,5 @@
 import type mapboxgl from "mapbox-gl";
 import type { Map as MapboxMap } from "mapbox-gl";
-import type { GoogleMapsLibraries } from "@/lib/google-maps";
 import { withinTripRange } from "@/lib/driver-next-stop";
 import { addMapboxRouteLayers, routeLineFeatures, type MapRoute } from "@/lib/load-route-lines";
 
@@ -8,8 +7,8 @@ import { addMapboxRouteLayers, routeLineFeatures, type MapRoute } from "@/lib/lo
  * The driver's next stop on the Driver Page map: a lettered pin (P for the
  * pickup, D for the delivery) and a dashed straight line from the driver to
  * it. When the best route is known (Amazon Location), the Mapbox map draws
- * the road route instead of the straight line. One version for the current
- * Mapbox map and one for Google Maps; the page talks to both the same way.
+ * the road route instead of the straight line. Drawn on the shared map
+ * (Amazon's when its key is set, Mapbox until then; lib/base-map).
  */
 
 type Point = { lat: number; lng: number };
@@ -200,68 +199,3 @@ export function createMapboxNextStopLayer(map: MapboxMap, mapbox: typeof mapboxg
   };
 }
 
-export function createGoogleNextStopLayer(
-  map: google.maps.Map,
-  libraries: GoogleMapsLibraries,
-  framedStops: Set<string>,
-): NextStopLayer {
-  let state: NextStopMapState = { stop: null, driver: null };
-  let marker: google.maps.marker.AdvancedMarkerElement | null = null;
-  let markerKind: string | null = null;
-  let disposed = false;
-  const line = new libraries.maps.Polyline({
-    map,
-    path: [],
-    strokeOpacity: 0,
-    icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.85, strokeColor: LINE_COLOR, scale: 3 }, offset: "0", repeat: "14px" }],
-  });
-
-  const fit = (options?: FitOptions) => {
-    const points = disposed ? null : framePoints(state, options);
-    if (!points) return false;
-    if (points.length === 1) {
-      map.panTo(points[0]);
-      map.setZoom(14);
-    } else {
-      map.fitBounds(bounds(points), 64);
-      // Two points close together would zoom in all the way.
-      google.maps.event.addListenerOnce(map, "idle", () => {
-        if ((map.getZoom() ?? 0) > 15) map.setZoom(15);
-      });
-    }
-    return true;
-  };
-  const frameNewStop = framing(framedStops, fit);
-
-  return {
-    update(next) {
-      if (disposed) return;
-      state = next;
-      if (!state.stop) {
-        if (marker) marker.map = null;
-        marker = null;
-        markerKind = null;
-      } else if (!marker || markerKind !== state.stop.kind) {
-        if (marker) marker.map = null;
-        marker = new libraries.marker.AdvancedMarkerElement({
-          map,
-          position: state.stop.position,
-          content: stopElement(state.stop.kind),
-          title: state.stop.title,
-        });
-        markerKind = state.stop.kind;
-      } else {
-        marker.position = state.stop.position;
-        marker.title = state.stop.title;
-      }
-      line.setPath(state.stop && state.driver && showLine(state) ? [state.driver, state.stop.position] : []);
-      frameNewStop(state);
-    },
-    fit,
-    dispose() {
-      disposed = true;
-      if (marker) marker.map = null;
-      line.setMap(null);
-    },
-  };
-}

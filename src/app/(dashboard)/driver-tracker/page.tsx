@@ -6,10 +6,8 @@ import * as React from "react";
 import { useTrackerMobileNavigation } from "@/hooks/useTrackerMobileNavigation";
 import { driverAttentionReasons } from "@/lib/driver-tracker-mobile";
 import { createTrackerRequestOwner, requireTrackerArray } from "@/lib/tracker-request-owner";
-import { createDriverFleetLayer, type DriverFleetLayer } from "@/components/driver-tracker/driver-fleet-layer";
-import { createGoogleDriverFleetLayer, type AreaNameLookup } from "@/components/driver-tracker/google-driver-fleet-layer";
+import { createDriverFleetLayer, type AreaNameLookup, type DriverFleetLayer } from "@/components/driver-tracker/driver-fleet-layer";
 import {
-  createGoogleDriverFocusLayer,
   createMapboxDriverFocusLayer,
   EMPTY_DRIVER_FOCUS,
   type DriverFocusLayer,
@@ -21,16 +19,7 @@ import { mapRouteOf } from "@/lib/load-route-lines";
 import { placeAddressText, placePin, type LoadPlace } from "@/lib/load-navigation";
 import type { FollowMode } from "@/components/driver-tracker/DriverTrackerSelectedDriver";
 import { geolocation } from "@/lib/geolocation";
-import {
-  createGoogleMap,
-  GOOGLE_MAPS_KEY_REJECTED,
-  googleMapsConfig,
-  loadGoogleMaps,
-  onGoogleMapsAuthFailure,
-  type GoogleMapsLibraries,
-  type LngLatTuple,
-  type MapCamera,
-} from "@/lib/google-maps";
+import { LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from "@/lib/base-map";
 import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
 import { followModeOnFocus, trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
 import { isActiveLoadStatus } from "@/lib/load-status";
@@ -181,8 +170,8 @@ const DIRECTORY_PAGE_SIZE = 50;
 // Assign / reassign candidates are refreshed on this cadence while visible.
 const ASSIGNABLE_REFRESH_MS = 120000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
-// Google Maps once its browser settings are present; Mapbox until then.
-const GOOGLE_MAPS = googleMapsConfig();
+// Amazon Location's map when its browser key is set, Mapbox until then (lib/base-map, 2026-11-12).
+const DRIVER_TRACKER_MAPBOX_STYLES = { light: "mapbox://styles/mapbox/streets-v12", dark: "mapbox://styles/mapbox/dark-v11" };
 
 // Shown when a request starts before the sign-in token is ready.
 const SIGN_IN_STILL_LOADING = "Your sign-in is still loading. Wait a moment, then try again.";
@@ -439,16 +428,12 @@ export default function DriverTrackerPage() {
   // While the map is still flying in on a driver just chosen, following waits
   // so it doesn't cut that zoom short.
   const focusMoveUntilRef = React.useRef(0);
-  const googleMapRef = React.useRef<google.maps.Map | null>(null);
-  const googleLibrariesRef = React.useRef<GoogleMapsLibraries | null>(null);
-  const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
-  const [googleMapGeneration, setGoogleMapGeneration] = React.useState(0);
   const [trackingNow, setTrackingNow] = React.useState(() => Date.now());
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const normalizedToken = mapboxToken?.trim();
-  const mapConfigured = Boolean(GOOGLE_MAPS || normalizedToken);
+  const mapConfigured = LIVE_MAP_PROVIDER !== null;
 
   const gpsSharingDrivers = React.useMemo(
     () => drivers.filter((d) => trackingState(d, trackingNow).kind === "live"),
@@ -2216,7 +2201,7 @@ export default function DriverTrackerPage() {
   ]);
 
   React.useEffect(() => {
-    if (GOOGLE_MAPS || !normalizedToken || !mapRef.current || mapInstanceRef.current) return;
+    if (!LIVE_MAP_PROVIDER || !mapRef.current || mapInstanceRef.current) return;
 
     let cancelled = false;
 
@@ -2224,30 +2209,26 @@ export default function DriverTrackerPage() {
       setIsMapReady(false);
       setIsMapTransitioning(false);
 
-      const mapboxgl = (await import("mapbox-gl")).default;
-      if (cancelled || !mapRef.current) return;
+      const mapboxgl = await loadLiveMapLibrary();
+      if (cancelled || !mapRef.current || !mapboxgl) return;
 
-      if (!normalizedToken.startsWith("pk.")) {
+      if (LIVE_MAP_PROVIDER === "mapbox" && !normalizedToken?.startsWith("pk.")) {
         setIsMapReady(true);
         logMapProblem("Driver Tracker", "The Mapbox token isn't a public pk. token");
         setMapNotice(MAP_MESSAGES.unavailable);
         return;
       }
 
-      if (!mapboxgl.supported()) {
+      if (typeof mapboxgl.supported === "function" && !mapboxgl.supported()) {
         setIsMapReady(true);
         setMapNotice(MAP_MESSAGES.unsupported);
         return;
       }
 
-      mapboxgl.accessToken = normalizedToken;
       mapThemeRef.current = theme;
       const map = new mapboxgl.Map({
         container: mapRef.current,
-        style:
-          theme === "dark"
-            ? "mapbox://styles/mapbox/dark-v11"
-            : "mapbox://styles/mapbox/streets-v12",
+        style: liveMapStyle(theme === "dark" ? "dark" : "light", DRIVER_TRACKER_MAPBOX_STYLES),
         center: [MAP_CENTER.lng, MAP_CENTER.lat],
         zoom: 4,
         attributionControl: false,
@@ -2314,89 +2295,9 @@ export default function DriverTrackerPage() {
     };
   }, [normalizedToken]);
 
-  // Google Maps. The color scheme is fixed when a Google map is created, so a
-  // theme change creates the map again at the same place and zoom.
-  React.useEffect(() => {
-    const config = GOOGLE_MAPS;
-    if (!config || !mapRef.current) return;
-    let cancelled = false;
-    let camera: MapCamera | null = null;
-    let loadTimeout = 0;
-
-    const stopAuthWatch = onGoogleMapsAuthFailure(() => {
-      if (cancelled) return;
-      setIsMapReady(true);
-      setIsMapTransitioning(false);
-      setMapNotice(GOOGLE_MAPS_KEY_REJECTED);
-    });
-
-    const initGoogleMap = async () => {
-      let libraries: GoogleMapsLibraries;
-      try {
-        libraries = await loadGoogleMaps(config);
-      } catch (error) {
-        if (cancelled) return;
-        logMapProblem("Driver Tracker", error);
-        setIsMapReady(true);
-        setMapNotice(MAP_MESSAGES.failed);
-        return;
-      }
-      if (cancelled || !mapRef.current) return;
-
-      const view = googleViewRef.current;
-      if (view) {
-        setIsMapTransitioning(true);
-        setMapNotice(theme === "dark" ? "Switching to dark map…" : "Switching to light map…");
-      } else {
-        setMapNotice(MAP_MESSAGES.loading);
-      }
-      const created = createGoogleMap(libraries, mapRef.current, {
-        config,
-        theme: theme === "dark" ? "dark" : "light",
-        center: view?.center ?? [MAP_CENTER.lng, MAP_CENTER.lat],
-        zoom: view?.zoom ?? 4,
-      });
-      camera = created.camera;
-      googleMapRef.current = created.map;
-      googleLibrariesRef.current = libraries;
-      mapInstanceRef.current = camera;
-      // The driver markers are created again on the new map.
-      setGoogleMapGeneration(generation => generation + 1);
-
-      loadTimeout = window.setTimeout(() => {
-        if (cancelled) return;
-        setIsMapReady(true);
-        setIsMapTransitioning(false);
-        setMapNotice(MAP_MESSAGES.slow);
-      }, 8000);
-      created.map.addListener("tilesloaded", () => {
-        window.clearTimeout(loadTimeout);
-        if (cancelled) return;
-        setIsMapReady(true);
-        setIsMapTransitioning(false);
-        setMapNotice(null);
-      });
-      // Remember the view, so a theme change reopens the map at the same place.
-      created.map.addListener("idle", () => {
-        const center = created.map.getCenter();
-        if (center) googleViewRef.current = { center: [center.lng(), center.lat()], zoom: created.map.getZoom() ?? 4 };
-      });
-    };
-    void initGoogleMap();
-
-    return () => {
-      cancelled = true;
-      stopAuthWatch();
-      window.clearTimeout(loadTimeout);
-      camera?.remove();
-      if (mapInstanceRef.current === camera) mapInstanceRef.current = null;
-      googleMapRef.current = null;
-    };
-  }, [theme]);
-
   React.useEffect(() => {
     const map = mapInstanceRef.current;
-    if (GOOGLE_MAPS || !map || mapThemeRef.current === theme) return;
+    if (!map || mapThemeRef.current === theme) return;
 
     mapThemeRef.current = theme;
 
@@ -2408,11 +2309,7 @@ export default function DriverTrackerPage() {
       theme === "dark" ? "Switching to dark map…" : "Switching to light map…",
     );
 
-    map.setStyle(
-      theme === "dark"
-        ? "mapbox://styles/mapbox/dark-v11"
-        : "mapbox://styles/mapbox/streets-v12",
-    );
+    map.setStyle(liveMapStyle(theme === "dark" ? "dark" : "light", DRIVER_TRACKER_MAPBOX_STYLES));
 
     const handleThemeIdle = () => {
       map.resize();
@@ -2445,23 +2342,11 @@ export default function DriverTrackerPage() {
       cameraActionRef.current += 1;
       setFollowMode(mode => (mode === "following" ? "paused" : mode));
     };
-    if (GOOGLE_MAPS) {
-      const googleMap = googleMapRef.current;
-      const libraries = googleLibrariesRef.current;
-      const container = mapRef.current;
-      if (!googleMap || !libraries || !container) return;
-      const googleLayer = createGoogleDriverFleetLayer(googleMap, container, libraries, driver => selectDriverRef.current(driver),
-        pauseFollowOnManualMove, (driverId, signal) => lookupAreaNameRef.current(driverId, signal));
-      fleetLayerRef.current = googleLayer;
-      googleLayer.update(fleetStateRef.current);
-      return () => {
-        googleLayer.dispose();
-        if (fleetLayerRef.current === googleLayer) fleetLayerRef.current = null;
-      };
-    }
-    void import("mapbox-gl").then(({ default: mapboxgl }) => {
-      if (cancelled || mapInstanceRef.current !== map) return;
-      layer = createDriverFleetLayer(map, mapboxgl, driver => selectDriverRef.current(driver), pauseFollowOnManualMove, normalizedToken);
+    void Promise.resolve(loadLiveMapLibrary()).then((mapboxgl) => {
+      if (cancelled || !mapboxgl || mapInstanceRef.current !== map) return;
+      layer = createDriverFleetLayer(map, mapboxgl, driver => selectDriverRef.current(driver), pauseFollowOnManualMove,
+        (driverId, signal) => lookupAreaNameRef.current(driverId, signal),
+        LIVE_MAP_PROVIDER === "mapbox" ? normalizedToken : undefined);
       fleetLayerRef.current = layer;
       layer.update(fleetStateRef.current);
     }).catch((error) => {
@@ -2473,7 +2358,7 @@ export default function DriverTrackerPage() {
       layer?.dispose();
       if (fleetLayerRef.current === layer) fleetLayerRef.current = null;
     };
-  }, [isMapReady, normalizedToken, googleMapGeneration]);
+  }, [isMapReady, normalizedToken]);
 
   React.useEffect(() => {
     fleetLayerRef.current?.update(fleetStateRef.current);
@@ -2587,30 +2472,22 @@ export default function DriverTrackerPage() {
       focusLayerRef.current = created;
       created.update(driverFocusRef.current);
     };
-    if (GOOGLE_MAPS) {
-      const googleMap = googleMapRef.current;
-      const libraries = googleLibrariesRef.current;
-      if (!googleMap || !libraries) return;
-      attach(createGoogleDriverFocusLayer(googleMap, libraries));
-    } else {
-      void import("mapbox-gl")
-        .then(({ default: mapboxgl }) => {
-          if (!cancelled && mapInstanceRef.current === map) attach(createMapboxDriverFocusLayer(map, mapboxgl));
-        })
-        .catch(() => {});
-    }
+    void Promise.resolve(loadLiveMapLibrary())
+      .then((mapboxgl) => {
+        if (mapboxgl && !cancelled && mapInstanceRef.current === map) attach(createMapboxDriverFocusLayer(map, mapboxgl));
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
       layer?.dispose();
       if (focusLayerRef.current === layer) focusLayerRef.current = null;
     };
-  }, [isMapReady, normalizedToken, googleMapGeneration]);
+  }, [isMapReady, normalizedToken]);
 
-  // While following, zooming keeps the driver in the middle of the Mapbox map
-  // (Google zooms where the pointer is; the next update brings the driver back).
+  // While following, zooming keeps the driver in the middle of the map.
   React.useEffect(() => {
     const map = mapInstanceRef.current;
-    if (GOOGLE_MAPS || !map?.scrollZoom || !isMapReady) return;
+    if (!map?.scrollZoom || !isMapReady) return;
     const zoomOptions = followingDriver ? ({ around: "center" } as const) : undefined;
     map.scrollZoom.disable();
     map.scrollZoom.enable(zoomOptions);
