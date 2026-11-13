@@ -59,10 +59,10 @@ interface TransportationMobileDetailsDrawerProps {
 }
 
 const MOBILE_BREAKPOINT = 768;
-const RESIZABLE_MIN_VIEWPORT = 430;
 const MIN_DRAWER_WIDTH = 320;
 const DRAWER_EDGE_GAP = 8;
-const DRAWER_WIDTH_STORAGE_KEY = "transportation:mobile-inspector-width:v1";
+/** The narrowest drag range worth offering a resize handle for. */
+const MIN_RESIZE_RANGE = 48;
 
 function formatQuoteStatus(status?: string) {
   const normalized = String(status || "pending").toLowerCase();
@@ -128,30 +128,19 @@ function RouteBlock({
   );
 }
 
+/**
+ * The details sheet opens across the whole screen (2026-11-13) and can be
+ * dragged narrower from its left edge whenever there's room to.
+ */
 function getDrawerBounds(viewportWidth: number) {
   const maxWidth = Math.max(0, viewportWidth - DRAWER_EDGE_GAP);
   const minWidth = Math.min(MIN_DRAWER_WIDTH, maxWidth);
 
-  if (viewportWidth < RESIZABLE_MIN_VIEWPORT) {
-    return {
-      minWidth: maxWidth,
-      maxWidth,
-      defaultWidth: maxWidth,
-      canResize: false,
-    };
-  }
-
-  const defaultWidth = Math.min(
-    maxWidth,
-    520,
-    Math.max(minWidth, Math.round(viewportWidth * 0.72)),
-  );
-
   return {
     minWidth,
     maxWidth,
-    defaultWidth,
-    canResize: viewportWidth < MOBILE_BREAKPOINT,
+    defaultWidth: maxWidth,
+    canResize: viewportWidth < MOBILE_BREAKPOINT && maxWidth - minWidth >= MIN_RESIZE_RANGE,
   };
 }
 
@@ -213,29 +202,22 @@ export function TransportationMobileDetailsDrawer({
       }
 
       const nextBounds = getDrawerBounds(width);
-      setDrawerWidth((current) => {
-        if (current == null) {
-          let remembered: number | null = null;
-          try {
-            const stored = Number(window.localStorage.getItem(DRAWER_WIDTH_STORAGE_KEY));
-            if (Number.isFinite(stored) && stored > 0) remembered = stored;
-          } catch {
-            // Storage preferences are optional; fall back to the natural width.
-          }
-          return clamp(
-            remembered ?? nextBounds.defaultWidth,
-            nextBounds.minWidth,
-            nextBounds.maxWidth,
-          );
-        }
-        return clamp(current, nextBounds.minWidth, nextBounds.maxWidth);
-      });
+      // No width yet means "the whole screen", which follows a rotation.
+      setDrawerWidth((current) =>
+        current == null ? null : clamp(current, nextBounds.minWidth, nextBounds.maxWidth),
+      );
     };
 
     syncViewport();
     window.addEventListener("resize", syncViewport);
     return () => window.removeEventListener("resize", syncViewport);
   }, [open, onClose]);
+
+  // Each time the sheet opens it fills the screen again; a narrower width
+  // dragged earlier only lasts while it stays open.
+  React.useEffect(() => {
+    if (open) setDrawerWidth(null);
+  }, [open]);
 
   React.useEffect(() => {
     window.dispatchEvent(
@@ -269,16 +251,6 @@ export function TransportationMobileDetailsDrawer({
       setIsResizing(false);
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
-      setDrawerWidth((current) => {
-        if (current != null) {
-          try {
-            window.localStorage.setItem(DRAWER_WIDTH_STORAGE_KEY, String(Math.round(current)));
-          } catch {
-            // Width persistence is a convenience only.
-          }
-        }
-        return current;
-      });
     };
 
     window.addEventListener("pointermove", handlePointerMove, { passive: false });
