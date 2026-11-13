@@ -545,8 +545,7 @@ export function CarInventoryCard({
           <div className="flex items-start justify-between gap-2">
             <h3
               className={cn(
-                "font-bold text-base sm:text-lg leading-tight text-foreground cursor-pointer hover:text-primary transition-colors",
-                mobileOptimized ? "line-clamp-2 sm:line-clamp-1" : "line-clamp-1",
+                "min-w-0 break-words font-bold text-base sm:text-lg leading-tight text-foreground cursor-pointer hover:text-primary transition-colors [overflow-wrap:anywhere]",
               )}
               onClick={() => onVehicleClick?.(vehicle)}
             >
@@ -575,7 +574,7 @@ export function CarInventoryCard({
             )}
           </div>
           {mobileOptimized && vehicle.trim && (
-            <p className="line-clamp-2 text-[11px] font-medium leading-snug text-muted-foreground sm:hidden">
+            <p className="break-words text-[11px] font-medium leading-snug text-muted-foreground [overflow-wrap:anywhere] sm:hidden">
               {vehicle.trim}
             </p>
           )}
@@ -729,14 +728,13 @@ export function CarInventoryCard({
         <div>
           <h3
             className={cn(
-              "font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors",
-              mobileOptimized ? "line-clamp-2 sm:line-clamp-1" : "line-clamp-1",
+              "break-words font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors [overflow-wrap:anywhere]",
             )}
           >
             {vehicle.year} {vehicle.make} {vehicle.model}
           </h3>
           {vehicle.trim && (
-            <p className={cn("mt-0.5 text-xs text-muted-foreground", mobileOptimized ? "line-clamp-2 sm:line-clamp-1" : "truncate")}>{vehicle.trim}</p>
+            <p className="mt-0.5 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{vehicle.trim}</p>
           )}
         </div>
 
@@ -748,7 +746,7 @@ export function CarInventoryCard({
                   <GaugeIcon className="h-3 w-3 shrink-0 text-emerald-500/80" />
                   Mileage
                 </span>
-                <span className="mt-1 block truncate text-[11px] font-black text-foreground tabular-nums">
+                <span className="mt-1 block break-words [overflow-wrap:anywhere] text-[11px] font-black text-foreground tabular-nums">
                   {safeMileage.toLocaleString()} mi
                 </span>
               </div>
@@ -758,7 +756,7 @@ export function CarInventoryCard({
                   <MapPinIcon className="h-3 w-3 shrink-0 text-cyan-500/80" />
                   Location
                 </span>
-                <span className="mt-1 block truncate text-[11px] font-black text-foreground">
+                <span className="mt-1 block break-words [overflow-wrap:anywhere] text-[11px] font-black text-foreground">
                   {safeLocation}
                 </span>
               </div>
@@ -768,7 +766,7 @@ export function CarInventoryCard({
                   <Clock3 className="h-3 w-3 shrink-0 text-amber-500/80" />
                   Days on lot
                 </span>
-                <span className="mt-1 block truncate text-[11px] font-black text-foreground tabular-nums">
+                <span className="mt-1 block break-words [overflow-wrap:anywhere] text-[11px] font-black text-foreground tabular-nums">
                   {daysOnLot}d
                 </span>
               </div>
@@ -780,9 +778,9 @@ export function CarInventoryCard({
                 {safeMileage.toLocaleString()} mi
               </span>
               <span className="h-3 w-px bg-border/60" />
-              <span className="flex min-w-0 items-center gap-1.5 truncate">
+              <span className="flex min-w-0 items-center gap-1.5 break-words [overflow-wrap:anywhere]">
                 <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{safeLocation}</span>
+                <span className="break-words [overflow-wrap:anywhere]">{safeLocation}</span>
               </span>
             </div>
           </>
@@ -793,9 +791,9 @@ export function CarInventoryCard({
               {safeMileage.toLocaleString()} mi
             </span>
             <span className="h-3 w-px bg-border/60" />
-            <span className="flex min-w-0 items-center gap-1.5 truncate">
+            <span className="flex min-w-0 items-center gap-1.5 break-words [overflow-wrap:anywhere]">
               <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{safeLocation}</span>
+              <span className="break-words [overflow-wrap:anywhere]">{safeLocation}</span>
             </span>
           </div>
         )}

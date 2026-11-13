@@ -398,7 +398,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
                   <div className="flex min-w-0 flex-col items-center gap-1">
                     <h4
                       className={cn(
-                        "w-full truncate text-[11px] sm:text-xs lg:text-sm font-bold transition-colors",
+                        "w-full break-words [overflow-wrap:anywhere] text-[11px] sm:text-xs lg:text-sm font-bold transition-colors",
                         isCurrent
                           ? theme.text
                           : "text-muted-foreground/40",
@@ -423,7 +423,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
 
                   <p
                     className={cn(
-                      "mt-1 w-full truncate text-[11px] sm:text-[11px] lg:text-[11px]",
+                      "mt-1 w-full break-words [overflow-wrap:anywhere] text-[11px] sm:text-[11px] lg:text-[11px]",
                       isCurrent && date
                         ? "text-muted-foreground"
                         : "text-muted-foreground/35 italic",
@@ -1019,10 +1019,10 @@ export default function LoadDetailsPage() {
                       <Car className="size-5 text-foreground/70" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-bold text-base text-foreground truncate">
+                      <h4 className="font-bold text-base text-foreground break-words [overflow-wrap:anywhere]">
                         {v.year} {v.make} {v.model}
                       </h4>
-                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-mono bg-background px-1.5 py-0.5 rounded inline-block border border-border/30 max-w-full truncate">
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-mono bg-background px-1.5 py-0.5 rounded inline-block border border-border/30 max-w-full break-words [overflow-wrap:anywhere]">
                         {v.vin || "No VIN provided"}
                       </p>
                     </div>
@@ -1356,11 +1356,11 @@ export default function LoadDetailsPage() {
                   <div className="min-w-0">
                     <p
                       id="bol-preview-title"
-                      className="truncate text-sm font-black text-foreground"
+                      className="break-words [overflow-wrap:anywhere] text-sm font-black text-foreground"
                     >
                       BOL Preview
                     </p>
-                    <p className="truncate text-[11px] font-medium text-muted-foreground">
+                    <p className="break-words [overflow-wrap:anywhere] text-[11px] font-medium text-muted-foreground">
                       {load.loadNumber}
                     </p>
                   </div>

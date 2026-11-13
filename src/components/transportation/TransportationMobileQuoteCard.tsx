@@ -108,7 +108,7 @@ function QuoteStatTile({
         </span>
 
         <span
-          className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-black uppercase tracking-[0.04em] leading-none text-muted-foreground/80 sm:text-xs"
+          className="block break-words [overflow-wrap:anywhere] text-[11px] font-black uppercase tracking-[0.04em] leading-tight text-muted-foreground/80 sm:text-xs"
           title={title}
         >
           {title}
@@ -116,7 +116,7 @@ function QuoteStatTile({
 
         <span
           className={cn(
-            "mt-1.5 block overflow-hidden text-ellipsis whitespace-nowrap text-xs font-black leading-none text-foreground sm:text-[13px]",
+            "mt-1.5 block break-words [overflow-wrap:anywhere] text-xs font-black leading-tight text-foreground sm:text-[13px]",
             valueClassName,
           )}
         >
@@ -312,15 +312,15 @@ export function TransportationMobileQuoteCard({
                   </p>
                 )}
                 {normalizedStatus === "rejected" && quote.declineReason && (
-                  <p className="mt-0.5 line-clamp-2 break-words text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
                     Reason given: <span className="text-foreground">{quote.declineReason}</span>
                   </p>
                 )}
-                <h3 className="mt-1 truncate text-[15px] font-black tracking-tight text-foreground sm:text-base">
+                <h3 className="mt-1 break-words [overflow-wrap:anywhere] text-[15px] font-black tracking-tight text-foreground sm:text-base">
                   {vehicleName}
                 </h3>
                 {lead && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 break-words [overflow-wrap:anywhere] text-[11px] text-muted-foreground">
                     Linked lead: <span className="font-bold text-foreground">{lead.name}</span>
                   </p>
                 )}
@@ -371,7 +371,7 @@ export function TransportationMobileQuoteCard({
                 <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-emerald-500">
                   <MapPin className="size-3" /> Origin
                 </span>
-                <p className="mt-1 truncate text-sm font-black text-foreground">
+                <p className="mt-1 break-words [overflow-wrap:anywhere] text-sm font-black text-foreground">
                   {originSummary}
                 </p>
               </button>
@@ -394,7 +394,7 @@ export function TransportationMobileQuoteCard({
                 <span className="flex items-center justify-end gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-cyan-500">
                   Destination <MapPin className="size-3" />
                 </span>
-                <p className="mt-1 truncate text-sm font-black text-foreground">
+                <p className="mt-1 break-words [overflow-wrap:anywhere] text-sm font-black text-foreground">
                   {destinationSummary}
                 </p>
               </button>

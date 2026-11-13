@@ -267,7 +267,7 @@ function StatTile({
   const content = (
     <>
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest truncate">
+        <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
           {label}
         </span>
         {onClick && (
@@ -276,7 +276,7 @@ function StatTile({
       </div>
       <div className="flex items-center gap-1.5 min-w-0">
         {icon}
-        <span className="text-sm lg:text-[15px] font-black tracking-tight truncate">
+        <span className="text-sm lg:text-[15px] font-black tracking-tight break-words [overflow-wrap:anywhere]">
           {children}
         </span>
       </div>
@@ -459,7 +459,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                     <Car className="size-7 text-emerald-500/70" />
                   </div>
                   {primaryVehicle && (
-                    <p className="text-xs font-black tracking-tight text-muted-foreground text-center px-4 truncate max-w-full">
+                    <p className="text-xs font-black tracking-tight text-muted-foreground text-center px-4 break-words [overflow-wrap:anywhere] max-w-full">
                       {[primaryVehicle.year, primaryVehicle.make, primaryVehicle.model].filter(Boolean).join(" ") || "No vehicle attached"}
                     </p>
                   )}
@@ -482,7 +482,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                 <span className="text-[10px] font-black text-white/70 uppercase tracking-[0.25em]">Load</span>
                 <span
                   title={load.loadNumber}
-                  className="truncate text-sm sm:text-base lg:text-lg font-black text-white font-mono tracking-tight drop-shadow"
+                  className="break-words [overflow-wrap:anywhere] text-sm sm:text-base lg:text-lg font-black text-white font-mono tracking-tight drop-shadow"
                 >
                   {load.loadNumber}
                 </span>
@@ -515,7 +515,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
                     <div className={cn("size-2 rounded-full shrink-0 motion-safe:animate-pulse", theme.indicator, theme.glow)} />
-                    <span className="text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest truncate">
+                    <span className="text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
                       {isLoadBoard ? (isPublic ? "Public" : "Private") : "Assigned Shipment"}
                     </span>
                     <span className="text-[11px] text-muted-foreground/60 hidden xs:inline">·</span>
@@ -637,7 +637,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                       </div>
                       <span className="text-[11px] lg:text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Origin</span>
                     </div>
-                    <p className="text-lg lg:text-xl font-black tracking-tight text-foreground truncate">
+                    <p className="text-lg lg:text-xl font-black tracking-tight text-foreground break-words [overflow-wrap:anywhere]">
                       {pickup.city}, {pickup.state}
                     </p>
                     <p className="text-[11px] lg:text-xs text-muted-foreground font-medium flex items-center gap-1">
@@ -670,7 +670,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                       </div>
                       <span className="text-[11px] lg:text-xs font-black text-cyan-600 dark:text-cyan-400 uppercase tracking-widest">Destination</span>
                     </div>
-                    <p className="text-lg lg:text-xl font-black tracking-tight text-foreground truncate lg:text-right">
+                    <p className="text-lg lg:text-xl font-black tracking-tight text-foreground break-words [overflow-wrap:anywhere] lg:text-right">
                       {delivery.city}, {delivery.state}
                     </p>
                     <p className="text-[11px] lg:text-xs text-muted-foreground font-medium flex items-center gap-1 lg:justify-end">

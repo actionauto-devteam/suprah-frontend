@@ -185,7 +185,7 @@ function MobilePrimaryReadout({
         </span>
         <span className="min-w-0 flex-1">
           <span
-            className="block truncate text-[11px] font-black uppercase tracking-[0.07em] text-muted-foreground"
+            className="block break-words [overflow-wrap:anywhere] text-[11px] font-black uppercase tracking-[0.07em] text-muted-foreground"
             title={title}
           >
             {title}
@@ -237,7 +237,7 @@ function MobileSupportMetric({
         <span className="flex min-w-0 items-center gap-1">
           {icon}
           <span
-            className="truncate text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75"
+            className="break-words [overflow-wrap:anywhere] text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75"
             title={title}
           >
             {title}
@@ -442,15 +442,15 @@ export function TransportationMobileLoadCard({
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span className={cn("size-1.5 shrink-0 rounded-full", theme.dot)} />
-                  <span className="truncate text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                  <span className="break-words [overflow-wrap:anywhere] text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
                     {isLoadBoard ? (isPublic ? "Public" : "Private") : "Assigned Shipment"}
                   </span>
                 </div>
-                <h3 className="mt-1 truncate font-mono text-[15px] font-black tracking-tight text-foreground sm:text-base" title={load.loadNumber}>
+                <h3 className="mt-1 break-words [overflow-wrap:anywhere] font-mono text-[15px] font-black tracking-tight text-foreground sm:text-base" title={load.loadNumber}>
                   {load.loadNumber}
                 </h3>
                 {load.status === "Cancelled" && load.cancellation?.reason && (
-                  <p className="mt-0.5 truncate text-[11px] font-bold text-red-700 dark:text-red-300">
+                  <p className="mt-0.5 break-words [overflow-wrap:anywhere] text-[11px] font-bold text-red-700 dark:text-red-300">
                     Cancelled: {cancellationReasonLabel(load.cancellation.reason)}
                   </p>
                 )}
@@ -464,7 +464,7 @@ export function TransportationMobileLoadCard({
                     className="mt-1 inline-flex min-h-9 max-w-full items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2.5 text-[11px] font-bold text-sky-700 dark:text-sky-300"
                   >
                     <MessageCircle className="size-3 shrink-0" aria-hidden="true" />
-                    <span className="truncate">{customerMessagesLabel(customerUnread)}</span>
+                    <span className="break-words [overflow-wrap:anywhere]">{customerMessagesLabel(customerUnread)}</span>
                   </button>
                 )}
               </div>
@@ -542,7 +542,7 @@ export function TransportationMobileLoadCard({
                 <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-emerald-500">
                   <MapPin className="size-3" /> Origin
                 </span>
-                <p className="mt-1 truncate text-sm font-black text-foreground">
+                <p className="mt-1 break-words [overflow-wrap:anywhere] text-sm font-black text-foreground">
                   {load.pickupLocation.city}, {load.pickupLocation.state}
                 </p>
               </button>
@@ -565,7 +565,7 @@ export function TransportationMobileLoadCard({
                 <span className="flex items-center justify-end gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-cyan-500">
                   Destination <MapPin className="size-3" />
                 </span>
-                <p className="mt-1 truncate text-sm font-black text-foreground">
+                <p className="mt-1 break-words [overflow-wrap:anywhere] text-sm font-black text-foreground">
                   {load.deliveryLocation.city}, {load.deliveryLocation.state}
                 </p>
               </button>
@@ -642,7 +642,7 @@ export function TransportationMobileLoadCard({
             load.assignedDriverId.name ? (
               <div className="mt-2.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
                 <User className="size-3 shrink-0" />
-                <span className="truncate font-medium">
+                <span className="break-words [overflow-wrap:anywhere] font-medium">
                   {load.assignedDriverId.name}
                 </span>
               </div>

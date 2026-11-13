@@ -63,7 +63,7 @@ function StatTile({
     const content = (
         <>
             <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest truncate">
+                <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
                     {label}
                 </span>
                 {onClick && (
@@ -72,7 +72,7 @@ function StatTile({
             </div>
             <div className="flex items-center gap-1.5 min-w-0">
                 {icon}
-                <span className="text-sm lg:text-[15px] font-black tracking-tight truncate">{children}</span>
+                <span className="text-sm lg:text-[15px] font-black tracking-tight break-words [overflow-wrap:anywhere]">{children}</span>
             </div>
         </>
     )
@@ -358,7 +358,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                     <div className="size-14 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 flex items-center justify-center">
                                         <Car className="size-7 text-emerald-500/70" />
                                     </div>
-                                    <p className="text-xs font-black tracking-tight text-muted-foreground text-center px-4 truncate max-w-full">
+                                    <p className="text-xs font-black tracking-tight text-muted-foreground text-center px-4 break-words [overflow-wrap:anywhere] max-w-full">
                                         {vehicleName}
                                     </p>
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">No photo on file</span>
@@ -384,9 +384,9 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
 
                             <div className="absolute bottom-4 left-4 right-4 flex flex-col gap-0.5 min-w-0">
                                 <span className="text-[10px] font-black text-white/70 uppercase tracking-[0.25em]">Vehicle</span>
-                                <span className="text-base font-black text-white tracking-tight drop-shadow truncate">{vehicleName}</span>
+                                <span className="text-base font-black text-white tracking-tight drop-shadow break-words [overflow-wrap:anywhere]">{vehicleName}</span>
                                 {(vinDisplay || stockDisplay) && (
-                                    <span className="text-[11px] font-mono text-white/80 truncate">
+                                    <span className="text-[11px] font-mono text-white/80 break-words [overflow-wrap:anywhere]">
                                         {vinDisplay ?? ""}{vinDisplay && stockDisplay ? " · " : ""}{stockDisplay ? `STK ${stockDisplay}` : ""}
                                     </span>
                                 )}
@@ -405,7 +405,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                                 statusMeta.dot,
                                             )}
                                         />
-                                        <span className="text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest truncate">
+                                        <span className="text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
                                             Transport Quote
                                         </span>
                                         <span className="text-[11px] text-muted-foreground/60 hidden xs:inline">·</span>
@@ -470,11 +470,11 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                             Customer
                                         </span>
                                         <div className="flex-1 flex flex-col justify-center min-w-0">
-                                            <p className="text-sm font-black tracking-tight text-foreground truncate">
+                                            <p className="text-sm font-black tracking-tight text-foreground break-words [overflow-wrap:anywhere]">
                                                 {quote.firstName} {quote.lastName}
                                             </p>
-                                            <p className="text-xs text-muted-foreground truncate mt-0.5">{quote.email}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{quote.phone}</p>
+                                            <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere] mt-0.5">{quote.email}</p>
+                                            <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">{quote.phone}</p>
                                             {quote.createdBy && (
                                                 <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-border/40 min-w-0">
                                                     {quote.createdBy.avatar ? (
@@ -488,7 +488,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                                             <User className="size-2.5 text-emerald-500" />
                                                         </div>
                                                     )}
-                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                    <span className="text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">
                                                         By <span className="font-bold text-foreground">{quote.createdBy.name || quote.createdBy.email || "Unknown"}</span>
                                                     </span>
                                                 </div>
@@ -498,13 +498,13 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                                     <div className="size-4 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
                                                         <User className="size-2.5 text-primary" />
                                                     </div>
-                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                    <span className="text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">
                                                         Sent by the customer from the <span className="font-bold text-foreground">customer portal</span>
                                                     </span>
                                                 </div>
                                             )}
                                             {isRejected && quote.declineReason && (
-                                                <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2 break-words">
+                                                <p className="mt-1.5 break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
                                                     Reason given: <span className="text-foreground">{quote.declineReason}</span>
                                                 </p>
                                             )}
@@ -513,7 +513,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                                     <div className="size-4 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
                                                         <Link2 className="size-2.5 text-primary" aria-hidden="true" />
                                                     </div>
-                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                    <span className="text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">
                                                         Linked lead:{" "}
                                                         {inNativeApp ? (
                                                             <span className="font-bold text-foreground">{lead.name}</span>
@@ -548,7 +548,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                             <div className="flex items-start gap-2.5 min-w-0">
                                                 <MapPin className="size-3.5 text-emerald-500 mt-0.5 shrink-0" />
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-foreground truncate">{quote.fromAddress}</p>
+                                                    <p className="text-sm font-bold text-foreground break-words [overflow-wrap:anywhere]">{quote.fromAddress}</p>
                                                     <p className="text-[11px] font-mono text-muted-foreground">{quote.fromZip}</p>
                                                 </div>
                                             </div>
@@ -556,7 +556,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                             <div className="flex items-start gap-2.5 min-w-0">
                                                 <MapPin className="size-3.5 text-cyan-500 mt-0.5 shrink-0" />
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-foreground truncate">{quote.toAddress}</p>
+                                                    <p className="text-sm font-bold text-foreground break-words [overflow-wrap:anywhere]">{quote.toAddress}</p>
                                                     <p className="text-[11px] font-mono text-muted-foreground">{quote.toZip}</p>
                                                 </div>
                                             </div>
