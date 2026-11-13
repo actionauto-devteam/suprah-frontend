@@ -17,7 +17,7 @@ import { OverviewTab } from "@/components/customer/garage/OverviewTab";
 import { VehiclesTab } from "@/components/customer/garage/VehiclesTab";
 import { ServiceLogTab } from "@/components/customer/garage/ServiceLogTab";
 import { AuctionListings } from "@/components/customer/auction/AuctionListings";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { resolveImageUrl } from "@/lib/utils";
 import { useUser } from "@/providers/AuthProvider";
 import { useProfileContext } from "@/context/ProfileContext";
@@ -48,9 +48,12 @@ function CustomerDashboardContent() {
   const { user } = useUser();
   const { avatarUrl } = useProfileContext();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : "overview";
+  const addParam = searchParams.get("add");
+  const urlTab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : "overview";
+  const [activeTab, setActiveTab] = React.useState(urlTab);
 
   const { data: vehicles, isLoading: isLoadingVehicles } = useQuery({
     queryKey: ["vehicles"],
@@ -64,6 +67,25 @@ function CustomerDashboardContent() {
   const [isEditVehicleOpen, setIsEditVehicleOpen] = React.useState(false);
   const [isMembershipCardOpen, setIsMembershipCardOpen] = React.useState(false);
   const { confirm, AlertComponent } = useAlert();
+
+  // The tabs follow the address while the page is open, so links such as the
+  // membership card's Register VIN switch tabs here too (2026-11-13), and a
+  // tab the customer picks is kept in the address.
+  React.useEffect(() => {
+    setActiveTab(urlTab);
+  }, [urlTab]);
+  const selectTab = (tab: string) => {
+    setActiveTab(tab);
+    router.replace(`/customer?tab=${tab}`, { scroll: false });
+  };
+
+  // "?add=vehicle" (Register VIN) opens Add vehicle once, then drops itself
+  // from the address so going back or refreshing doesn't reopen it.
+  React.useEffect(() => {
+    if (addParam !== "vehicle") return;
+    setIsAddVehicleOpen(true);
+    router.replace(`/customer?tab=${urlTab}`, { scroll: false });
+  }, [addParam, urlTab, router]);
 
   React.useEffect(() => {
     if (!vehicles || vehicles.length === 0) return;
@@ -105,7 +127,7 @@ function CustomerDashboardContent() {
 
   return (
     <div className="min-h-full bg-background animate-in fade-in slide-in-from-bottom-4 duration-600">
-      <Tabs defaultValue={initialTab} className="space-y-5">
+      <Tabs value={activeTab} onValueChange={selectTab} className="space-y-5">
 
         {/* ─── Page header + Tabs ─────────────────────────────────── */}
         <div className="flex flex-col gap-4">

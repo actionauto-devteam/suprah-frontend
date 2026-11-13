@@ -298,7 +298,7 @@ export default function MembershipPage() {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
             <Button asChild size="sm" className="rounded-xl">
-              <Link href="/customer?tab=vehicles">Register VIN</Link>
+              <Link href="/customer?tab=vehicles&add=vehicle">Register VIN</Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="rounded-xl">
               <Link href="/customer/network">Find Shops</Link>
