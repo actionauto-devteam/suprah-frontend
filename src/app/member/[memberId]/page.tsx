@@ -105,7 +105,7 @@ export default async function MemberBenefitsPage({ params, searchParams }: Membe
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <Link
-            href="/customer?tab=vehicles"
+            href="/customer?tab=vehicles&add=vehicle"
             className="flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-400"
           >
             Register VIN in My Garage

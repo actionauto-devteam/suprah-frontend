@@ -220,7 +220,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
             variant="outline"
             className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
           >
-            <Link href="/customer?tab=vehicles" onClick={() => onOpenChange(false)}>
+            <Link href="/customer?tab=vehicles&add=vehicle" onClick={() => onOpenChange(false)}>
               <CarFront className="w-4 h-4 mr-2" />
               Register VIN
             </Link>
