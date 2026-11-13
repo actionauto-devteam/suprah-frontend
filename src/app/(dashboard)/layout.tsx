@@ -76,6 +76,7 @@ import { ExtensionAutoSignIn } from "@/components/crm/ExtensionAutoSignIn";
 // anywhere keeps the call alive (minimize + floating mini window).
 import { MeetSessionProvider } from "@/components/suprah-meet/MeetSessionProvider"; // ← ADDED
 import { MeetAlerts } from "@/components/suprah-meet/MeetAlerts";
+import { StaffOnly } from "@/components/auth/StaffOnly";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -633,8 +634,11 @@ export default function DashboardLayout({
           the dashboard shell (same pattern as YapLine, but context-based). */}
       <MeetSessionProvider>
         {/* Invitation/reminder records are durable; this adds the immediate
-            in-app live/starting-soon prompt wherever the user is working. */}
-        <MeetAlerts />
+            in-app live/starting-soon prompt wherever the user is working.
+            Staff only: customers and drivers never get meeting alerts. */}
+        <StaffOnly>
+          <MeetAlerts />
+        </StaffOnly>
         <DashboardLayoutContent>{children}</DashboardLayoutContent>
       </MeetSessionProvider>
     </SupraSpaceMessengerProvider>
