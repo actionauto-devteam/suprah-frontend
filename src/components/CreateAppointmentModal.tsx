@@ -23,6 +23,7 @@ import type { Vehicle } from "@/types/inventory"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/providers/AuthProvider"
 import { mdtWallTimeToUtc } from "@/lib/timezone"
+import { useTeamMembers } from "@/hooks/useTeamPulse"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,10 @@ interface CreateAppointmentModalProps {
   forceCustomerBooking?: boolean
   extraPayload?: Record<string, unknown>
   entryTypeLock?: EntryType
+  initialSalespersonId?: string | null
 }
+
+const NO_SALESPERSON = "none"
 
 // ─── Draft persistence ────────────────────────────────────────────────────────
 
@@ -195,7 +199,13 @@ export function CreateAppointmentModal({
   forceCustomerBooking = false,
   extraPayload,
   entryTypeLock,
+  initialSalespersonId,
 }: CreateAppointmentModalProps) {
+  const { data: teamMembers = [] } = useTeamMembers()
+  const [salespersonId,   setSalespersonId]   = React.useState("")
+  React.useEffect(() => {
+    if (open) setSalespersonId(initialSalespersonId ? String(initialSalespersonId) : "")
+  }, [open, initialSalespersonId])
   const [isSubmitting,    setIsSubmitting]    = React.useState(false)
   const [error,           setError]           = React.useState<string | null>(null)
   const [pickerModalOpen, setPickerModalOpen] = React.useState(false)  // senior dev: inline vehicle picker
@@ -431,6 +441,7 @@ export function CreateAppointmentModal({
           phone:             formData.customerBooking.phone.trim(),
           isCustomerBooking: true,
         }
+        if (salespersonId) appointmentData.salespersonUserId = salespersonId
       }
 
       await onCreateAppointment(appointmentData)
@@ -685,6 +696,32 @@ export function CreateAppointmentModal({
                   </div>
                 </div>
               </FormSection>
+
+              {formData.isCustomerBooking && (
+                <FormSection title="Salesperson" icon={<Users className="size-3.5" />}>
+                  <div className="space-y-1.5">
+                    <FieldLabel htmlFor="appointment-salesperson">Who will meet this customer?</FieldLabel>
+                    <Select
+                      value={salespersonId || NO_SALESPERSON}
+                      onValueChange={(value) => setSalespersonId(value === NO_SALESPERSON ? "" : value)}
+                    >
+                      <SelectTrigger id="appointment-salesperson" data-testid="appointment-salesperson"><SelectValue /></SelectTrigger>
+                      <SelectContent className="z-300">
+                        <SelectItem value={NO_SALESPERSON}>No salesperson yet</SelectItem>
+                        {salespersonId && !teamMembers.some((member) => member._id === salespersonId) && (
+                          <SelectItem value={salespersonId}>Assigned rep</SelectItem>
+                        )}
+                        {teamMembers.map((member) => (
+                          <SelectItem key={member._id} value={member._id}>{member.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Times are checked against this salesperson&apos;s calendar, so two salespeople can each have a customer at the same time.
+                    </p>
+                  </div>
+                </FormSection>
+              )}
 
               {/* ── Participants & Guests ── */}
               {!formData.isCustomerBooking && (

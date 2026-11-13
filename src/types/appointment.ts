@@ -106,8 +106,20 @@ export interface Appointment {
   // Customer booking information
   customerBooking?: CustomerBooking;
 
+  salesperson?: { userId: string; crmUserId?: string | null; name: string } | null;
+  changeHistory?: AppointmentHistoryEntry[];
+
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AppointmentHistoryEntry {
+  _id?: string;
+  at: string;
+  byUserId?: string | null;
+  byName: string;
+  action: "created" | "updated" | "cancelled" | "status" | "deleted";
+  changes: Array<{ field: string; label: string; from?: string; to?: string }>;
 }
 
 export interface Message {

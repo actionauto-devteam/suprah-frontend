@@ -608,6 +608,27 @@ function AppointmentDashboard() {
     }
   };
 
+  const refreshAfterEdit = async () => {
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: ["appts-dash-stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+    ]);
+  };
+
+  const handleUpdateFromDashboard = async (id: string, data: Record<string, unknown>) => {
+    const h = await getHeaders();
+    const response = await apiClient.put(`/api/crm/calendar/appointments/${id}`, data, h);
+    await refreshAfterEdit();
+    return response.data?.data;
+  };
+
+  const handleCancelFromDashboard = async (id: string) => {
+    const h = await getHeaders();
+    await apiClient.post(`/api/crm/calendar/appointments/${id}/cancel`, {}, h);
+    await refreshAfterEdit();
+  };
+
   const resetFilters = () => {
     setStatusFilter("all");
     setTypeFilter("all");
@@ -1072,6 +1093,8 @@ function AppointmentDashboard() {
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
         appointment={selectedAppointment}
+        onUpdate={handleUpdateFromDashboard}
+        onCancel={handleCancelFromDashboard}
       />
       <AlertComponent />
     </div>

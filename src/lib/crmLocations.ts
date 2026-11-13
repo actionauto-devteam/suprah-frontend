@@ -5,6 +5,7 @@ export interface CrmLocation {
   code: string
   name: string
   aliases: string[]
+  stockPrefixes?: string[]
   status: CrmLocationStatus
   archivedAt?: string
   revision: number
@@ -25,8 +26,8 @@ export interface CrmLocationHistoryEntry {
   id: string
   action: "created" | "updated" | "archived" | "restored"
   revision: number
-  before?: { name: string; aliases: string[]; status: CrmLocationStatus }
-  after: { code?: string; name: string; aliases: string[]; status: CrmLocationStatus }
+  before?: { name: string; aliases: string[]; stockPrefixes?: string[]; status: CrmLocationStatus }
+  after: { code?: string; name: string; aliases: string[]; stockPrefixes?: string[]; status: CrmLocationStatus }
   actorName?: string
   actorRole?: string
   createdAt: string
