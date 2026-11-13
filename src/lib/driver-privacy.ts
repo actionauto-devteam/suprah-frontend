@@ -1,10 +1,14 @@
+/** Heading over the two points below wherever drivers are told who sees what. */
+export const DRIVER_PRIVACY_HEADING = "Who can see your details"
+
 /**
  * What customers see about the driver carrying their car (decided
  * 2026-11-05): drivers are told this on their profile, their Equipment page
- * and the sign-up agreement step, so nobody is surprised.
+ * and the sign-up agreement step, so nobody is surprised. Kept to two short
+ * sentences (2026-11-13).
  */
 export const CUSTOMER_SEES_DRIVER_NOTICE =
-  "Customers you deliver to see your full name, profile photo and truck once you accept their shipment, and where you are on a map from pickup until delivery. They can message you in a private chat (under Customers in Messages, and on the load) from when you accept until 24 hours after delivery. They never see your phone number or email."
+  "Once you accept a customer's shipment, that customer sees your full name, profile photo and truck, and where you are from pickup until delivery. They can message you until 24 hours after delivery (in Messages, under Customers), but never see your phone number or email."
 
 /**
  * What Dispatch learns about a sharing driver's location while choosing a
@@ -12,7 +16,7 @@ export const CUSTOMER_SEES_DRIVER_NOTICE =
  * rounded to 5 miles, never a position.
  */
 export const DISPATCH_SEES_DISTANCE_NOTICE =
-  "While you share your location, dispatchers choosing a driver for a load see only about how far you are from its pickup, rounded to 5 miles. They see it only while they're looking for a driver, and never your exact location."
+  "While you share your location, dispatchers looking for a driver see only how far you are from their pickup, rounded to 5 miles, never your exact location."
 
 /** Who sees a driver's live location, for the places that explain location sharing. */
 export const WHO_SEES_DRIVER_LOCATION =

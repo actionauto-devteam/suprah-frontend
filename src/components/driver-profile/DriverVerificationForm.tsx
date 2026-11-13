@@ -13,7 +13,6 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Eye,
   Loader2, Shield, Upload, Trash2, FileText, AlertTriangle, CheckCircle2, Clock,
   Lock, ShieldCheck, X, Camera, Paperclip, Ban, ChevronRight, ClipboardCheck, Scale,
   FileCheck, CreditCard, Building2,
@@ -25,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { Stepper, type StepperStep } from './Stepper';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
-import { CUSTOMER_SEES_DRIVER_NOTICE, DISPATCH_SEES_DISTANCE_NOTICE } from '@/lib/driver-privacy';
+import { DriverPrivacyNotice } from './DriverPrivacyNotice';
 import { prepareDocumentFile } from '@/lib/shrink-photo';
 
 const APPLICATION_STEPS: readonly StepperStep[] = [
@@ -494,10 +493,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
               </div>
             </div>
 
-            <p className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 px-3.5 py-3 text-xs text-muted-foreground">
-              <Eye className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
-              <span>{CUSTOMER_SEES_DRIVER_NOTICE} {DISPATCH_SEES_DISTANCE_NOTICE}</span>
-            </p>
+            <DriverPrivacyNotice className="border-border px-3.5 py-3" />
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-muted-foreground">Last 4 Digits of SSN *</Label>

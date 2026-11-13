@@ -59,7 +59,7 @@ test("explains the driver's position plainly, including when it is old or rough"
 });
 
 test('drivers are told customers see their location from pickup until delivery', () => {
-  assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /where you are on a map from pickup until delivery/);
+  assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /where you are from pickup until delivery/);
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /never see your phone number or email/);
   assert.match(WHO_SEES_DRIVER_LOCATION, /^Only the dispatcher responsible for your accepted load/);
   assert.match(WHO_SEES_DRIVER_LOCATION, /customer receiving the vehicle also sees where you are from pickup until delivery\./);
@@ -102,7 +102,7 @@ test('shipment notifications refresh My Shipments; others do not', () => {
 
 test('dispatchers choosing a driver see only a rounded distance, and drivers are told', () => {
   const { DISPATCH_SEES_DISTANCE_NOTICE } = loadLib('driver-privacy');
-  assert.match(DISPATCH_SEES_DISTANCE_NOTICE, /only while they're looking for a driver, and never your exact location\.$/);
+  assert.match(DISPATCH_SEES_DISTANCE_NOTICE, /dispatchers looking for a driver see only how far you are from their pickup, rounded to 5 miles, never your exact location\.$/);
   assert.match(DISPATCH_SEES_DISTANCE_NOTICE, /rounded to 5 miles/);
   assert.match(WHO_SEES_DRIVER_LOCATION, /Dispatchers choosing a driver for another load see only about how far you are from its pickup, rounded to 5 miles, never your exact location\.$/);
 });

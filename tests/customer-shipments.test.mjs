@@ -99,6 +99,12 @@ test('drivers without a photo get their initials, and are told what customers se
   assert.equal(driverInitials('  mark '), 'M');
   assert.equal(driverInitials(''), '?');
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /full name, profile photo and truck/);
+  // Short and plain (2026-11-13): two sentences each, no "deliver to see".
+  const { DISPATCH_SEES_DISTANCE_NOTICE, DRIVER_PRIVACY_HEADING } = loadLib('driver-privacy');
+  assert.equal(DRIVER_PRIVACY_HEADING, 'Who can see your details');
+  assert.doesNotMatch(CUSTOMER_SEES_DRIVER_NOTICE, /deliver to see/);
+  assert.ok(CUSTOMER_SEES_DRIVER_NOTICE.length < 300, CUSTOMER_SEES_DRIVER_NOTICE.length);
+  assert.ok(DISPATCH_SEES_DISTANCE_NOTICE.length < 170, DISPATCH_SEES_DISTANCE_NOTICE.length);
   assert.match(CUSTOMER_SEES_DRIVER_NOTICE, /never see your phone number or email/);
 });
 
