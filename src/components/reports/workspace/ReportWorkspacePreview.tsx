@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Columns3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,25 @@ import type { ReportColumnPreferences } from "@/lib/report-filter-query";
 import { getLoadReportRate } from "@/lib/report-filter-engine";
 import type { Quote } from "@/types/transportation";
 import { formatCurrency } from "@/utils/format";
+import { DEFAULT_REPORT_COLUMN_WIDTH, reportTableLayout, reportTableMinWidth } from "@/lib/report-table-layout";
+
+// Measures before the first paint in the browser, so a phone never flashes the wide table.
+const useBrowserLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
+/** The section's current width, kept up to date as the window or panel resizes. */
+function useElementWidth<E extends HTMLElement>(): [React.RefCallback<E>, number] {
+  const [element, setElement] = React.useState<E | null>(null);
+  const [width, setWidth] = React.useState(0);
+  useBrowserLayoutEffect(() => {
+    if (!element) return;
+    setWidth(element.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+  return [setElement, width];
+}
 
 interface ReportWorkspacePreviewProps {
   reportId: ReportId;
@@ -143,25 +163,11 @@ function PaginatedTable<T>({
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(25);
   const [columnsOpen, setColumnsOpen] = React.useState(false);
-  const columnsMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const [sectionRef, sectionWidth] = useElementWidth<HTMLElement>();
 
   React.useEffect(() => {
     setPage(1);
   }, [rows]);
-
-  React.useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        columnsMenuRef.current &&
-        !columnsMenuRef.current.contains(event.target as Node)
-      ) {
-        setColumnsOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, []);
 
   const allColumnIds = React.useMemo(
     () => columns.map((column) => column.id),
@@ -204,15 +210,15 @@ function PaginatedTable<T>({
   const visible = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
   const start = rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const end = Math.min(safePage * pageSize, rows.length);
-  const tableMinWidth = visibleColumns.reduce(
-    (total, column) => total + (column.width ?? 150),
-    0,
-  );
+  const tableMinWidth = reportTableMinWidth(visibleColumns);
+  // Phones and narrow windows get one card per row instead of a table that
+  // would scroll sideways or be cut off (2026-11-13).
+  const layout = reportTableLayout(sectionWidth, tableMinWidth);
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+    <section ref={sectionRef} className="min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-sm font-bold text-foreground sm:text-base">
             {title}
           </h2>
@@ -221,27 +227,29 @@ function PaginatedTable<T>({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div ref={columnsMenuRef} className="relative">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              onClick={() => setColumnsOpen((current) => !current)}
-              aria-haspopup="menu"
-              aria-expanded={columnsOpen}
-            >
-              <Columns3 className="size-3.5" />
-              Columns
-              <ChevronDown className="size-3.5" />
-            </Button>
-
-            {columnsOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-[calc(100%+0.4rem)] z-50 w-56 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Opens above the page, so the section's edge never cuts it off; it
+              scrolls within the space the screen has (2026-11-13). */}
+          <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 gap-1.5 text-xs sm:h-8"
+                aria-haspopup="menu"
               >
+                <Columns3 className="size-3.5" />
+                Columns
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              collisionPadding={12}
+              className="flex w-56 max-h-[min(24rem,var(--radix-popover-content-available-height))] flex-col rounded-xl p-1.5 shadow-xl"
+            >
+              <div role="menu" aria-label={`${title} columns`} className="flex min-h-0 flex-col">
                 <button
                   type="button"
                   onClick={() => setVisibleColumns(allColumnIds)}
@@ -252,8 +260,8 @@ function PaginatedTable<T>({
                     <Check className="size-4 text-primary" />
                   )}
                 </button>
-                <div className="my-1 h-px bg-border" />
-                <div className="max-h-64 overflow-y-auto">
+                <div className="my-1 h-px shrink-0 bg-border" />
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   {columns.map((column) => {
                     const active = selectedColumnIds.includes(column.id);
                     return (
@@ -272,15 +280,15 @@ function PaginatedTable<T>({
                         }
                         className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span>{column.label}</span>
-                        {active && <Check className="size-4 text-primary" />}
+                        <span className="min-w-0 break-words">{column.label}</span>
+                        {active && <Check className="size-4 shrink-0 text-primary" />}
                       </button>
                     );
                   })}
                 </div>
               </div>
-            )}
-          </div>
+            </PopoverContent>
+          </Popover>
 
           <Select
             value={String(pageSize)}
@@ -289,7 +297,7 @@ function PaginatedTable<T>({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-8 w-28 text-xs">
+            <SelectTrigger className="h-10 w-28 text-xs sm:h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -301,7 +309,27 @@ function PaginatedTable<T>({
         </div>
       </div>
 
-      <div className="min-w-0 overflow-x-auto">
+      {layout === "cards" ? (
+        <ul className="divide-y divide-border/70" aria-label={title}>
+          {visible.length === 0 ? (
+            <li className="px-4 py-10 text-center text-sm text-muted-foreground">{emptyMessage}</li>
+          ) : (
+            visible.map((row, index) => (
+              <li key={rowKey(row, index)} className="px-4 py-3">
+                <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 gap-y-1.5 text-sm">
+                  {visibleColumns.map((column) => (
+                    <React.Fragment key={column.id}>
+                      <dt className="min-w-0 break-words text-xs font-medium text-muted-foreground">{column.label}</dt>
+                      <dd className="min-w-0 break-words text-foreground [overflow-wrap:anywhere]">{column.render(row)}</dd>
+                    </React.Fragment>
+                  ))}
+                </dl>
+              </li>
+            ))
+          )}
+        </ul>
+      ) : (
+      <div className="min-w-0">
         <Table
           className="table-fixed"
           style={{ minWidth: `${tableMinWidth}px` }}
@@ -310,7 +338,7 @@ function PaginatedTable<T>({
             {visibleColumns.map((column) => (
               <col
                 key={column.id}
-                style={{ width: `${column.width ?? 150}px` }}
+                style={{ width: `${column.width ?? DEFAULT_REPORT_COLUMN_WIDTH}px` }}
               />
             ))}
           </colgroup>
@@ -357,9 +385,10 @@ function PaginatedTable<T>({
           </TableBody>
         </Table>
       </div>
+      )}
 
       {pageCount > 1 && (
-        <div className="flex items-center justify-between gap-3 border-t border-border/70 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 px-4 py-3">
           <span className="text-xs text-muted-foreground">
             Page {safePage} of {pageCount}
           </span>
@@ -368,7 +397,7 @@ function PaginatedTable<T>({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8"
+              className="h-10 sm:h-8"
               disabled={safePage <= 1}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
             >
@@ -379,7 +408,7 @@ function PaginatedTable<T>({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8"
+              className="h-10 sm:h-8"
               disabled={safePage >= pageCount}
               onClick={() =>
                 setPage((current) => Math.min(pageCount, current + 1))
