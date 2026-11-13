@@ -236,7 +236,9 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
         )}
       </div>
 
-      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+72px)] md:bottom-0 z-40 -mx-1 rounded-t-2xl border border-border/50 bg-background/90 backdrop-blur-md shadow-lg">
+      {/* The step buttons sit at the end of the form instead of floating over
+          it on phones, where they covered the fields being filled (2026-11-13). */}
+      <div className="rounded-2xl border border-border/50 bg-card shadow-sm">
         <div className="flex w-full items-center justify-between gap-2 px-3 py-3 sm:px-4">
           <Button
             type="button"
@@ -245,6 +247,7 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
             className="gap-1 rounded-xl"
             disabled={step === 1 || isBusy}
             onClick={() => goTo(step - 1)}
+            aria-label="Back"
           >
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Back</span>
