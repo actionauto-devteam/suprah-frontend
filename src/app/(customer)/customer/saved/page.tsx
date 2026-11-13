@@ -27,7 +27,8 @@ import { userErrorMessage } from "@/lib/user-error";
 import { toast } from "sonner";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
-import { cn, resolveImageUrl } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { resolveImageUrl } from "@/lib/utils";
 
 type SortKey = "default" | "priceAsc" | "priceDesc" | "yearDesc";
 
@@ -187,29 +188,31 @@ function WishlistContent() {
         </div>
       </div>
 
-      {/* ─── Sort Bar ─────────────────────────────────────────────────── */}
+      {/* ─── Sort ─────────────────────────────────────────────────────── */}
+      {/* One dropdown instead of a row of chips that ran off the screen on
+          phones and needed sideways scrolling (2026-11-13). */}
       {!isLoading && hasVehicles && (
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5 -mx-1 px-1">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-            <span className="text-xs text-muted-foreground font-medium shrink-0">Sort:</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => setSortBy(opt.key)}
-                className={cn(
-                  "shrink-0 h-8 px-3.5 rounded-full text-xs font-semibold transition-all duration-150 flex items-center gap-1.5",
-                  sortBy === opt.key
-                    ? "bg-foreground text-background shadow-sm"
-                    : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80",
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <label
+            htmlFor="wishlist-sort"
+            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground"
+          >
+            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            Sort by
+          </label>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortKey)}>
+            <SelectTrigger id="wishlist-sort" className="h-9 w-full min-w-0 rounded-xl text-xs font-semibold sm:w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((opt) => (
+                <SelectItem key={opt.key} value={opt.key} className="text-xs font-semibold">
+                  <opt.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
