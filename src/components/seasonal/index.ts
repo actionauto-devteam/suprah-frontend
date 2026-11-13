@@ -8,3 +8,4 @@ export {
   isChristmasSeason,
   isChristmasAvailable,
 } from "./christmas-store";
+export { SidebarFestiveHeader, SidebarFestiveAmbient } from "./SidebarFestive";

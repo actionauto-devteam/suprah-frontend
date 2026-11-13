@@ -82,8 +82,13 @@ import { useYapLineActiveCount } from "@/lib/yapline-store";
 // ➕ MEET BADGE — count of the user's meetings scheduled for today (MDT).
 import { useMeetTodayCount } from "@/hooks/useMeetTodayCount";
 import { useNotifications } from "@/context/NotificationContext";
-// 🎄 Holiday layer — string lights on the header + toggle in the user menu.
-import { ChristmasLights, useChristmasEffects } from "@/components/seasonal";
+// 🎄 Holiday layer — ornaments + holly on the header, sparkles + sleigh in the
+// background, and the on/off toggle in the user menu.
+import {
+  SidebarFestiveAmbient,
+  SidebarFestiveHeader,
+  useChristmasEffects,
+} from "@/components/seasonal";
 import { isLocatorNotification } from "@/components/notifications/notification-utils";
 import {
   AlertDialog,
@@ -462,6 +467,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="hud-corner absolute bottom-1.5 right-1.5 size-3 rounded-br-sm border-b-2 border-r-2 border-emerald-500/20" style={{ animationDelay: "0.5s" }} />
       </div>
 
+      {/* 🎄 twinkling stars + a sleigh gliding behind the nav every ~30s */}
+      <SidebarFestiveAmbient />
+
       <SidebarHeader className="relative z-10 flex h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
         {/* soft halo behind the mark */}
         <div
@@ -494,11 +502,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             priority
           />
         </div>
-        {/* 🎄 lights strung across the top of the header (hidden when collapsed) */}
-        <ChristmasLights
-          count={9}
-          className="absolute inset-x-3 top-[env(safe-area-inset-top)] group-data-[collapsible=icon]:hidden"
-        />
+        {/* 🎄 swinging ornaments + holly sprig (hidden when collapsed) */}
+        <SidebarFestiveHeader />
       </SidebarHeader>
 
       {/* Subtle, thin scrollbar: faint thumb at rest, firmer on hover. The nav still
