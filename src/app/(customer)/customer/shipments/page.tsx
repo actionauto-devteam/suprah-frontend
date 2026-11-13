@@ -158,7 +158,16 @@ function DriverCard({ driver }: { driver: CustomerShipmentDriver }) {
   );
 }
 
-function ShipmentCard({ entry, onOpenChat }: { entry: CustomerShipment; onOpenChat: (kind: ShipmentChatKind) => void }) {
+function ShipmentCard({
+  entry,
+  onOpenChat,
+  highlighted = false,
+}: {
+  entry: CustomerShipment;
+  onOpenChat: (kind: ShipmentChatKind) => void;
+  /** Briefly outlined when a notification brought the customer to this shipment. */
+  highlighted?: boolean;
+}) {
   const meta = SHIPMENT_STAGE_META[entry.stage];
   const steps = shipmentSteps(entry);
   const bookedForYou = entry.kind === "shared";
@@ -168,7 +177,13 @@ function ShipmentCard({ entry, onOpenChat }: { entry: CustomerShipment; onOpenCh
   const image = entry.vehicleImage ? resolveImageUrl(entry.vehicleImage) : "";
 
   return (
-    <li className="overflow-hidden rounded-2xl border border-border/50 bg-card dark:bg-zinc-900/60">
+    <li
+      id={shipmentCardId(entry.id)}
+      className={cn(
+        "scroll-mt-24 overflow-hidden rounded-2xl border border-border/50 bg-card transition-shadow dark:bg-zinc-900/60",
+        highlighted && "ring-2 ring-emerald-500/70",
+      )}
+    >
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
         <div className="relative h-36 w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:h-28 sm:w-40">
           {image ? (
@@ -331,14 +346,24 @@ function WithdrawRequestButton({ entry }: { entry: CustomerShipment }) {
   );
 }
 
-/** Passes on "?shipment=…&chat=driver|dispatcher" each time the address changes to one. */
-function ChatLinkWatcher({ onLink }: { onLink: (link: { key: string; shipmentId: string; kind: ShipmentChatKind }) => void }) {
+/** The element id of a shipment's card, for notification links. */
+const shipmentCardId = (shipmentId: string) => `shipment-${shipmentId}`;
+
+type ShipmentLink = { key: string; shipmentId: string; kind: ShipmentChatKind | null };
+
+/**
+ * Passes on "?shipment=…" (a shipment step's notification) or
+ * "?shipment=…&chat=driver|dispatcher" (a chat message) each time the address
+ * changes to one.
+ */
+function ChatLinkWatcher({ onLink }: { onLink: (link: ShipmentLink) => void }) {
   const searchParams = useSearchParams();
   const shipmentId = searchParams?.get("shipment") ?? "";
   const kind = searchParams?.get("chat") ?? "";
   const key = searchParams?.toString() ?? "";
   React.useEffect(() => {
-    if (shipmentId && (kind === "driver" || kind === "dispatcher")) onLink({ key, shipmentId, kind });
+    if (!shipmentId) return;
+    onLink({ key, shipmentId, kind: kind === "driver" || kind === "dispatcher" ? kind : null });
   }, [key, kind, onLink, shipmentId]);
   return null;
 }
@@ -387,19 +412,36 @@ export default function MyShipmentsPage() {
     [queryClient, refreshShipments],
   );
 
-  // A notification link ("?shipment=…&chat=driver") opens that chat once the
+  // A notification link opens that chat ("?shipment=…&chat=driver") or scrolls
+  // to that shipment and outlines it for a moment ("?shipment=…") once the
   // list is in, also when it's tapped while My Shipments is already open.
-  const [chatLink, setChatLink] = React.useState<{ key: string; shipmentId: string; kind: ShipmentChatKind } | null>(null);
+  const [chatLink, setChatLink] = React.useState<ShipmentLink | null>(null);
+  const [highlightedId, setHighlightedId] = React.useState<string | null>(null);
   const handledLink = React.useRef("");
   React.useEffect(() => {
     // While the list can't load, its own message and Try again show instead.
     if (!chatLink || handledLink.current === chatLink.key || isLoading || isError) return;
     handledLink.current = chatLink.key;
     const entry = shipments.find((item) => item.id === chatLink.shipmentId);
-    if (entry?.chats?.[chatLink.kind].readable) setOpenChat({ shipmentId: chatLink.shipmentId, kind: chatLink.kind });
-    else if (entry) toast.info(entry.chats?.[chatLink.kind].note || "This chat isn't available yet.");
-    else toast.info("We couldn't find that shipment in your account. It may have been unlinked; your shipments are below.");
+    if (!entry) {
+      toast.info("We couldn't find that shipment in your account. It may have been unlinked; your shipments are below.");
+      return;
+    }
+    if (!chatLink.kind) {
+      setHighlightedId(entry.id);
+      window.requestAnimationFrame(() =>
+        document.getElementById(shipmentCardId(entry.id))?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+      return;
+    }
+    if (entry.chats?.[chatLink.kind].readable) setOpenChat({ shipmentId: chatLink.shipmentId, kind: chatLink.kind });
+    else toast.info(entry.chats?.[chatLink.kind].note || "This chat isn't available yet.");
   }, [chatLink, isError, isLoading, shipments]);
+  React.useEffect(() => {
+    if (!highlightedId) return;
+    const timer = window.setTimeout(() => setHighlightedId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedId]);
 
   // The page keeps itself current: every shipment step arrives as a
   // notification, and new messages update the counts on the chat buttons.
@@ -499,7 +541,12 @@ export default function MyShipmentsPage() {
       ) : (
         <ul className="space-y-3" aria-label="Your shipments">
           {shipments.map((entry) => (
-            <ShipmentCard key={entry.id} entry={entry} onOpenChat={(kind) => setOpenChat({ shipmentId: entry.id, kind })} />
+            <ShipmentCard
+              key={entry.id}
+              entry={entry}
+              highlighted={highlightedId === entry.id}
+              onOpenChat={(kind) => setOpenChat({ shipmentId: entry.id, kind })}
+            />
           ))}
         </ul>
       )}

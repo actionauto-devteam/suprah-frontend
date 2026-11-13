@@ -531,6 +531,12 @@ function NotificationDrawerBody({
       return true;
     }
 
+    // In the customer and driver portals the drawer covers the page on
+    // phones, so it closes when a notification opens its page (2026-11-13);
+    // the item itself then goes there.
+    const inPortal = pathname.startsWith('/customer') || pathname.startsWith('/driver');
+    if (inPortal && getNotificationRoute(notification, pathname)) onClose();
+
     return false;
   }, [general, pathname, onClose, router]);
 

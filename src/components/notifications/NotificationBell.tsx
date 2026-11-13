@@ -8,6 +8,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { useOptionalCrmNotifications } from '@/hooks/useCrmNotifications';
 import { useCrmToken } from '@/hooks/useCrmToken';
 import { NotificationDrawer } from './NotificationDrawer';
+import { OPEN_NOTIFICATIONS_EVENT } from '@/lib/notification-open';
 
 interface NotificationBellProps {
   open?: boolean;
@@ -31,6 +32,14 @@ export function NotificationBell({
     [controlledOpen, onOpenChange],
   );
   const triggerRef = React.useRef<HTMLButtonElement>(null);
+
+  // "View all" on the customer Home opens this drawer instead of another page.
+  React.useEffect(() => {
+    const openDrawer = () => handleOpenChange(true);
+    window.addEventListener(OPEN_NOTIFICATIONS_EVENT, openDrawer);
+    return () => window.removeEventListener(OPEN_NOTIFICATIONS_EVENT, openDrawer);
+  }, [handleOpenChange]);
+
   const general = useNotifications();
   const crm = useOptionalCrmNotifications();
   const crmToken = useCrmToken();
