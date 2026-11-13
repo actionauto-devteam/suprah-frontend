@@ -61,8 +61,8 @@ interface TransportationMobileDetailsDrawerProps {
 const MOBILE_BREAKPOINT = 768;
 const MIN_DRAWER_WIDTH = 320;
 const DRAWER_EDGE_GAP = 8;
-/** The narrowest drag range worth offering a resize handle for. */
-const MIN_RESIZE_RANGE = 48;
+/** The narrowest drag range worth offering a resize handle for (360 px phones included). */
+const MIN_RESIZE_RANGE = 24;
 
 function formatQuoteStatus(status?: string) {
   const normalized = String(status || "pending").toLowerCase();

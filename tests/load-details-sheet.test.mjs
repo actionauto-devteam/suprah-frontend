@@ -16,6 +16,9 @@ test('the sheet opens at the full available width', () => {
 
 test('it stays resizable on phones wherever there is room to drag', () => {
   assert.match(sheet, /canResize: viewportWidth < MOBILE_BREAKPOINT && maxWidth - minWidth >= MIN_RESIZE_RANGE/);
+  // A 360 px phone leaves 352 - 320 = 32 px to drag, enough for the handle.
+  const range = Number(sheet.match(/const MIN_RESIZE_RANGE = (\d+);/)?.[1]);
+  assert.ok(range > 0 && 360 - 8 - 320 >= range, String(range));
   assert.doesNotMatch(sheet, /RESIZABLE_MIN_VIEWPORT/);
   assert.match(sheet, /onPointerDown=\{startResize\}/);
 });
