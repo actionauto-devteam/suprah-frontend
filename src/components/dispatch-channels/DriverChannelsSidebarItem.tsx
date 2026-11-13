@@ -19,7 +19,7 @@ export function DriverChannelsSidebarItem() {
       <SidebarMenuButton asChild tooltip="Channels" isActive={pathname?.startsWith("/driver/channels")} className="relative">
         <Link href="/driver/channels">
           <Hash />
-          <span className="min-w-0 flex-1 truncate">Channels</span>
+          <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">Channels</span>
           {unreadTotal > 0 && (
             <span
               aria-label={`${unreadTotal} unread channel message${unreadTotal === 1 ? "" : "s"}`}

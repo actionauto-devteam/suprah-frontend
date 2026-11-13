@@ -65,7 +65,7 @@ export function ChannelListRow({
         <>
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-1.5">
-              <span className={cn("truncate text-[13.5px] text-foreground", unread > 0 ? "font-bold" : "font-semibold")}>
+              <span className={cn("break-words [overflow-wrap:anywhere] text-[13.5px] text-foreground", unread > 0 ? "font-bold" : "font-semibold")}>
                 {channel.name}
               </span>
               {closed ? (
@@ -78,7 +78,7 @@ export function ChannelListRow({
             </span>
             <span
               className={cn(
-                "mt-0.5 block truncate text-[11.5px]",
+                "mt-0.5 block break-words [overflow-wrap:anywhere] text-[11.5px]",
                 unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground",
               )}
             >

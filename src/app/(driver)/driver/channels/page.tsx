@@ -383,10 +383,10 @@ function DriverDispatchChatView() {
         </span>
         <div className="min-w-0 flex-1">
           {/* Inline size: the driver portal's stylesheet enlarges every page heading. */}
-          <h1 className="truncate font-black tracking-tight" style={{ fontSize: 16, lineHeight: 1.25 }}>
+          <h1 className="break-words [overflow-wrap:anywhere] font-black tracking-tight" style={{ fontSize: 16, lineHeight: 1.25 }}>
             <span className="text-emerald-600 dark:text-emerald-400">Messages</span>
           </h1>
-          <p className="truncate text-[11px] text-muted-foreground">Private chats with dispatchers and customers, and your group channels</p>
+          <p className="break-words [overflow-wrap:anywhere] text-[11px] text-muted-foreground">Private chats with dispatchers and customers, and your group channels</p>
         </div>
         {unreadTotal > 0 && (
           <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
