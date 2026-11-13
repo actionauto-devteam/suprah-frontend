@@ -1513,7 +1513,8 @@ export function VehicleDetailView({
                 <DollarSign className="h-3.5 w-3.5 shrink-0" /> Apply for Financing
               </Button>
             )}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Two buttons share the row; one alone (staff have no Wishlist) takes the full width (2026-11-13). */}
+            <div className={`grid gap-2 ${onInquiryClick && onToggleSave ? "grid-cols-2" : "grid-cols-1"}`}>
               {onInquiryClick && (
                 <Button
                   variant="outline"
