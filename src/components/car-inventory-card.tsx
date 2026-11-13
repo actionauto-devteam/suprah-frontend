@@ -899,14 +899,18 @@ export function CarInventoryCard({
       </div>
 
       {mobileOptimized && (
+        // One row of buttons on phones (2026-11-13): the left button is as wide
+        // as its words, the main button takes the rest, and both labels get
+        // shorter when the card itself is too narrow, so no word ever spills
+        // out of its button.
         <div
-          className="mt-1 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.35fr)_auto] gap-2 border-t border-border/40 px-3 pt-3 pb-3 sm:hidden"
+          className="@container mt-1 flex items-center gap-2 border-t border-border/40 px-3 pt-3 pb-3 sm:hidden"
           onClick={(event) => event.stopPropagation()}
         >
           <Button
             variant="outline"
             size="sm"
-            className="h-9 min-w-0 rounded-xl border-border/70 bg-card/70 text-[11px] font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28 xxs:text-xs"
+            className="h-9 shrink-0 rounded-xl border-border/70 bg-card/70 px-3 text-xs font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
             onClick={() =>
               onCheckAvailability
                 ? onCheckAvailability(vehicle)
@@ -921,15 +925,15 @@ export function CarInventoryCard({
             ) : (
               // Customers ask the car's own dealership (see the car details).
               <>
-                <span className="hidden xxs:inline">Ask the dealership</span>
-                <span className="xxs:hidden">Ask</span>
+                <span className="hidden @min-[18.5rem]:inline">Ask the dealership</span>
+                <span className="@min-[18.5rem]:hidden">Ask</span>
               </>
             )}
           </Button>
 
           <Button
             size="sm"
-            className="h-9 min-w-0 rounded-xl border border-emerald-400/25 px-2 text-[11px] font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] xxs:px-3 xxs:text-xs"
+            className="h-9 min-w-0 flex-1 rounded-xl border border-emerald-400/25 px-3 text-xs font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
             onClick={() =>
               onCreateLoad ? onCreateLoad(vehicle) : onVehicleClick?.(vehicle)
             }
@@ -937,7 +941,8 @@ export function CarInventoryCard({
             {onCreateLoad ? (
               <>
                 <TruckIcon className="mr-1.5 h-3.5 w-3.5" />
-                Create Managed Load
+                <span className="hidden @min-[21.5rem]:inline">Create Managed Load</span>
+                <span className="@min-[21.5rem]:hidden">Create Load</span>
               </>
             ) : (
               <>
@@ -951,7 +956,7 @@ export function CarInventoryCard({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-xl border-border/70 bg-card/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
+                className="h-9 w-9 shrink-0 rounded-xl border-border/70 bg-card/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
                 aria-label="More vehicle actions"
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -991,25 +996,32 @@ export function CarInventoryCard({
         </div>
       )}
 
+      {/* Same one-row rule as the phone buttons: cards in a many-column grid
+          can be narrow on big screens too. */}
       <div
         className={cn(
-          "grid grid-cols-2 gap-2 px-4 pb-4",
-          mobileOptimized && "hidden sm:grid",
+          "@container flex items-center gap-2 px-4 pb-4",
+          mobileOptimized && "hidden sm:flex",
         )}
         onClick={(e) => e.stopPropagation()}
       >
         <Button
           variant="outline"
           size="sm"
-          className="h-9 gap-1.5 rounded-xl border-border/70 bg-card/70 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
+          className="h-9 shrink-0 gap-1.5 rounded-xl border-border/70 bg-card/70 text-xs font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
           onClick={() => onCheckAvailability?.(vehicle)}
         >
           <MessageSquare className="h-3.5 w-3.5" />
-          {!showInventoryMeta ? "Ask the dealership" : mobileOptimized ? "Availability" : "Inquire"}
+          {!showInventoryMeta ? (
+            <>
+              <span className="hidden @min-[15.5rem]:inline">Ask the dealership</span>
+              <span className="@min-[15.5rem]:hidden">Ask</span>
+            </>
+          ) : mobileOptimized ? "Availability" : "Inquire"}
         </Button>
         <Button
           size="sm"
-          className="h-9 gap-1.5 rounded-xl border border-emerald-400/25 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+          className="h-9 min-w-0 flex-1 gap-1.5 rounded-xl border border-emerald-400/25 text-xs font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
           onClick={() =>
             mobileOptimized && onCreateLoad
               ? onCreateLoad(vehicle)
@@ -1019,7 +1031,8 @@ export function CarInventoryCard({
           {mobileOptimized && onCreateLoad ? (
             <>
               <TruckIcon className="h-3.5 w-3.5" />
-              Create Managed Load
+              <span className="hidden @min-[18.75rem]:inline">Create Managed Load</span>
+              <span className="@min-[18.75rem]:hidden">Create Load</span>
             </>
           ) : (
             <>
