@@ -52,7 +52,8 @@ interface PillSelectOption {
   label: string;
 }
 
-function PillSelect({
+/** The Shop's sort dropdown; the Wishlist uses the same one (2026-11-14). */
+export function PillSelect({
   value,
   onValueChange,
   options,
