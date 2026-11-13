@@ -39,6 +39,11 @@ test('the report sections never scroll sideways and the Columns menu is not cut 
   assert.match(source, /<Popover open=\{columnsOpen\} onOpenChange=\{setColumnsOpen\}>/);
   assert.match(source, /max-h-\[min\(24rem,var\(--radix-popover-content-available-height\)\)\]/);
   assert.match(source, /layout === "cards"/);
+  // Clear separation between cards (2026-11-13): spaced, bordered, numbered.
+  assert.match(source, /<ul className="space-y-3 p-3" aria-label=\{title\}>/);
+  assert.match(source, /className="overflow-hidden rounded-xl border border-border bg-muted\/15 shadow-sm"/);
+  assert.match(source, /\{start \+ index\} of \{rows\.length\}/);
+  assert.doesNotMatch(source, /divide-y divide-border\/70/);
   const workspace = fs.readFileSync(path.join(SRC, 'components/reports/workspace/ReportWorkspace.tsx'), 'utf8');
   assert.match(workspace, /pt-4 pb-16 sm:px-4 md:pb-4/);
 });

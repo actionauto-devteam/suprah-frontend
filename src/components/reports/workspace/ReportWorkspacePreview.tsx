@@ -310,13 +310,21 @@ function PaginatedTable<T>({
       </div>
 
       {layout === "cards" ? (
-        <ul className="divide-y divide-border/70" aria-label={title}>
+        // Each row is its own card with a numbered top strip and space between
+        // cards, so one record never runs into the next (2026-11-13).
+        <ul className="space-y-3 p-3" aria-label={title}>
           {visible.length === 0 ? (
             <li className="px-4 py-10 text-center text-sm text-muted-foreground">{emptyMessage}</li>
           ) : (
             visible.map((row, index) => (
-              <li key={rowKey(row, index)} className="px-4 py-3">
-                <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 gap-y-1.5 text-sm">
+              <li
+                key={rowKey(row, index)}
+                className="overflow-hidden rounded-xl border border-border bg-muted/15 shadow-sm"
+              >
+                <p className="border-b border-border/70 bg-muted/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {start + index} of {rows.length}
+                </p>
+                <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 gap-y-1.5 px-3 py-3 text-sm">
                   {visibleColumns.map((column) => (
                     <React.Fragment key={column.id}>
                       <dt className="min-w-0 break-words text-xs font-medium text-muted-foreground">{column.label}</dt>
