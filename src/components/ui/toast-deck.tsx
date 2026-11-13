@@ -6,6 +6,7 @@ import { toast as sonnerToast, useSonner, type Action, type ToastT } from "sonne
 import { cn } from "@/lib/utils"
 import {
   SWIPE_DISMISS_DISTANCE,
+  countingDownIds,
   deckIndexAfterChange,
   deckPositionLabel,
   deckSwitchLabel,
@@ -66,7 +67,8 @@ export function ToastDeck({ position = "top-right", offset = {}, icons = {}, dur
   }, [])
 
   // Time left per toast. A toast's time only runs while it's on screen, so
-  // nobody misses a message that was waiting behind another one.
+  // nobody misses a message that was waiting behind another one, except while
+  // the toast on screen is still loading (see countingDownIds).
   const remaining = React.useRef(new Map<DeckToastId, { ms: number; key: string }>())
   React.useEffect(() => {
     for (const id of [...remaining.current.keys()]) {
@@ -86,27 +88,33 @@ export function ToastDeck({ position = "top-right", offset = {}, icons = {}, dur
     [dismiss],
   )
 
+  const counting = React.useMemo(() => countingDownIds(toasts, index, duration), [toasts, index, duration])
   React.useEffect(() => {
-    if (!shown || interacting || pageHidden) return
-    // A loading toast that turns into success starts a fresh countdown.
-    const key = `${shown.type ?? ""}:${shown.duration ?? ""}`
-    let entry = remaining.current.get(shown.id)
-    if (!entry || entry.key !== key) {
-      entry = { ms: toastLifetime(shown, duration), key }
-      remaining.current.set(shown.id, entry)
+    if (interacting || pageHidden) return
+    const stops: Array<() => void> = []
+    for (const toast of toasts) {
+      if (!counting.includes(toast.id)) continue
+      // A loading toast that turns into success starts a fresh countdown.
+      const key = `${toast.type ?? ""}:${toast.duration ?? ""}`
+      let entry = remaining.current.get(toast.id)
+      if (!entry || entry.key !== key) {
+        entry = { ms: toastLifetime(toast, duration), key }
+        remaining.current.set(toast.id, entry)
+      }
+      if (entry.ms === Infinity) continue
+      const current = entry
+      const startedAt = Date.now()
+      const timer = window.setTimeout(() => {
+        toast.onAutoClose?.(toast)
+        dismiss(toast)
+      }, current.ms)
+      stops.push(() => {
+        window.clearTimeout(timer)
+        current.ms = Math.max(0, current.ms - (Date.now() - startedAt))
+      })
     }
-    if (entry.ms === Infinity) return
-    const current = entry
-    const startedAt = Date.now()
-    const timer = window.setTimeout(() => {
-      shown.onAutoClose?.(shown)
-      dismiss(shown)
-    }, current.ms)
-    return () => {
-      window.clearTimeout(timer)
-      current.ms = Math.max(0, current.ms - (Date.now() - startedAt))
-    }
-  }, [shown, interacting, pageHidden, duration, dismiss])
+    return () => stops.forEach((stop) => stop())
+  }, [toasts, counting, interacting, pageHidden, duration, dismiss])
 
   const showNext = React.useCallback(() => {
     setDeck((current) => ({ ...current, index: nextDeckIndex(current.index, current.ids.length) }))
