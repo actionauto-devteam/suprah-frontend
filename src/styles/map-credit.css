@@ -1,0 +1,28 @@
+/*
+ * The map data credit: the (i) button with © Mapbox © OpenStreetMap (or the
+ * Amazon credit) inside. Mapbox's terms require it on the map, so every map
+ * has it, kept quiet (2026-11-12): see-through until it's hovered, focused or
+ * opened, then fully readable.
+ */
+.mapboxgl-ctrl.mapboxgl-ctrl-attrib,
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  opacity: 0.55;
+  font-size: 10px;
+  transition: opacity 150ms ease;
+}
+
+.mapboxgl-ctrl.mapboxgl-ctrl-attrib:hover,
+.mapboxgl-ctrl.mapboxgl-ctrl-attrib:focus-within,
+.mapboxgl-ctrl.mapboxgl-ctrl-attrib.mapboxgl-compact-show,
+.maplibregl-ctrl.maplibregl-ctrl-attrib:hover,
+.maplibregl-ctrl.maplibregl-ctrl-attrib:focus-within,
+.maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact-show {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapboxgl-ctrl.mapboxgl-ctrl-attrib,
+  .maplibregl-ctrl.maplibregl-ctrl-attrib {
+    transition: none;
+  }
+}

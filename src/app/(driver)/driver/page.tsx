@@ -21,7 +21,7 @@ import { nextStopForMap, placeAddressText, placePin } from "@/lib/load-navigatio
 import { LoadRouteSummary } from "@/components/driver-tracker/LoadRoutePanel";
 import { useLoadRoute } from "@/hooks/useLoadRoute";
 import { mapRouteOf } from "@/lib/load-route-lines";
-import { LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from "@/lib/base-map";
+import { addMapCredit, LIVE_MAP_PROVIDER, liveMapStyle, loadLiveMapLibrary } from "@/lib/base-map";
 import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
 import { stopsFollowing } from "@/lib/map-follow";
 import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrackingReminder";
@@ -983,6 +983,9 @@ export default function DriverDashboardPage() {
         });
 
         mapRef.current = map;
+        // The quiet (i) map credit Mapbox requires; top left, clear of the GPS
+        // chip and the legend at the bottom (2026-11-12).
+        addMapCredit(map, mapboxgl, "top-left");
 
         // Dragging the map or the arrow keys stop following the driver;
         // zooming keeps following. The map's own moves have no event.

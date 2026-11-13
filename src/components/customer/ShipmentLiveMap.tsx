@@ -19,6 +19,7 @@ import {
   type LivePositionUpdate,
 } from "@/lib/customer-shipment-tracking"
 import { stopsFollowing } from "@/lib/map-follow"
+import { addMapCredit } from "@/lib/base-map"
 import { withinTripRange } from "@/lib/driver-next-stop"
 import { initializeSocket } from "@/lib/socket.client"
 import { addMapboxRouteLayers, routeLineFeatures } from "@/lib/load-route-lines"
@@ -220,6 +221,9 @@ function LiveMapCanvas({ view }: { view: CustomerShipmentTracking }) {
           touchZoomRotate: { around: "center" },
         })
         map.touchZoomRotate.disableRotation()
+        // The quiet (i) map credit Mapbox requires, beside the logo and clear
+        // of the buttons at the bottom right (2026-11-12).
+        addMapCredit(map, mapboxgl, "bottom-left")
         map.keyboard.disableRotation()
         mapRef.current = map
         map.on("dragstart", (event) => {

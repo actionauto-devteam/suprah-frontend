@@ -5,6 +5,7 @@ import type { Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
 import { useTheme } from "@/context/ThemeContext";
 import type { LoadRouteLines } from "@/lib/api/load-route";
 import { useLoadRoute } from "@/hooks/useLoadRoute";
+import { addMapCredit } from "@/lib/base-map";
 import {
   addMapboxRouteLayers,
   mapRouteOf,
@@ -112,6 +113,8 @@ function LoadRouteMap({ route, lines }: { route: MapRoute; lines: LoadRouteLines
         });
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
+        // The quiet (i) map credit Mapbox requires (2026-11-12).
+        addMapCredit(map, mapboxgl);
         mapRef.current = map;
         // A theme change replaces the style, which drops the lines.
         map.on("style.load", () => void draw());

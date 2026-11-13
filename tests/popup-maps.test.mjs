@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 // Pick on map and the trip history map sit in pop-up windows, which add their
 // content a moment after they open. Each map is made once its box is on the
-// page, so it never stays on "Loading the map…" (2026-11-12). The map credit
-// the map providers require is a plain line of text under each map, with no
-// (i) button on the map, and the available-load map has no "ctrl + scroll" note.
+// page, so it never stays on "Loading the map…" (2026-11-12). Every map has
+// the (i) map credit Mapbox requires, kept quiet, and the available-load map
+// has no "ctrl + scroll" note.
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file) => fs.readFileSync(path.join(SRC, file), 'utf8').replace(/\s+/g, ' ');
 
@@ -26,19 +26,30 @@ test('the trip history map is made once its box exists', () => {
   assert.ok(source.includes('}, [container, points, paths]);'));
 });
 
-test('the map credit is a plain line under each map, with no (i) button on the map', () => {
+test('every map has the (i) map credit, in a corner clear of its own buttons', () => {
   const baseMap = read('lib/base-map.ts');
-  assert.ok(baseMap.includes('attributionControl: false,'));
-  assert.ok(!baseMap.includes('AttributionControl('));
-  assert.ok(read('components/create-load/LocationMapPicker.tsx').includes('{mapCredit && <p className="-mt-2 text-right text-[11px] text-muted-foreground">{mapCredit}</p>}'));
-  assert.ok(read('components/driver-tracker/TripRouteMap.tsx').includes('{credit && <p className="-mt-1 text-right text-[11px] text-muted-foreground">{credit}</p>}'));
+  assert.ok(baseMap.includes('import "@/styles/map-credit.css"'));
+  assert.ok(baseMap.includes('new library.AttributionControl({ compact: true }), corner'));
+  assert.ok(baseMap.includes('addMapCredit(map as unknown as CreditMap, library)'), 'Pick on map and trip history');
+  const corners = {
+    'app/(dashboard)/driver-tracker/page.tsx': 'addMapCredit(map, mapboxgl, "bottom-right");',
+    'app/(driver)/driver/page.tsx': 'addMapCredit(map, mapboxgl, "top-left");',
+    'app/(driver)/driver/available-loads/[id]/page.tsx': 'addMapCredit(map, mapboxgl);',
+    'components/customer/ShipmentLiveMap.tsx': 'addMapCredit(map, mapboxgl, "bottom-left")',
+    'components/driver-tracker/LoadRouteOverview.tsx': 'addMapCredit(map, mapboxgl);',
+  };
+  for (const [file, call] of Object.entries(corners)) assert.ok(read(file).includes(call), file);
 });
 
-test('the available-load map moves with one finger, with no ctrl + scroll note and no (i) on it', () => {
+test('the credit is quiet: see-through until hovered, focused or opened', () => {
+  const css = read('styles/map-credit.css');
+  assert.ok(css.includes('.mapboxgl-ctrl.mapboxgl-ctrl-attrib, .maplibregl-ctrl.maplibregl-ctrl-attrib { opacity: 0.55;'));
+  assert.ok(css.includes('.mapboxgl-ctrl.mapboxgl-ctrl-attrib:hover'));
+  assert.ok(css.includes('.mapboxgl-ctrl.mapboxgl-ctrl-attrib.mapboxgl-compact-show'));
+});
+
+test('the available-load map moves with one finger, with no ctrl + scroll note', () => {
   const page = read('app/(driver)/driver/available-loads/[id]/page.tsx');
   assert.ok(!page.includes('cooperativeGestures'));
-  assert.ok(page.includes('attributionControl: false,'));
   assert.ok(page.includes('dragRotate: false, pitchWithRotate: false, touchPitch: false,'));
-  assert.ok(page.includes('setMapCredit(mapCreditText(map));'));
-  assert.ok(page.includes('{mapCredit && <p className="px-3 py-1.5 text-right text-[11px] text-muted-foreground">{mapCredit}</p>}'));
 });

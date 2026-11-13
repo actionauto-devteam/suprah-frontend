@@ -107,21 +107,19 @@ test('the driver maps no longer use Google Maps', () => {
   assert.equal(fs.existsSync(path.join(SRC, 'components/driver-tracker/google-driver-fleet-layer.ts')), false);
 });
 
-test('the map credit as plain text: no links, no "Improve this map", each name once', () => {
-  const { mapCreditText } = load(path.join(SRC, 'lib/base-map'), { NEXT_PUBLIC_MAPBOX_TOKEN: 'pk.token' });
-  const mapboxStyle = {
-    getStyle: () => ({
-      sources: {
-        composite: {
-          attribution: '<a href="https://www.mapbox.com/about/maps/" target="_blank" title="Mapbox">&copy; Mapbox</a> <a href="https://www.openstreetmap.org/about/" target="_blank">&copy; OpenStreetMap</a> <a class="mapbox-improve-map" href="https://www.mapbox.com/contribute/" target="_blank">Improve this map</a>',
-        },
-        extra: { attribution: '© OpenStreetMap' },
-        lines: { type: 'geojson' },
-      },
-    }),
+test('the map credit: the (i) button, closed once the map has loaded', () => {
+  const { addMapCredit } = load(path.join(SRC, 'lib/base-map'), { NEXT_PUBLIC_MAPBOX_TOKEN: 'pk.token' });
+  const added = [];
+  let onLoad = null;
+  const opened = { classList: { remove: (name) => added.push('closed ' + name) }, removeAttribute: (name) => added.push('removed ' + name) };
+  const map = {
+    addControl: (control, corner) => added.push([control.options, corner]),
+    once: (type, listener) => { if (type === 'load') onLoad = listener; },
+    getContainer: () => ({ querySelectorAll: (selector) => (selector === '.maplibregl-compact-show' ? [opened] : []) }),
   };
-  assert.equal(mapCreditText(mapboxStyle, 'mapbox'), '© Mapbox © OpenStreetMap');
-  assert.equal(mapCreditText({ getStyle: () => ({ sources: {} }) }, 'mapbox'), '© Mapbox © OpenStreetMap');
-  assert.equal(mapCreditText(null, 'amazon'), '© Amazon Location Service © OpenStreetMap');
-  assert.equal(mapCreditText(null, null), '');
+  class AttributionControl { constructor(options) { this.options = options; } }
+  addMapCredit(map, { AttributionControl }, 'top-left');
+  assert.deepEqual(added[0], [{ compact: true }, 'top-left']);
+  onLoad();
+  assert.deepEqual(added.slice(1), ['closed maplibregl-compact-show', 'removed open']);
 });
