@@ -10,7 +10,6 @@ import {
     CreditCard,
     Crown,
     FolderKanban,
-    Gift,
     Heart,
     HeartHandshake,
     LayoutDashboard,
@@ -138,7 +137,8 @@ export const customerNav: BottomNavItem[] = [
     // No fixed center tab: the open page's tab becomes the circle (MobileBottomNav).
     { label: "Shop", href: "/customer/shop", icon: Car },
     { label: "Wallet", href: "/customer/payments", icon: Wallet },
-    { label: "Refer", href: "/customer/refer", icon: Gift },
+    // My Shipments in Refer's place (2026-11-13); Refer & Earn stays in the menu.
+    { label: "Shipments", href: "/customer/shipments", icon: Truck },
 ];
 
 // Inside the iPhone app: only finished sections (Rewards, Wallet and Refer are
