@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/hooks/useLeads"
+import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useAssignedNewCount, Lead } from "@/hooks/useLeads"
 import { ACTIVE_CALLS_KEY, useActiveCalls } from "@/hooks/useActiveCalls"
 import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import { useQueryClient } from "@tanstack/react-query"
@@ -242,12 +242,12 @@ const isEmailLead = (lead: Lead | null | undefined): boolean => {
   return Boolean(lead.email);
 };
 
-type LeadSortOption = "latest_activity" | "newest" | "oldest" | "waiting_longest";
+type LeadSortOption = "latest_activity" | "customer_activity" | "oldest" | "waiting_longest";
 
 const LEAD_SORT_STORAGE_KEY = "crm-leads-sort-activity";
 const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
   { value: "latest_activity", label: "Recent" },
-  { value: "newest", label: "Newest" },
+  { value: "customer_activity", label: "Newest" },
   { value: "oldest", label: "Oldest" },
   { value: "waiting_longest", label: "Longest waiting" },
 ];
@@ -341,7 +341,8 @@ export function LeadsTab({
   React.useEffect(() => {
     try {
       const saved = window.sessionStorage.getItem(LEAD_SORT_STORAGE_KEY);
-      if (saved === "newest" || saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
+      if (saved === "customer_activity" || saved === "newest") setSortBy("customer_activity");
+      else if (saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
     } catch {}
   }, []);
   React.useEffect(() => {
@@ -445,6 +446,7 @@ export function LeadsTab({
 
   const { counts: leadStatusCounts } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
+  const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
   const queryClient = useQueryClient();
   const activeCalls = useActiveCalls();
   const [liveUpdates, setLiveUpdates] = React.useState<boolean | null>(null);
@@ -1183,7 +1185,12 @@ export function LeadsTab({
       listen("lead:update", (data?: LiveLeadEvent) => {
         refetch();
         void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
+        void queryClient.invalidateQueries({ queryKey: ["leads", "assigned-new"] });
         scheduleSelectedRefresh(data?.leadId || data?._id);
+      });
+      listen("lead:assigned", () => {
+        refetch();
+        void queryClient.invalidateQueries({ queryKey: ["leads", "assigned-new"] });
       });
       listen("comm:call:incoming", (data?: LiveLeadEvent) => {
         void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
@@ -1822,10 +1829,15 @@ export function LeadsTab({
     setIsClosed(lead.status === "Closed");
 
     // Run this in the background so it cannot delay opening.
-    if (!lead.isRead) {
-      void markAsRead(lead._id).catch((error) => {
-        console.error("Failed to mark lead as read:", error);
-      });
+    const unseenAssignment = Boolean(currentUserId) && lead.assignmentUnseenBy === currentUserId;
+    if (!lead.isRead || unseenAssignment) {
+      void markAsRead(lead._id)
+        .then(() => {
+          if (unseenAssignment) void queryClient.invalidateQueries({ queryKey: ["leads", "assigned-new"] });
+        })
+        .catch((error) => {
+          console.error("Failed to mark lead as read:", error);
+        });
     }
   };
 
@@ -2800,6 +2812,8 @@ export function LeadsTab({
             >
               <LeadsList
                 activeCalls={activeCalls}
+                timeMode={sortBy === "latest_activity" ? "all" : "customer"}
+                currentUserId={currentUserId}
                 title="Inquiries & Leads"
                 subtitle="Lead Inbox"
                 leads={leads}
@@ -2882,7 +2896,22 @@ export function LeadsTab({
                                       : { color: "var(--text-tertiary)" }
                                   }
                                 >
-                                  {key === "mine" ? "My Leads" : "All Leads"}
+                                  {key === "mine" ? (
+                                    <span className="inline-flex max-w-full items-center justify-center gap-1.5">
+                                      <span className="truncate">My Leads</span>
+                                      {assignedNewCount > 0 && (
+                                        <span
+                                          className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white"
+                                          aria-label={`${assignedNewCount} new lead${assignedNewCount === 1 ? "" : "s"} assigned to you`}
+                                          data-testid="my-leads-new-count"
+                                        >
+                                          {assignedNewCount > 99 ? "99+" : assignedNewCount}
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    "All Leads"
+                                  )}
                                 </button>
                               );
                             })}

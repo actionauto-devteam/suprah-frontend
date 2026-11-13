@@ -65,6 +65,7 @@ export interface Lead {
   }[];
   assignedTo?: string | null;
   assignedAt?: string | null;
+  assignmentUnseenBy?: string | null;
   assignmentHistory?: {
     from?: string;
     to?: string;
@@ -100,7 +101,7 @@ interface UseLeadsOptions {
   search?: string
   status?: string | null
   statusGroup?: string | null
-  sortBy?: "latest_activity" | "newest" | "oldest" | "waiting_longest"
+  sortBy?: "latest_activity" | "customer_activity" | "newest" | "oldest" | "waiting_longest"
   assignedTo?: string | null
   location?: string | null
   source?: string | null
@@ -536,4 +537,29 @@ export const useLeadLocationCounts = (liveRefreshMs = 0) => {
   });
 
   return { counts: data || {}, isLoading };
+};
+
+export const useAssignedNewCount = (enabled: boolean, liveRefreshMs = 0) => {
+  const { getToken } = useAuth();
+
+  const { data } = useQuery({
+    queryKey: ["leads", "assigned-new"],
+    enabled,
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const response = await apiClient.get("/api/leads/assigned-new-count", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      const resData = response.data?.data || response.data;
+      return Number(resData?.count) || 0;
+    },
+
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: enabled && liveRefreshMs > 0 ? liveRefreshMs : false,
+  });
+
+  return data || 0;
 };

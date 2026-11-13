@@ -42,6 +42,8 @@ interface LeadsListProps {
   topContent?: React.ReactNode;
   focusLeadId?: string | null;
   activeCalls?: Map<string, ActiveLeadCall>;
+  timeMode?: "all" | "customer";
+  currentUserId?: string | null;
 }
 
 const listTime = (value: any) => {
@@ -65,7 +67,7 @@ type ActivityTime = string | number | Date | null | undefined;
 
 type LeadActivitySource = {
   createdAt?: ActivityTime;
-  followUp?: { lastCustomerActivityAt?: ActivityTime; lastRepResponseAt?: ActivityTime } | null;
+  followUp?: { lastCustomerActivityAt?: ActivityTime; lastRepResponseAt?: ActivityTime; lastActivityAt?: ActivityTime } | null;
 } | null | undefined;
 
 const relativeActivity = (value: ActivityTime) => {
@@ -82,7 +84,7 @@ const relativeActivity = (value: ActivityTime) => {
 
 const latestActivity = (lead: LeadActivitySource) => {
   const created = new Date(lead?.createdAt || 0).getTime();
-  const candidates = [lead?.followUp?.lastCustomerActivityAt, lead?.followUp?.lastRepResponseAt]
+  const candidates = [lead?.followUp?.lastCustomerActivityAt, lead?.followUp?.lastRepResponseAt, lead?.followUp?.lastActivityAt]
     .map((value) => new Date(value || 0).getTime())
     .filter((time) => Number.isFinite(time) && time > 0);
   const latest = candidates.length ? Math.max(...candidates) : 0;
@@ -93,6 +95,13 @@ const lastCustomerTime = (lead: LeadActivitySource) => {
   const created = new Date(lead?.createdAt || 0).getTime();
   const customer = new Date(lead?.followUp?.lastCustomerActivityAt || 0).getTime();
   return Number.isFinite(customer) && customer > created ? customer : lead?.createdAt;
+};
+
+const lastAnyTime = (lead: LeadActivitySource) => {
+  const times = [lead?.createdAt, lead?.followUp?.lastCustomerActivityAt, lead?.followUp?.lastActivityAt]
+    .map((value) => new Date(value || 0).getTime())
+    .filter((time) => Number.isFinite(time) && time > 0);
+  return times.length ? Math.max(...times) : lead?.createdAt;
 };
 
 const leadName = (lead: any) =>
@@ -204,6 +213,8 @@ export const LeadsList = React.memo(
     topContent,
     focusLeadId = null,
     activeCalls,
+    timeMode = "customer",
+    currentUserId = null,
   }: LeadsListProps) => {
     const rangeStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const rangeEnd = Math.min(currentPage * itemsPerPage, total);
@@ -329,6 +340,7 @@ export const LeadsList = React.memo(
                 const vehicle = leadVehicle(lead);
                 const contactLine = lead?.phone ? formatSmsRecipient(lead.phone) : lead?.email || "";
                 const activityAt = latestActivity(lead);
+                const newForYou = Boolean(currentUserId) && lead?.assignmentUnseenBy === currentUserId;
 
                 return (
                   <li key={lead._id} className="group relative" data-lead-id={lead._id}>
@@ -391,7 +403,7 @@ export const LeadsList = React.memo(
                             {leadName(lead)}
                           </p>
                           <time className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
-                            {listTime(lastCustomerTime(lead))}
+                            {listTime(timeMode === "all" ? lastAnyTime(lead) : lastCustomerTime(lead))}
                           </time>
                         </div>
 
@@ -426,6 +438,14 @@ export const LeadsList = React.memo(
                         )}
 
                         <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 pr-7 md:pr-0">
+                          {newForYou && (
+                            <span
+                              className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+                              data-testid="lead-new-for-you"
+                            >
+                              New for you
+                            </span>
+                          )}
                           {lead?.channel && (
                             <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                               {lead.channel}
