@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { useNotifications } from '@/context/NotificationContext';
 import { useOptionalCrmNotifications } from '@/hooks/useCrmNotifications';
 import { useCrmToken } from '@/hooks/useCrmToken';
+import { useUser } from '@/providers/AuthProvider';
+import { notificationDrawerLinks } from '@/lib/notification-drawer-links';
 import { Notification } from '@/types/notification';
 import { NotificationItem } from './NotificationItem';
 import { DesktopNotificationsCard } from './DesktopNotificationsCard';
@@ -404,6 +406,8 @@ function NotificationDrawerBody({
   const pathname = usePathname();
   const router = useRouter();
   const crmToken = useCrmToken();
+  const { user } = useUser();
+  const footerLinks = notificationDrawerLinks(user?.role, pathname);
   const general = useNotifications();
   const crm = useOptionalCrmNotifications();
 
@@ -670,28 +674,31 @@ function NotificationDrawerBody({
 
         <div className="shrink-0 border-t border-border/60 bg-card/95 px-4 py-3 backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/notifications"
-                onClick={onClose}
-                className="text-[11px] font-semibold text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-              >
-                General inbox
-              </Link>
-              {crmToken && (
+            {/* Staff inboxes only: drivers and customers have no use for them (2026-11-13). */}
+            {footerLinks.showInboxLinks && (
+              <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href="/crm/notifications"
+                  href="/notifications"
                   onClick={onClose}
                   className="text-[11px] font-semibold text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
                 >
-                  CRM inbox
+                  General inbox
                 </Link>
-              )}
-            </div>
+                {crmToken && (
+                  <Link
+                    href="/crm/notifications"
+                    onClick={onClose}
+                    className="text-[11px] font-semibold text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                  >
+                    CRM inbox
+                  </Link>
+                )}
+              </div>
+            )}
             <Link
-              href={pathname.startsWith('/crm') ? '/crm/notifications/preferences' : '/notifications/preferences'}
+              href={footerLinks.preferencesHref}
               onClick={onClose}
-              className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="ml-auto flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <Settings className="size-3" />
               Preferences
