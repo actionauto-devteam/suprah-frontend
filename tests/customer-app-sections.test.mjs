@@ -45,3 +45,9 @@ test("the app's bottom bar offers only finished sections; the website keeps its 
   for (const item of customerAppNav) assert.equal(shownInApp(item.href), true, item.href);
   assert.ok(customerNav.some((item) => !shownInApp(item.href)), 'the website bar still has sections in development');
 });
+
+test("the website's bottom bar has My Shipments where Refer was (2026-11-13)", () => {
+  assert.deepEqual(customerNav.map((item) => item.label), ['Home', 'Rewards', 'Shop', 'Wallet', 'Shipments']);
+  assert.equal(customerNav.at(-1).href, '/customer/shipments');
+  assert.ok(!customerNav.some((item) => item.href === '/customer/refer'));
+});
