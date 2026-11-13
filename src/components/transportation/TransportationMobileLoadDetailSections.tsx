@@ -546,7 +546,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
 
   const imageViewerItems: VehicleImageLightboxItem[] = vehicles.map((vehicle, index) => ({
     id: String(vehicle.vehicleId ?? vehicle.vin ?? `vehicle-${index + 1}`),
-    src: vehicle.imageUrl || undefined,
+    src: resolveImageUrl(vehicle.imageUrl) || undefined,
     label: getVehicleName(vehicle, index),
     subtitle: vehicle.vin ? `VIN ${vehicle.vin}` : undefined,
   }));

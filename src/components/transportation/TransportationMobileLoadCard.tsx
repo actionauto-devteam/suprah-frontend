@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy";
 import { useOrg } from "@/hooks/useOrg";
 import type { Load, LoadStatus } from "@/types/load";
@@ -321,10 +321,12 @@ export function TransportationMobileLoadCard({
   const vehicles = load.vehicles ?? [];
   const firstVehicle = vehicles.find((vehicle) => Boolean(vehicle.imageUrl)) ?? vehicles[0];
   const firstVehicleIndex = firstVehicle ? Math.max(0, vehicles.indexOf(firstVehicle)) : 0;
-  const heroImage = !imageFailed ? firstVehicle?.imageUrl : undefined;
+  // Photo addresses go through resolveImageUrl like the rest of the app, so
+  // uploaded and older photo links load here too (2026-11-13).
+  const heroImage = !imageFailed ? resolveImageUrl(firstVehicle?.imageUrl) : undefined;
   const imageViewerItems: VehicleImageLightboxItem[] = vehicles.map((vehicle, index) => ({
     id: String(vehicle.vehicleId ?? vehicle.vin ?? `vehicle-${index + 1}`),
-    src: vehicle.imageUrl || undefined,
+    src: resolveImageUrl(vehicle.imageUrl) || undefined,
     label:
       [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ").trim() ||
       `Vehicle ${index + 1}`,
