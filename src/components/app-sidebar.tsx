@@ -32,6 +32,7 @@ import {
   Megaphone,
   Crown,
   Video, // ➕ SUPRAH MEET
+  Snowflake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -81,6 +82,8 @@ import { useYapLineActiveCount } from "@/lib/yapline-store";
 // ➕ MEET BADGE — count of the user's meetings scheduled for today (MDT).
 import { useMeetTodayCount } from "@/hooks/useMeetTodayCount";
 import { useNotifications } from "@/context/NotificationContext";
+// 🎄 Holiday layer — string lights on the header + toggle in the user menu.
+import { ChristmasLights, useChristmasEffects } from "@/components/seasonal";
 import { isLocatorNotification } from "@/components/notifications/notification-utils";
 import {
   AlertDialog,
@@ -312,6 +315,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const xmas = useChristmasEffects();
 
   const { isCustomer } = useOrg();
   const { avatarUrl } = useProfileContext();
@@ -490,6 +494,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             priority
           />
         </div>
+        {/* 🎄 lights strung across the top of the header (hidden when collapsed) */}
+        <ChristmasLights
+          count={9}
+          className="absolute inset-x-3 top-[env(safe-area-inset-top)] group-data-[collapsible=icon]:hidden"
+        />
       </SidebarHeader>
 
       {/* Subtle, thin scrollbar: faint thumb at rest, firmer on hover. The nav still
@@ -926,6 +935,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SettingsIcon className="mr-2 size-4" />
                   Settings
                 </DropdownMenuItem>
+                {/* 🎄 Reachable from every route (CRM pages use CrmHeader,
+                    which doesn't carry the header toggle). */}
+                {xmas.available && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      xmas.setEnabled(!xmas.enabled);
+                    }}
+                  >
+                    <Snowflake
+                      className={cn("mr-2 size-4", xmas.enabled && "text-sky-400")}
+                    />
+                    {xmas.enabled ? "Turn off holiday effects" : "Turn on holiday effects"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}>
                   <LogOut className="mr-2 size-4" />

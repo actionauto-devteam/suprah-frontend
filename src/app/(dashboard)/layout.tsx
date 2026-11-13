@@ -77,6 +77,9 @@ import { ExtensionAutoSignIn } from "@/components/crm/ExtensionAutoSignIn";
 import { MeetSessionProvider } from "@/components/suprah-meet/MeetSessionProvider"; // ← ADDED
 import { MeetAlerts } from "@/components/suprah-meet/MeetAlerts";
 import { StaffOnly } from "@/components/auth/StaffOnly";
+// 🎄 Holiday layer — snowfall + per-user toggle. Self-gated by season and the
+// user's preference (singleton store, no provider needed).
+import { ChristmasSnow, ChristmasToggle } from "@/components/seasonal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -399,6 +402,9 @@ function DashboardLayoutContent({
 
                 <ThemeModeToggle compact />
 
+                {/* 🎄 Only renders during the holiday window. */}
+                <ChristmasToggle className="max-[420px]:hidden" />
+
                 <AutrixHeaderButton className="h-11 w-11 px-0 sm:h-9 sm:w-auto sm:px-2" />
 
                 { }
@@ -511,6 +517,10 @@ function DashboardLayoutContent({
            navigation because this single mount keeps the store's socket and
            WebRTC peers alive across the whole dashboard shell. */}
       <YapLineDock />
+
+      { /* 🎄 Snowfall over the whole shell. Sits under dialogs/sheets (z-50),
+           never takes pointer events, and stays off inside live Meet rooms. */}
+      {!isMeetRoomRoute && <ChristmasSnow />}
 
       {isCrmRoute && <IncomingCallCenter />}
 
