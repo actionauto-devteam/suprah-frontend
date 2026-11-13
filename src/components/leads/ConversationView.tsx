@@ -851,7 +851,7 @@ export function ConversationView({
                         <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
-                            <span>{note?.milestone ? "Milestone" : "Internal note"}</span>
+                            <span>{note?.noteKind === "appointment" ? "Appointment" : note?.milestone ? "Milestone" : "Internal note"}</span>
                             {note?.authorType === "ai" && (
                               <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-amber-700 dark:text-amber-200">
                                 <Bot className="h-2.5 w-2.5" />

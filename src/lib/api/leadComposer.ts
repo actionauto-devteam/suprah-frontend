@@ -34,6 +34,23 @@ export function newClientRequestId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
+export function noServerAnswerMessage(error: unknown): string | null {
+  const err = error as {
+    isAxiosError?: boolean;
+    config?: unknown;
+    code?: string;
+    message?: string;
+    response?: { data?: { message?: unknown } };
+  } | null;
+  if (!err || !(err.isAxiosError || err.config)) return null;
+  const serverMessage = err.response?.data?.message;
+  if (typeof serverMessage === "string" && serverMessage.trim()) return null;
+  const timedOut = err.code === "ECONNABORTED" || err.code === "ETIMEDOUT" || /timeout/i.test(String(err.message || ""));
+  if (timedOut) return "Suprah took too long to answer, so we can't tell if your message went out. Check the conversation before sending again.";
+  if (!err.response) return "Couldn't reach Suprah. Check your internet connection, then check the conversation before sending again.";
+  return "Suprah is busy or restarting right now. Wait a moment, check the conversation, then try again.";
+}
+
 export const SEND_UNCERTAIN_CODE = "SEND_UNCERTAIN";
 export const SEND_IN_PROGRESS_CODE = "SEND_IN_PROGRESS";
 export const RECIPIENT_CHANGED_CODE = "RECIPIENT_CHANGED";

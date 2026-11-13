@@ -247,6 +247,11 @@ function LocationsContent() {
                               <span className="rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px]">{location.code}</span>
                               {location.status === "archived" && <Badge variant="outline" className="text-[10px]">Archived</Badge>}
                             </div>
+                            {(location.stockPrefixes || []).length > 0 && (
+                              <p className="mt-1 text-[11px] text-muted-foreground" data-testid="location-stock-prefixes">
+                                Stock numbers starting with <span className="font-mono font-semibold text-foreground">{(location.stockPrefixes || []).join(", ")}</span>
+                              </p>
+                            )}
                             {location.aliases.length > 0 && (
                               <div className="mt-2 flex flex-wrap gap-1">
                                 {location.aliases.slice(0, 8).map((alias) => (

@@ -23,7 +23,8 @@ import {
   X,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useAssignedNewCount, Lead } from "@/hooks/useLeads"
+import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useLeadTypeCounts, useAssignedNewCount, Lead } from "@/hooks/useLeads"
+import { isCampaignLeadType, leadTypeLabel } from "@/lib/leadType"
 import { ACTIVE_CALLS_KEY, useActiveCalls } from "@/hooks/useActiveCalls"
 import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import { useQueryClient } from "@tanstack/react-query"
@@ -70,7 +71,7 @@ import {
   type LeadStatusCategory,
 } from "@/lib/leadStatus";
 import { StatusReasonModal } from "./leads/StatusReasonModal";
-import { fmtTimeMDT } from "@/lib/timezone";
+import { fmtTimeMDT, todayStrMDT } from "@/lib/timezone";
 import { LeadsList } from "./leads/LeadsList";
 import {
   LEAD_DATE_PRESET_OPTIONS,
@@ -110,6 +111,7 @@ import {
   fetchLeadReplyOptions,
   formatSmsRecipient,
   newClientRequestId,
+  noServerAnswerMessage,
   type ComposerChannel,
   type LeadReplyOptions,
 } from "@/lib/api/leadComposer";
@@ -265,41 +267,23 @@ const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
   notes: "",
 };
 
-const formatDateInputValue = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const addDays = (date: Date, days: number): Date => {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-};
-
 const resolveLeadDateFilterRange = (
   filter: LeadDateFilterValue,
 ): { from: string | null; to: string | null } => {
-  const today = new Date();
+  const today = todayStrMDT();
   switch (filter.preset) {
-    case "today": {
-      const value = formatDateInputValue(today);
-      return { from: value, to: value };
-    }
+    case "today":
+      return { from: today, to: today };
     case "yesterday": {
-      const value = formatDateInputValue(addDays(today, -1));
+      const value = todayStrMDT(-1);
       return { from: value, to: value };
     }
     case "last7":
-      return { from: formatDateInputValue(addDays(today, -6)), to: formatDateInputValue(today) };
+      return { from: todayStrMDT(-6), to: today };
     case "last30":
-      return { from: formatDateInputValue(addDays(today, -29)), to: formatDateInputValue(today) };
+      return { from: todayStrMDT(-29), to: today };
     case "thisMonth":
-      return {
-        from: formatDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)),
-        to: formatDateInputValue(today),
-      };
+      return { from: `${today.slice(0, 8)}01`, to: today };
     case "custom":
       return {
         from: filter.from || null,
@@ -402,6 +386,7 @@ export function LeadsTab({
   const { data: teamMembers = [] } = useTeamMembers();
   const [locationFilter, setLocationFilter] = React.useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = React.useState<string | null>(null);
+  const [leadTypeFilter, setLeadTypeFilter] = React.useState<string | null>(null);
   const [dateFilter, setDateFilter] = React.useState<LeadDateFilterValue>({
     preset: "all",
     from: "",
@@ -439,6 +424,7 @@ export function LeadsTab({
     assignedTo: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
     location: locationFilter,
     source: sourceFilter,
+    leadType: leadTypeFilter,
     dateFrom: resolvedDateFilter.from,
     dateTo: resolvedDateFilter.to,
     liveRefreshMs: LEADS_LIVE_REFRESH_MS,
@@ -446,6 +432,7 @@ export function LeadsTab({
 
   const { counts: leadStatusCounts } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
+  const { counts: leadTypeCounts } = useLeadTypeCounts(LEADS_LIVE_REFRESH_MS);
   const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
   const queryClient = useQueryClient();
   const activeCalls = useActiveCalls();
@@ -454,6 +441,7 @@ export function LeadsTab({
   const refreshLeadCounts = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads", "status-counts"] });
     void queryClient.invalidateQueries({ queryKey: ["leads", "location-counts"] });
+    void queryClient.invalidateQueries({ queryKey: ["leads", "lead-type-counts"] });
   }, [queryClient]);
 
   const locationFilterTabs = React.useMemo(() => {
@@ -2071,8 +2059,14 @@ export function LeadsTab({
 
       await refetch();
     } catch (error: any) {
+      const requestUrl = String(error?.config?.url || "");
+      const failedOnSend =
+        String(error?.config?.method || "").toLowerCase() === "post" &&
+        /\/(messages|reply)(\?|$)/.test(requestUrl);
+      const noAnswer = failedOnSend ? noServerAnswerMessage(error) : null;
       const message =
         error?.response?.data?.message ||
+        noAnswer ||
         "Failed to send reply";
 
       const responseErrors = error?.response?.data?.errors;
@@ -2084,7 +2078,7 @@ export function LeadsTab({
       }
 
       const code = sendErrorCode(error?.response?.data);
-      if (code === SEND_UNCERTAIN_CODE) {
+      if (code === SEND_UNCERTAIN_CODE || noAnswer) {
         setUncertainSendByDraft((previous) => ({ ...previous, [sendingDraftKey]: true }));
         void fetchThread(selectedLead);
       } else if (code === SEND_IN_PROGRESS_CODE) {
@@ -2492,6 +2486,17 @@ export function LeadsTab({
           }]
         : []),
     ...(assigneeFilterName ? [{ key: "assignee", label: `Assigned: ${assigneeFilterName}`, onRemove: () => handleAssigneeFilter(null) }] : []),
+    ...(leadTypeFilter
+      ? [{
+          key: "lead-type",
+          label: `Type: ${leadTypeLabel(leadTypeFilter)}`,
+          onRemove: () => {
+            setLeadTypeFilter(null);
+            setCurrentPage(1);
+            setSelectedLead(null);
+          },
+        }]
+      : []),
     ...(sourceFilter
       ? [{
           key: "source",
@@ -2541,6 +2546,7 @@ export function LeadsTab({
     handleSourceFilterChange(null);
     handleClearDateFilter();
     setLocationFilter(null);
+    setLeadTypeFilter(null);
     setAssigneeFilterId(null);
     if (isMobile) setSortBy("latest_activity");
     setCurrentPage(1);
@@ -2814,6 +2820,7 @@ export function LeadsTab({
                 activeCalls={activeCalls}
                 timeMode={sortBy === "latest_activity" ? "all" : "customer"}
                 currentUserId={currentUserId}
+                showCampaign={isCampaignLeadType(leadTypeFilter)}
                 title="Inquiries & Leads"
                 subtitle="Lead Inbox"
                 leads={leads}
@@ -2976,6 +2983,15 @@ export function LeadsTab({
                               counts: leadLocationCounts,
                               onChange: (key) => {
                                 setLocationFilter(key);
+                                setCurrentPage(1);
+                                setSelectedLead(null);
+                              },
+                            }}
+                            leadType={{
+                              value: leadTypeFilter,
+                              counts: leadTypeCounts,
+                              onChange: (value) => {
+                                setLeadTypeFilter(value);
                                 setCurrentPage(1);
                                 setSelectedLead(null);
                               },
@@ -3463,6 +3479,7 @@ export function LeadsTab({
             : undefined
         }
         forceCustomerBooking={true}
+        initialSalespersonId={selectedLead?.assignedTo || null}
         extraPayload={selectedLead ? { leadId: selectedLead._id } : undefined}
         entryTypeLock="appointment"
       />
