@@ -361,10 +361,10 @@ export function TransportationMobileQuoteCard({
               </div>
             </div>
 
-            {/* On the narrowest cards (small phones) the route stacks: origin,
+            {/* On narrow cards (phones under about 390 px) the route stacks: origin,
                 miles, then destination, so place names keep whole words (2026-11-14). */}
             <div className="@container mt-3 min-w-0">
-              <div className="grid min-w-0 grid-cols-1 items-stretch gap-1 @min-[17.5rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] @min-[17.5rem]:gap-2">
+              <div className="grid min-w-0 grid-cols-1 items-stretch gap-1 @min-[19.5rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] @min-[19.5rem]:gap-2">
                 <button
                   type="button"
                   aria-label="View quote origin details"
@@ -383,7 +383,7 @@ export function TransportationMobileQuoteCard({
                   type="button"
                   aria-label="View quote distance"
                   onClick={(event) => openInspectorSection(event, "overview")}
-                  className="self-center justify-self-start rounded-full @min-[17.5rem]:justify-self-auto border border-transparent bg-muted/60 px-2 py-1 text-[11px] font-mono font-bold text-muted-foreground transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-amber-500/80 hover:bg-amber-50 hover:text-amber-700 hover:shadow-[0_0_0_2px_rgba(245,158,11,0.10)] active:scale-[0.96] active:border-amber-600 active:bg-amber-100/90 dark:hover:border-amber-300/60 dark:hover:bg-amber-500/16 dark:hover:text-amber-200 dark:hover:shadow-[0_0_0_2px_rgba(251,191,36,0.07)] dark:active:border-amber-300 dark:active:bg-amber-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35 dark:hover:text-amber-300"
+                  className="self-center justify-self-start rounded-full @min-[19.5rem]:justify-self-auto border border-transparent bg-muted/60 px-2 py-1 text-[11px] font-mono font-bold text-muted-foreground transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-amber-500/80 hover:bg-amber-50 hover:text-amber-700 hover:shadow-[0_0_0_2px_rgba(245,158,11,0.10)] active:scale-[0.96] active:border-amber-600 active:bg-amber-100/90 dark:hover:border-amber-300/60 dark:hover:bg-amber-500/16 dark:hover:text-amber-200 dark:hover:shadow-[0_0_0_2px_rgba(251,191,36,0.07)] dark:active:border-amber-300 dark:active:bg-amber-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35 dark:hover:text-amber-300"
                 >
                   {Math.round(quote.miles)} MI
                 </button>
@@ -392,9 +392,9 @@ export function TransportationMobileQuoteCard({
                   type="button"
                   aria-label="View quote destination details"
                   onClick={(event) => openInspectorSection(event, "overview")}
-                  className="min-w-0 rounded-xl border border-transparent px-2 py-1.5 text-left @min-[17.5rem]:text-right transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-cyan-500/85 hover:bg-cyan-50 hover:shadow-[0_0_0_2px_rgba(6,182,212,0.12)] active:scale-[0.985] active:border-cyan-600 active:bg-cyan-100/90 dark:hover:border-cyan-300/65 dark:hover:bg-cyan-500/16 dark:hover:shadow-[0_0_0_2px_rgba(34,211,238,0.08)] dark:active:border-cyan-300 dark:active:bg-cyan-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40"
+                  className="min-w-0 rounded-xl border border-transparent px-2 py-1.5 text-left @min-[19.5rem]:text-right transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-cyan-500/85 hover:bg-cyan-50 hover:shadow-[0_0_0_2px_rgba(6,182,212,0.12)] active:scale-[0.985] active:border-cyan-600 active:bg-cyan-100/90 dark:hover:border-cyan-300/65 dark:hover:bg-cyan-500/16 dark:hover:shadow-[0_0_0_2px_rgba(34,211,238,0.08)] dark:active:border-cyan-300 dark:active:bg-cyan-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40"
                 >
-                  <span className="flex flex-row-reverse items-center justify-end gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-cyan-500 @min-[17.5rem]:flex-row">
+                  <span className="flex flex-row-reverse items-center justify-end gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-cyan-500 @min-[19.5rem]:flex-row">
                     Destination <MapPin className="size-3" />
                   </span>
                   <p className="mt-1 break-words [overflow-wrap:anywhere] text-sm font-black text-foreground">
