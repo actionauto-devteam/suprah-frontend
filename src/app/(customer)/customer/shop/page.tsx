@@ -27,6 +27,7 @@ import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
 import { toast } from "sonner";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
+import { VehicleVideoDialog } from "@/components/inventory/VehicleVideoDialog";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -256,6 +257,7 @@ function ShopVehiclesContent() {
     setInquiryOpen,
     setFinanceOpen,
     setShippingOpen,
+    setVideoOpen,
     handleVehicleClick,
     handleCheckAvailability,
     handleApplyNow,
@@ -706,6 +708,8 @@ function ShopVehiclesContent() {
       </div>
 
       {/* ─── Modals ───────────────────────────────────────────────── */}
+      {/* The Video button's window: plays the car's video, or says there isn't one yet (2026-11-13). */}
+      <VehicleVideoDialog open={openModals.video} onOpenChange={setVideoOpen} vehicle={selectedVehicle} />
       <ShippingQuoteModal
         open={openModals.shipping}
         onOpenChange={setShippingOpen}
