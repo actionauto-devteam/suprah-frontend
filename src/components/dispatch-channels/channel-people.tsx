@@ -5,10 +5,11 @@ import { Loader2, Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/providers/AuthProvider";
+import { useAuth, useUser } from "@/providers/AuthProvider";
 import { userErrorMessage } from "@/lib/user-error";
 import { cn } from "@/lib/utils";
 import { dispatchChannelsApi, type ChannelPerson } from "@/lib/api/dispatch-channels";
+import { peopleSearchReach } from "@/lib/dispatch-people-search";
 
 const SEARCH_DELAY_MS = 300;
 
@@ -37,8 +38,9 @@ export function PersonAvatar({ person, className }: { person: Pick<ChannelPerson
 }
 
 /**
- * Finds drivers and staff anywhere on the platform by name. Shows only name,
- * driver/staff and organization (never email or phone).
+ * Finds, by name, only the people the signed-in person works with (the
+ * server decides; the line under the box says who, 2026-11-13). Shows only
+ * name, driver/staff and organization (never email or phone).
  */
 export function ChannelPeoplePicker({
   excludeIds = [],
@@ -54,9 +56,13 @@ export function ChannelPeoplePicker({
   autoFocus?: boolean;
 }) {
   const { getToken } = useAuth();
+  const { user } = useUser();
+  const reach = peopleSearchReach(user?.role);
+  const hintId = React.useId();
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<ChannelPerson[]>([]);
   const [status, setStatus] = React.useState<"idle" | "searching" | "error">("idle");
+  const [error, setError] = React.useState<unknown>(null);
   const [pickingId, setPickingId] = React.useState<string | null>(null);
   const excluded = React.useMemo(() => new Set(excludeIds), [excludeIds]);
   const search = query.trim();
@@ -75,8 +81,11 @@ export function ChannelPeoplePicker({
         if (cancelled) return;
         setResults(people);
         setStatus("idle");
-      } catch {
-        if (!cancelled) setStatus("error");
+      } catch (searchError) {
+        if (cancelled) return;
+        // The server's own words, e.g. how long to wait after many searches.
+        setError(searchError);
+        setStatus("error");
       }
     }, SEARCH_DELAY_MS);
     return () => {
@@ -103,22 +112,27 @@ export function ChannelPeoplePicker({
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search drivers and staff by name"
+          placeholder="Search people by name"
+          aria-label="Search people by name"
+          aria-describedby={hintId}
           className="h-9 pl-8 text-sm"
           autoFocus={autoFocus}
           disabled={disabled}
         />
       </div>
+      <p id={hintId} className="break-words text-[11px] text-muted-foreground">
+        {reach}
+      </p>
       {status === "searching" && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Loader2 className="size-3 animate-spin" /> Searching…
         </p>
       )}
       {status === "error" && (
-        <p className="text-xs text-destructive">{userErrorMessage(null, "search for people")}</p>
+        <p role="alert" className="break-words text-xs text-destructive">{userErrorMessage(error, "search for people")}</p>
       )}
       {status === "idle" && search.length >= 2 && visible.length === 0 && (
-        <p className="text-xs text-muted-foreground">Nobody else matches that name.</p>
+        <p className="break-words text-xs text-muted-foreground">Nobody you can find matches that name.</p>
       )}
       {visible.length > 0 && (
         <ul className="max-h-56 space-y-1 overflow-y-auto pr-1">
@@ -126,8 +140,8 @@ export function ChannelPeoplePicker({
             <li key={person.id} className="flex items-center gap-2 rounded-md border border-border/50 px-2 py-1.5">
               <PersonAvatar person={person} className="size-7" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{person.name}</p>
-                <p className="truncate text-[11px] text-muted-foreground">{personLabel(person)}</p>
+                <p className="break-words text-sm font-medium [overflow-wrap:anywhere]">{person.name}</p>
+                <p className="break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{personLabel(person)}</p>
               </div>
               <Button
                 type="button"
