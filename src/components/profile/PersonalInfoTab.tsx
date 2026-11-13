@@ -81,22 +81,24 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
 }) => {
     return (
         <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+            {/* Edit sits in the header's right corner on every screen size (2026-11-13);
+                on small phones Cancel and Save move to a second line, still on the right. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex min-w-0 flex-1 basis-36 items-center gap-3">
+                    <div className="w-8 h-8 shrink-0 rounded-lg bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center">
                         <UserCog className="size-4 text-white" />
                     </div>
-                    <div>
-                        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Personal Information</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Manage your personal details</p>
+                    <div className="min-w-0">
+                        <h3 className="break-words text-base font-bold text-gray-900 dark:text-gray-100">Personal Information</h3>
+                        <p className="break-words text-xs text-gray-500 dark:text-gray-400">Manage your personal details</p>
                     </div>
                 </div>
                 {!editingPersonalInfo ? (
-                    <Button onClick={() => setEditingPersonalInfo(true)} size="sm">
+                    <Button onClick={() => setEditingPersonalInfo(true)} size="sm" className="ml-auto shrink-0">
                         <Edit3 className="size-4 mr-2" />Edit
                     </Button>
                 ) : (
-                    <div className="flex gap-2">
+                    <div className="ml-auto flex shrink-0 gap-2">
                         <Button variant="outline" size="sm" onClick={() => setEditingPersonalInfo(false)}>Cancel</Button>
                         <Button size="sm" onClick={() => setShowSaveConfirmDialog(true)} disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700">
                             {isSaving ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Check className="size-4 mr-2" />}
