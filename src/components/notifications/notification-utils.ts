@@ -6,6 +6,7 @@ import {
   BarChart3, Boxes, Fingerprint, Timer, Bot, StickyNote, PhoneMissed, type LucideIcon,
 } from 'lucide-react';
 import { Notification, NotificationCategory } from '@/types/notification';
+import { shipmentNotificationRoute } from '@/lib/customer-shipment-tracking';
 import {
   notificationPreferenceCategories,
   adminNotificationPreferenceCategories,
@@ -626,6 +627,10 @@ export function getNotificationRoute(notification: Notification, pathname?: stri
   // still has it, otherwise the list where they can act next.
   const driverLoadRoute = getLegacyDriverLoadRoute(notification, metadataRoute);
   if (driverLoadRoute) return driverLoadRoute;
+
+  // A customer's shipment step opens that shipment, not just the list.
+  const shipmentRoute = shipmentNotificationRoute(notification);
+  if (shipmentRoute) return shipmentRoute;
 
   // Prefer the contextual route embedded in metadata for all other types.
   if (metadataRoute) return metadataRoute;

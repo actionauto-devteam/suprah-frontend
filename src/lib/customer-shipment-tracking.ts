@@ -132,6 +132,19 @@ export function withLivePosition(
   }
 }
 
+/**
+ * Where a shipment step's notification goes: that shipment on My Shipments
+ * (2026-11-13). Steps were saved with only the page's address, plus the
+ * shipment's quote id, so older ones open the right shipment too.
+ */
+export function shipmentNotificationRoute(
+  notification: { metadata?: { route?: unknown; quoteId?: unknown } | null } | null | undefined,
+): string | null {
+  if (notification?.metadata?.route !== MY_SHIPMENTS_ROUTE) return null
+  const quoteId = String(notification.metadata.quoteId ?? "").trim()
+  return /^[a-f0-9]{24}$/i.test(quoteId) ? `${MY_SHIPMENTS_ROUTE}?shipment=${quoteId}` : null
+}
+
 /** Whether a notification is about the customer's shipments (every shipment step sends one). */
 export function isShipmentNotification(notification: { metadata?: { route?: unknown } | null } | null | undefined): boolean {
   const route = typeof notification?.metadata?.route === "string" ? notification.metadata.route : ""

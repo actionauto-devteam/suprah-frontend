@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
@@ -29,11 +30,21 @@ import { resolveImageUrl, cn } from "@/lib/utils";
 import { useUser } from "@/providers/AuthProvider";
 import { useNotifications } from "@/context/NotificationContext";
 import { useProfileContext } from "@/context/ProfileContext";
+import { getNotificationRoute } from "@/components/notifications/notification-utils";
+import { openNotificationDrawer } from "@/lib/notification-open";
 
 export function OverviewTab() {
   const { user } = useUser();
   const { avatarUrl } = useProfileContext();
   const { unreadCount, notifications, markAsRead } = useNotifications();
+  const router = useRouter();
+  // A notification opens what it's about (the shipment, its chat, the car…)
+  // and counts as read (2026-11-13).
+  const openNotification = (notif: (typeof notifications)[number]) => {
+    if (!notif.isRead) void markAsRead(notif._id);
+    const route = getNotificationRoute(notif, "/customer");
+    if (route) router.push(route);
+  };
 
   const { data: vehicles } = useQuery({
     queryKey: ["vehicles"],
@@ -577,9 +588,15 @@ export function OverviewTab() {
                 </span>
               )}
             </div>
-            <Link href="/customer/notifications" className="text-[11px] text-primary font-semibold hover:underline">
+            {/* Opens the Notifications drawer, the same list as the bell (2026-11-13). */}
+            <button
+              type="button"
+              onClick={openNotificationDrawer}
+              aria-controls="notification-drawer"
+              className="text-[11px] text-primary font-semibold hover:underline"
+            >
               View all →
-            </Link>
+            </button>
           </div>
 
           {notifications.slice(0, 3).length === 0 ? (
@@ -592,7 +609,8 @@ export function OverviewTab() {
               {notifications.slice(0, 3).map((notif) => (
                 <button
                   key={notif._id}
-                  onClick={() => markAsRead(notif._id)}
+                  type="button"
+                  onClick={() => openNotification(notif)}
                   className={cn(
                     "w-full flex items-start gap-2.5 rounded-xl border p-3 text-left transition-all duration-150",
                     notif.isRead
