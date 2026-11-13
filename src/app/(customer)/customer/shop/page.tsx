@@ -178,7 +178,7 @@ function SavedVehiclesFloatingButton({ savedVehicles, liftForTray }: { savedVehi
                               {v.year} {v.make} {v.model}
                             </p>
                             {v.trim && (
-                              <p className="text-[10px] text-muted-foreground truncate">{v.trim}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">{v.trim}</p>
                             )}
                             <p className="text-xs font-black text-primary mt-0.5">
                               {Number(v.price) > 0 ? `$${v.price.toLocaleString()}` : "Price Pending"}
@@ -557,7 +557,7 @@ function ShopVehiclesContent() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
+                <span className="text-[11px] font-black uppercase tracking-[0.25em] text-primary/80">
                   Marketplace
                 </span>
               </div>
@@ -614,7 +614,7 @@ function ShopVehiclesContent() {
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
               </div>
-              <span className="text-[10px] font-medium text-muted-foreground">
+              <span className="text-[11px] font-medium text-muted-foreground">
                 {isLoading ? "Updating..." : lastUpdated
                   ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}`
                   : "Live"}

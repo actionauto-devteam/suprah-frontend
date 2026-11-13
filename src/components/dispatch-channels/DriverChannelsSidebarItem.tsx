@@ -23,7 +23,7 @@ export function DriverChannelsSidebarItem() {
           {unreadTotal > 0 && (
             <span
               aria-label={`${unreadTotal} unread channel message${unreadTotal === 1 ? "" : "s"}`}
-              className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-black text-white group-data-[collapsible=icon]:hidden"
+              className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[11px] font-black text-white group-data-[collapsible=icon]:hidden"
             >
               {unreadTotal > 99 ? "99+" : unreadTotal}
             </span>

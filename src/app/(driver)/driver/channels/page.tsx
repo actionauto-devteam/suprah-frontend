@@ -447,7 +447,7 @@ function DriverDispatchChatView() {
                     onClick={() => setFilter(option.key)}
                     aria-pressed={active}
                     className={cn(
-                      "h-[26px] shrink-0 rounded-full border px-2.5 text-[10.5px] font-semibold leading-none transition-colors",
+                      "h-[26px] shrink-0 rounded-full border px-2.5 text-[11px] font-semibold leading-none transition-colors",
                       active
                         ? "border-emerald-600 bg-emerald-600 text-white"
                         : "border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground",

@@ -267,7 +267,7 @@ function StatTile({
   const content = (
     <>
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
+        <span className="block text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
           {label}
         </span>
         {onClick && (
@@ -332,7 +332,7 @@ function ModalMetric({
           : "border-slate-300/90 bg-background/45 dark:border-white/15",
       )}
     >
-      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
         {icon}
         {label}
       </div>
@@ -463,7 +463,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                       {[primaryVehicle.year, primaryVehicle.make, primaryVehicle.model].filter(Boolean).join(" ") || "No vehicle attached"}
                     </p>
                   )}
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">No photo on file</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">No photo on file</span>
                 </div>
               )}
 
@@ -479,7 +479,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                   extraImageCount > 0 ? "right-16" : "right-4",
                 )}
               >
-                <span className="text-[10px] font-black text-white/70 uppercase tracking-[0.25em]">Load</span>
+                <span className="text-[11px] font-black text-white/70 uppercase tracking-[0.25em]">Load</span>
                 <span
                   title={load.loadNumber}
                   className="break-words [overflow-wrap:anywhere] text-sm sm:text-base lg:text-lg font-black text-white font-mono tracking-tight drop-shadow"
@@ -489,7 +489,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
               </div>
 
               {extraImageCount > 0 && (
-                <div className="absolute bottom-4 right-4 flex shrink-0 items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black text-white/90 uppercase tracking-wider">
+                <div className="absolute bottom-4 right-4 flex shrink-0 items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[11px] font-black text-white/90 uppercase tracking-wider">
                   <Layers className="size-2.5" /> +{extraImageCount}
                 </div>
               )}
@@ -736,14 +736,14 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                     return (
                       <div className="pt-4 border-t border-border/30">
                         <div className="flex items-center justify-between gap-3 mb-2">
-                          <span className="text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest">
+                          <span className="text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest">
                             Journey Progress
                           </span>
 
                           {currentStatus && (
                             <span
                               className={cn(
-                                "text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border uppercase",
+                                "text-[11px] font-bold px-2.5 py-0.5 rounded-full border uppercase",
                                 LOAD_CARD_PROGRESS_THEME[currentStatus].badge,
                               )}
                             >
@@ -842,12 +842,12 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                             ) : (
                               <div className="flex h-44 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20 sm:h-full sm:min-h-44">
                                 <ImageIcon className="size-8 text-muted-foreground/45" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                                <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                                   No photo
                                 </span>
                               </div>
                             )}
-                            <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur">
+                            <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-white backdrop-blur">
                               Vehicle {index + 1}
                             </span>
                           </div>
@@ -864,7 +864,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                               </div>
                               <Badge
                                 className={cn(
-                                  "border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+                                  "border px-2.5 py-1 text-[11px] font-black uppercase tracking-wider",
                                   vehicle.condition === "Operable"
                                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                     : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -904,7 +904,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
 
                             {vehicle.carrierNotes && (
                               <div className="mt-3 rounded-xl border border-slate-300/85 bg-muted/20 px-3.5 py-3 dark:border-white/15">
-                                <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                <div className="mb-1 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                   Carrier Notes
                                 </div>
                                 <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">
@@ -944,7 +944,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                 <div className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/8 via-background to-cyan-500/4 p-5 shadow-sm">
                   <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                         {isLoadBoard ? "Carrier Pay" : "Total Driver Pay"}
                       </p>
                       <p className="mt-1 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
@@ -954,7 +954,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-300/90 bg-background/55 px-3.5 py-2.5 text-right dark:border-white/15">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                         Route Distance
                       </p>
                       <p className="mt-0.5 font-mono text-sm font-black text-foreground">
@@ -1036,7 +1036,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                 </div>
 
                 <div className="rounded-xl border border-slate-300/90 bg-muted/20 px-4 py-3 dark:border-white/15">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                     Financial context
                   </p>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
@@ -1112,12 +1112,12 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                        <span className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                           Current Schedule Focus
                         </span>
                         <Badge
                           className={cn(
-                            "border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                            "border px-2 py-0.5 text-[11px] font-black uppercase tracking-wider",
                             theme.bg,
                           )}
                         >
@@ -1172,7 +1172,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                         />
                       )}
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                           Journey Status
                         </p>
                         <p className="text-xs font-black text-foreground">
@@ -1258,7 +1258,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                         {item.isCurrent && (
                           <span
                             className={cn(
-                              "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest",
+                              "rounded-full border px-2 py-0.5 text-[11px] font-black uppercase tracking-widest",
                               item.tone === "emerald" &&
                               "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                               item.tone === "cyan" &&
@@ -1272,7 +1272,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
                         )}
                       </div>
 
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                         {item.label}
                       </p>
                       <p className="mt-1.5 text-base font-black tracking-tight text-foreground">
@@ -1291,7 +1291,7 @@ export function LoadCard({ load, onDelete, isDeleting, customerUnread = 0 }: Loa
 
                 {load.dates?.notes && (
                   <div className="rounded-xl border border-slate-300/90 bg-muted/20 px-4 py-3.5 dark:border-white/15">
-                    <div className="mb-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                    <div className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                       <FileText className="size-3.5" />
                       Date Notes
                     </div>

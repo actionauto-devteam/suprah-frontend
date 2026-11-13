@@ -30,7 +30,7 @@ export function PersonAvatar({ person, className }: { person: Pick<ChannelPerson
   return (
     <Avatar className={cn("size-8 shrink-0 border border-border/60", className)}>
       {person.avatar && <AvatarImage src={person.avatar} alt={person.name} className="object-cover" />}
-      <AvatarFallback className="bg-emerald-500/10 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+      <AvatarFallback className="bg-emerald-500/10 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
         {initialsOf(person.name)}
       </AvatarFallback>
     </Avatar>

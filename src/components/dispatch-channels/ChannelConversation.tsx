@@ -444,7 +444,7 @@ export function ChannelConversation({
             <FileText className="size-3.5 shrink-0 text-emerald-500" />
           )}
           <span className="min-w-0 max-w-full break-all text-[11px] font-semibold [overflow-wrap:anywhere]">{file.name}</span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{sizeLabel(file.size)}</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{sizeLabel(file.size)}</span>
           <button
             type="button"
             aria-label={`Remove ${file.name}`}
@@ -482,21 +482,21 @@ export function ChannelConversation({
           )}
 
           <div className="min-w-0 flex-1 text-left">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
               Suprah AI · Dispatch Channel
             </p>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
               <h2 className="truncate text-sm font-black tracking-tight sm:text-base">{channel?.name ?? "Channel"}</h2>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 <Users className="size-2.5" /> Group
               </span>
               {closed && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                   <Lock className="size-2.5" /> Closed
                 </span>
               )}
             </div>
-            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-muted-foreground">
+            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
               {channel ? (
                 <>
                   <span className="shrink-0 font-black text-foreground">
@@ -514,7 +514,7 @@ export function ChannelConversation({
               )}
             </div>
             {channel?.description && (
-              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{channel.description}</p>
+              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{channel.description}</p>
             )}
           </div>
 
@@ -536,7 +536,7 @@ export function ChannelConversation({
               type="button"
               variant={membersOpen ? "secondary" : "outline"}
               size="sm"
-              className="h-9 shrink-0 gap-1.5 px-2.5 text-[10px] font-bold sm:px-3"
+              className="h-9 shrink-0 gap-1.5 px-2.5 text-[11px] font-bold sm:px-3"
               onClick={() => setMembersOpen(true)}
               disabled={!channel}
               aria-label="Open people in this channel"
@@ -578,7 +578,7 @@ export function ChannelConversation({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="max-md:min-h-11 h-7 rounded-full text-[10px] font-bold"
+                  className="max-md:min-h-11 h-7 rounded-full text-[11px] font-bold"
                   onClick={() => void loadOlder()}
                   disabled={loadingOlder}
                 >
@@ -594,7 +594,7 @@ export function ChannelConversation({
                     data-channel-message-id={message.id}
                     className={cn("flex justify-center px-4", highlightId === message.id && "rounded-full ring-2 ring-emerald-500/60")}
                   >
-                    <p className="max-w-full rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-1 text-center text-[10.5px] font-medium text-emerald-800 dark:text-emerald-200">
+                    <p className="max-w-full rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-1 text-center text-[11px] font-medium text-emerald-800 dark:text-emerald-200">
                       {message.content}
                       <span className="text-emerald-700/60 dark:text-emerald-300/60"> · {messageTime(message.createdAt)}</span>
                     </p>
@@ -619,10 +619,10 @@ export function ChannelConversation({
                 >
                   {!mine && <PersonAvatar person={message.sender} className="mb-5 size-8 border-emerald-500/20" />}
                   <div className={cn("flex min-w-0 max-w-[88%] flex-col sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
-                    <div className="mb-1 flex min-w-0 items-center gap-1.5 px-1 text-[10px] font-semibold text-muted-foreground">
+                    <div className="mb-1 flex min-w-0 items-center gap-1.5 px-1 text-[11px] font-semibold text-muted-foreground">
                       <span className="truncate">{mine ? "You" : message.sender.name}</span>
                       {!mine && (
-                        <span className="shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                        <span className="shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide">
                           {personLabel(message.sender)}
                         </span>
                       )}
@@ -655,7 +655,7 @@ export function ChannelConversation({
                             }}
                           />
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] text-muted-foreground">Enter to save · Esc to cancel</span>
+                            <span className="text-[11px] text-muted-foreground">Enter to save · Esc to cancel</span>
                             <div className="flex gap-1.5">
                               <Button type="button" size="sm" variant="ghost" className="max-md:min-h-11 h-7 text-xs" onClick={() => setEditing(null)} disabled={savingEdit}>
                                 Cancel
@@ -716,7 +716,7 @@ export function ChannelConversation({
                       )}
                     </div>
 
-                    <div className="mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground/80">
+                    <div className="mt-1 flex items-center gap-1 px-1 text-[11px] text-muted-foreground/80">
                       {messageTime(message.createdAt)}
                       {message.editedAt && !deleted && (
                         <>
@@ -772,7 +772,7 @@ export function ChannelConversation({
                 className="absolute bottom-[calc(100%-4px)] left-3 z-20 mb-2 w-[min(16rem,calc(100%-1.5rem))] rounded-2xl border border-border p-2 shadow-xl"
                 style={{ background: SURFACE_RAISED }}
               >
-                <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Quick emotes</p>
+                <p className="px-1 pb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">Quick emotes</p>
                 <div className="grid grid-cols-8 gap-1">
                   {EMOJIS.map((emoji) => (
                     <button
@@ -857,7 +857,7 @@ export function ChannelConversation({
               </Button>
             </div>
 
-            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[10px] text-muted-foreground">
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground">
               <span>Enter to send · Shift+Enter for new line · Up to 5 files, 25 MB each</span>
               <span>{draft.length}/4000</span>
             </div>

@@ -63,7 +63,7 @@ function StatTile({
     const content = (
         <>
             <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
+                <span className="block text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest break-words [overflow-wrap:anywhere]">
                     {label}
                 </span>
                 {onClick && (
@@ -126,7 +126,7 @@ function ModalMetric({
                     : "border-slate-300/90 bg-background/45 dark:border-white/15",
             )}
         >
-            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 {icon}
                 {label}
             </div>
@@ -361,7 +361,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                     <p className="text-xs font-black tracking-tight text-muted-foreground text-center px-4 break-words [overflow-wrap:anywhere] max-w-full">
                                         {vehicleName}
                                     </p>
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">No photo on file</span>
+                                    <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">No photo on file</span>
                                 </div>
                             )}
 
@@ -383,7 +383,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                             </div>
 
                             <div className="absolute bottom-4 left-4 right-4 flex flex-col gap-0.5 min-w-0">
-                                <span className="text-[10px] font-black text-white/70 uppercase tracking-[0.25em]">Vehicle</span>
+                                <span className="text-[11px] font-black text-white/70 uppercase tracking-[0.25em]">Vehicle</span>
                                 <span className="text-base font-black text-white tracking-tight drop-shadow break-words [overflow-wrap:anywhere]">{vehicleName}</span>
                                 {(vinDisplay || stockDisplay) && (
                                     <span className="text-[11px] font-mono text-white/80 break-words [overflow-wrap:anywhere]">
@@ -466,7 +466,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-3">
                                     {/* Customer panel */}
                                     <div className="rounded-xl border border-border/50 bg-background/40 p-3.5 min-w-0 h-full flex flex-col">
-                                        <span className="block text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                                        <span className="block text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                                             Customer
                                         </span>
                                         <div className="flex-1 flex flex-col justify-center min-w-0">
@@ -541,7 +541,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
 
                                     {/* Route panel — vertical telemetry for full addresses */}
                                     <div className="rounded-xl border border-border/50 bg-background/40 p-3.5 min-w-0 h-full flex flex-col">
-                                        <span className="block text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                                        <span className="block text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                                             Route
                                         </span>
                                         <div className="flex-1 flex flex-col justify-center min-w-0">
@@ -584,7 +584,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
                                         )}
                                     >
-                                        <span className="flex items-center justify-between gap-2 text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+                                        <span className="flex items-center justify-between gap-2 text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-1">
                                             <span>Quote Rate</span>
                                             <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-200 group-hover/stat:translate-x-0.5" />
                                         </span>
@@ -743,7 +743,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                                 </div>
 
                                 <div className="mt-4 rounded-2xl border border-slate-300/90 bg-background/45 p-4 dark:border-white/15">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                         Route
                                     </p>
                                     <div className="mt-3 space-y-3">
