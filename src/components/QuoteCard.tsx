@@ -340,9 +340,11 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                 <AlertDialog {...alert} onOpenChange={hideAlert} />
 
                 <CardContent className="p-0">
-                    <div className="flex flex-col 2xl:flex-row 2xl:min-h-80">
+                    {/* Same layout as the load card (2026-11-14): photo on top on phones and
+                        tablets, on the left from computer width, instead of a tall photo up to 1536 px. */}
+                    <div className="flex flex-col lg:flex-row lg:min-h-64">
                         {/* ── Hero: vehicle photo + identity overlay ── */}
-                        <div className="relative w-full aspect-4/3 min-h-44 2xl:aspect-auto 2xl:min-h-0 2xl:h-auto 2xl:w-80 overflow-hidden shrink-0 bg-muted/30">
+                        <div className="relative w-full h-56 sm:h-64 lg:h-auto lg:w-52 xl:w-60 2xl:w-72 overflow-hidden shrink-0 bg-muted/30">
                             {heroImage ? (
                                 <img
                                     src={heroImage}
