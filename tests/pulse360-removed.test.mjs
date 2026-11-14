@@ -22,3 +22,18 @@ test('Timeproof Clock no longer shows the Pulse health card', () => {
 test('the Pulse 360 page is gone', () => {
   assert.equal(fs.existsSync(src('app/(dashboard)/crm/pulse360/page.tsx')), false);
 });
+
+test('the Pulse 360 code is gone and nothing still points to it', () => {
+  for (const rel of [
+    'components/crm/pulse360/Pulse360Bell.tsx',
+    'components/crm/pulse360/Pulse360Popup.tsx',
+    'components/crm/pulse360/PulseRing.tsx',
+    'components/crm/timeproof/PulseHealthCard.tsx',
+    'lib/pulse360.ts',
+    'lib/pulse360-store.ts',
+  ]) {
+    assert.equal(fs.existsSync(src(rel)), false, rel);
+  }
+  const drawer = fs.readFileSync(src('components/layout/HeaderDrawer.tsx'), 'utf8');
+  assert.doesNotMatch(drawer, /pulse360/);
+});

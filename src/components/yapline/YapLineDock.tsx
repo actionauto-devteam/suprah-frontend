@@ -3,7 +3,7 @@
 /**
  * Suprah YapLine — floating dock.
  *
- * Mounted ONCE in the dashboard layout (next to Pulse360Popup) so live audio,
+ * Mounted ONCE in the dashboard layout so live audio,
  * incoming broadcasts, and the mini-player survive navigation across every
  * route — CRM, Dashboard, Projects, Reports, Inventory, all of it. The store
  * behind it is a module-level singleton, so there is no provider to add.

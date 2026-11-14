@@ -4,7 +4,7 @@
  * Suprah YapLine — global push-to-talk voice + screen share engine.
  *
  * Module-level singleton exposed through useSyncExternalStore (same pattern as
- * the feed-notification and Pulse360 stores — NO provider required). Any
+ * the feed-notification store — NO provider required). Any
  * component can call useYapLine(); the engine connects once per tab and keeps
  * receiving broadcasts on every route as long as the app is open.
  *

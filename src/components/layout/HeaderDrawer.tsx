@@ -20,7 +20,7 @@ export function HeaderDrawer({ open, onOpenChange, title, id, triggerRef, childr
     // A closing mobile panel must not steal focus from a newly opened drawer.
     const anotherDrawerIsOpen = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]'))
       .some(button => button.getAttribute("aria-controls") !== id &&
-        ["notification-drawer", "pulse360-drawer", "suprahspace-drawer"].includes(button.getAttribute("aria-controls") || ""));
+        ["notification-drawer", "suprahspace-drawer"].includes(button.getAttribute("aria-controls") || ""));
     if (!anotherDrawerIsOpen) triggerRef.current?.focus({ preventScroll: true });
   };
   const close = () => { onOpenChange(false); restoreTriggerFocus(); };
