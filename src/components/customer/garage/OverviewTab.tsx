@@ -229,12 +229,18 @@ export function OverviewTab() {
             {unreadCount > 0 && (
               <>
                 <span className="text-border/80 text-xs">·</span>
-                <Link href="/customer/notifications" className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                {/* Opens the Notifications drawer, like View all (2026-11-14). */}
+                <button
+                  type="button"
+                  onClick={openNotificationDrawer}
+                  aria-controls="notification-drawer"
+                  className="flex items-center gap-1.5 rounded-md text-xs font-bold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-black leading-none">
                     {unreadCount}
                   </span>
                   new alert{unreadCount !== 1 ? "s" : ""}
-                </Link>
+                </button>
               </>
             )}
           </div>
@@ -441,6 +447,8 @@ export function OverviewTab() {
             label: "Alerts",
             value: unreadCount,
             href: "/customer/notifications",
+            // Opens the Notifications drawer, like View all (2026-11-14).
+            opensDrawer: true,
             ring: "ring-amber-400/20",
             iconBg: "bg-amber-500/10",
             iconCl: "text-amber-500",
@@ -454,8 +462,8 @@ export function OverviewTab() {
             iconBg: "bg-emerald-500/10",
             iconCl: "text-emerald-500",
           },
-        ].map((stat) => (
-          <Link key={stat.label} href={stat.href}>
+        ].map((stat) => {
+          const tile = (
             <div
               className={cn(
                 "group rounded-2xl border border-border/40 bg-card p-4 flex flex-col gap-3 transition-all duration-200 cursor-pointer",
@@ -474,8 +482,23 @@ export function OverviewTab() {
               </div>
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 self-end -mt-1 group-hover:text-primary transition-colors group-hover:translate-x-0.5" />
             </div>
-          </Link>
-        ))}
+          );
+          return stat.opensDrawer ? (
+            <button
+              key={stat.label}
+              type="button"
+              onClick={openNotificationDrawer}
+              aria-controls="notification-drawer"
+              className="block w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {tile}
+            </button>
+          ) : (
+            <Link key={stat.label} href={stat.href}>
+              {tile}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Quick Actions */}
