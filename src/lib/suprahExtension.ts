@@ -1,4 +1,4 @@
-const DEFAULT_EXTENSION_IDS = ["fjpfmocfeidcflangiebhbmdkfmbloek"];
+const DEFAULT_EXTENSION_IDS = ["fjpfmocfeidcflangiebhbmdkfmbloek", "hecfdopepnjijblnljadcljkcadakeed"];
 const EXTENSION_ID = /^[a-p]{32}$/;
 
 interface ExtensionRuntime {
