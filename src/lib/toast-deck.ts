@@ -53,6 +53,25 @@ export function toastLifetime(
   return fallback;
 }
 
+/**
+ * Which toasts count down right now: only the one on screen, so nobody misses
+ * a waiting message. While the one on screen is still loading ("Preparing…"),
+ * the waiting ones count down and close on their own, as they did before the
+ * one-card deck (2026-11-14).
+ */
+export function countingDownIds(
+  toasts: ReadonlyArray<{ id: DeckToastId; type?: string; duration?: number }>,
+  shownIndex: number,
+  fallback: number = DEFAULT_TOAST_LIFETIME,
+): DeckToastId[] {
+  const shown = toasts[shownIndex];
+  if (!shown) return [];
+  if (toastLifetime(shown, fallback) !== Infinity) return [shown.id];
+  return toasts
+    .filter((toast, index) => index !== shownIndex && toastLifetime(toast, fallback) !== Infinity)
+    .map((toast) => toast.id);
+}
+
 /** The switch button's position text, e.g. "2/3". */
 export function deckPositionLabel(index: number, count: number): string {
   return `${Math.min(index, Math.max(count - 1, 0)) + 1}/${count}`;

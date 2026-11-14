@@ -17,6 +17,7 @@ function load(file) {
 }
 const {
   DEFAULT_TOAST_LIFETIME,
+  countingDownIds,
   deckIndexAfterChange,
   deckPositionLabel,
   deckSwitchLabel,
@@ -76,6 +77,21 @@ test('the app Toaster draws the one-card deck; screens keep calling toast()', ()
   assert.match(deck, /const \{ toasts \} = useSonner\(\)/);
   assert.match(deck, /count > 1 \? \(/);
   assert.match(deck, /aria-label=\{deckSwitchLabel\(index, count\)\}/);
-  // Only the toast on screen counts down, and pointing at it pauses it.
-  assert.match(deck, /if \(!shown \|\| interacting \|\| pageHidden\) return/);
+  // Pointing at the card pauses the countdown; which toasts count down comes from countingDownIds.
+  assert.match(deck, /if \(interacting \|\| pageHidden\) return/);
+  assert.match(deck, /countingDownIds\(toasts, index, duration\)/);
+});
+
+test('only the toast on screen counts down', () => {
+  const list = [{ id: 'c', type: 'success' }, { id: 'b', type: 'error' }, { id: 'a', type: 'info' }];
+  assert.deepEqual(countingDownIds(list, 0), ['c']);
+  assert.deepEqual(countingDownIds(list, 2), ['a']);
+  assert.deepEqual(countingDownIds([], 0), []);
+});
+
+test('while the toast on screen is loading, the waiting ones count down and close on their own', () => {
+  const list = [{ id: 'up', type: 'loading' }, { id: 'saved', type: 'success' }, { id: 'prep', type: 'loading' }, { id: 'err', type: 'error' }];
+  assert.deepEqual(countingDownIds(list, 0), ['saved', 'err']);
+  // Looking at a waiting toast: only that one counts down.
+  assert.deepEqual(countingDownIds(list, 1), ['saved']);
 });
