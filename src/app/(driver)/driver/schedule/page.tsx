@@ -54,7 +54,8 @@ export default function DriverSchedulePage() {
     setLoadError(null);
     try {
       const token = await getToken();
-      const res = await apiClient.get("/api/driver-tracking/my-loads", {
+      // Current loads only (2026-11-15): the schedule shows what's coming up.
+      const res = await apiClient.get("/api/driver-tracking/my-loads?view=current", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const loadsData = res.data?.data?.loads || res.data?.data || [];
