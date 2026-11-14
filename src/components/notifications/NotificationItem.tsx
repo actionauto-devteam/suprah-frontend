@@ -77,7 +77,7 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
               {notification.title}
             </p>
             {occurrenceCount > 1 && (
-              <Badge variant="outline" className="h-4.5 shrink-0 rounded-full px-1.5 text-[10px] font-semibold text-muted-foreground">
+              <Badge variant="outline" className="h-4.5 shrink-0 rounded-full px-1.5 text-[11px] leading-none font-semibold text-muted-foreground">
                 {occurrenceCount}×
               </Badge>
             )}
@@ -92,7 +92,7 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, onClick
             {notification.message}
           </p>
           <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">
+            <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">
               {category}
             </span>
             <span

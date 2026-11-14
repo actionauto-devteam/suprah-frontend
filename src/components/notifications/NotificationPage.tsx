@@ -504,7 +504,7 @@ function NotificationPageView({
                       )}
                     >
                       {chip.label}
-                      <Badge variant="secondary" className="h-4 rounded-md px-1 text-[10px]">{chip.count}</Badge>
+                      <Badge variant="secondary" className="h-4 rounded-md px-1 text-[11px] leading-none">{chip.count}</Badge>
                     </button>
                   ))}
                 </div>
@@ -519,7 +519,7 @@ function NotificationPageView({
                   <ChevronDown className={cn('size-3.5 transition-transform', showMoreFilters && 'rotate-180')} />
                   More filters
                   {advancedFilterCount > 0 && (
-                    <Badge className="h-4 rounded-md bg-emerald-500 px-1 text-[10px] text-white">{advancedFilterCount}</Badge>
+                    <Badge className="h-4 rounded-md bg-emerald-500 px-1 text-[11px] leading-none text-white">{advancedFilterCount}</Badge>
                   )}
                 </button>
 

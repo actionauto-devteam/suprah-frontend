@@ -127,7 +127,7 @@ function DriverAlertLoadDetails({ load }: { load: DriverDispatchAlertLoadContext
         <div className="flex items-center gap-2">
           <Truck className="size-4 text-emerald-500" />
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Related load</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">Related load</p>
             <p className="text-sm font-black">{load.loadNumber || load.id}</p>
           </div>
         </div>
@@ -137,7 +137,7 @@ function DriverAlertLoadDetails({ load }: { load: DriverDispatchAlertLoadContext
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {[{ label: 'Pickup', value: load.pickup }, { label: 'Delivery', value: load.delivery }].map((entry) => (
           <div key={entry.label} className="rounded-lg border border-border/50 bg-background/60 p-2.5">
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">{entry.label}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">{entry.label}</p>
             <p className="mt-1 text-xs font-semibold">{locationLabel(entry.value)}</p>
             {locationAddress(entry.value) && (
               <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{locationAddress(entry.value)}</p>
@@ -179,7 +179,7 @@ function DriverAlertLoadDetails({ load }: { load: DriverDispatchAlertLoadContext
 
       {vehiclePreview.length > 0 && (
         <div className="mt-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Vehicles</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">Vehicles</p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {vehiclePreview.map((vehicle, index) => {
               const label = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || `Vehicle ${index + 1}`;
@@ -307,20 +307,20 @@ export function NotificationDetailsModal({
 
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em]">
+            <Badge variant="outline" className="text-[11px] uppercase tracking-[0.16em]">
               {category}
             </Badge>
             {isSchemaV2Alert ? (
               <>
-                <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.12em]">
+                <Badge variant="secondary" className="text-[11px] uppercase tracking-[0.12em]">
                   {alertLabel}
                 </Badge>
-                <Badge variant="outline" className={cn('text-[10px] uppercase tracking-[0.12em]', priorityClass(alertPriority))}>
+                <Badge variant="outline" className={cn('text-[11px] uppercase tracking-[0.12em]', priorityClass(alertPriority))}>
                   {alertPriority}
                 </Badge>
               </>
             ) : (
-              <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em]">
+              <Badge variant="secondary" className="text-[11px] uppercase tracking-[0.16em]">
                 {notification.type.replace(/_/g, ' ')}
               </Badge>
             )}
@@ -328,7 +328,7 @@ export function NotificationDetailsModal({
               <Badge
                 variant="outline"
                 className={cn(
-                  'text-[10px] uppercase tracking-[0.12em]',
+                  'text-[11px] uppercase tracking-[0.12em]',
                   currentResponse && currentResponse !== 'pending'
                     ? 'border-emerald-500/40 text-emerald-600'
                     : 'border-amber-500/40 text-amber-600',
@@ -353,7 +353,7 @@ export function NotificationDetailsModal({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">From</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">From</p>
                     <p className="mt-0.5 text-sm font-semibold">{sentByName}</p>
                   </div>
                   {notification.metadata?.loadNumber && (
@@ -365,7 +365,7 @@ export function NotificationDetailsModal({
                 </p>
                 {dispatcherMessage && dispatcherMessage !== notification.message && (
                   <div className="mt-3 rounded-lg border border-border/50 bg-background/60 p-2.5">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Dispatcher message</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">Dispatcher message</p>
                     <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">{dispatcherMessage}</p>
                   </div>
                 )}
