@@ -562,7 +562,7 @@ async function renewPushSubscription(existingSubscription?: any, applicationServ
       getStoredToken("crmAccessToken"),
     ]);
 
-    await Promise.allSettled([
+    const registrations = await Promise.allSettled([
       accessToken
         ? fetch(`${API_BASE_URL}/api/push/subscribe`, {
           method: "POST",
@@ -578,7 +578,10 @@ async function renewPushSubscription(existingSubscription?: any, applicationServ
         })
         : Promise.resolve(),
     ]);
-    await setStoredValue(SW_LAST_VERIFIED_KEY, String(Date.now()));
+    if ((accessToken || crmAccessToken) && registrations.every(result =>
+      result.status === 'fulfilled' && (!result.value || result.value.ok))) {
+      await setStoredValue(SW_LAST_VERIFIED_KEY, String(Date.now()));
+    }
   } catch (err) {
     console.error("[SW] Failed to renew push subscription:", err);
   }
@@ -641,8 +644,16 @@ self.addEventListener("push", (event: any) => {
 
       // 1. HANDLE SILENT SYNC (DISMISSAL)
       if (data.isSyncAction && data.action === "dismiss") {
-        const notifications = await (self as any).registration.getNotifications({ tag: data.tag });
-        notifications.forEach((notification: any) => notification.close());
+        const registration = (self as unknown as { registration: ServiceWorkerRegistration }).registration;
+        const notifications = await registration.getNotifications({ tag: data.tag });
+        notifications.forEach(notification => notification.close());
+        // Compatibility with pushes queued by older servers. Every delivered
+        // push must remain visible, including read synchronization messages.
+        await registration.showNotification("Notifications updated", {
+          body: "Your read notifications have been cleared.",
+          icon: DEFAULT_NOTIFICATION_ICON, tag: "notification-read-sync",
+          silent: true, data: { url: "/notifications" },
+        });
         return;
       }
 

@@ -5,6 +5,7 @@ import { Notification } from '@/types/notification';
 import { useAuth } from "@/providers/AuthProvider";
 import type { Socket } from 'socket.io-client';
 import { initializeSocket, onSocketChange } from '@/lib/socket.client';
+import { dismissDeviceNotifications } from '@/lib/web-push-subscription';
 import { playShiftAlertSound, playPingSound } from '@/lib/notification-sound';
 import { resolveNotificationCategory } from '@/components/notifications/notification-utils';
 
@@ -361,6 +362,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 fetchRef.current?.();
             };
 
+            const onConnect = () => { void fetchRef.current?.(); };
             let boundSocket: Socket | null = null;
             const unbind = () => {
                 if (!boundSocket) return;
@@ -368,6 +370,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 boundSocket.off('notification:read', onRead);
                 boundSocket.off('notification:readAll', onReadAll);
                 boundSocket.off('notification:updated', onUpdated);
+                boundSocket.off('notification:dismiss', dismissDeviceNotifications);
+                boundSocket.off('connect', onConnect);
                 boundSocket = null;
             };
             const bind = (next: Socket) => {
@@ -377,6 +381,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 next.on('notification:read', onRead);
                 next.on('notification:readAll', onReadAll);
                 next.on('notification:updated', onUpdated);
+                next.on('notification:dismiss', dismissDeviceNotifications);
+                next.on('connect', onConnect);
                 boundSocket = next;
             };
 
@@ -402,13 +408,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     // Support for App Badge API (PWA)
     useEffect(() => {
         if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+            const badges = navigator as Navigator & { setAppBadge(count: number): Promise<void>; clearAppBadge(): Promise<void> };
             try {
                 if (unreadCount > 0) {
-                    (navigator as any).setAppBadge(unreadCount).catch((err: any) =>
+                    badges.setAppBadge(unreadCount).catch((err: unknown) =>
                         console.error('[BadgeAPI] Error setting badge:', err)
                     );
                 } else {
-                    (navigator as any).clearAppBadge().catch((err: any) =>
+                    badges.clearAppBadge().catch((err: unknown) =>
                         console.error('[BadgeAPI] Error clearing badge:', err)
                     );
                 }

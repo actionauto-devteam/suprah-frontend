@@ -100,7 +100,7 @@ function CategoryRow({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">{category.label}</p>
-            <p className="text-xs text-muted-foreground truncate">{category.description}</p>
+            <p className="text-sm text-muted-foreground">{category.description}</p>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -111,11 +111,14 @@ function CategoryRow({
               size="icon"
               className="h-7 w-7 rounded-lg text-muted-foreground"
               onClick={() => setExpanded((v) => !v)}
+              aria-label={`Customize ${category.label} notifications`}
+              aria-expanded={expanded}
             >
               <ChevronDown className={cn('size-4 transition-transform', expanded && 'rotate-180')} />
             </Button>
           )}
           <Switch
+            aria-label={`${category.label} notifications`}
             checked={enabled}
             onCheckedChange={(checked) => handlePreferenceChange(category.key, checked)}
             disabled={saving}
@@ -137,11 +140,12 @@ function CategoryRow({
                 <div className="flex items-center gap-2 min-w-0">
                   <GroupIcon className={cn('size-3.5 shrink-0', group.color)} />
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{group.label}</p>
-                    <p className="text-[11px] text-muted-foreground/70 truncate">{group.description}</p>
+                    <p className="text-sm font-medium text-foreground">{group.label}</p>
+                    <p className="text-sm text-muted-foreground">{group.description}</p>
                   </div>
                 </div>
                 <Switch
+                  aria-label={`${group.label} notifications`}
                   checked={!groupMuted}
                   disabled={!enabled}
                   onCheckedChange={(checked) => onToggleTypeGroup(group.types, !checked)}

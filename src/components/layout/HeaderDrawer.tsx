@@ -30,10 +30,10 @@ export function HeaderDrawer({ open, onOpenChange, title, id, triggerRef, childr
   }, [open, desktop]);
   if (!open || desktop === null) return null;
   const body = <>
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-2">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))]">
       <h2 className="text-sm font-bold">{title}</h2>
       <button ref={closeRef} type="button" onClick={close} aria-label={"Close " + title}
-        className="flex size-10 items-center justify-center rounded-lg hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" /></button>
+        className="flex size-11 shrink-0 touch-manipulation items-center justify-center rounded-lg hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" /></button>
     </div>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
   </>;
@@ -46,7 +46,7 @@ export function HeaderDrawer({ open, onOpenChange, title, id, triggerRef, childr
   return <Sheet open={open} onOpenChange={onOpenChange}>
     <SheetContent id={id} side="right" showCloseButton={false}
       onCloseAutoFocus={(event) => { event.preventDefault(); restoreTriggerFocus(); }}
-      className="w-full max-w-none gap-0 overflow-hidden p-0 sm:w-[340px] sm:max-w-[340px]">
+      className="z-[80] h-dvh min-h-0 w-full max-w-none gap-0 overflow-hidden p-0 pb-[env(safe-area-inset-bottom)] sm:w-[340px] sm:max-w-[340px]">
       <SheetTitle className="sr-only">{title}</SheetTitle>
       <SheetDescription className="sr-only">Review {title} and access its actions.</SheetDescription>
       {body}

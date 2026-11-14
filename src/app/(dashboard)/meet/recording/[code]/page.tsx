@@ -8,6 +8,7 @@
  */
 
 import * as React from "react";
+import { isAxiosError } from "axios";
 import { useParams, useSearchParams } from "next/navigation";
 import { Clock, ShieldAlert } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -15,9 +16,19 @@ import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 
 interface RecData {
   title: string; code: string; whenStr: string; durationMin: number | null;
-  videoUrl: string; viewer: string | null;
+  videoUrl: string | null; viewer: string | null;
   summary: { overview: string; keyPoints: string[]; decisions: string[]; actionItems: string[] } | null;
 }
+
+const Section = ({ label, items }: { label: string; items?: string[] }) =>
+    items && items.length > 0 ? (
+      <div>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">{label}</p>
+        <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-emerald-100/90">
+          {items.map((i, n) => <li key={n}>{i}</li>)}
+        </ul>
+      </div>
+    ) : null;
 
 export default function SuprahMeetRecordingPage() {
   const params = useParams<{ code: string }>();
@@ -36,8 +47,8 @@ export default function SuprahMeetRecordingPage() {
         const res = await apiClient.get(
           `/api/crm/meet/guest/recording/${encodeURIComponent(code)}?t=${encodeURIComponent(token)}`);
         if (on) setData(res.data?.data);
-      } catch (err: any) {
-        if (on) setError(err?.response?.data?.message || "This recording could not be loaded.");
+      } catch (err: unknown) {
+        if (on) setError(isAxiosError<{ message?: string }>(err) ? err.response?.data?.message || "This report could not be loaded." : "This report could not be loaded.");
       }
     })();
     return () => { on = false; };
@@ -64,15 +75,7 @@ export default function SuprahMeetRecordingPage() {
     );
   }
 
-  const Section = ({ label, items }: { label: string; items?: string[] }) =>
-    items && items.length > 0 ? (
-      <div>
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">{label}</p>
-        <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-emerald-100/90">
-          {items.map((i, n) => <li key={n}>{i}</li>)}
-        </ul>
-      </div>
-    ) : null;
+
 
   return (
     <div className="min-h-dvh bg-[#071410] text-emerald-50">
@@ -89,8 +92,8 @@ export default function SuprahMeetRecordingPage() {
       <main className="mx-auto max-w-3xl space-y-5 p-4 md:p-6">
         {/* The presigned URL inside expires after ~1 hour; reloading the page
             (with the email link's token still valid) mints a fresh one. */}
-        <video src={data.videoUrl} controls playsInline
-          className="w-full rounded-2xl border border-emerald-400/20 bg-black shadow-[0_0_40px_rgba(16,185,129,0.08)]" />
+        {data.videoUrl && <video src={data.videoUrl} controls playsInline
+          className="w-full rounded-2xl border border-emerald-400/20 bg-black shadow-[0_0_40px_rgba(16,185,129,0.08)]" />}
 
         <div className="rounded-2xl border border-emerald-400/15 bg-[#0f1f19] p-4 md:p-5">
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-emerald-400">

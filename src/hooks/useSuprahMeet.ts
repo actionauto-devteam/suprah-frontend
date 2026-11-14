@@ -181,6 +181,9 @@ export function useSuprahMeet() {
   }, [phase]);
 
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
+  const joinAttemptRef = useRef(0);
+  const teardownPendingRef = useRef<Promise<void> | null>(null);
+  const resetPendingRef = useRef<Promise<void> | null>(null);
   const namesRef = useRef<Map<string, MeetParticipantInfo>>(new Map());
   const selfNameRef = useRef("You");
   const selfCrmIdRef = useRef("");
@@ -244,6 +247,7 @@ export function useSuprahMeet() {
       if (sessionRef.current !== session || codeRef.current !== currentCode || leftIntentionallyRef.current) return;
       const info = res.data?.data;
       if (info?.status === 'ended') {
+        setMeeting(current => current ? { ...current, status: 'ended' } : current);
         setEndedReason(info.endedReason || 'This meeting has ended.');
         forgetRecentMeet(currentCode);
         setPhase('ended');
@@ -272,6 +276,7 @@ export function useSuprahMeet() {
       } catch (error: unknown) {
         const failure = error as { response?: { status?: number; data?: { message?: string } } };
         if (failure.response?.status === 410 && !leftIntentionallyRef.current && sessionRef.current === session && codeRef.current === currentCode) {
+          setMeeting(current => current ? { ...current, status: 'ended' } : current);
           setEndedReason(failure.response.data?.message || 'This meeting has ended.');
           forgetRecentMeet(codeRef.current);
           setPhase('ended');
@@ -294,6 +299,10 @@ export function useSuprahMeet() {
   }, [phase, refreshNames]);
 
   const join = useCallback(async (code: string, options?: MeetJoinOptions) => {
+    const attempt = ++joinAttemptRef.current;
+    const currentCode = code.trim().toUpperCase();
+    const token = options?.token ?? null;
+    const isCurrent = () => joinAttemptRef.current === attempt && !leftIntentionallyRef.current;
     leftIntentionallyRef.current = false;
     setPhase("joining");
     setMicOn(false);
@@ -306,14 +315,22 @@ export function useSuprahMeet() {
     setCaptionStatus('off');
     setError(null);
     setEndedReason(null);
-    codeRef.current = code.trim().toUpperCase();
-    guestTokenRef.current = options?.token ?? null;
+    codeRef.current = currentCode;
+    guestTokenRef.current = token;
     try {
       const res = guestTokenRef.current
         ? await apiClient.post(`/api/crm/meet/guest/${codeRef.current}/join`, {},
             { headers: { Authorization: `Bearer ${guestTokenRef.current}` } })
         : await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/join`);
       const data = res.data?.data;
+      if (!isCurrent()) {
+        // A cancelled join can finish after another room has been selected.
+        // Release only the attendee created by that old request.
+        const leaveUrl = token ? `/api/crm/meet/guest/${currentCode}/leave` : `/api/crm/meet/meetings/${currentCode}/leave`;
+        void apiClient.post(leaveUrl, { attendeeId: data?.chime?.Attendee?.AttendeeId },
+          token ? { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 } : { timeout: 5000 }).catch(() => {});
+        return;
+      }
       const meetingInfo: MeetingInfo = data.meeting;
       setMeeting(meetingInfo);
       setCanControl(Boolean(data.self?.canControl));
@@ -362,6 +379,7 @@ export function useSuprahMeet() {
       audioVideo.setVideoMaxBandwidthKbps(1000);
 
       audioVideo.realtimeSubscribeToAttendeeIdPresence((attendeeId, present, externalUserId) => {
+        if (sessionRef.current !== session) return;
         if (attendeeId.includes("#content")) return;
         if (present) {
           const crmUserId = crmIdFrom(externalUserId);
@@ -382,6 +400,7 @@ export function useSuprahMeet() {
           void refreshNames();
           if (!isSelf && Date.now() - joinedAtRef.current > 2000) meetSounds.join();
           audioVideo.realtimeSubscribeToVolumeIndicator(attendeeId, (_id, _volume, muted) => {
+            if (sessionRef.current !== session) return;
             if (muted === null) return;
             setRoster((r) => (r[attendeeId] ? { ...r, [attendeeId]: { ...r[attendeeId], muted } } : r));
           });
@@ -394,11 +413,14 @@ export function useSuprahMeet() {
       });
 
       audioVideo.subscribeToActiveSpeakerDetector(
-        new DefaultActiveSpeakerPolicy(), (ids) => setActiveSpeakerId(ids[0] ?? "")
+        new DefaultActiveSpeakerPolicy(), (ids) => {
+          if (sessionRef.current === session) setActiveSpeakerId(ids[0] ?? "");
+        }
       );
 
       audioVideo.addObserver({
         videoTileDidUpdate: (tileState: VideoTileState) => {
+          if (sessionRef.current !== session) return;
           if (!tileState.tileId || !tileState.boundAttendeeId) return;
           setTiles((t) => ({
             ...t,
@@ -411,19 +433,26 @@ export function useSuprahMeet() {
           }));
         },
         videoTileWasRemoved: (tileId: number) => {
+          if (sessionRef.current !== session) return;
           setTiles((t) => { const next = { ...t }; delete next[tileId]; return next; });
         },
         audioVideoDidStop: (status: MeetingSessionStatus) => {
-          if (leftIntentionallyRef.current) return;
+          if (sessionRef.current !== session || leftIntentionallyRef.current) return;
           const code = status.statusCode();
           if (code === MeetingSessionStatusCode.MeetingEnded) {
+            setMeeting(current => current ? { ...current, status: 'ended' } : current);
             setEndedReason("This meeting has ended for everyone.");
             const endedCode = codeRef.current;
             const token = guestTokenRef.current;
             const url = token ? `/api/crm/meet/guest/${endedCode}/roster` : `/api/crm/meet/meetings/${endedCode}`;
             void apiClient.get(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
               .then((response) => {
-                if (codeRef.current === endedCode && response.data?.data?.endedReason) setEndedReason(response.data.data.endedReason);
+                if (codeRef.current !== endedCode || selfAttendeeIdRef.current !== String(data.chime.Attendee.AttendeeId)) return;
+                const info = response.data?.data;
+                if (info?.status === 'live' || info?.status === 'scheduled') {
+                  setMeeting(current => current ? { ...current, status: info.status } : current);
+                  setEndedReason('The media connection ended. You can rejoin this meeting.');
+                } else if (info?.endedReason) setEndedReason(info.endedReason);
               }).catch(() => {});
             forgetRecentMeet(endedCode);
           } else if (code === MeetingSessionStatusCode.AudioJoinedFromAnotherDevice) {
@@ -436,10 +465,14 @@ export function useSuprahMeet() {
       });
 
       audioVideo.addContentShareObserver({
-        contentShareDidStop: () => { sharingRef.current = false; setSharing(false); releaseWakeLock(); },
+        contentShareDidStop: () => {
+          if (sessionRef.current !== session) return;
+          sharingRef.current = false; setSharing(false); releaseWakeLock();
+        },
       });
 
       audioVideo.realtimeSubscribeToReceiveDataMessage(DATA_TOPIC, (msg: DataMessage) => {
+        if (sessionRef.current !== session) return;
         try {
           const payload = JSON.parse(msg.text());
           if (payload.t === "reaction") { pushReaction(payload.emoji, payload.name); meetSounds.reaction(); }
@@ -462,6 +495,7 @@ export function useSuprahMeet() {
       });
 
       audioVideo.realtimeSubscribeToReceiveDataMessage(CHAT_TOPIC, (msg: DataMessage) => {
+        if (sessionRef.current !== session) return;
         try {
           // Chime can echo a data message back to its sender. The sender has
           // already appended the local message, so ignore that echo instead of
@@ -492,6 +526,7 @@ export function useSuprahMeet() {
       if (audioElRef.current) {
         await audioVideo.bindAudioElement(audioElRef.current).catch(() => {});
       }
+      if (!isCurrent() || sessionRef.current !== session) return;
 
       audioVideo.start();
       // The preview stream has already been released by the pre-join screen.
@@ -500,20 +535,27 @@ export function useSuprahMeet() {
       if (options?.startMic) {
         try {
           const audioInputs = await audioVideo.listAudioInputDevices();
+          if (!isCurrent() || sessionRef.current !== session) return;
           if (audioInputs[0]) {
             await audioVideo.startAudioInput(audioInputs[0].deviceId);
+            if (!isCurrent() || sessionRef.current !== session) {
+              await audioVideo.stopAudioInput().catch(() => {});
+              return;
+            }
             micStartedRef.current = true;
             setMicOn(audioVideo.realtimeUnmuteLocalAudio());
           } else {
             setNotice("No microphone was found. You joined with your microphone off.");
           }
         } catch {
+          if (!isCurrent() || sessionRef.current !== session) return;
           setNotice("The microphone couldn't be started. You joined with your microphone off.");
         }
       }
       if (options?.startCam) {
         try {
           const inputs = await audioVideo.listVideoInputDevices();
+          if (!isCurrent() || sessionRef.current !== session) return;
           videoDevicesRef.current = inputs.map((device) => ({ deviceId: device.deviceId, label: device.label || "" }));
           const frontIdx = videoDevicesRef.current.findIndex((device) => /front|user/i.test(device.label));
           camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
@@ -521,20 +563,27 @@ export function useSuprahMeet() {
           if (videoDevicesRef.current.length) {
             // No background transform is selected before a meeting starts.
             await audioVideo.startVideoInput(videoDevicesRef.current[camIndexRef.current].deviceId);
+            if (!isCurrent() || sessionRef.current !== session) {
+              await audioVideo.stopVideoInput().catch(() => {});
+              return;
+            }
             audioVideo.startLocalVideoTile();
             setCamOn(true);
           } else {
             setNotice("No camera was found. You joined with your camera off.");
           }
         } catch {
+          if (!isCurrent() || sessionRef.current !== session) return;
           setNotice("The camera couldn't be started. You joined with your camera off.");
         }
       }
+      if (!isCurrent() || sessionRef.current !== session) return;
       joinedAtRef.current = Date.now();
       if (!options?.startMic) setMicOn(false);
       if (!guestTokenRef.current) rememberRecentMeet({ code: codeRef.current, title: meetingInfo.title });
       setPhase("in");
     } catch (err: any) {
+      if (!isCurrent()) return;
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");
       setPhase("error");
     }
@@ -571,10 +620,11 @@ export function useSuprahMeet() {
       }
       setMicOn(audioVideo.realtimeUnmuteLocalAudio());
     } catch {
+      if (av() !== audioVideo) return;
       setMicOn(false);
       setNotice("The microphone couldn't be started. Check your microphone and browser permissions, then try again.");
     } finally {
-      micTogglePendingRef.current = false;
+      if (av() === audioVideo) micTogglePendingRef.current = false;
     }
   }, [micOn, phase]);
 
@@ -604,7 +654,9 @@ export function useSuprahMeet() {
 
   /** Wrap the raw camera in a blur/replacement pipeline when one is wanted. */
   const buildVideoDevice = useCallback(async (deviceId: string) => {
+    const session = sessionRef.current;
     await stopTransform();
+    if (sessionRef.current !== session) return deviceId;
     const wanted = effectiveBackground();
     if (wanted === "none") return deviceId;
     try {
@@ -613,9 +665,9 @@ export function useSuprahMeet() {
         : await BackgroundReplacementVideoFrameProcessor.create(undefined, {
             imageBlob: await sceneBlob(wanted),
           });
-      if (!processor || !sessionRef.current) return deviceId;
+      if (!processor || !session || sessionRef.current !== session) return deviceId;
       const device = new DefaultVideoTransformDevice(
-        sessionRef.current.logger, deviceId, [processor]);
+        session.logger, deviceId, [processor]);
       transformRef.current = device;
       return device;
     } catch {
@@ -627,7 +679,10 @@ export function useSuprahMeet() {
     const audioVideo = av();
     const device = videoDevicesRef.current[index];
     if (!audioVideo || !device) throw new Error("No camera found");
-    await audioVideo.startVideoInput(await buildVideoDevice(device.deviceId));
+    const input = await buildVideoDevice(device.deviceId);
+    if (av() !== audioVideo) return;
+    await audioVideo.startVideoInput(input);
+    if (av() !== audioVideo) { await audioVideo.stopVideoInput().catch(() => {}); return; }
     audioVideo.startLocalVideoTile();
     camIndexRef.current = index;
   }, [buildVideoDevice]);
@@ -639,20 +694,24 @@ export function useSuprahMeet() {
       if (camOn) {
         audioVideo.stopLocalVideoTile();
         await audioVideo.stopVideoInput();
+        if (av() !== audioVideo) return;
         await stopTransform();
+        if (av() !== audioVideo) return;
         setCamOn(false);
       } else {
         if (videoDevicesRef.current.length === 0) {
           const inputs = await audioVideo.listVideoInputDevices();
+          if (av() !== audioVideo) return;
           videoDevicesRef.current = inputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
           const frontIdx = videoDevicesRef.current.findIndex((device) => /front|user/i.test(device.label));
           camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
           setVideoDeviceCount(videoDevicesRef.current.length);
         }
         await startCamAt(camIndexRef.current);
+        if (av() !== audioVideo) return;
         setCamOn(true);
       }
-    } catch { setCamOn(false); }
+    } catch { if (av() === audioVideo) setCamOn(false); }
   }, [camOn, startCamAt, stopTransform]);
 
   /** Mobile back/front camera flip — cycles through available cameras. */
@@ -702,7 +761,12 @@ export function useSuprahMeet() {
     Boolean((navigator.mediaDevices as any)?.getDisplayMedia);
 
   const acquireWakeLock = useCallback(async () => {
-    try { wakeLockRef.current = await (navigator as any).wakeLock?.request?.("screen") ?? null; }
+    const audioVideo = av();
+    try {
+      const lock = await (navigator as any).wakeLock?.request?.("screen") ?? null;
+      if (av() !== audioVideo || !sharingRef.current) { await lock?.release?.(); return; }
+      wakeLockRef.current = lock;
+    }
     catch { /* not granted / unsupported — share still works */ }
   }, []);
   const releaseWakeLock = useCallback(() => {
@@ -751,6 +815,7 @@ export function useSuprahMeet() {
             video: { frameRate: { ideal: 15 } },
             audio: false,
           });
+          if (av() !== audioVideo) { stream?.getTracks().forEach(track => track.stop()); return; }
           contentStreamRef.current = stream ?? null;
           if (stream) await audioVideo.startContentShare(stream);
         } else {
@@ -767,9 +832,11 @@ export function useSuprahMeet() {
             try {
               audioVideo.stopLocalVideoTile();
               await audioVideo.stopVideoInput();
+              if (av() !== audioVideo) return;
               await stopTransform();
+              if (av() !== audioVideo) return;
               setCamOn(false);
-            } catch { /* keep going — the capture below may still work */ }
+            } catch { if (av() !== audioVideo) return; /* capture below may still work */ }
           }
           try {
             stream = await navigator.mediaDevices.getUserMedia({
@@ -777,13 +844,17 @@ export function useSuprahMeet() {
               audio: false,
             });
           } catch {
+            if (av() !== audioVideo) return;
             // Some devices misreport facingMode — retry with any camera.
             stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
           }
+          if (av() !== audioVideo) { stream?.getTracks().forEach(track => track.stop()); return; }
           contentStreamRef.current = stream;
           await audioVideo.startContentShare(stream);
+          if (av() !== audioVideo) { stream?.getTracks().forEach(track => track.stop()); return; }
           setNotice("Phone browsers can't capture the screen, so you're presenting your BACK CAMERA instead — point it at what you want to show. Your meeting camera was turned off to free the lens.");
         }
+        if (av() !== audioVideo) { stream?.getTracks().forEach(track => track.stop()); return; }
         sharingRef.current = true;
         setSharing(true);
         void acquireWakeLock();
@@ -792,11 +863,13 @@ export function useSuprahMeet() {
         // instant the track dies so nobody is left seeing a frozen frame.
         stream?.getVideoTracks?.().forEach((t) =>
           t.addEventListener("ended", () => {
+            if (av() !== audioVideo) return;
             try { audioVideo.stopContentShare(); } catch { /* already stopped */ }
             markShareStopped();
           })
         );
       } catch (err: any) {
+        if (av() !== audioVideo) return;
         // Chime wraps capture failures in GetUserMediaError, whose message is
         // the unhelpful "Error fetching device." — the REAL reason sits in
         // err.cause. A plain CANCEL of the share picker lands here too (cause
@@ -868,30 +941,38 @@ export function useSuprahMeet() {
   // never thrown — so the room stays up and nothing hits the console as an
   // unhandled rejection.
   const startRecording = useCallback(async () => {
+    const session = sessionRef.current;
     try {
       await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/recording/start`);
+      if (sessionRef.current !== session) return;
       setRecording(true);
       meetSounds.recording();
       sendData(DATA_TOPIC, { t: "recording", on: true }, 300_000);
     } catch (err: any) {
+      if (sessionRef.current !== session) return;
       setNotice(err?.response?.data?.message ||
         "Recording could not start. Check the backend logs for the AWS reason.");
     }
   }, [sendData]);
 
   const stopRecording = useCallback(async () => {
+    const session = sessionRef.current;
     try {
       await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/recording/stop`);
+      if (sessionRef.current !== session) return;
       setRecording(false);
       sendData(DATA_TOPIC, { t: "recording", on: false }, 300_000);
     } catch (err: any) {
+      if (sessionRef.current !== session) return;
       setNotice(err?.response?.data?.message ||
         "Recording could not be stopped. Check the backend logs for the AWS reason.");
     }
   }, [sendData]);
 
-  const teardown = useCallback(async () => {
-    captionCleanupRef.current?.();
+  const teardown = useCallback((): Promise<void> => {
+    if (teardownPendingRef.current) return teardownPendingRef.current;
+    ++joinAttemptRef.current;
+    try { captionCleanupRef.current?.(); } catch { /* already detached */ }
     captionCleanupRef.current = null;
     setCaptionLines([]);
     setCaptionStatus('off');
@@ -899,18 +980,52 @@ export function useSuprahMeet() {
     const audioVideo = av();
     sessionRef.current = null;
     setMicOn(false);
-    if (audioVideo) {
-      try {
-        audioVideo.stopContentShare();
-        audioVideo.stopLocalVideoTile();
-        await audioVideo.stopVideoInput();
-        await stopTransform();
-        await audioVideo.stopAudioInput();
-        audioVideo.stop();
-      } catch { /* best effort */ }
-    }
+    try { contentStreamRef.current?.getTracks().forEach(track => track.stop()); } catch { /* already stopped */ }
+    contentStreamRef.current = null;
     releaseWakeLock();
+    const pending = (async () => {
+      if (!audioVideo) return;
+      // A device cleanup failure must not skip stopping the remaining media.
+      for (const stop of [() => audioVideo.stopContentShare(), () => audioVideo.stopLocalVideoTile(),
+        () => audioVideo.stopVideoInput(), () => stopTransform(), () => audioVideo.stopAudioInput(), () => audioVideo.stop()]) {
+        try { await stop(); } catch { /* best effort */ }
+      }
+    })();
+    teardownPendingRef.current = pending;
+    void pending.finally(() => { if (teardownPendingRef.current === pending) teardownPendingRef.current = null; });
+    return pending;
   }, [stopTransform, releaseWakeLock]);
+
+  /** Reuse the layout-owned hook after a completed call without reloading CRM. */
+  const reset = useCallback((): Promise<void> => {
+    if (resetPendingRef.current) return resetPendingRef.current;
+    if (phase !== 'ended' && phase !== 'error') return Promise.resolve();
+    leftIntentionallyRef.current = true;
+    const pending = (async () => {
+      await presencePendingRef.current?.catch(() => {});
+      await teardown();
+      namesRef.current.clear();
+      codeRef.current = ''; guestTokenRef.current = null; selfAttendeeIdRef.current = '';
+      selfNameRef.current = 'You'; selfCrmIdRef.current = '';
+      videoDevicesRef.current = []; camIndexRef.current = 0; joinedAtRef.current = 0;
+      backgroundRef.current = 'none'; togetherRef.current = null; togetherOwnerRef.current = false;
+      micStartedRef.current = false; micTogglePendingRef.current = false;
+      captionOperationRef.current = false; captionEventTimeRef.current = 0;
+      sharingRef.current = false;
+      setMeeting(null); setError(null); setEndedReason(null);
+      setCanControl(false); setCanEndForAll(false); setSelfAttendeeId('');
+      setRoster({}); setTiles({}); setActiveSpeakerId('');
+      setMicOn(false); setCamOn(false); setSharing(false); setHandRaised(false);
+      setRecording(false); setReactions([]); setNotice(null);
+      setBackgroundState('none'); setTogetherSceneState(null);
+      setChatMessages([]); setChatUnread(0); setVideoDeviceCount(0);
+      setCaptionBusy(false); setCaptionLanguage('en-US');
+      setPhase('idle');
+    })();
+    resetPendingRef.current = pending;
+    void pending.finally(() => { if (resetPendingRef.current === pending) resetPendingRef.current = null; });
+    return pending;
+  }, [phase, teardown]);
 
   // Server expiry must release devices in full rooms, guest rooms, and Mini Meet.
   useEffect(() => {
@@ -927,7 +1042,9 @@ export function useSuprahMeet() {
     const leaveUrl = guestTokenRef.current
       ? `/api/crm/meet/guest/${codeRef.current}/leave`
       : `/api/crm/meet/meetings/${codeRef.current}/leave`;
-    await apiClient.post(leaveUrl, { attendeeId }, guestTokenRef.current
+    // An unfinished join has no attendee yet. Sending an empty ID would
+    // clear every device for this person; the late join cleans up its own ID.
+    if (attendeeId) await apiClient.post(leaveUrl, { attendeeId }, guestTokenRef.current
       ? { headers: { Authorization: `Bearer ${guestTokenRef.current}` }, timeout: 5000 }
       : { timeout: 5000 }).catch(() => {});
     selfAttendeeIdRef.current = "";
@@ -950,6 +1067,7 @@ export function useSuprahMeet() {
     }
     await teardown();
     forgetRecentMeet(codeRef.current);
+    setMeeting(current => current ? { ...current, status: 'ended' } : current);
     selfAttendeeIdRef.current = "";
     setSelfAttendeeId("");
     setEndedReason(null);
@@ -978,8 +1096,10 @@ export function useSuprahMeet() {
       setCaptionStatus('failed');
       setNotice(err?.response?.data?.message || 'Live captions could not be started. Please try again.');
     } finally {
-      captionOperationRef.current = false;
-      setCaptionBusy(false);
+      if (sessionRef.current === session) {
+        captionOperationRef.current = false;
+        setCaptionBusy(false);
+      }
     }
   }, [phase, captionStatus]);
 
@@ -1004,7 +1124,7 @@ export function useSuprahMeet() {
     background, setBackground, backgroundsSupported,
     togetherScene, toggleTogether,
     isBackCamera: facingBack(),
-    join, bindAudio, bindVideoTile,
+    join, reset, bindAudio, bindVideoTile,
     toggleMic, toggleCam, switchCamera, toggleShare, toggleHand,
     sendReaction, sendChat, markChatRead,
     startRecording, stopRecording, leave, endMeeting,

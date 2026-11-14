@@ -68,7 +68,7 @@ function mentionTokenPattern(mentionAliases: readonly string[]): RegExp {
     ? `@\\s*(?:${aliases.join('|')})(?![\\p{L}\\p{N}_])`
     : '@\\s*[\\p{L}\\p{N}_]+';
   return new RegExp(
-    `(https?:\\/\\/[^\\s]+|\\bMEET-\\d{4}\\b|(?<![\\p{L}\\p{N}_.+-])(?:${mention}|#[\\p{L}\\p{N}_]+))`,
+    `(https?:\\/\\/[^\\s]+|\\bMEET-(?:\\d{8}|\\d{4})\\b|(?<![\\p{L}\\p{N}_.+-])(?:${mention}|#[\\p{L}\\p{N}_]+))`,
     'giu',
   );
 }

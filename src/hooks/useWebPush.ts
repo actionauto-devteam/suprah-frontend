@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { recoverDevicePush, setDevicePushDisabled } from "@/lib/web-push-subscription";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 // Serwist is configured (next.config.ts) to skip generating a real /sw.js in
@@ -22,6 +23,7 @@ export function useWebPush(options: UseWebPushOptions = {}) {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const swDisabledInDev = !SW_ENABLED;
+    const checking = useRef(false);
 
     const getServiceWorkerRegistration = useCallback(async () => {
         const hasSupport =
@@ -83,28 +85,22 @@ export function useWebPush(options: UseWebPushOptions = {}) {
         try {
             setIsSupported(true);
             const registration = await getServiceWorkerRegistration();
-            const subscription = await registration.pushManager.getSubscription();
-
-            setIsSubscribed(!!subscription);
+            const subscription = await recoverDevicePush(registration, VAPID_PUBLIC_KEY);
 
             // AUTO-SYNC LOGIC: If we have a subscription locally, ensure it's synced to the backend for this session
             if (subscription) {
-                const userId = (typeof window !== "undefined") ? localStorage.getItem('userId') : null; // Quick check from local storage if available
-                const syncKey = userId ? `push_sync_${userId}_${subscription.endpoint}` : `push_sync_anon_${subscription.endpoint}`;
-
-                const lastSync = sessionStorage.getItem(syncKey);
-                if (!lastSync) {
-                    apiClient.post("/api/push/subscribe", {
+                try {
+                    await apiClient.post("/api/push/subscribe", {
                         subscription,
                         deviceHint: navigator.userAgent.includes("Mobile") ? "mobile" : "desktop",
-                    }).then(() => {
-                        sessionStorage.setItem(syncKey, Date.now().toString());
-                        console.log("[WebPush] Auto-synced existing subscription to backend for user:", userId);
-                    }).catch(err => {
-                        console.warn("[WebPush] Auto-sync failed (user might not be logged in yet):", err);
                     });
+                    setIsSubscribed(true);
+                } catch {
+                    // Recheck on resume/online; a temporary auth/network failure
+                    // must not destroy the browser's healthy subscription.
+                    setIsSubscribed(false);
                 }
-            }
+            } else setIsSubscribed(false);
 
             return subscription;
         } catch (error) {
@@ -118,7 +114,25 @@ export function useWebPush(options: UseWebPushOptions = {}) {
     }, [disabled, getServiceWorkerRegistration]);
 
     useEffect(() => {
-        getSubscription();
+        let lastCheck = 0;
+        const refresh = () => {
+            if (checking.current || document.visibilityState === 'hidden') return;
+            if (Date.now() - lastCheck < 15_000) return;
+            lastCheck = Date.now();
+            checking.current = true;
+            void getSubscription().finally(() => { checking.current = false; });
+        };
+        refresh();
+        window.addEventListener('online', refresh);
+        window.addEventListener('focus', refresh);
+        document.addEventListener('visibilitychange', refresh);
+        const timer = window.setInterval(refresh, 60_000);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('online', refresh);
+            window.removeEventListener('focus', refresh);
+            document.removeEventListener('visibilitychange', refresh);
+        };
     }, [getSubscription]);
 
     const subscribe = async (): Promise<"subscribed" | "permission-rejected" | "failed"> => {
@@ -154,7 +168,7 @@ export function useWebPush(options: UseWebPushOptions = {}) {
             }
 
             const registration = await getServiceWorkerRegistration();
-
+            setDevicePushDisabled(false);
             const subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -181,7 +195,9 @@ export function useWebPush(options: UseWebPushOptions = {}) {
     const unsubscribe = async () => {
         try {
             setIsLoading(true);
-            const subscription = await getSubscription();
+            setDevicePushDisabled(true);
+            const registration = await getServiceWorkerRegistration();
+            const subscription = await registration.pushManager.getSubscription();
 
             if (subscription) {
                 await subscription.unsubscribe();
@@ -194,6 +210,7 @@ export function useWebPush(options: UseWebPushOptions = {}) {
                 setIsSubscribed(false);
                 toast.info("Notifications disabled.");
             }
+            setIsSubscribed(false);
         } catch (error) {
             console.error("Failed to unsubscribe from Web Push:", error);
             toast.error("Failed to disable notifications.");

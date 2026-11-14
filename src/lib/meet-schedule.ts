@@ -11,8 +11,8 @@ export function isTodaysMeetSchedule(scheduledAt: string | null, nowMs: number):
 export function extractMeetCode(value: string): string | null {
   let text = value.trim();
   try { text = decodeURIComponent(text); } catch { /* keep literal clipboard text */ }
-  if (/^\d{4}$/.test(text)) return `MEET-${text}`;
-  const match = text.match(/(?:^|[^a-z0-9])meet[-\s]?(\d{4})(?![a-z0-9])/i);
+  if (/^(?:\d{4}|\d{8})$/.test(text)) return `MEET-${text}`;
+  const match = text.match(/(?:^|[^a-z0-9])meet[-\s]?(\d{8}|\d{4})(?![a-z0-9])/i);
   return match ? `MEET-${match[1]}` : null;
 }
 

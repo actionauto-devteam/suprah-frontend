@@ -54,7 +54,7 @@ export function NotificationPreferencesPage() {
   ).map((c) =>
     // Drivers can mute new-load alerts on their own under Transportation.
     general.role === 'driver' && c.key === 'transportation'
-      ? { ...c, typeGroups: DRIVER_TRANSPORTATION_TYPE_GROUPS }
+      ? { ...c, typeGroups: [...(c.typeGroups ?? []), ...DRIVER_TRANSPORTATION_TYPE_GROUPS] }
       : c,
   );
 

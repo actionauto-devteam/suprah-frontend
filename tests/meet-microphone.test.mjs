@@ -51,15 +51,18 @@ function createMeeting() {
   }, { get: (target, key) => key in target ? target[key] : () => {} });
   class Stub {}
   const sdk = new Proxy({
-    DefaultMeetingSession: class { constructor() { this.audioVideo = audio; } },
+    // The SDK gives each session its own controller identity. Keep shared
+    // test controls while preserving that identity across successive calls.
+    DefaultMeetingSession: class { constructor() { this.audioVideo = new Proxy(audio, {}); } },
     LogLevel: { ERROR: 0 },
+    MeetingSessionStatusCode: { MeetingEnded: 1, AudioJoinedFromAnotherDevice: 2, Left: 3 },
   }, { get: (target, key) => target[key] ?? Stub });
   const api = {
     async post(url, body, config) {
       calls.push(url);
       requests.push({ url, body, config });
       return { data: { data: {
-        meeting: { participants: [], recording: { status: 'idle' } },
+        meeting: { code: url.split('/').at(-2), title: `Call ${url.split('/').at(-2)}`, participants: [], recording: { status: 'idle' } },
         self: { crmUserId: 'person', fullName: 'Taylor' },
         chime: { Meeting: {}, Attendee: { AttendeeId: 'self' } },
       } } };
@@ -77,8 +80,116 @@ function createMeeting() {
   };
   loaded._compile(compiled, filename);
   const render = () => { cursor = 0; return loaded.exports.useSuprahMeet(); };
-  return { render, calls, requests, api, audio, observers, presence: (...args) => presence(...args) };
+  return { render, calls, requests, api, audio, observers, getPresence: () => presence, presence: (...args) => presence(...args) };
 }
+
+test('a completed host session resets before the next meeting without carrying its summary, chat or controls', async () => {
+  const meeting = createMeeting();
+  await meeting.render().join('MEET-1234');
+  await meeting.render().toggleMic();
+  meeting.render().sendChat('Earlier call notes');
+  await meeting.render().leave();
+  assert.equal(meeting.render().phase, 'ended');
+  await meeting.render().reset();
+  assert.equal(meeting.render().phase, 'idle');
+  assert.equal(meeting.render().meeting, null);
+  assert.equal(meeting.render().chatMessages.length, 0);
+  assert.equal(meeting.render().micOn, false);
+  assert.equal(meeting.render().canEndForAll, false);
+  await meeting.render().join('MEET-5678');
+  assert.equal(meeting.render().phase, 'in');
+  assert.equal(meeting.render().meeting.code, 'MEET-5678');
+  assert.equal(meeting.render().micOn, false);
+});
+
+test('late old SDK callbacks cannot end the next host call or populate its roster and tiles', async () => {
+  const meeting = createMeeting();
+  await meeting.render().join('MEET-1234');
+  const oldObservers = [...meeting.observers];
+  const oldPresence = meeting.getPresence();
+  await meeting.render().leave();
+  await meeting.render().reset();
+  await meeting.render().join('MEET-5678');
+  for (const observer of oldObservers) {
+    observer.audioVideoDidStop?.({ statusCode: () => 'late-disconnect' });
+    observer.videoTileDidUpdate?.({ tileId: 99, boundAttendeeId: 'old-attendee' });
+  }
+  oldPresence('old-attendee', true, 'previous-person#session');
+  assert.equal(meeting.render().phase, 'in');
+  assert.equal(meeting.render().tiles.length, 0);
+  assert.deepEqual(meeting.render().roster, {});
+  assert.equal(meeting.render().meeting.code, 'MEET-5678');
+});
+
+test('a cancelled slow join releases its own attendee without replacing a newer meeting', async () => {
+  const meeting = createMeeting();
+  const post = meeting.api.post;
+  const oldResponse = await post('/api/crm/meet/meetings/MEET-1234/join');
+  let finish;
+  meeting.api.post = (url, ...args) => url === '/api/crm/meet/meetings/MEET-1234/join'
+    ? new Promise(resolve => { finish = () => resolve(oldResponse); }) : post(url, ...args);
+  const oldJoin = meeting.render().join('MEET-1234');
+  await meeting.render().leave(); await meeting.render().reset();
+  await meeting.render().join('MEET-5678');
+  finish(); await oldJoin;
+  assert.equal(meeting.render().phase, 'in');
+  assert.equal(meeting.render().meeting.code, 'MEET-5678');
+  assert.equal(meeting.requests.at(-1).url, '/api/crm/meet/meetings/MEET-1234/leave');
+  assert.equal(meeting.requests.filter(request => request.url.endsWith('/leave') && !request.body?.attendeeId).length, 0);
+});
+
+test('a local disconnection leaves the server room rejoinable instead of declaring it ended', async () => {
+  const meeting = createMeeting(); await meeting.render().join('MEET-1234');
+  const observer = meeting.observers.find(row => row.audioVideoDidStop);
+  observer.audioVideoDidStop({ statusCode: () => 99 });
+  assert.equal(meeting.render().phase, 'ended');
+  assert.notEqual(meeting.render().meeting.status, 'ended');
+  await meeting.render().reset(); await meeting.render().join('MEET-1234');
+  assert.equal(meeting.render().phase, 'in');
+});
+
+test('a server-reported ending is retained so it cannot offer a false rejoin', async () => {
+  const meeting = createMeeting(); await meeting.render().join('MEET-1234');
+  meeting.api.get = async () => ({ data: { data: { status: 'ended', endedReason: 'The host ended this meeting.' } } });
+  const observer = meeting.observers.find(row => row.audioVideoDidStop);
+  observer.audioVideoDidStop({ statusCode: () => 1 });
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(meeting.render().meeting.status, 'ended');
+  assert.equal(meeting.render().endedReason, 'The host ended this meeting.');
+});
+
+test('reset waits for media cleanup and still stops audio if camera cleanup fails', async () => {
+  const meeting = createMeeting();
+  await meeting.render().join('MEET-1234');
+  meeting.audio.stopVideoInput = async () => { throw new Error('Camera is already disconnected'); };
+  await meeting.render().leave();
+  await Promise.all([meeting.render().reset(), meeting.render().reset()]);
+  assert.equal(meeting.render().phase, 'idle');
+  assert.ok(meeting.calls.includes('stop-mic'));
+  assert.ok(meeting.calls.includes('stop-call'));
+});
+
+test('a previous recording request cannot turn on the next room recording indicator', async () => {
+  const meeting = createMeeting(); await meeting.render().join('MEET-1234');
+  const post = meeting.api.post; let finish;
+  meeting.api.post = (url, ...args) => url.endsWith('/recording/start')
+    ? new Promise(resolve => { finish = () => resolve({}); }) : post(url, ...args);
+  const recording = meeting.render().startRecording();
+  await meeting.render().leave(); await meeting.render().reset(); await meeting.render().join('MEET-5678');
+  finish(); await recording;
+  assert.equal(meeting.render().recording, false);
+});
+
+test('late camera device enumeration from the prior room never enables the next room camera', async () => {
+  const meeting = createMeeting(); await meeting.render().join('MEET-1234');
+  let finish;
+  meeting.audio.listVideoInputDevices = () => new Promise(resolve => { finish = () => resolve([{ deviceId: 'old-camera' }]); });
+  const camera = meeting.render().toggleCam();
+  await meeting.render().leave(); await meeting.render().reset(); await meeting.render().join('MEET-5678');
+  finish(); await camera;
+  assert.equal(meeting.render().camOn, false);
+  assert.equal(meeting.render().videoDeviceCount, 0);
+});
 
 test('the initial microphone control is muted', () => {
   assert.equal(createMeeting().render().micOn, false);

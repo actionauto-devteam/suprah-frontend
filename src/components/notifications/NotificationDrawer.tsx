@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   AlertCircle,
-  Bell,
   Check,
   CheckCheck,
   ChevronDown,
@@ -318,7 +317,7 @@ function NotificationFilterMenu({
 
       {open && (
         <div className="mt-2 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
-          <div className="max-h-[240px] min-h-28 overflow-y-auto p-2 [scrollbar-width:thin] [scrollbar-gutter:stable]">
+          <div className="notification-scrollbar max-h-[240px] min-h-28 overflow-y-auto overscroll-contain p-2 [scrollbar-gutter:stable]">
             <button
               type="button"
               onClick={toggleAll}
@@ -446,7 +445,7 @@ function NotificationDrawerBody({
         new Date(b.notification.createdAt).getTime() -
         new Date(a.notification.createdAt).getTime(),
     );
-  }, [general.notifications, crm?.notifications, crmToken]);
+  }, [general.notifications, crm, crmToken]);
 
   const filteredEntries = React.useMemo(() => {
     if (selectedFilters.size === 0) return [];
@@ -588,7 +587,7 @@ function NotificationDrawerBody({
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search title, message, type, or details..."
-                className="h-9 rounded-lg border-border/80 bg-background pl-8 pr-8 text-[11px] text-foreground placeholder:text-muted-foreground/70"
+                className="h-11 rounded-lg border-border/80 bg-background pl-8 pr-8 text-base text-foreground placeholder:text-muted-foreground/70 sm:text-sm"
                 aria-label="Search notifications"
               />
               {searchQuery && (
@@ -629,7 +628,7 @@ function NotificationDrawerBody({
           {filteredEntries.length > DRAWER_RENDER_LIMIT ? ` · newest ${DRAWER_RENDER_LIMIT}` : ''}
         </div>
 
-        <div className="notification-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card/80">
+        <div className="notification-scrollbar min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain bg-card/80 [-webkit-overflow-scrolling:touch]">
           {isLoading ? (
             <NotificationLoadingState />
           ) : filteredEntries.length === 0 ? (
@@ -704,7 +703,7 @@ function NotificationDrawerBody({
             <Link
               href={footerLinks.preferencesHref}
               onClick={onClose}
-              className="ml-auto flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="ml-auto flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <Settings className="size-3" />
               Preferences

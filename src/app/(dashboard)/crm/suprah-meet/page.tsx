@@ -18,6 +18,9 @@ import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog"
 import type { ShareableMeeting } from "@/lib/meet-share";
 import { useOptionalCrmNotificationContext } from "@/context/CrmNotificationContext";
 import { MeetDeviceAlerts } from "@/components/suprah-meet/MeetDeviceAlerts";
+import { CrmCalendarConnect } from '@/components/CrmCalendarConnect';
+import { CrmCalendarSyncButton } from '@/components/CrmCalendarSyncButton';
+import { MeetScheduleCleanup } from '@/components/suprah-meet/MeetScheduleCleanup';
 import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
 import { extractMeetCode, formatMeetDateTime, isTodaysMeetSchedule, meetCalendarDay } from "@/lib/meet-schedule";
 import { forgetRecentMeet, readRecentMeet } from "@/lib/meet-recent";
@@ -28,6 +31,7 @@ interface MeetingRow {
   visibility?: "public" | "private";
   scheduledAt: string | null;
   seriesId: string | null;
+  calendarSourceId?: string | null;
   hostCrmUserId: string;
   inviteAll: boolean;
   invitees: string[];
@@ -267,7 +271,7 @@ export default function SuprahMeetLobbyPage() {
     }
   };
 
-  const canDelete = (m: MeetingRow) => m.hostCrmUserId === selfId;
+  const canDelete = (m: MeetingRow) => m.hostCrmUserId === selfId && !m.calendarSourceId;
 
   const live = meetings.filter((m) => m.status === "live" && m.timer?.running);
   const openRooms = meetings.filter((m) => m.status === "live" && !m.timer?.running);
@@ -406,9 +410,18 @@ export default function SuprahMeetLobbyPage() {
                 <Button variant="outline" className="justify-start gap-2 border-emerald-500/30" onClick={() => setShowNew("later")}>
                   <CalendarClock className="size-4" /> Create a schedule
                 </Button>
+                <MeetScheduleCleanup onRemoved={() => void load()} />
               </div>
             </section>
             <MeetDeviceAlerts />
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3">
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="font-medium">Schedule from Google Calendar</p>
+                <p className="text-muted-foreground">Connect Google once. Meetings you organize on its primary calendar also get scheduled in Suprah Meet, including recurring sessions. Changes sync automatically, or use Sync to refresh now.</p>
+              </div>
+              <CrmCalendarConnect returnTo="/crm/suprah-meet" />
+              <CrmCalendarSyncButton onSyncComplete={() => void load()} />
+            </div>
             <button type="button" onClick={() => { setHistoryTab(previousScheduled.length > 0 ? "scheduled" : "ended"); setHistoryOpen(true); }}
               className="group flex w-full items-center justify-between rounded-2xl border bg-card/80 px-4 py-4 text-left shadow-sm transition-colors hover:border-emerald-500/35 hover:bg-card">
               <span>
@@ -721,6 +734,10 @@ function MeetingCard({ m, sub, action, plain, emphasis }: { m: MeetingRow; sub?:
             </span>
           )}
         </p>
+        {m.calendarSourceId && <a className="text-sm text-emerald-600 underline dark:text-emerald-400"
+          href={m.calendarSourceId.startsWith('calendar:')
+            ? `/crm/suprah-calendar?event=${encodeURIComponent(m.calendarSourceId.slice(9))}`
+            : '/crm/appointments'}>View calendar schedule</a>}
         <button onClick={copy} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-emerald-500">
           {m.code} <Copy className="size-3" />
           {sub && <span className="ml-1 text-emerald-600 dark:text-emerald-400">· {sub}</span>}

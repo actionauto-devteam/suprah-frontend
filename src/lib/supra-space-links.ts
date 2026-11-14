@@ -138,7 +138,7 @@ export function splitSupraSpaceTrailingUrlPunctuation(value: string): {
   return { href, trailing };
 }
 
-const SUPRAH_MEET_CODE_PATTERN = /^MEET-\d{4}$/i;
+const SUPRAH_MEET_CODE_PATTERN = /^MEET-(?:\d{4}|\d{8})$/i;
 
 export function isSuprahMeetCode(value: string): boolean {
   return SUPRAH_MEET_CODE_PATTERN.test(value.trim());

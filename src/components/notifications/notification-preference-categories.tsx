@@ -47,6 +47,19 @@ export const DRIVER_TRANSPORTATION_TYPE_GROUPS: CrmTypeGroup[] = [
   { key: 'driver_new_loads', label: 'New Loads You Can Request', description: 'A new load on the board that you could request', icon: Truck, color: 'text-emerald-600 dark:text-emerald-400', types: ['new_load_available', 'new_load_check_first'] },
 ];
 
+const TRANSPORTATION_TYPE_GROUPS: CrmTypeGroup[] = [
+  { key: 'load_arrivals', label: 'Pickup & Delivery Arrivals', description: 'Arrival alerts without muting load assignments',
+    icon: Truck, color: 'text-blue-600 dark:text-blue-400', types: ['shipment_arrived_at_pickup', 'shipment_arrived_at_delivery'] },
+];
+const TRACKER_TYPE_GROUPS: CrmTypeGroup[] = [
+  { key: 'tracker_geofences', label: 'Geofence Alerts', description: 'Driver enters or leaves a geofence',
+    icon: Radar, color: 'text-cyan-600 dark:text-cyan-400', types: ['driver_tracker_geofence_alert'] },
+  { key: 'tracker_offline', label: 'Driver Offline Alerts', description: 'Driver GPS or connection goes offline',
+    icon: Radar, color: 'text-amber-600 dark:text-amber-400', types: ['driver_tracker_offline_alert'] },
+  { key: 'tracker_places', label: 'Place Visits', description: 'Driver location and place-visit updates',
+    icon: Radar, color: 'text-blue-600 dark:text-blue-400', types: ['driver_tracker_place_visit', 'driver_location_update'] },
+];
+
 export interface NotificationPreferenceCategory {
   key: keyof NotificationCategoryPreferences;
   label: string;
@@ -61,14 +74,14 @@ export interface NotificationPreferenceCategory {
 
 // Shown to every member, regardless of role.
 export const notificationPreferenceCategories: NotificationPreferenceCategory[] = [
-  { key: 'transportation', label: 'Transportation', description: 'Quotes, shipments, and dispatch updates', icon: Truck, color: 'from-blue-500 to-cyan-500' },
+  { key: 'transportation', label: 'Transportation', description: 'Quotes, shipments, and dispatch updates', icon: Truck, color: 'from-blue-500 to-cyan-500', typeGroups: TRANSPORTATION_TYPE_GROUPS },
   { key: 'inventory', label: 'Inventory', description: 'Vehicle additions, updates, and status changes', icon: Boxes, color: 'from-sky-500 to-indigo-500' },
   { key: 'appointments', label: 'Appointments', description: 'Bookings, reschedules, and cancellations', icon: Calendar, color: 'from-purple-500 to-violet-500' },
   { key: 'crm', label: 'CRM', description: 'Leads, tasks, messages, and aftermarket activity', icon: Users, color: 'from-amber-500 to-orange-500', typeGroups: CRM_TYPE_GROUPS },
   { key: 'feeds', label: 'Supra Feeds', description: 'Mentions, comments, and announcements', icon: Rss, color: 'from-pink-500 to-rose-500' },
   { key: 'projectManagement', label: 'Project Management', description: 'Task assignments, comments, and deadlines', icon: ClipboardList, color: 'from-violet-500 to-purple-600' },
   { key: 'calendar', label: 'Supra Calendar', description: "Today's events and reminders", icon: CalendarDays, color: 'from-teal-500 to-emerald-500' },
-  { key: 'driverTracker', label: 'Driver Tracker', description: 'Geofence, offline, and location alerts', icon: Radar, color: 'from-cyan-500 to-blue-500' },
+  { key: 'driverTracker', label: 'Driver Tracker', description: 'Geofence, offline, and location alerts', icon: Radar, color: 'from-cyan-500 to-blue-500', typeGroups: TRACKER_TYPE_GROUPS },
   { key: 'wallet', label: 'Suprah Pay', description: 'Payments, payouts, and withdrawals', icon: Wallet, color: 'from-green-500 to-emerald-600' },
   { key: 'team', label: 'Team', description: 'Invites, role changes, pings, and team board posts', icon: UserPlus, color: 'from-indigo-500 to-blue-500' },
   { key: 'account', label: 'Account & Security', description: 'Profile, email, and login activity', icon: Shield, color: 'from-rose-500 to-red-500' },

@@ -14,6 +14,19 @@ import { CheckCircle2, Circle, Loader2, Mail, RefreshCw, XCircle } from "lucide-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { isAxiosError } from 'axios';
+
+const deliveryError = (error: unknown, fallback: string) =>
+  isAxiosError<{ message?: string }>(error) ? error.response?.data?.message || fallback : fallback;
+
+const Dot = ({ ok, busy, label }: { ok: boolean; busy: boolean; label: string }) => (
+  <span className="flex items-center gap-1.5 text-sm">
+    {ok ? <CheckCircle2 className="size-4 text-emerald-500" />
+      : busy ? <Loader2 className="size-4 animate-spin text-emerald-500" />
+      : <Circle className="size-4 text-muted-foreground/40" />}
+    <span className={ok ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+  </span>
+);
 
 interface Recipient { key: string; name: string; email: string | null; kind: "internal" | "guest"; }
 interface DistState {
@@ -31,86 +44,86 @@ export function RecordingDistributionPanel({ code }: { code: string }) {
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [sending, setSending] = React.useState(false);
   const [confirmResend, setConfirmResend] = React.useState(false);
+  const [retryingFailed, setRetryingFailed] = React.useState(false);
   const [results, setResults] = React.useState<SendResult[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const selectionInitialized = React.useRef(false);
 
   const load = React.useCallback(async () => {
     try {
       const res = await apiClient.get(`/api/crm/meet/meetings/${code}/distribution`);
       const d: DistState = res.data?.data;
       setState(d);
-      setPicked((prev) => {
-        if (prev.size > 0) return prev; // keep the host's manual choices
-        return new Set(d.recipients.filter((r) => r.email).map((r) => r.key));
-      });
-    } catch (err: any) {
-      if (err?.response?.status === 403) setDenied(true); // not a controller — hide panel
+      setError(null);
+      if (!selectionInitialized.current) {
+        selectionInitialized.current = true;
+        setPicked(new Set(d.recipients.filter((r) => r.email).map((r) => r.key)));
+      }
+    } catch (err: unknown) {
+      if (isAxiosError(err) && err.response?.status === 403) setDenied(true);
+      else setError(deliveryError(err, 'Could not load report delivery. Try again.'));
     }
   }, [code]);
 
   // Poll until both the recording and the AI summary have settled.
   React.useEffect(() => {
     void load();
-    const t = setInterval(() => {
-      setState((s) => {
-        const busy = !s || s.recordingStatus === "processing" || s.recordingStatus === "recording" ||
-          s.aiStatus === "transcribing" || s.aiStatus === "summarizing";
-        if (busy) void load();
-        return s;
-      });
-    }, 5000);
-    return () => clearInterval(t);
   }, [load]);
+  React.useEffect(() => {
+    const busy = !state || state.recordingStatus === 'processing' || state.recordingStatus === 'recording' ||
+      state.aiStatus === 'transcribing' || state.aiStatus === 'summarizing';
+    if (!busy) return;
+    const t = setInterval(() => { void load(); }, 5000);
+    return () => clearInterval(t);
+  }, [load, state]);
 
-  if (denied || state === null) return null;
-  if (!state.hasVideo && state.recordingStatus === "idle") return null; // nothing was recorded
+  if (denied) return null;
+  if (state === null) return error ? <div role="alert" className="mt-4 text-sm text-destructive">{error} <Button variant="outline" onClick={() => void load()}>Try again</Button></div> : null;
+  if (!state.hasVideo && state.recordingStatus === "idle" && !state.hasSummary) return null;
 
   const recordingReady = state.recordingStatus === "ready" && state.hasVideo;
   const aiBusy = state.aiStatus === "transcribing" || state.aiStatus === "summarizing";
   const withEmail = state.recipients.filter((r) => r.email);
   const selected = withEmail.filter((r) => picked.has(r.key));
-  const canSend = recordingReady && state.mailConfigured && selected.length > 0 && !sending;
+  const canSend = (recordingReady || state.hasSummary) && !aiBusy && state.mailConfigured && selected.length > 0 && !sending;
 
   const toggle = (key: string) =>
-    setPicked((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setPicked((p) => { const n = new Set(p); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
   const send = async () => {
-    if (state.alreadySent && !confirmResend) { setConfirmResend(true); return; }
+    if (state.alreadySent && !confirmResend && !retryingFailed) { setConfirmResend(true); return; }
     setSending(true); setError(null); setResults(null);
     try {
       const res = await apiClient.post(`/api/crm/meet/meetings/${code}/distribute`, {
-        resend: Boolean(state.alreadySent),
+        resend: confirmResend,
         recipients: selected.map((r) => ({ email: r.email, name: r.name, kind: r.kind })),
-      });
-      setResults(res.data?.data?.results ?? []);
+      }, { timeout: 15 * 60_000 });
+      const sentResults: SendResult[] = res.data?.data?.results ?? [];
+      setResults(sentResults);
+      if (sentResults.some(r => r.status === 'failed')) {
+        const failedEmails = new Set(sentResults.filter(r => r.status === 'failed').map(r => r.email));
+        setPicked(new Set(state.recipients.filter(r => r.email && failedEmails.has(r.email)).map(r => r.key)));
+      }
       setConfirmResend(false);
       void load();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Sending failed. Check the backend logs.");
+    } catch (err: unknown) {
+      setError(deliveryError(err, 'Sending failed. Try again or ask your administrator to check email delivery.'));
     } finally { setSending(false); }
   };
-
-  const Dot = ({ ok, busy, label }: { ok: boolean; busy: boolean; label: string }) => (
-    <span className="flex items-center gap-1.5 text-xs">
-      {ok ? <CheckCircle2 className="size-4 text-emerald-500" />
-        : busy ? <Loader2 className="size-4 animate-spin text-emerald-500" />
-        : <Circle className="size-4 text-muted-foreground/40" />}
-      <span className={ok ? "text-foreground" : "text-muted-foreground"}>{label}</span>
-    </span>
-  );
 
   return (
     <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
       <div className="mb-1 flex items-center gap-2">
         <Mail className="size-4 text-emerald-600 dark:text-emerald-400" />
-        <h3 className="text-sm font-semibold">Send recording &amp; AI summary</h3>
+        <h3 className="text-sm font-semibold">{recordingReady ? 'Send recording & AI summary' : state.hasSummary ? 'Send AI summary' : 'Meeting report'}</h3>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
-        Email everyone who attended a personal, expiring link to the recording plus the AI summary.
+        Email the selected attendees a personal, expiring link to the meeting report.
       </p>
 
       <div className="mb-3 flex flex-wrap gap-4">
-        <Dot ok={recordingReady} busy={!recordingReady} label={recordingReady ? "Recording ready" : "Recording processing…"} />
+        <Dot ok={recordingReady} busy={state.recordingStatus === 'processing' || state.recordingStatus === 'recording'}
+          label={recordingReady ? 'Recording ready' : state.recordingStatus === 'failed' ? 'Recording failed' : state.recordingStatus === 'idle' ? 'No recording' : 'Recording processing…'} />
         <Dot ok={state.hasSummary} busy={aiBusy} label={state.hasSummary ? "AI summary ready" : aiBusy ? "AI summary generating…" : "AI summary not available"} />
       </div>
 
@@ -124,7 +137,7 @@ export function RecordingDistributionPanel({ code }: { code: string }) {
       )}
       {!state.mailConfigured && (
         <p className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-300">
-          Email isn&apos;t configured on the server yet (MEET_SMTP_* environment variables).
+          Meeting email is unavailable. Ask your administrator to configure the email sender.
         </p>
       )}
 
@@ -150,10 +163,10 @@ export function RecordingDistributionPanel({ code }: { code: string }) {
         )}
       </div>
 
-      {error && <p className="mb-2 text-xs text-rose-500">{error}</p>}
+      {error && <p role="alert" className="mb-2 text-sm text-rose-500">{error}</p>}
 
       {results ? (
-        <div className="space-y-1 rounded-xl border border-border/60 bg-background/60 p-2 text-sm">
+        <div aria-live="polite" className="space-y-1 rounded-xl border border-border/60 bg-background/60 p-2 text-sm">
           {results.map((r) => (
             <div key={r.email} className="flex items-center gap-2 px-2 py-1">
               {r.status === "sent"
@@ -163,13 +176,19 @@ export function RecordingDistributionPanel({ code }: { code: string }) {
               <span className="text-xs text-muted-foreground">{r.status === "sent" ? "Delivered to mail server" : r.error || "failed"}</span>
             </div>
           ))}
+          {results.some(r => r.status === 'failed') && <Button variant="outline" disabled={sending}
+            onClick={() => { setResults(null); setConfirmResend(false); setRetryingFailed(true); }}>Retry failed recipients</Button>}
+          {!results.some(r => r.status === 'failed') && <Button variant="outline"
+            onClick={() => { setResults(null); setConfirmResend(false); setRetryingFailed(false); }}>Review recipients</Button>}
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <Button disabled={!canSend} onClick={() => void send()}
             className="bg-emerald-600 hover:bg-emerald-500">
             {sending ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Mail className="mr-1.5 size-4" />}
-            {confirmResend ? "Confirm resend" : state.alreadySent ? "Resend Recording & AI Summary" : "Send Recording & AI Summary"}
+            {confirmResend ? 'Confirm resend' : retryingFailed ? 'Retry failed recipients' : state.alreadySent
+              ? recordingReady ? 'Resend Recording & AI Summary' : 'Resend AI Summary'
+              : recordingReady ? 'Send Recording & AI Summary' : 'Send AI Summary'}
             {selected.length > 0 ? ` (${selected.length})` : ""}
           </Button>
           {confirmResend && (

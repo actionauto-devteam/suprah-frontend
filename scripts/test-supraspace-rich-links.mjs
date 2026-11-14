@@ -164,7 +164,12 @@ assert.equal(links.isSafeSupraSpaceLinkHref('javascript:alert(1)'), false);
 assert.equal(links.isSuprahMeetCode('MEET-5872'), true);
 assert.equal(links.isSuprahMeetCode('meet-5872'), true);
 assert.equal(links.isSuprahMeetCode('MEET-58720'), false);
+assert.equal(links.isSuprahMeetCode('MEET-12345678'), true);
 assert.equal(links.getSuprahMeetRoomHref('meet-5872'), '/crm/suprah-meet/room/MEET-5872');
+assert.equal(links.getSuprahMeetRoomHref('meet-12345678'), '/crm/suprah-meet/room/MEET-12345678');
+const calendarRoomNodes = richInline.renderSupraSpaceRichTextInline('MEET-12345678', true, 'calendar-room');
+assert.equal(calendarRoomNodes[0].type, 'a');
+assert.equal(calendarRoomNodes[0].props.href, '/crm/suprah-meet/room/MEET-12345678');
 
 assert.equal(
   links.normalizeSupraSpaceSplitUrlFormatting(malformedExternalLink),
