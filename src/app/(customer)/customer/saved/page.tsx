@@ -7,10 +7,6 @@ import {
   ShoppingBag,
   TrendingUp,
   Sparkles,
-  ArrowUpDown,
-  SortAsc,
-  SortDesc,
-  Clock,
 } from "lucide-react";
 import { CarInventoryCard } from "@/components/car-inventory-card";
 import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
@@ -27,16 +23,16 @@ import { userErrorMessage } from "@/lib/user-error";
 import { toast } from "sonner";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PillSelect } from "@/components/shop-inventory-filters";
 import { resolveImageUrl } from "@/lib/utils";
 
 type SortKey = "default" | "priceAsc" | "priceDesc" | "yearDesc";
 
-const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "default", label: "Saved Order", icon: Clock },
-  { key: "priceAsc", label: "Price: Low", icon: SortAsc },
-  { key: "priceDesc", label: "Price: High", icon: SortDesc },
-  { key: "yearDesc", label: "Newest Year", icon: SortDesc },
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "default", label: "Saved Order" },
+  { value: "priceAsc", label: "Price: Low" },
+  { value: "priceDesc", label: "Price: High" },
+  { value: "yearDesc", label: "Newest Year" },
 ];
 
 function WishlistContent() {
@@ -190,29 +186,17 @@ function WishlistContent() {
 
       {/* ─── Sort ─────────────────────────────────────────────────────── */}
       {/* One dropdown instead of a row of chips that ran off the screen on
-          phones and needed sideways scrolling (2026-11-13). */}
+          phones (2026-11-13), the same control as the Shop's sort (2026-11-14). */}
       {!isLoading && hasVehicles && (
-        <div className="flex min-w-0 items-center gap-2">
-          <label
-            htmlFor="wishlist-sort"
-            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground"
-          >
-            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-            Sort by
-          </label>
-          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortKey)}>
-            <SelectTrigger id="wishlist-sort" className="h-9 w-full min-w-0 rounded-xl text-xs font-semibold sm:w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map((opt) => (
-                <SelectItem key={opt.key} value={opt.key} className="text-xs font-semibold">
-                  <opt.icon className="h-3.5 w-3.5" aria-hidden="true" />
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="min-w-0">
+          <PillSelect
+            value={sortBy}
+            onValueChange={(value) => setSortBy(value as SortKey)}
+            active
+            ariaLabel="Sort saved vehicles"
+            className="h-9 w-full min-w-0 justify-between rounded-xl px-3 shadow-sm sm:w-56"
+            options={SORT_OPTIONS}
+          />
         </div>
       )}
 
