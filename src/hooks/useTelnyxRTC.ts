@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { fmtShortDateTimeMDT } from "@/lib/timezone";
 import { commActions, getCommState } from "@/lib/communicationStore";
+import { microphoneConstraint, rememberMicrophone, savedMicrophoneId } from "@/lib/callMicrophone";
 
 const READY_TIMEOUT_MS = 12_000;
 const ANSWER_WINDOW_MS = 60_000;
@@ -170,7 +171,17 @@ async function createClient(): Promise<TelnyxRTC> {
   }
   client = c;
   commActions.setSoftphoneReady(true);
+  const micId = savedMicrophoneId();
+  if (micId) await c.setAudioSettings({ micId }).catch(() => undefined);
   return c;
+}
+
+export async function switchCallMicrophone(micId: string) {
+  rememberMicrophone(micId);
+  if (client && micId) await client.setAudioSettings({ micId }).catch(() => undefined);
+  if (currentCall?.setAudioInDevice && micId) {
+    await Promise.resolve(currentCall.setAudioInDevice(micId, Boolean(currentCall.isMuted))).catch(() => undefined);
+  }
 }
 
 async function ensureClient(): Promise<TelnyxRTC> {
@@ -200,7 +211,7 @@ async function ensureMicrophone(outbound = false) {
     throw softphoneError("MIC_UNAVAILABLE", `This browser can't use a microphone for calls.${stillRinging}`);
   }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: microphoneConstraint() });
     stream.getTracks().forEach((track) => track.stop());
   } catch {
     throw softphoneError(
@@ -260,11 +271,13 @@ export function useTelnyxRTC() {
       if (logged?.call?._id) commActions.patchActiveCall({ callLogId: logged.call._id, fromNumber, lineLabel: logged.call.lineLabel });
 
       try {
+        const micId = savedMicrophoneId();
         const call = c.newCall({
           destinationNumber: phoneNumber,
           callerNumber: fromNumber,
           audio: true,
           video: false,
+          ...(micId ? { micId } : {}),
           ...(logged?.correlation ? { clientState: btoa(JSON.stringify({ kind: 'recording-outbound', ...logged.correlation })) } : {}),
         });
         (call as any).__clientCallId = clientCallId;

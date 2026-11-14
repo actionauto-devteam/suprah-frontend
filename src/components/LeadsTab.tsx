@@ -133,6 +133,8 @@ import { announceLeadShipmentsChanged } from "@/lib/lead-shipping";
 const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
 const LEADS_PER_PAGE = 20;
 const THREAD_POLL_INTERVAL_MS = 15_000;
+
+type LeadNote = NonNullable<Lead["notes"]>[number];
 const LIVE_THREAD_REFRESH_DELAY_MS = 400;
 const LEADS_LIVE_REFRESH_MS = 30_000;
 
@@ -1059,11 +1061,36 @@ export function LeadsTab({
     }
   }, []);
 
+  const savedNotesRef = React.useRef<Map<string, LeadNote[]>>(new Map());
+
+  const showSavedNote = React.useCallback((leadId: string, saved: { data?: { note?: LeadNote } } | undefined) => {
+    const note = saved?.data?.note;
+    if (!note?._id) return;
+    const pending = savedNotesRef.current.get(leadId) || [];
+    if (!pending.some((item) => String(item?._id) === String(note._id))) {
+      savedNotesRef.current.set(leadId, [...pending, note]);
+    }
+    _setSelectedLead((current) => {
+      if (!current || current._id !== leadId) return current;
+      const notes = Array.isArray(current.notes) ? current.notes : [];
+      if (notes.some((item) => String(item?._id) === String(note._id))) return current;
+      return { ...current, notes: [...notes, note] };
+    });
+  }, []);
+
   // 1. Reliability Sync: Keep selectedLead in sync with master leads list
   React.useEffect(() => {
     if (!selectedLead) return;
-    const updated = leads.find((l) => l._id === selectedLead._id);
-    if (updated && JSON.stringify(updated) !== JSON.stringify(selectedLead)) {
+    const listed = leads.find((l) => l._id === selectedLead._id);
+    if (!listed) return;
+    const listedNotes = Array.isArray(listed.notes) ? listed.notes : [];
+    const pendingNotes = (savedNotesRef.current.get(listed._id) || []).filter(
+      (note) => !listedNotes.some((item) => String(item?._id) === String(note?._id)),
+    );
+    if (pendingNotes.length) savedNotesRef.current.set(listed._id, pendingNotes);
+    else savedNotesRef.current.delete(listed._id);
+    const updated = pendingNotes.length ? { ...listed, notes: [...listedNotes, ...pendingNotes] } : listed;
+    if (JSON.stringify(updated) !== JSON.stringify(selectedLead)) {
       _setSelectedLead(updated);
       if (updated.status === "Closed") setIsClosed(true);
       else if ((updated.status as string) !== "Closed") setIsClosed(false);
@@ -3234,12 +3261,14 @@ export function LeadsTab({
                     }}
                     onAddNote={async ({ text, mentionedUserIds, mentionedGroupIds }) => {
                       if (!selectedLead?._id) return;
-                      await addLeadNote({
-                        id: selectedLead._id,
+                      const noteLeadId = selectedLead._id;
+                      const saved = await addLeadNote({
+                        id: noteLeadId,
                         note: text,
                         mentionedUserIds,
                         mentionedGroupIds,
                       });
+                      showSavedNote(noteLeadId, saved);
                     }}
                     isSavingNote={isAddingNote}
                   />
@@ -3374,10 +3403,12 @@ export function LeadsTab({
                     );
                   }
 
-                  await addLeadNote({
-                    id: selectedLead._id,
+                  const noteLeadId = selectedLead._id;
+                  const saved = await addLeadNote({
+                    id: noteLeadId,
                     note,
                   });
+                  showSavedNote(noteLeadId, saved);
                 }}
                 onUpdateDetails={handleUpdateSelectedLeadDetails}
                 onAssign={async (userId) => {

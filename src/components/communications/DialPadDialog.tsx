@@ -8,6 +8,7 @@ import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { useCommStore } from "@/lib/communicationStore";
 import { useTelnyxRTC } from "@/hooks/useTelnyxRTC";
 import { DIAL_KEYS, last10, toE164 } from "@/lib/phoneDialing";
+import { CallMicrophoneControl } from "./CallMicrophoneControl";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -82,7 +83,7 @@ export function DialPadDialog({ open, onOpenChange, phone = "", name, leadId }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-xs grid-cols-[minmax(0,1fr)] rounded-2xl sm:max-w-xs">
+      <DialogContent overlayClassName="z-[80]" className="z-[80] w-[calc(100vw-1rem)] max-w-xs grid-cols-[minmax(0,1fr)] rounded-2xl sm:max-w-xs">
         <DialogHeader className="min-w-0 pr-6">
           <DialogTitle className="truncate">{name ? `Call ${name}` : "Call"}</DialogTitle>
           <DialogDescription>Check the number, then press Call.</DialogDescription>
@@ -143,6 +144,7 @@ export function DialPadDialog({ open, onOpenChange, phone = "", name, leadId }: 
             )}
           </div>
         )}
+        {open && !activeCall && <CallMicrophoneControl variant="light" />}
         {error && <p role="alert" className="text-center text-sm text-red-600 dark:text-red-400">{error}</p>}
         {activeCall && <p role="status" className="text-center text-xs text-muted-foreground">You&apos;re already on a call.</p>}
         <button

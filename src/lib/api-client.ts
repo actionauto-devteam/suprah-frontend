@@ -519,6 +519,10 @@ class ApiClient {
           notifyServiceDegraded(error.response.data?.message);
         }
 
+        if (error.response?.status === 429 && error.response.data?.code === "TOO_MANY_REQUESTS") {
+          notifyServiceDegraded(error.response.data?.message);
+        }
+
         if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
           const attemptedUrl = `${error.config?.baseURL || ""}${error.config?.url || ""}`;
           // Keep rejecting the request exactly as before, but avoid turning one
