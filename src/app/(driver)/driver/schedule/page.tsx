@@ -13,9 +13,12 @@ import {
   Clock,
   Loader2,
   Package,
+  RefreshCw,
+  TriangleAlert,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 import { formatScheduleDate, scheduleDateKey } from "@/utils/calendar.utils";
 
 const statusThemes: Record<string, string> = {
@@ -43,8 +46,12 @@ export default function DriverSchedulePage() {
   const { getToken } = useAuth();
   const [loads, setLoads] = React.useState<any[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  // When the schedule can't load, say so instead of showing "Schedule Clear",
+  // so a driver never thinks they have nothing assigned (2026-11-14).
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const fetchData = React.useCallback(async () => {
+    setLoadError(null);
     try {
       const token = await getToken();
       const res = await apiClient.get("/api/driver-tracking/my-loads", {
@@ -53,11 +60,16 @@ export default function DriverSchedulePage() {
       const loadsData = res.data?.data?.loads || res.data?.data || [];
       setLoads(Array.isArray(loadsData) ? loadsData : []);
     } catch (error) {
-      console.error("Failed to fetch schedule:", error);
+      setLoadError(userErrorMessage(error, "load your schedule"));
     } finally {
       setIsLoading(false);
     }
   }, [getToken]);
+
+  const retry = () => {
+    setIsLoading(true);
+    void fetchData();
+  };
 
   React.useEffect(() => {
     fetchData();
@@ -120,13 +132,35 @@ export default function DriverSchedulePage() {
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
             My Schedule
           </h1>
-          <p className="mt-1 text-sm font-medium text-muted-foreground">
-            {upcoming.length} upcoming{" "}
-            {upcoming.length === 1 ? "assignment" : "assignments"}
-          </p>
+          {!loadError && (
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
+              {upcoming.length} upcoming{" "}
+              {upcoming.length === 1 ? "assignment" : "assignments"}
+            </p>
+          )}
         </header>
 
-        {sortedDates.length === 0 ? (
+        {loadError ? (
+          <Card role="alert" className="rounded-2xl border-border/80 bg-card shadow-sm ring-1 ring-border/20">
+            <CardContent className="flex min-h-56 flex-col items-center justify-center px-4 py-8 text-center">
+              <div className="mb-5 flex size-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 shadow-sm">
+                <TriangleAlert className="size-7 text-amber-500" aria-hidden="true" />
+              </div>
+              <h3 className="text-lg font-black">We couldn&apos;t load your schedule</h3>
+              <p className="mt-2 max-w-sm break-words text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                {loadError}
+              </p>
+              <Button
+                type="button"
+                onClick={retry}
+                className="mt-6 h-11 gap-2 rounded-xl border border-emerald-600 bg-emerald-600 px-6 font-bold text-white shadow-sm hover:bg-emerald-500"
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : sortedDates.length === 0 ? (
           <Card className="rounded-2xl border-border/80 bg-card shadow-sm ring-1 ring-border/20">
             <CardContent className="flex min-h-56 flex-col items-center justify-center px-4 py-8 text-center">
               <div className="mb-5 flex size-16 items-center justify-center rounded-2xl border border-border/70 bg-muted/40 shadow-sm">
