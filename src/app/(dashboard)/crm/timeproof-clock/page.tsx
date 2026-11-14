@@ -55,7 +55,6 @@ import {
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
   generateIdleLogHtml, type IdlePeriod, computeExactPayout, PAYROLL_DE_MINIMIS_SECONDS,
 } from "@/components/crm/timeproof/shared"
-import { PulseHealthCard } from "@/components/crm/timeproof/PulseHealthCard"
 import { geolocation } from "@/lib/geolocation";
 
 type RequestConfigWithSkipRefresh = AxiosRequestConfig & { _skipAuthRefresh?: boolean }
@@ -1780,8 +1779,6 @@ export default function TimeprofClockPage() {
                 </div>
               )
             })()}
-
-            <PulseHealthCard />
 
             {!isMobile && (
               <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4 flex-1 flex flex-col">

@@ -22,13 +22,8 @@ import { useProjectSocket } from "@/hooks/useProjectSocket";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
-// Suprah Pulse360 — global alert popup. Mounted once here so productivity and
-// deadline alerts surface on every route without any page opting in. The store
-// behind it is a module-level singleton, so there is no provider to add.
-import { Pulse360Popup } from "@/components/crm/pulse360/Pulse360Popup";
-import { Pulse360Bell } from "@/components/crm/pulse360/Pulse360Bell";
-// Suprah YapLine — global floating PTT dock. Mounted once here (like
-// Pulse360Popup) so incoming voice broadcasts are received on EVERY route.
+// Suprah YapLine — global floating PTT dock. Mounted once here so incoming
+// voice broadcasts are received on EVERY route.
 // Module-level singleton store — no provider needed.
 import { YapLineDock } from "@/components/yapline/YapLineDock";
 import IncomingCallCenter from "@/components/communications/IncomingCallCenter";
@@ -155,9 +150,9 @@ function DashboardLayoutContent({
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
   const [mailWorkspaceActive, setMailWorkspaceActive] = React.useState(false);
-  const [activeHeaderDrawer, setActiveHeaderDrawer] = React.useState<"notifications" | "pulse360" | "messenger" | null>(null);
+  const [activeHeaderDrawer, setActiveHeaderDrawer] = React.useState<"notifications" | "messenger" | null>(null);
   const notificationDrawerOpen = activeHeaderDrawer === "notifications";
-  const updateHeaderDrawer = React.useCallback((drawer: "notifications" | "pulse360" | "messenger", open: boolean) => {
+  const updateHeaderDrawer = React.useCallback((drawer: "notifications" | "messenger", open: boolean) => {
     setActiveHeaderDrawer(current => open ? drawer : current === drawer ? null : current);
   }, []);
   const setNotificationDrawerOpen = React.useCallback((open: boolean) => updateHeaderDrawer("notifications", open), [updateHeaderDrawer]);
@@ -408,11 +403,6 @@ function DashboardLayoutContent({
                 <AutrixHeaderButton className="h-11 w-11 px-0 sm:h-9 sm:w-auto sm:px-2" />
 
                 { }
-                <div className="max-[420px]:hidden">
-                  <Pulse360Bell open={activeHeaderDrawer === "pulse360"} onOpenChange={(open) => updateHeaderDrawer("pulse360", open)} />
-                </div>
-
-                { }
                 <NotificationBell
                   open={notificationDrawerOpen}
                   onOpenChange={setNotificationDrawerOpen}
@@ -508,9 +498,6 @@ function DashboardLayoutContent({
       <React.Suspense fallback={null}>
         <DebugConsole />
       </React.Suspense>
-
-      { /* Suprah Pulse360 — renders above everything, on every route. */}
-      <Pulse360Popup />
 
       { /* Suprah YapLine — always-on PTT dock, every route. Incoming voice
            broadcasts, the LIVE join pills, and the mini-player all survive
