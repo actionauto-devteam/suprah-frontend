@@ -324,8 +324,8 @@ function ConditionPhotos({
       )}
 
       {photos.length > 0 || uploading > 0 ? (
-        {/* Each photo keeps the same square size; its part label sits under it
-            and wraps, instead of being cut off on top of the photo (2026-11-14). */}
+        // Each photo keeps the same square size; its part label sits under it
+        // and wraps, instead of being cut off on top of the photo (2026-11-14).
         <div className="grid grid-cols-3 items-start gap-2">
           {photos.map((photo) => (
             <div key={photo.id} className="flex min-w-0 flex-col gap-1">
