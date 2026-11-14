@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Truck } from "lucide-react"
+import { RefreshCw, Truck } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import {
   LEAD_SHIPMENTS_CHANGED_EVENT,
@@ -30,11 +30,14 @@ export function LeadShippingCard({ lead }: { lead: Lead }) {
   const { getToken } = useAuth()
   const [shipments, setShipments] = React.useState<LeadShipment[] | null>(null)
   const [linkQuoteId, setLinkQuoteId] = React.useState("")
+  // The quotes couldn't be loaded; staff see a short note instead of nothing (2026-11-14).
+  const [loadFailed, setLoadFailed] = React.useState(false)
   const focusedRef = React.useRef<HTMLLIElement | null>(null)
 
   const leadId = lead._id
   const loadShipments = React.useCallback(
     async (signal?: AbortSignal) => {
+      setLoadFailed(false)
       try {
         const token = await getToken()
         const res = await apiClient.get(`/api/quotes/for-lead/${encodeURIComponent(leadId)}`, {
@@ -43,9 +46,10 @@ export function LeadShippingCard({ lead }: { lead: Lead }) {
         })
         const data = res.data?.data ?? res.data
         setShipments(Array.isArray(data) ? (data as LeadShipment[]) : [])
-      } catch (err) {
-        // The list is extra information; the lead page works without it.
-        if (!signal?.aborted) console.warn("Could not load this lead's shipping quotes", err)
+      } catch {
+        // The list is extra information; the lead page works without it, but
+        // staff should know it didn't load rather than think there are none.
+        if (!signal?.aborted) setLoadFailed(true)
       }
     },
     [getToken, leadId],
@@ -74,6 +78,30 @@ export function LeadShippingCard({ lead }: { lead: Lead }) {
   React.useEffect(() => {
     if (focused) focusedRef.current?.scrollIntoView({ block: "nearest" })
   }, [focused])
+
+  if (ordered.length === 0 && loadFailed) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-background/40 p-3" role="status">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Truck className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+          Shipping
+        </div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
+            We couldn&apos;t load this lead&apos;s shipping quotes.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadShipments()}
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 px-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (ordered.length === 0) return null
 
