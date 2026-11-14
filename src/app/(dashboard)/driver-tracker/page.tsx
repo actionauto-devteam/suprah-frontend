@@ -2636,7 +2636,7 @@ export default function DriverTrackerPage() {
           ))}
         </nav>
         {selectedDriver && mobileWorkspace !== "map" && <div className="mt-2 flex min-w-0 items-center gap-2 border-t border-border/40 pt-2">
-          <button type="button" className="min-h-11 min-w-0 flex-1 rounded-lg px-2 text-left focus-visible:ring-2 focus-visible:ring-ring" onClick={() => openMobileDriverDrawer(selectedDriver)}><span className="block text-xs text-muted-foreground">Selected driver · Open workspace</span><span className="block truncate text-sm font-semibold">{selectedDriver.driver?.name || "Driver"}</span></button>
+          <button type="button" className="min-h-11 min-w-0 flex-1 rounded-lg px-2 text-left focus-visible:ring-2 focus-visible:ring-ring" onClick={() => openMobileDriverDrawer(selectedDriver)}><span className="block text-xs text-muted-foreground">Selected driver · Open workspace</span><span className="block break-words [overflow-wrap:anywhere] text-sm font-semibold">{selectedDriver.driver?.name || "Driver"}</span></button>
           <button type="button" className="min-h-11 rounded-lg border border-border px-3 text-xs font-semibold" onClick={() => focusDriverOnLiveMap(selectedDriver)}>View map</button>
         </div>}
       </div>
@@ -2912,7 +2912,7 @@ export default function DriverTrackerPage() {
               >
                 {tab.icon}
                 <span
-                  className={`text-xs font-bold flex-1 text-center sm:text-left truncate ${loadsTab === tab.key
+                  className={`text-xs font-bold flex-1 min-w-0 text-center sm:text-left break-words [overflow-wrap:anywhere] ${loadsTab === tab.key
                       ? "text-foreground"
                       : "text-muted-foreground"
                     }`}

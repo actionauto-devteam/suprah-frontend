@@ -150,7 +150,7 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
               {total}
             </span>
           </span>
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          <span className="mt-0.5 block break-words [overflow-wrap:anywhere] text-xs text-muted-foreground">
             {summary.map((kind) => attentionKindLabel(kind, data.counts[kind])).join(" · ")}
           </span>
         </span>
@@ -172,7 +172,7 @@ export function NeedsAttentionPanel({ className }: { className?: string }) {
                 >
                   <Icon className={cn("size-4 shrink-0", meta.tone)} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-mono text-xs font-bold text-foreground">{attentionTitle(item)}</span>
+                    <span className="block break-words [overflow-wrap:anywhere] font-mono text-xs font-bold text-foreground">{attentionTitle(item)}</span>
                     <span className="block text-xs leading-snug text-muted-foreground">{describeAttention(item, todayKey)}</span>
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />

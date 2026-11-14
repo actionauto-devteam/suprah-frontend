@@ -476,7 +476,7 @@ export const DriverProfileView: React.FC = () => {
               >
                 <tab.icon className="size-3.5 sm:size-4" />
                 
-                <span className="inline max-w-full truncate font-semibold text-xs">
+                <span className="inline max-w-full break-words [overflow-wrap:anywhere] font-semibold text-xs">
                   {tab.label}
                 </span>
               </TabsTrigger>

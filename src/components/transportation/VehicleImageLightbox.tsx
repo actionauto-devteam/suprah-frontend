@@ -114,10 +114,10 @@ export function VehicleImageLightbox({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-black tracking-tight text-white">
+          <p className="break-words [overflow-wrap:anywhere] text-sm font-black tracking-tight text-white">
             {activeItem?.label || "Vehicle"}
           </p>
-          <p className="mt-0.5 truncate text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">
+          <p className="mt-0.5 break-words [overflow-wrap:anywhere] text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">
             {items.length > 0
               ? `Vehicle ${safeIndex + 1} of ${items.length}`
               : "No vehicle image"}

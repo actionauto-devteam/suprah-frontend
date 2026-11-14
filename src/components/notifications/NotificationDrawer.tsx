@@ -311,7 +311,7 @@ function NotificationFilterMenu({
       >
         <span className="flex min-w-0 items-center gap-2">
           <Filter className="size-3.5 shrink-0" />
-          <span className="truncate">Filter notifications · {triggerLabel}</span>
+          <span className="break-words [overflow-wrap:anywhere]">Filter notifications · {triggerLabel}</span>
         </span>
         <ChevronDown className={cn('size-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
       </Button>

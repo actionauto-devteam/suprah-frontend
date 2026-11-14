@@ -343,7 +343,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                       <p className="text-[11px] text-muted-foreground">{req.description}</p>
                       {ups[0] && (
                         <button type="button" onClick={() => setPreviewDoc(ups[0])} title={ups[0].fileName} className="mt-0.5 flex w-full min-w-0 items-baseline text-left text-[11px] text-muted-foreground hover:text-foreground">
-                          <span className="truncate underline decoration-dotted">{ups[0].fileName}</span>
+                          <span className="break-words [overflow-wrap:anywhere] underline decoration-dotted">{ups[0].fileName}</span>
                           <span className="shrink-0">&nbsp;· {fmtSize(ups[0].fileSize)}</span>
                         </button>
                       )}
@@ -376,7 +376,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                     <div key={req.type} className="rounded-xl border border-border p-3 flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-foreground">{req.label}</p>
-                        {ups[0] && <p className="truncate text-[11px] text-muted-foreground" title={ups[0].fileName}>{ups[0].fileName}</p>}
+                        {ups[0] && <p className="break-words [overflow-wrap:anywhere] text-[11px] text-muted-foreground" title={ups[0].fileName}>{ups[0].fileName}</p>}
                       </div>
                       <Button variant="outline" size="sm" onClick={() => openUploadFor(req.type)} className="gap-1.5 rounded-lg"><Upload className="size-3.5" /></Button>
                     </div>
@@ -578,7 +578,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                   <div className="flex items-center gap-3 w-full min-w-0 px-4">
                     <FileText className="size-6 text-emerald-500 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate" title={uploadFile.name}>{uploadFile.name}</p>
+                      <p className="text-sm font-bold break-words [overflow-wrap:anywhere]" title={uploadFile.name}>{uploadFile.name}</p>
                       <p className="text-xs text-muted-foreground">{fmtSize(uploadFile.size)}</p>
                     </div>
                     <Button size="icon" variant="ghost" className="size-10" onClick={e => { e.stopPropagation(); setUploadFile(null); }}><X className="size-4" /></Button>

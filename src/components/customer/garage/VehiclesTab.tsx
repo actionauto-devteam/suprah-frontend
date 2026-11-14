@@ -169,15 +169,15 @@ export function VehiclesTab({
                           Active Vehicle
                         </p>
                         {(vehicle as any).source === "DEALERSHIP_TRANSFER" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 backdrop-blur-md max-w-full truncate">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 backdrop-blur-md max-w-full break-words [overflow-wrap:anywhere]">
                             ✓ Added by{(vehicle as any).dealershipName ? ` ${(vehicle as any).dealershipName}` : " dealership"}
                           </span>
                         )}
                       </div>
-                      <h2 className="text-2xl xs:text-3xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl truncate">
+                      <h2 className="text-2xl xs:text-3xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-xl break-words [overflow-wrap:anywhere]">
                         {vehicle.year} {vehicle.make}
                       </h2>
-                      <p className="text-base sm:text-xl text-zinc-200 font-medium mt-0.5 sm:mt-1 drop-shadow-md truncate">
+                      <p className="text-base sm:text-xl text-zinc-200 font-medium mt-0.5 sm:mt-1 drop-shadow-md break-words [overflow-wrap:anywhere]">
                         {vehicle.model}{vehicle.trim ? ` · ${vehicle.trim}` : ""}
                       </p>
                     </div>

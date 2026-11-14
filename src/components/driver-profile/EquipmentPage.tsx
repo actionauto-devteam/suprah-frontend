@@ -966,7 +966,7 @@ export const EquipmentPage: React.FC = () => {
                           ? `border-foreground text-foreground bg-foreground/5`
                           : 'border-border/70 text-muted-foreground hover:border-primary/60 hover:bg-muted/10'
                       )}>
-                      <span className="truncate">{c.label}</span>
+                      <span className="break-words [overflow-wrap:anywhere]">{c.label}</span>
                       <span className={cn('shrink-0 text-xs px-2 py-0.5 rounded-md font-bold', a ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
                         {count}
                       </span>

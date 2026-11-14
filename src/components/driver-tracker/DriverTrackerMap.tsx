@@ -475,7 +475,7 @@ export function DriverTrackerMap({
                       />
                     </span>
 
-                    <span className="truncate font-medium text-foreground/80">
+                    <span className="break-words [overflow-wrap:anywhere] font-medium text-foreground/80">
                       {item.label}
                     </span>
                   </div>
