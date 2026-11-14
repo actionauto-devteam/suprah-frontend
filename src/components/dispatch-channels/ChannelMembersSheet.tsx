@@ -66,7 +66,7 @@ export function ChannelMembersSheet({
               <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                 Suprah AI · Channel people
               </p>
-              <SheetTitle className="truncate text-base font-black tracking-tight">{channel.name}</SheetTitle>
+              <SheetTitle className="break-words [overflow-wrap:anywhere] text-base font-black tracking-tight">{channel.name}</SheetTitle>
             </div>
           </div>
           <SheetDescription>
@@ -234,8 +234,8 @@ export function ChannelPeopleManager({
           <li key={item.id} className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
             <PersonAvatar person={item.person} className="size-7" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{item.person.name}</p>
-              <p className="truncate text-[11px] text-muted-foreground">
+              <p className="break-words [overflow-wrap:anywhere] text-sm font-medium">{item.person.name}</p>
+              <p className="break-words [overflow-wrap:anywhere] text-[11px] text-muted-foreground">
                 {personLabel(item.person)} · suggested by {item.suggestedBy.name}
               </p>
             </div>
@@ -307,11 +307,11 @@ export function ChannelPeopleManager({
               <li key={member.id} className="flex items-center gap-2 rounded-md px-1 py-1.5">
                 <PersonAvatar person={member} />
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                  <p className="flex items-center gap-1.5 break-words [overflow-wrap:anywhere] text-sm font-medium">
                     {member.name}
                     {member.id === viewerId && <span className="text-[11px] font-normal text-muted-foreground">(you)</span>}
                   </p>
-                  <p className="truncate text-[11px] text-muted-foreground">{personLabel(member)}</p>
+                  <p className="break-words [overflow-wrap:anywhere] text-[11px] text-muted-foreground">{personLabel(member)}</p>
                 </div>
                 {member.isCreator ? (
                   <Badge variant="outline" className="gap-1 text-[11px]"><Crown className="size-3" /> Creator</Badge>
@@ -348,7 +348,7 @@ export function ChannelPeopleManager({
           {channel.suggestions.map((item) => (
             <li key={item.id} className="flex items-center gap-2 text-xs text-muted-foreground">
               <PersonAvatar person={item.person} className="size-6" />
-              <span className="truncate">{item.person.name}</span>
+              <span className="break-words [overflow-wrap:anywhere]">{item.person.name}</span>
               <span>· waiting for approval</span>
             </li>
           ))}

@@ -486,7 +486,7 @@ export function ChannelConversation({
               Suprah AI · Dispatch Channel
             </p>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-              <h2 className="truncate text-sm font-black tracking-tight sm:text-base">{channel?.name ?? "Channel"}</h2>
+              <h2 className="break-words [overflow-wrap:anywhere] text-sm font-black tracking-tight sm:text-base">{channel?.name ?? "Channel"}</h2>
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 <Users className="size-2.5" /> Group
               </span>
@@ -514,7 +514,7 @@ export function ChannelConversation({
               )}
             </div>
             {channel?.description && (
-              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{channel.description}</p>
+              <p className="mt-0.5 break-words [overflow-wrap:anywhere] text-[11px] text-muted-foreground">{channel.description}</p>
             )}
           </div>
 
@@ -620,9 +620,9 @@ export function ChannelConversation({
                   {!mine && <PersonAvatar person={message.sender} className="mb-5 size-8 border-emerald-500/20" />}
                   <div className={cn("flex min-w-0 max-w-[88%] flex-col sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
                     <div className="mb-1 flex min-w-0 items-center gap-1.5 px-1 text-[11px] font-semibold text-muted-foreground">
-                      <span className="truncate">{mine ? "You" : message.sender.name}</span>
+                      <span className="break-words [overflow-wrap:anywhere]">{mine ? "You" : message.sender.name}</span>
                       {!mine && (
-                        <span className="shrink-0 truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide">
+                        <span className="shrink-0 break-words [overflow-wrap:anywhere] rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide">
                           {personLabel(message.sender)}
                         </span>
                       )}

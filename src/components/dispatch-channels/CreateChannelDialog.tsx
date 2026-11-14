@@ -120,9 +120,9 @@ export function CreateChannelDialog({
             {people.length > 0 && (
               <ul className="flex flex-wrap gap-1.5">
                 {people.map((person) => (
-                  <li key={person.id} className="flex items-center gap-1.5 rounded-full border border-border/60 py-0.5 pl-0.5 pr-2 text-xs">
+                  <li key={person.id} className="flex max-w-full items-center gap-1.5 rounded-2xl border border-border/60 py-0.5 pl-0.5 pr-2 text-xs">
                     <PersonAvatar person={person} className="size-5" />
-                    <span className="max-w-40 truncate">{person.name}</span>
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">{person.name}</span>
                     <span className="text-muted-foreground">· {personLabel(person)}</span>
                     <button
                       type="button"
