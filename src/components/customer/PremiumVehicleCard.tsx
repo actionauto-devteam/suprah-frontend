@@ -23,6 +23,9 @@ import { resolveImageUrl, cn } from "@/lib/utils";
 import { VehiclePriceHistoryDialog } from "@/components/VehiclePriceHistoryDialog";
 
 const FALLBACK_IMAGE = "/vehicle-placeholder.jpg";
+/** Badges over the photo wrap onto more lines instead of running off the card. */
+const WRAPPING_BADGE = "h-auto max-w-full shrink whitespace-normal text-left break-words [overflow-wrap:anywhere]";
+
 const IMAGE_LOAD_TIMEOUT_MS = 7_000;
 
 function normalizeImageSrc(raw?: string): string | undefined {
@@ -195,28 +198,31 @@ function PremiumVehicleCardComponent({
 
   return (
     <Card
-      className="group relative overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-primary/50 shadow-sm hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
+      className="@container group relative overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-primary/50 shadow-sm hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
       onClick={() => onVehicleClick?.(vehicle)}
     >
-      {/* Premium Image Header */}
-      <div className="relative aspect-16/10 overflow-hidden bg-zinc-950">
+      {/* Premium Image Header. The photo keeps its 16:10 shape; when a long
+          name or badge wraps onto more lines, the header grows taller instead
+          of cutting the words off (2026-11-17). */}
+      <div className="relative grid grid-cols-1 overflow-hidden bg-zinc-950">
+        <div className="col-start-1 row-start-1 aspect-16/10" aria-hidden="true" />
         {imgError ? (
           /* ── Unified fallback: single flex layout, no absolute layer conflicts ── */
-          <div className="absolute inset-0 flex flex-col bg-zinc-300 dark:bg-zinc-800">
+          <div className="col-start-1 row-start-1 flex min-w-0 flex-col bg-zinc-300 dark:bg-zinc-800">
             {/* Top badges row */}
-            <div className="flex gap-2 p-4">
-              <Badge className="bg-white/70 text-zinc-900 border-zinc-400/40 font-semibold px-3 py-1 dark:bg-black/30 dark:text-zinc-200 dark:border-zinc-600/30">
+            <div className="flex flex-wrap gap-2 p-4">
+              <Badge className={cn(WRAPPING_BADGE, "bg-white/70 text-zinc-900 border-zinc-400/40 font-semibold px-3 py-1 dark:bg-black/30 dark:text-zinc-200 dark:border-zinc-600/30")}>
                 Stock #{vehicle.stockNumber}
               </Badge>
               {vehicle.featured && (
-                <Badge className="bg-primary/90 text-primary-foreground border-none font-medium px-3 py-1">
+                <Badge className={cn(WRAPPING_BADGE, "bg-primary/90 text-primary-foreground border-none font-medium px-3 py-1")}>
                   Member Exclusive
                 </Badge>
               )}
             </div>
 
             {/* Centred unavailable indicator */}
-            <div className="flex flex-1 flex-col items-center justify-center gap-1">
+            <div className="flex flex-1 flex-col items-center justify-center gap-1 py-1">
               <TruckIcon className="w-10 h-10 text-zinc-500/50 dark:text-zinc-400/60" />
               <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
                 Image unavailable
@@ -224,12 +230,12 @@ function PremiumVehicleCardComponent({
             </div>
 
             {/* Bottom: title + monthly badge — dark strip for contrast in both modes */}
-            <div className="flex items-end justify-between gap-2 px-4 py-3 bg-black/20 dark:bg-black/40">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight leading-tight drop-shadow-sm truncate">
+            <div className="flex flex-wrap items-end justify-between gap-2 px-4 py-3 bg-black/20 dark:bg-black/40">
+              <div className="min-w-32 flex-1">
+                <h3 className="text-lg @min-[20rem]:text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight leading-tight drop-shadow-sm break-words [overflow-wrap:anywhere]">
                   {vehicle.year} {vehicle.make}
                 </h3>
-                <p className="text-zinc-800 dark:text-zinc-300 font-semibold text-sm capitalize tracking-wide truncate">
+                <p className="text-zinc-800 dark:text-zinc-300 font-semibold text-sm capitalize tracking-wide break-words [overflow-wrap:anywhere]">
                   {vehicle.model}
                   {vehicle.trim && ` - ${vehicle.trim}`}
                 </p>
@@ -265,47 +271,49 @@ function PremiumVehicleCardComponent({
               decoding={imagePriority ? "sync" : "async"}
               onLoad={handleImageLoad}
               onError={advanceImageCandidate}
-              className={cn("relative h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none group-hover:scale-105", imgLoaded ? "opacity-100" : "opacity-0")}
+              className={cn("absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none group-hover:scale-105", imgLoaded ? "opacity-100" : "opacity-0")}
             />
 
             {/* Sleek Overlay Gradient */}
             <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/80 via-black/25 to-transparent transition-opacity duration-500 group-hover:from-black/90" />
 
-            {/* Top Badges */}
-            <div className="absolute top-4 left-4 flex gap-2 z-10">
-              <Badge className="bg-black/65 hover:bg-black/75 text-white backdrop-blur-md border-white/20 font-semibold px-3 py-1">
-                Stock #{vehicle.stockNumber}
-              </Badge>
-              {vehicle.featured && (
-                <Badge className="bg-primary/90 text-primary-foreground backdrop-blur-md border-none font-medium px-3 py-1">
-                  Member Exclusive
+            <div className="relative z-10 col-start-1 row-start-1 flex min-w-0 flex-col justify-between">
+              {/* Top Badges */}
+              <div className="flex flex-wrap gap-2 px-4 pt-4">
+                <Badge className={cn(WRAPPING_BADGE, "bg-black/65 hover:bg-black/75 text-white backdrop-blur-md border-white/20 font-semibold px-3 py-1")}>
+                  Stock #{vehicle.stockNumber}
                 </Badge>
-              )}
-            </div>
-
-            {/* Bottom Image Overlay Details */}
-            <div className="absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 bg-linear-to-t from-black/95 via-black/60 via-60% to-transparent px-4 pb-3.5 pt-10">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md leading-tight truncate">
-                  {vehicle.year} {vehicle.make}
-                </h3>
-                <p className="text-zinc-100/95 font-semibold text-lg capitalize tracking-wide truncate">
-                  {vehicle.model}
-                  {vehicle.trim && ` - ${vehicle.trim}`}
-                </p>
-              </div>
-              <div className="shrink-0 bg-black/40 backdrop-blur-md rounded-xl p-2 border border-white/10 text-right">
-                <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
-                  {hasPrice ? "Est. Monthly" : "Price"}
-                </p>
-                {hasPrice ? (
-                  <p className="text-xl font-bold text-primary">
-                    ${Math.floor(memberPrice / 60)}
-                    <span className="text-sm font-medium text-zinc-300">/mo</span>
-                  </p>
-                ) : (
-                  <p className="text-sm font-bold text-primary">Price Pending</p>
+                {vehicle.featured && (
+                  <Badge className={cn(WRAPPING_BADGE, "bg-primary/90 text-primary-foreground backdrop-blur-md border-none font-medium px-3 py-1")}>
+                    Member Exclusive
+                  </Badge>
                 )}
+              </div>
+
+              {/* Bottom Image Overlay Details */}
+              <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 bg-linear-to-t from-black/95 via-black/60 via-60% to-transparent px-4 pb-3.5 pt-10">
+                <div className="min-w-32 flex-1">
+                  <h3 className="text-xl @min-[20rem]:text-2xl font-bold text-white tracking-tight drop-shadow-md leading-tight break-words [overflow-wrap:anywhere]">
+                    {vehicle.year} {vehicle.make}
+                  </h3>
+                  <p className="text-zinc-100/95 font-semibold text-base @min-[20rem]:text-lg capitalize tracking-wide break-words [overflow-wrap:anywhere]">
+                    {vehicle.model}
+                    {vehicle.trim && ` - ${vehicle.trim}`}
+                  </p>
+                </div>
+                <div className="shrink-0 bg-black/40 backdrop-blur-md rounded-xl p-2 border border-white/10 text-right">
+                  <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
+                    {hasPrice ? "Est. Monthly" : "Price"}
+                  </p>
+                  {hasPrice ? (
+                    <p className="text-xl font-bold text-primary">
+                      ${Math.floor(memberPrice / 60)}
+                      <span className="text-sm font-medium text-zinc-300">/mo</span>
+                    </p>
+                  ) : (
+                    <p className="text-sm font-bold text-primary">Price Pending</p>
+                  )}
+                </div>
               </div>
             </div>
           </>
@@ -318,40 +326,42 @@ function PremiumVehicleCardComponent({
         <div
           className={cn(
             "grid items-stretch py-4 border-b border-border/50 mb-4",
-            showInventoryMeta ? "grid-cols-4" : "grid-cols-3",
+            showInventoryMeta
+              ? "grid-cols-2 gap-y-3 @min-[26rem]:grid-cols-4 @min-[26rem]:gap-y-0"
+              : "grid-cols-3",
           )}
         >
           <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
             <GaugeIcon className="w-4 h-4 text-muted-foreground mb-1" />
-            <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">
+            <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
               {safeMileage.toLocaleString()} mi
             </span>
           </div>
 
           {showInventoryMeta && (
-            <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
+            <div className="flex min-w-0 flex-col items-center border-border/50 px-1 @min-[26rem]:border-r">
               <Clock3 className="w-4 h-4 text-primary/70 mb-1" />
               <span className="text-xs sm:text-sm font-semibold text-foreground">
                 {daysOnLot}d
               </span>
-              <span className="text-[9px] text-muted-foreground uppercase tracking-wide text-center leading-tight">
+              <span className="text-[11px] text-muted-foreground uppercase tracking-wide text-center leading-tight">
                 Days on lot
               </span>
             </div>
           )}
 
           <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
-            <div className="text-muted-foreground font-medium text-[10px] uppercase tracking-wider mb-1">
+            <div className="text-muted-foreground font-medium text-[11px] uppercase tracking-wider mb-1">
               Eng
             </div>
-            <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">
+            <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
               {safeEngine}
             </span>
           </div>
 
           <div className="flex min-w-0 flex-col items-center px-1">
             <MapPinIcon className="w-4 h-4 text-muted-foreground mb-1" />
-            <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">
+            <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
               {safeLocation}
             </span>
           </div>
@@ -361,19 +371,19 @@ function PremiumVehicleCardComponent({
         <div className="bg-muted/40 rounded-xl p-4 mb-6 border border-border/50">
           {hasPrice ? (
             <>
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex flex-wrap justify-between items-center gap-x-2 mb-2">
                 <span className="text-muted-foreground font-medium">
                   Retail Price:
                 </span>
-                <span className="text-muted-foreground/70 font-bold line-through decoration-2 text-lg">
+                <span className="ml-auto text-muted-foreground/70 font-bold line-through decoration-2 text-lg tabular-nums">
                   ${retailPrice.toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between items-center bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
+              <div className="flex flex-wrap justify-between items-center gap-x-2 bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
                 <span className="text-foreground font-bold tracking-tight">
                   One Time Payment:
                 </span>
-                <span className="text-2xl font-extrabold text-primary">
+                <span className="ml-auto text-xl @min-[20rem]:text-2xl font-extrabold text-primary tabular-nums">
                   ${memberPrice.toLocaleString()}
                 </span>
               </div>
@@ -388,7 +398,7 @@ function PremiumVehicleCardComponent({
 
           {showInventoryMeta && (
             <div
-              className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
+              className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-muted-foreground"
               onClick={(event) => event.stopPropagation()}
             >
               <span className="flex items-center gap-1 font-medium">
@@ -398,7 +408,7 @@ function PremiumVehicleCardComponent({
               <VehiclePriceHistoryDialog
                 vehicle={vehicle}
                 triggerLabel={priceUpdatedLabel}
-                triggerClassName="font-semibold text-foreground/80 tabular-nums"
+                triggerClassName="ml-auto font-semibold text-foreground/80 tabular-nums"
               />
             </div>
           )}
