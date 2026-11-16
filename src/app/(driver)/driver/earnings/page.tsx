@@ -16,8 +16,13 @@ import {
   ArrowRight,
   XCircle,
   TrendingUp,
+  TriangleAlert,
+  RefreshCw,
 } from "lucide-react";
 import { formatScheduleDate } from "@/utils/calendar.utils";
+import { Button } from "@/components/ui/button";
+import { userErrorMessage } from "@/lib/user-error";
+import { EARNINGS_LOADS_URL, earningsLoadsFrom } from "@/lib/driver-earnings";
 
 type TransactionRow =
   | { kind: "payout"; data: DriverPayout; sortDate: string }
@@ -61,28 +66,44 @@ function PayoutStatusBadge({ status }: { status: DriverPayout["status"] }) {
 
 export default function DriverEarningsPage() {
   const { getToken } = useAuth();
-  const [loads, setLoads] = React.useState<any[]>([]);
+  // The server's Earnings view (counts and loads waiting for pay); see driver-earnings.
+  const [loadsData, setLoadsData] = React.useState<unknown>(null);
   const [payouts, setPayouts] = React.useState<DriverPayout[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [attempt, setAttempt] = React.useState(0);
 
   React.useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const token = await getToken();
         const headers = { Authorization: `Bearer ${token}` };
         const [loadsRes, payoutsRes] = await Promise.all([
-          apiClient.get("/api/driver-tracking/my-loads", { headers }),
+          apiClient.get(EARNINGS_LOADS_URL, { headers }),
           apiClient.get("/api/driver-payouts/my-payouts", { headers }),
         ]);
-        setLoads(loadsRes.data?.data?.loads || []);
+        if (cancelled) return;
+        setLoadsData(loadsRes.data?.data ?? null);
         setPayouts(payoutsRes.data?.data || []);
-      } catch {
-        // silent
+        setLoadError(null);
+      } catch (err) {
+        // Say so instead of showing zeros that look real.
+        if (!cancelled) setLoadError(userErrorMessage(err, "load your earnings"));
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     })();
-  }, [getToken]);
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, attempt]);
+
+  const retry = () => {
+    setIsLoading(true);
+    setLoadError(null);
+    setAttempt((value) => value + 1);
+  };
 
   // Stats
   const totalEarned = React.useMemo(
@@ -92,8 +113,6 @@ export default function DriverEarningsPage() {
         .reduce((sum, p) => sum + p.amount, 0),
     [payouts]
   );
-
-  const completedLoads = loads.filter((l) => l.status === "Delivered");
 
   const paidLoadIds = React.useMemo(() => {
     const ids = new Set<string>();
@@ -109,9 +128,11 @@ export default function DriverEarningsPage() {
     return ids;
   }, [payouts]);
 
-  const unpaidCompletedLoads = completedLoads.filter(
-    (l) => !paidLoadIds.has(l._id)
+  const earnings = React.useMemo(
+    () => earningsLoadsFrom<any>(loadsData, paidLoadIds),
+    [loadsData, paidLoadIds]
   );
+  const unpaidCompletedLoads = earnings.unpaidLoads;
 
   // Combined and sorted transaction list
   const transactions = React.useMemo<TransactionRow[]>(() => {
@@ -145,6 +166,26 @@ export default function DriverEarningsPage() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
+      ) : loadError ? (
+        <Card role="alert" className="rounded-2xl border-border/80 bg-card shadow-sm ring-1 ring-border/20">
+          <CardContent className="flex min-h-56 flex-col items-center justify-center px-4 py-8 text-center">
+            <div className="mb-5 flex size-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 shadow-sm">
+              <TriangleAlert className="size-7 text-amber-500" aria-hidden="true" />
+            </div>
+            <h3 className="text-lg font-black">We couldn&apos;t load your earnings</h3>
+            <p className="mt-2 max-w-sm break-words text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {loadError}
+            </p>
+            <Button
+              type="button"
+              onClick={retry}
+              className="mt-6 h-11 gap-2 rounded-xl border border-emerald-600 bg-emerald-600 px-6 font-bold text-white shadow-sm hover:bg-emerald-500"
+            >
+              <RefreshCw className="size-4" aria-hidden="true" />
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <>
           {/* Stats row */}
@@ -172,7 +213,7 @@ export default function DriverEarningsPage() {
                     <Clock className="size-5 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{unpaidCompletedLoads.length}</p>
+                    <p className="text-2xl font-bold">{earnings.unpaidCount}</p>
                     <p className="text-xs text-muted-foreground">Pending Payment</p>
                   </div>
                 </div>
@@ -186,7 +227,7 @@ export default function DriverEarningsPage() {
                     <Package className="size-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{completedLoads.length}</p>
+                    <p className="text-2xl font-bold">{earnings.completedCount}</p>
                     <p className="text-xs text-muted-foreground">Completed Loads</p>
                   </div>
                 </div>
@@ -309,6 +350,11 @@ export default function DriverEarningsPage() {
                     );
                   })}
                 </div>
+              )}
+              {earnings.unpaidCount > earnings.unpaidLoads.length && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Showing your newest {earnings.unpaidLoads.length} of {earnings.unpaidCount} loads waiting for pay.
+                </p>
               )}
             </CardContent>
           </Card>
