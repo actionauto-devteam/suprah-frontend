@@ -7,6 +7,7 @@ import type { Lead as LinkedLead } from "@/types/lead";
 
 export interface Lead {
   _id: string;
+  combinedInto?: { leadId?: string; at?: string } | null;
   customerId?: string;
   customerLink?: LinkedLead['customerLink'];
   // Contact Information

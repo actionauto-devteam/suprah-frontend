@@ -27,6 +27,7 @@ import { CallCard } from "./CallCard";
 import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
 import { CombineNotice, EarlierConversations } from "./EarlierConversations";
+import { CopyConversationLinkButton } from "./CopyConversationLinkButton";
 import type { LeadConversationMeta } from "@/lib/api/leadConversation";
 import { MDT_TZ, isTodayMDT, isYesterdayMDT, mdtDateKey } from "@/lib/timezone";
 
@@ -677,12 +678,20 @@ export function ConversationView({
     </button>
   );
 
+  const copyLinkButton = lead?._id ? (
+    <CopyConversationLinkButton
+      leadId={lead._id}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-700 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300 dark:hover:bg-emerald-400/10"
+    />
+  ) : null;
+
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
-      {hideConversationChrome && (backButton || detailsButton) && (
+      {hideConversationChrome && (backButton || detailsButton || copyLinkButton) && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-40 flex items-start justify-between gap-2">
           <div className="pointer-events-auto shrink-0">{backButton}</div>
           <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+            {copyLinkButton}
             {detailsButton}
           </div>
         </div>
@@ -737,6 +746,8 @@ export function ConversationView({
               Link to a lead
             </button>
           )}
+
+          {copyLinkButton}
 
           {detailsButton}
 
