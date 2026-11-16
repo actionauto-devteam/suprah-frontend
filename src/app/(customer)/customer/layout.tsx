@@ -93,7 +93,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                   <span className="text-[12px] font-black text-foreground tracking-tight">
                     {organization?.name || "Your Dealership"}
                   </span>
-                  <span className="text-[9px] text-muted-foreground mt-0.5 font-medium tracking-widest uppercase">
+                  <span className="text-[11px] text-muted-foreground mt-0.5 font-medium tracking-widest uppercase">
                     Member Portal
                   </span>
                 </div>
@@ -141,7 +141,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                         <p className="text-[11px] text-muted-foreground mt-1 leading-none truncate">
                           {user?.primaryEmailAddress?.emailAddress}
                         </p>
-                        <span className="mt-1.5 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary w-fit">
+                        <span className="mt-1.5 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary w-fit">
                           Member
                         </span>
                       </div>

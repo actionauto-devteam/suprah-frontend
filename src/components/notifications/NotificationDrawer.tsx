@@ -325,7 +325,7 @@ function NotificationFilterMenu({
             >
               <CheckboxMark checked={allChecked} indeterminate={allIndeterminate} />
               <span className="min-w-0 flex-1">All</span>
-              <span className="text-[10px] font-medium text-muted-foreground">{entries.length}</span>
+              <span className="text-[11px] font-medium text-muted-foreground">{entries.length}</span>
             </button>
 
             <div className="my-1 border-t border-border/50" />
@@ -361,7 +361,7 @@ function NotificationFilterMenu({
                     >
                       <CheckboxMark checked={branchChecked} indeterminate={branchIndeterminate} />
                       <ScrollingFilterLabel label={branch.label} />
-                      <span className="text-[10px] font-medium text-muted-foreground">{branchCount}</span>
+                      <span className="text-[11px] font-medium text-muted-foreground">{branchCount}</span>
                     </button>
                   </div>
 
@@ -380,7 +380,7 @@ function NotificationFilterMenu({
                             >
                               <CheckboxMark checked={checked} />
                               <ScrollingFilterLabel label={leaf.label} />
-                              <span className="shrink-0 text-[9px] font-medium text-muted-foreground/80">{countForLeaf(leaf)}</span>
+                              <span className="shrink-0 text-[11px] font-medium text-muted-foreground/80">{countForLeaf(leaf)}</span>
                             </button>
                           );
                         })}
@@ -579,7 +579,7 @@ function NotificationDrawerBody({
 
           <div className="mt-3 space-y-2.5">
             <div className="space-y-1.5">
-              <label htmlFor="notification-drawer-search" className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">Search notifications</label>
+              <label htmlFor="notification-drawer-search" className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">Search notifications</label>
               <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
               <Input
@@ -623,7 +623,7 @@ function NotificationDrawerBody({
           </div>
         )}
 
-        <div className="shrink-0 border-b border-border/40 px-4 py-2 text-[10px] text-muted-foreground">
+        <div className="shrink-0 border-b border-border/40 px-4 py-2 text-[11px] text-muted-foreground">
           Showing {Math.min(filteredEntries.length, DRAWER_RENDER_LIMIT)} of {filteredEntries.length} matching notification{filteredEntries.length === 1 ? '' : 's'}
           {filteredEntries.length > DRAWER_RENDER_LIMIT ? ` · newest ${DRAWER_RENDER_LIMIT}` : ''}
         </div>
