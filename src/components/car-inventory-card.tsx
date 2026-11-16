@@ -512,8 +512,9 @@ export function CarInventoryCard({
     return (
       <div
         className={cn(
-          "group relative flex overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm",
-          mobileOptimized ? "min-h-28 sm:h-30" : "h-26 sm:h-30",
+          "@container group relative flex overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm",
+          // A minimum height, not a fixed one: a long name never gets clipped.
+          mobileOptimized ? "min-h-28 sm:min-h-30" : "min-h-26 sm:min-h-30",
           "transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
         )}
       >
@@ -525,7 +526,7 @@ export function CarInventoryCard({
           showDaysOnLot={showInventoryMeta}
           mobileDaysOnLotTopRight={mobileOptimized}
           onClick={() => onVehicleClick?.(vehicle)}
-          className={cn("shrink-0 rounded-l-2xl", mobileOptimized ? "w-24 xs:w-28 sm:w-44" : "w-28 sm:w-44")} 
+          className={cn("shrink-0 rounded-l-2xl", mobileOptimized ? "w-24 xs:w-28 @min-[36rem]:w-44" : "w-28 @min-[36rem]:w-44")}
           isSaved={isSaved}
           onToggleSave={
             onToggleSave
@@ -541,11 +542,11 @@ export function CarInventoryCard({
           canCompareMore={canCompareMore}
         />
 
-        <div className={cn("flex min-w-0 flex-1 flex-col justify-center py-2 gap-1", mobileOptimized ? "px-3 sm:px-4" : "px-4")}>
+        <div className={cn("flex min-w-0 flex-1 flex-col justify-center py-2 gap-1", mobileOptimized ? "px-3 @min-[36rem]:px-4" : "px-4")}>
           <div className="flex items-start justify-between gap-2">
             <h3
               className={cn(
-                "min-w-0 break-words font-bold text-base sm:text-lg leading-tight text-foreground cursor-pointer hover:text-primary transition-colors [overflow-wrap:anywhere]",
+                "min-w-0 break-words font-bold text-base @min-[36rem]:text-lg leading-tight text-foreground cursor-pointer hover:text-primary transition-colors [overflow-wrap:anywhere]",
               )}
               onClick={() => onVehicleClick?.(vehicle)}
             >
@@ -554,7 +555,7 @@ export function CarInventoryCard({
                 <span
                   className={cn(
                     "font-normal text-muted-foreground ml-1.5 text-sm",
-                    mobileOptimized && "hidden sm:inline",
+                    mobileOptimized && "hidden @min-[36rem]:inline",
                   )}
                 >
                   {vehicle.trim}
@@ -564,7 +565,7 @@ export function CarInventoryCard({
             {statusCfg && (
               <Badge
                 className={cn(
-                  "hidden sm:flex shrink-0 items-center gap-1 h-6 px-2.5 text-xs font-bold rounded-full",
+                  "hidden @min-[36rem]:flex shrink-0 items-center gap-1 h-6 px-2.5 text-xs font-bold rounded-full",
                   statusCfg.pill,
                 )}
               >
@@ -574,7 +575,7 @@ export function CarInventoryCard({
             )}
           </div>
           {mobileOptimized && vehicle.trim && (
-            <p className="break-words text-[11px] font-medium leading-snug text-muted-foreground [overflow-wrap:anywhere] sm:hidden">
+            <p className="break-words text-[11px] font-medium leading-snug text-muted-foreground [overflow-wrap:anywhere] @min-[36rem]:hidden">
               {vehicle.trim}
             </p>
           )}
@@ -613,7 +614,7 @@ export function CarInventoryCard({
           </div>
         </div>
 
-        <div className="hidden sm:flex flex-col items-end justify-center gap-1 pr-5 pl-3 py-2 shrink-0 border-l border-border/30 min-w-40">
+        <div className="hidden @min-[36rem]:flex flex-col items-end justify-center gap-1 pr-5 pl-3 py-2 shrink-0 border-l border-border/30 min-w-40">
           {!hasPrice ? (
             <span className="text-lg font-black text-primary">Price Pending</span>
           ) : hasDiscount ? (
@@ -645,7 +646,7 @@ export function CarInventoryCard({
           </Button>
         </div>
 
-        <div className="sm:hidden flex flex-col items-end justify-center pr-3 pl-1 py-2 shrink-0 gap-1">
+        <div className="@min-[36rem]:hidden flex flex-col items-end justify-center pr-3 pl-1 py-2 shrink-0 gap-1">
           {!hasPrice ? (
             <span className="max-w-24 text-right text-xs font-black leading-tight text-primary">
               Price Pending
@@ -679,7 +680,7 @@ export function CarInventoryCard({
         </div>
 
         <button
-          className="absolute inset-0 sm:hidden z-1"
+          className="absolute inset-0 @min-[36rem]:hidden z-1"
           onClick={() => onVehicleClick?.(vehicle)}
           aria-label={`View ${vehicle.year} ${vehicle.make} ${vehicle.model}`}
         />
@@ -742,7 +743,7 @@ export function CarInventoryCard({
           <>
             <div className="grid grid-cols-3 gap-1.5 sm:hidden">
               <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
                   <GaugeIcon className="h-3 w-3 shrink-0 text-emerald-500/80" />
                   Mileage
                 </span>
@@ -752,7 +753,7 @@ export function CarInventoryCard({
               </div>
 
               <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
                   <MapPinIcon className="h-3 w-3 shrink-0 text-cyan-500/80" />
                   Location
                 </span>
@@ -762,7 +763,7 @@ export function CarInventoryCard({
               </div>
 
               <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
                   <Clock3 className="h-3 w-3 shrink-0 text-amber-500/80" />
                   Days on lot
                 </span>

@@ -408,7 +408,7 @@ function InventoryInitialLoadingState() {
       </div>
 
       {/* Desktop/tablet: preserve the card-shaped first-row preview. */}
-      <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-6" aria-hidden="true">
+      <div className="hidden gap-4 md:grid md:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] sm:gap-6" aria-hidden="true">
         {Array.from({ length: 4 }, (_, index) => (
           <div
             key={index}
@@ -1455,7 +1455,10 @@ function InventoryContent() {
               className={cn(
                 "items-stretch",
                 viewMode === "grid"
-                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+                  ? // As many cards per row as fit at 17rem or wider: the screen
+                    // width alone ignores the sidebar, which squeezed four cards
+                    // into a laptop screen and pushed their text out (2026-11-17).
+                    "grid grid-cols-1 md:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-4 sm:gap-6"
                   : "flex flex-col gap-2.5",
               )}
             >

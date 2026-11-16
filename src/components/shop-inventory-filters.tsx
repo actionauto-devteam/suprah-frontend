@@ -112,7 +112,7 @@ function MobileFilterSelect({
 }) {
   return (
     <div className="space-y-1.5">
-      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </span>
       <Select value={value} onValueChange={onValueChange}>
@@ -426,7 +426,7 @@ export function ShopInventoryFilters({
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Filters
           {activeCount > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground">
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-black leading-none text-primary-foreground">
               {activeCount}
             </span>
           )}
@@ -439,7 +439,8 @@ export function ShopInventoryFilters({
             active={!!currentSortValue}
             ariaLabel="Sort inventory"
             className={cn(
-              "h-9 w-full min-w-0 justify-between rounded-xl px-3 shadow-sm",
+              // The chosen sort shows in full, on two lines if needed.
+              "h-auto min-h-9 w-full min-w-0 justify-between whitespace-normal rounded-xl px-3 py-1.5 text-left leading-tight shadow-sm *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:[overflow-wrap:anywhere]",
               isSorting && "pr-10",
             )}
             options={sortOptions}
@@ -473,7 +474,7 @@ export function ShopInventoryFilters({
             return (
               <span
                 key={key}
-                className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1 rounded-full border border-primary/35 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold leading-relaxed text-primary shadow-sm dark:bg-primary/12"
+                className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1 rounded-full border border-primary/35 bg-primary/8 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-primary shadow-sm dark:bg-primary/12"
               >
                 <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                   <span className="opacity-70">{label}</span>
@@ -500,7 +501,7 @@ export function ShopInventoryFilters({
           <button
             type="button"
             onClick={onClearFilters}
-            className="inline-flex min-h-8 shrink-0 touch-manipulation items-center rounded-full px-2.5 text-[10px] font-bold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
+            className="inline-flex min-h-8 shrink-0 touch-manipulation items-center rounded-full px-2.5 text-[11px] font-bold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
           >
             Clear all
           </button>
@@ -520,7 +521,7 @@ export function ShopInventoryFilters({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black text-foreground">Inventory Filters</p>
-                <p className="truncate text-[10px] text-muted-foreground">
+                <p className="break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
                   {resultCount !== undefined
                     ? `${resultCount.toLocaleString()} ${resultCount === 1 ? "vehicle" : "vehicles"} match`
                     : "Refine the vehicles shown below"}
@@ -591,20 +592,20 @@ export function ShopInventoryFilters({
             <div className="rounded-xl border border-border/50 bg-muted/20 p-3 dark:bg-zinc-950/35">
               <div className="mb-2.5 flex items-center gap-2">
                 <ArrowUpDown className="h-3.5 w-3.5 text-primary/70" />
-                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                   Price & Mileage Range
                 </span>
               </div>
               <div className="space-y-2.5">
                 <div>
-                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Price</p>
+                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Price</p>
                   <div className="grid grid-cols-2 gap-2">
                     <Input type="number" inputMode="numeric" placeholder="Min $" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={priceMin} onChange={(event) => handleMinPriceChange(event.target.value)} />
                     <Input type="number" inputMode="numeric" placeholder="Max $" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={priceMax} onChange={(event) => handleMaxPriceChange(event.target.value)} />
                   </div>
                 </div>
                 <div>
-                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Mileage</p>
+                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Mileage</p>
                   <div className="grid grid-cols-2 gap-2">
                     <Input type="number" inputMode="numeric" placeholder="Min miles" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={mileMin} onChange={(event) => handleMinMileageChange(event.target.value)} />
                     <Input type="number" inputMode="numeric" placeholder="Max miles" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={mileMax} onChange={(event) => handleMaxMileageChange(event.target.value)} />
@@ -635,11 +636,10 @@ export function ShopInventoryFilters({
 
       {/* Desktop/tablet: retain the existing pill-based controls. */}
       <div className="hidden md:block">
-        <div className="flex items-center gap-2">
-          <div
-            className="flex flex-1 items-center gap-2 overflow-x-auto pb-0.5"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
-          >
+        <div className="flex items-start gap-2">
+          {/* The pills wrap onto another line instead of scrolling sideways
+              out of view when the screen is narrow (2026-11-17). */}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pb-0.5">
             <PillSelect
               value={filters.make || "all"}
               onValueChange={(value) => onFilterChange("make", value === "all" ? undefined : value)}
@@ -707,7 +707,7 @@ export function ShopInventoryFilters({
               <SlidersHorizontal className="h-3 w-3" />
               Range
               {hasRangeFilter && (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-black text-primary-foreground">
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-black leading-none text-primary-foreground">
                   {[filters.minPrice, filters.maxPrice, filters.minMileage, filters.maxMileage].filter(Boolean).length}
                 </span>
               )}
@@ -764,7 +764,7 @@ export function ShopInventoryFilters({
                     ? PRICE_UPDATED_CHIP_LABELS[String(value)] ?? String(value)
                     : String(value);
               return (
-                <span key={key} className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/12">
+                <span key={key} className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/12 break-words [overflow-wrap:anywhere]">
                   <span className="opacity-70">{label}</span>
                   {displayVal && <span>: {displayVal}</span>}
                   <button type="button" onClick={() => onFilterChange(key, key === "status" ? "all" : undefined)} className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary/20" aria-label={`Remove ${label} filter`}>
