@@ -16,6 +16,7 @@ import { useTeamMembers } from "@/hooks/useTeamPulse";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { MDT_TZ, isTodayMDT } from "@/lib/timezone";
 import type { ActiveLeadCall } from "@/hooks/useActiveCalls";
+import { campaignKindLabel } from "@/lib/leadType";
 
 interface LeadsListProps {
   leads: any[];
@@ -44,6 +45,7 @@ interface LeadsListProps {
   activeCalls?: Map<string, ActiveLeadCall>;
   timeMode?: "all" | "customer";
   currentUserId?: string | null;
+  showCampaign?: boolean;
 }
 
 const listTime = (value: any) => {
@@ -125,6 +127,12 @@ type LeadListIdentity = {
 
 const leadNameKey = (lead: LeadListIdentity) =>
   leadName(lead).trim().toLocaleLowerCase();
+
+const shortStoreName = (name: unknown) => {
+  const text = typeof name === "string" ? name.trim() : "";
+  if (!text) return "";
+  return text.split(" - ").pop()?.trim() || text;
+};
 
 const leadVehicle = (lead: LeadListIdentity) =>
   [lead?.vehicle?.year, lead?.vehicle?.make, lead?.vehicle?.model]
@@ -215,6 +223,7 @@ export const LeadsList = React.memo(
     activeCalls,
     timeMode = "customer",
     currentUserId = null,
+    showCampaign = false,
   }: LeadsListProps) => {
     const rangeStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const rangeEnd = Math.min(currentPage * itemsPerPage, total);
@@ -449,6 +458,29 @@ export const LeadsList = React.memo(
                           {lead?.channel && (
                             <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                               {lead.channel}
+                            </span>
+                          )}
+                          {showCampaign && lead?.campaign && (
+                            <span
+                              className={cn(
+                                "rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-wide",
+                                lead.campaign.responded
+                                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                  : "border-slate-400/40 bg-slate-400/10 text-slate-600 dark:text-slate-300",
+                              )}
+                              title={`${campaignKindLabel(lead.campaign.kind)} sent ${new Date(lead.campaign.sentAt).toLocaleString("en-US", { timeZone: MDT_TZ })}`}
+                              data-testid="lead-campaign-response"
+                            >
+                              {campaignKindLabel(lead.campaign.kind)} · {lead.campaign.responded ? "Responded" : "No response"}
+                            </span>
+                          )}
+                          {shortStoreName(lead?.storeName) && (
+                            <span
+                              className="rounded border border-violet-500/30 bg-violet-500/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300"
+                              title={`Store: ${lead.storeName}`}
+                              data-testid="lead-store"
+                            >
+                              {shortStoreName(lead.storeName)}
                             </span>
                           )}
                           {lead?.intakeIdentity === "unverified" && (

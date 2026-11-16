@@ -75,7 +75,7 @@ function SuprahMeetRoom({ code }: { code: string }) {
   const router = useRouter();
   // The meeting session lives in MeetSessionProvider (mounted in the CRM
   // layout), so navigating away minimizes the meeting instead of killing it.
-  const { meet, activeCode, open } = useMeetSession();
+  const { meet, activeCode, open, close } = useMeetSession();
 
   const [panel, setPanel] = React.useState<"none" | "chat" | "people" | "info">("none");
   const [showReactions, setShowReactions] = React.useState(false);
@@ -510,22 +510,27 @@ function SuprahMeetRoom({ code }: { code: string }) {
   }
 
   if (meet.phase === "ended") {
+    const endedForEveryone = meet.meeting?.status === 'ended';
     return (
       <div className="mx-auto max-w-2xl p-4 md:p-6">
         <div className="mb-1 flex items-center gap-2.5">
           <SuprahMeetLogo className="size-9" />
-          <h1 className="text-xl font-semibold">Meeting ended</h1>
+          <h1 className="text-xl font-semibold">{endedForEveryone ? 'Meeting ended' : meet.endedReason ? 'Connection interrupted' : 'You left the meeting'}</h1>
         </div>
         <p className="mb-1 text-sm text-muted-foreground">{meet.meeting?.title} · {code}</p>
         {meet.endedReason && <p className="mb-5 text-sm text-emerald-600 dark:text-emerald-400">{meet.endedReason}</p>}
-        <MeetingSummaryPanel code={code} />
+        {endedForEveryone && <MeetingSummaryPanel code={code} />}
         {/* Host/admin: email the recording + AI summary to attendees. Renders
             nothing for non-controllers or when nothing was recorded. */}
-        <RecordingDistributionPanel code={code} />
+        {endedForEveryone && <RecordingDistributionPanel code={code} />}
         <div className="mt-6 flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
-          {meet.endedReason?.includes("another device") && (
-            <Button onClick={() => location.reload()}>Rejoin here</Button>
+          {!endedForEveryone && (
+            <Button onClick={() => {
+              setReadyToJoin(false); joinStartedRef.current = false;
+              setGate('checking'); setGateError(null); setEndedReason(null);
+              close();
+            }}>Rejoin meeting</Button>
           )}
         </div>
       </div>

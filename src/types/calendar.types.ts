@@ -42,6 +42,8 @@ export interface CalendarItem {
   status: "scheduled" | "completed" | "cancelled";
   color?: string;
   meetingLink?: string;
+  generateMeetingLink?: boolean;
+  meetingSyncPending?: boolean;
   createdBy?: CrmUserLite;
   assignees?: CrmUserLite[];
   /** True only for the creator; server-computed at fetch time. */

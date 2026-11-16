@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUpDown, CalendarDays, Check, ChevronDown, MapPin, SlidersHorizontal, Tag, UserRound } from "lucide-react";
+import { ArrowLeftRight, ArrowUpDown, CalendarDays, Check, ChevronDown, MapPin, SlidersHorizontal, Tag, UserRound } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import {
   REPORTABLE_LEAD_SOURCE_VALUES,
   UNMAPPED_LEAD_SOURCE_LABEL,
 } from "@/lib/leadSource";
+import { LEAD_TYPE_GROUPS, isCampaignLeadType, leadTypeLabel } from "@/lib/leadType";
 
 export type LeadDatePreset =
   | "all"
@@ -48,6 +49,12 @@ export interface LeadLocationFilterControl {
   onChange: (key: string | null) => void;
 }
 
+export interface LeadTypeFilterControl {
+  value: string | null;
+  counts: Record<string, number>;
+  onChange: (value: string | null) => void;
+}
+
 export interface LeadSortFilterControl {
   value: string;
   defaultValue: string;
@@ -72,10 +79,11 @@ interface LeadsFiltersPopoverProps {
   onClearDate: () => void;
   assignee?: LeadAssigneeFilterControl;
   location?: LeadLocationFilterControl;
+  leadType?: LeadTypeFilterControl;
   sort?: LeadSortFilterControl;
 }
 
-type FilterType = "sort" | "status" | "assignee" | "source" | "location" | "date";
+type FilterType = "sort" | "status" | "assignee" | "leadType" | "source" | "location" | "date";
 
 const optionClass =
   "flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-medium transition";
@@ -155,6 +163,7 @@ export function LeadsFiltersPopover({
   onClearDate,
   assignee,
   location,
+  leadType,
   sort,
 }: LeadsFiltersPopoverProps) {
   const isMobile = useIsMobile();
@@ -166,9 +175,12 @@ export function LeadsFiltersPopover({
   const dateActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
   const assigneeActive = Boolean(assignee?.value) && assignee?.value !== assignee?.currentUserId;
   const locationActive = Boolean(location?.value);
+  const leadTypeActive = Boolean(leadType?.value);
+  const campaignDates = isCampaignLeadType(leadType?.value);
   const sortActive = isMobile && Boolean(sort) && sort?.value !== sort?.defaultValue;
   const activeCount =
     (statusActive ? 1 : 0) +
+    (leadTypeActive ? 1 : 0) +
     (sourceFilter ? 1 : 0) +
     (dateActive ? 1 : 0) +
     (assigneeActive ? 1 : 0) +
@@ -199,6 +211,7 @@ export function LeadsFiltersPopover({
     ...(showSort ? [{ key: "sort" as const, label: "Sort", icon: <ArrowUpDown className="h-3.5 w-3.5" />, active: sortActive }] : []),
     { key: "status", label: "Status", icon: <SlidersHorizontal className="h-3.5 w-3.5" />, active: statusActive },
     ...(assignee ? [{ key: "assignee" as const, label: "Assigned to", icon: <UserRound className="h-3.5 w-3.5" />, active: assigneeActive }] : []),
+    ...(leadType ? [{ key: "leadType" as const, label: "Lead type", icon: <ArrowLeftRight className="h-3.5 w-3.5" />, active: leadTypeActive }] : []),
     { key: "source", label: "Source", icon: <Tag className="h-3.5 w-3.5" />, active: Boolean(sourceFilter) },
     ...(showLocation ? [{ key: "location" as const, label: "Location", icon: <MapPin className="h-3.5 w-3.5" />, active: locationActive }] : []),
     { key: "date", label: "Date range", icon: <CalendarDays className="h-3.5 w-3.5" />, active: dateActive },
@@ -209,6 +222,7 @@ export function LeadsFiltersPopover({
     onAllStatuses();
     onSource(null);
     onClearDate();
+    if (leadTypeActive) leadType?.onChange(null);
     if (assigneeActive) assignee?.onChange(null);
     if (showLocation && location?.value) location.onChange(null);
     if (sortActive && sort) sort.onChange(sort.defaultValue);
@@ -217,6 +231,7 @@ export function LeadsFiltersPopover({
   const summary = [
     `Status: ${selectedLabel}`,
     assigneeName ? `Assigned: ${assigneeName}` : "",
+    leadTypeActive ? `Type: ${leadTypeLabel(leadType?.value)}` : "",
     sourceFilter ? `Source: ${sourceFilter}` : "",
     showLocation && locationLabel ? `Location: ${locationLabel}` : "",
     dateActive ? `Date: ${LEAD_DATE_PRESET_OPTIONS.find((item) => item.value === dateFilter.preset)?.label || "Custom"}` : "",
@@ -323,6 +338,33 @@ export function LeadsFiltersPopover({
         </>
       )}
 
+      {currentType === "leadType" && leadType && (
+        <>
+          <SectionHeader title="Lead type" onClear={leadTypeActive ? () => leadType.onChange(null) : null} />
+          <div className="mb-3 space-y-1">
+            <OptionButton selected={!leadType.value} onClick={() => leadType.onChange(null)}>All lead types</OptionButton>
+          </div>
+          <div className="space-y-3">
+            {LEAD_TYPE_GROUPS.map((group) => (
+              <div key={group.title} className="space-y-1 border-t pt-3" style={{ borderColor: "var(--border-1)" }} data-testid={`lead-type-group-${group.title.toLowerCase()}`}>
+                <p className="px-1 text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>{group.title}</p>
+                <p className="px-1 text-[11px]" style={{ color: "var(--text-tertiary)" }}>{group.hint}</p>
+                {group.options.map((option) => (
+                  <OptionButton
+                    key={option.value}
+                    selected={leadType.value === option.value}
+                    onClick={() => leadType.onChange(leadType.value === option.value ? null : option.value)}
+                    count={leadType.counts[option.value] ?? 0}
+                  >
+                    {option.label}
+                  </OptionButton>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {currentType === "source" && (
         <>
           <SectionHeader title="Lead Source" onClear={sourceFilter ? () => onSource(null) : null} />
@@ -359,7 +401,7 @@ export function LeadsFiltersPopover({
 
       {currentType === "date" && (
         <>
-          <SectionHeader title="Lead entered CRM" onClear={dateActive ? onClearDate : null} />
+          <SectionHeader title={campaignDates ? "Campaign sent" : "Lead entered CRM"} onClear={dateActive ? onClearDate : null} />
           <div className="space-y-1">
             {LEAD_DATE_PRESET_OPTIONS.map((option) => (
               <OptionButton key={option.value} selected={dateFilter.preset === option.value} onClick={() => onDatePreset(option.value)}>

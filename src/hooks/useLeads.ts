@@ -42,6 +42,7 @@ export interface Lead {
   };
   vehicleId?: string;
   location?: string;
+  storeName?: string | null;
   dealershipLine?: string;
   comments: string;
   address?: string;
@@ -66,6 +67,13 @@ export interface Lead {
   assignedTo?: string | null;
   assignedAt?: string | null;
   assignmentUnseenBy?: string | null;
+  firstContactBy?: "customer" | "team" | null;
+  firstContactVia?: "team_text" | "team_call" | "added_by_team" | null;
+  campaign?: {
+    kind: "price_drop" | "reengagement" | "sms_campaign" | "email_campaign";
+    sentAt: string;
+    responded: boolean;
+  } | null;
   assignmentHistory?: {
     from?: string;
     to?: string;
@@ -105,6 +113,7 @@ interface UseLeadsOptions {
   assignedTo?: string | null
   location?: string | null
   source?: string | null
+  leadType?: string | null
   dateFrom?: string | null
   dateTo?: string | null
   liveRefreshMs?: number
@@ -128,6 +137,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   assignedTo = null,
   location = null,
   source = null,
+  leadType = null,
   dateFrom = null,
   dateTo = null,
   liveRefreshMs = 0,
@@ -165,6 +175,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       assignedTo,
       location,
       source,
+      leadType,
       dateFrom,
       dateTo,
     ],
@@ -202,6 +213,10 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
       if (source) {
         params.append("source", source);
+      }
+
+      if (leadType) {
+        params.append("leadType", leadType);
       }
 
       if (dateFrom) {
@@ -523,6 +538,32 @@ export const useLeadLocationCounts = (liveRefreshMs = 0) => {
       const token = await getToken();
 
       const response = await apiClient.get("/api/leads/location-counts", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+
+      const resData = response.data?.data || response.data;
+      return (resData?.counts || {}) as Record<string, number>;
+    },
+
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchInterval: liveRefreshMs > 0 ? liveRefreshMs : false,
+  });
+
+  return { counts: data || {}, isLoading };
+};
+
+export const useLeadTypeCounts = (liveRefreshMs = 0) => {
+  const { getToken } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["leads", "lead-type-counts"],
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+
+      const response = await apiClient.get("/api/leads/lead-type-counts", {
         headers: { Authorization: `Bearer ${token}` },
         signal,
       });

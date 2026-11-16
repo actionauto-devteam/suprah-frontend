@@ -2,8 +2,8 @@
 
 /**
  * Global music player engine (Audius-powered) — module-level singleton exposed
- * through useSyncExternalStore (same pattern as feed-notification-store.ts and
- * pulse360-store.ts — no provider required). The <audio> element itself lives
+ * through useSyncExternalStore (same pattern as feed-notification-store.ts
+ * — no provider required). The <audio> element itself lives
  * here as a plain, un-mounted DOM node, so playback keeps running across route
  * navigation instead of being torn down when the page that opened it unmounts.
  */

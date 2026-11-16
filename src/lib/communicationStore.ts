@@ -279,8 +279,8 @@ export const commActions = {
 };
 
 /* ----------------------------- socket wiring ----------------------------- */
-/** Call once with your existing Socket.io client instance (the one YapLine /
- *  Pulse360 use) after the user is authenticated. */
+/** Call once with your existing Socket.io client instance (the one YapLine
+ *  uses) after the user is authenticated. */
 let wiredSocket: Socket | null = null;
 let wiredOrgId = "";
 let unwireSocket: (() => void) | null = null;

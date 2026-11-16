@@ -6,6 +6,7 @@ import { useCrmToken } from '@/hooks/useCrmToken';
 import { useAuth } from '@/providers/AuthProvider';
 import type { Socket } from 'socket.io-client';
 import { initializeSocket, onSocketChange } from '@/lib/socket.client';
+import { dismissDeviceNotifications } from '@/lib/web-push-subscription';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -329,6 +330,7 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
                 boundSocket.off('crm:notification:deleted', onDeleted);
                 boundSocket.off('crm:notification:deleteAllRead', onDeleteAllRead);
                 boundSocket.off('connect', onConnect);
+                boundSocket.off('notification:dismiss', dismissDeviceNotifications);
                 boundSocket = null;
             };
             const bind = (next: Socket) => {
@@ -341,6 +343,7 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
                 next.on('crm:notification:deleted', onDeleted);
                 next.on('crm:notification:deleteAllRead', onDeleteAllRead);
                 next.on('connect', onConnect);
+                next.on('notification:dismiss', dismissDeviceNotifications);
                 boundSocket = next;
             };
 

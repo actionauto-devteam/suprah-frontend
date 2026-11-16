@@ -11,8 +11,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Calendar, Car, Clock, MapPin, Users, Video, Phone, Mail,
   Edit2, Save, X, Trash2, Ban, CheckCircle, AlertCircle,
-  Link as LinkIcon, RefreshCw,
+  Link as LinkIcon, RefreshCw, History,
 } from "lucide-react"
+import { useTeamMembers } from "@/hooks/useTeamPulse"
+
+const NO_SALESPERSON = "none"
+const HISTORY_LABEL: Record<string, string> = {
+  created: "Booked",
+  updated: "Changed",
+  cancelled: "Cancelled",
+  status: "Status changed",
+  deleted: "Deleted",
+}
 import { Appointment, AppointmentSmsNotice, AppointmentSmsNoticeStatus } from "@/types/appointment"
 import { fmtLongDateMDT, fmtTimeMDT, fmtLongDateTimeMDT, mdtCalendarDate, mdtTimePickerSeed, mdtWallTimeToUtc } from "@/lib/timezone"
 import { useUser } from "@/providers/AuthProvider"
@@ -225,8 +235,11 @@ export function AppointmentDetailsModal({
   }, [currentUser, appointment])
 
   // Only allow actions when the relevant handler is provided (read-only when used from dashboard)
-  const canEdit   = !!onUpdate && (isCreator || isRegisteredParticipant)
-  const canCancel = !!onCancel && isCreator && appointment?.status !== "cancelled"
+  const isCustomerAppointment = Boolean(appointment?.customerBooking?.isCustomerBooking)
+  const { data: teamMembers = [] } = useTeamMembers()
+  const lastEdit = appointment?.changeHistory?.length ? appointment.changeHistory[appointment.changeHistory.length - 1] : null
+  const canEdit   = !!onUpdate && (isCreator || isRegisteredParticipant || isCustomerAppointment)
+  const canCancel = !!onCancel && (isCreator || isCustomerAppointment) && appointment?.status !== "cancelled"
   const canDelete = !!onDelete && isCreator
 
   React.useEffect(() => {
@@ -246,6 +259,7 @@ export function AppointmentDetailsModal({
       meetingLink:     appointment.meetingLink || "",
       notes:           appointment.notes || "",
       outcomeNotes:    appointment.outcomeNotes || "",
+      salespersonId:   appointment.salesperson?.userId ? String(appointment.salesperson.userId) : "",
       participants:    (Array.isArray(appointment.participants) ? appointment.participants : [])
         .map((p: any) => getParticipantId(p))
         .filter(Boolean),
@@ -320,6 +334,21 @@ export function AppointmentDetailsModal({
           })
         : undefined
 
+      const originalParticipants = (Array.isArray(appointment.participants) ? appointment.participants : [])
+        .map((p: any) => String(getParticipantId(p) || ""))
+        .filter(Boolean)
+        .sort()
+      const nextParticipants = [...(editData.participants || [])].map(String).sort()
+      const participantsChanged = originalParticipants.join(",") !== nextParticipants.join(",")
+      const originalGuests = (appointment.guestEmails || [])
+        .map((g: any) => String(typeof g === "string" ? g : g?.email || "").toLowerCase())
+        .filter(Boolean)
+        .sort()
+      const nextGuests = [...(editData.guestEmails || [])].map((email: string) => email.toLowerCase()).sort()
+      const guestsChanged = originalGuests.join(",") !== nextGuests.join(",")
+      const originalSalesperson = appointment.salesperson?.userId ? String(appointment.salesperson.userId) : ""
+      const salespersonChanged = isCustomerAppointment && (editData.salespersonId || "") !== originalSalesperson
+
       const saved = await onUpdate(appointment._id, {
         title:            editData.title,
         description:      editData.description   || undefined,
@@ -333,8 +362,9 @@ export function AppointmentDetailsModal({
         notes:            editData.notes         || undefined,
         status:           editData.status,
         outcomeNotes:     editData.outcomeNotes  || undefined,
-        participants:     editData.participants,
-        guestEmails:      formattedGuestEmails,
+        ...(participantsChanged ? { participants: editData.participants } : {}),
+        ...(guestsChanged ? { guestEmails: formattedGuestEmails } : {}),
+        ...(salespersonChanged ? { salespersonUserId: editData.salespersonId || null } : {}),
       })
       setAppointment((current) => current ? {
         ...current,
@@ -349,6 +379,8 @@ export function AppointmentDetailsModal({
         status:       editData.status as Appointment["status"],
         outcomeNotes: editData.outcomeNotes || undefined,
         ...(saved ? {
+          salesperson: saved.salesperson ?? current.salesperson,
+          changeHistory: saved.changeHistory ?? current.changeHistory,
           rescheduleNotice: saved.rescheduleNotice,
           reminderSms:      saved.reminderSms,
           customerEmailNotice: saved.customerEmailNotice,
@@ -357,7 +389,7 @@ export function AppointmentDetailsModal({
       setIsEditing(false)
       setError(null)
     } catch (err: any) {
-      setError(err.message || "Failed to update")
+      setError(err?.response?.data?.message || err.message || "Failed to update")
     } finally {
       setIsSubmitting(false)
     }
@@ -451,7 +483,7 @@ export function AppointmentDetailsModal({
           {/* Error */}
           {error && (
             <Alert variant="destructive" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50">
-              <div className="flex items-start gap-3">
+              <div className="col-span-2 flex items-start gap-3">
                 <div className="mt-0.5 shrink-0 rounded-full bg-red-100 dark:bg-red-900 p-1">
                   <AlertCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
                 </div>
@@ -764,6 +796,32 @@ export function AppointmentDetailsModal({
             </Section>
           )}
 
+          {isCustomerAppointment && (
+            <Section title="Salesperson" icon={<Users className="size-3.5" />}>
+              {isEditing ? (
+                <Select
+                  value={editData.salespersonId || NO_SALESPERSON}
+                  onValueChange={(value) => setEditData({ ...editData, salespersonId: value === NO_SALESPERSON ? "" : value })}
+                >
+                  <SelectTrigger data-testid="appointment-edit-salesperson"><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-350">
+                    <SelectItem value={NO_SALESPERSON}>No salesperson yet</SelectItem>
+                    {editData.salespersonId && !teamMembers.some((member) => member._id === editData.salespersonId) && (
+                      <SelectItem value={editData.salespersonId}>{appointment.salesperson?.name || "Current salesperson"}</SelectItem>
+                    )}
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member._id} value={member._id}>{member.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="rounded-lg border bg-muted/30 px-3 py-2.5 text-sm" data-testid="appointment-salesperson-name">
+                  {appointment.salesperson?.name || "No salesperson yet"}
+                </div>
+              )}
+            </Section>
+          )}
+
           {/* ── Notes ── */}
           {(isEditing || appointment.notes) && (
             <Section title="Notes">
@@ -815,6 +873,28 @@ export function AppointmentDetailsModal({
             </div>
           )}
 
+          {(appointment.changeHistory?.length ?? 0) > 0 && (
+            <Section title="Change history" icon={<History className="size-3.5" />}>
+              <ol className="space-y-2" data-testid="appointment-change-history">
+                {[...(appointment.changeHistory || [])].reverse().map((entry, index) => (
+                  <li key={entry._id || `${entry.at}-${index}`} className="rounded-lg border bg-muted/20 px-3 py-2 text-[12px]">
+                    <p className="font-semibold text-foreground">{HISTORY_LABEL[entry.action] || "Changed"} · {entry.byName}</p>
+                    <p className="text-[11px] text-muted-foreground">{fmtLongDateTimeMDT(entry.at)}</p>
+                    {entry.changes.length > 0 && (
+                      <ul className="mt-1 space-y-0.5">
+                        {entry.changes.map((change) => (
+                          <li key={change.field} className="break-words text-muted-foreground">
+                            <span className="font-medium text-foreground/80">{change.label}:</span> {change.from} → {change.to}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          )}
+
           {appointment.entryType === "appointment" && getLinkedLeadId(appointment) && (
             <AppointmentActivitySection
               leadId={getLinkedLeadId(appointment)}
@@ -828,6 +908,9 @@ export function AppointmentDetailsModal({
             <p>Created: {fmtLongDateTimeMDT(appointment.createdAt)}</p>
             {appointment.updatedAt !== appointment.createdAt && (
               <p>Last updated: {fmtLongDateTimeMDT(appointment.updatedAt)}</p>
+            )}
+            {lastEdit && (
+              <p data-testid="appointment-last-edited">Last edited by: <span className="font-medium text-foreground/70">{lastEdit.byName}</span> · {fmtLongDateTimeMDT(lastEdit.at)}</p>
             )}
             <p>
               {appointment.reminderSent

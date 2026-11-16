@@ -32,6 +32,7 @@ import {
   Megaphone,
   Crown,
   Video, // ➕ SUPRAH MEET
+  Snowflake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -81,6 +82,13 @@ import { useYapLineActiveCount } from "@/lib/yapline-store";
 // ➕ MEET BADGE — count of the user's meetings scheduled for today (MDT).
 import { useMeetTodayCount } from "@/hooks/useMeetTodayCount";
 import { useNotifications } from "@/context/NotificationContext";
+// 🎄 Holiday layer — ornaments + holly on the header, sparkles + sleigh in the
+// background, and the on/off toggle in the user menu.
+import {
+  SidebarFestiveAmbient,
+  SidebarFestiveHeader,
+  useChristmasEffects,
+} from "@/components/seasonal";
 import { isLocatorNotification } from "@/components/notifications/notification-utils";
 import {
   AlertDialog,
@@ -312,6 +320,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const xmas = useChristmasEffects();
 
   const { isCustomer } = useOrg();
   const { avatarUrl } = useProfileContext();
@@ -458,6 +467,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="hud-corner absolute bottom-1.5 right-1.5 size-3 rounded-br-sm border-b-2 border-r-2 border-emerald-500/20" style={{ animationDelay: "0.5s" }} />
       </div>
 
+      {/* 🎄 twinkling stars + a sleigh gliding behind the nav every ~30s */}
+      <SidebarFestiveAmbient />
+
       <SidebarHeader className="relative z-10 flex h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
         {/* soft halo behind the mark */}
         <div
@@ -490,6 +502,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             priority
           />
         </div>
+        {/* 🎄 swinging ornaments + holly sprig (hidden when collapsed) */}
+        <SidebarFestiveHeader />
       </SidebarHeader>
 
       {/* Subtle, thin scrollbar: faint thumb at rest, firmer on hover. The nav still
@@ -926,6 +940,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SettingsIcon className="mr-2 size-4" />
                   Settings
                 </DropdownMenuItem>
+                {/* 🎄 Reachable from every route (CRM pages use CrmHeader,
+                    which doesn't carry the header toggle). */}
+                {xmas.available && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      xmas.setEnabled(!xmas.enabled);
+                    }}
+                  >
+                    <Snowflake
+                      className={cn("mr-2 size-4", xmas.enabled && "text-sky-400")}
+                    />
+                    {xmas.enabled ? "Turn off holiday effects" : "Turn on holiday effects"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}>
                   <LogOut className="mr-2 size-4" />

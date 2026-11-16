@@ -23,6 +23,7 @@ export type LocationEditorTarget =
   | { mode: "view"; location: CrmLocation }
 
 const splitLines = (text: string) => text.split("\n").map((line) => line.trim()).filter(Boolean)
+const splitPrefixes = (text: string) => Array.from(new Set(text.split(/[\s,]+/).map((item) => item.trim().toUpperCase()).filter(Boolean)))
 
 function formatWhen(value?: string) {
   if (!value) return "—"
@@ -42,6 +43,7 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
   const [code, setCode] = React.useState("")
   const [codeTouched, setCodeTouched] = React.useState(false)
   const [aliasesText, setAliasesText] = React.useState("")
+  const [prefixText, setPrefixText] = React.useState("")
   const [issues, setIssues] = React.useState<CrmLocationIssue[]>([])
   const [busy, setBusy] = React.useState(false)
   const existing = target && target.mode !== "create" ? target.location : null
@@ -57,6 +59,7 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
       setName(prefillName)
       setCode(suggestLocationCode(prefillName))
       setAliasesText((target.prefill?.aliases || []).join("\n"))
+      setPrefixText("")
     } else {
       setName(target.location.name)
       setCode(target.location.code)
@@ -65,10 +68,12 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
         aliases.push(target.appendAlias)
       }
       setAliasesText(aliases.join("\n"))
+      setPrefixText((target.location.stockPrefixes || []).join(", "))
     }
   }, [target])
 
   const aliases = React.useMemo(() => splitLines(aliasesText), [aliasesText])
+  const stockPrefixes = React.useMemo(() => splitPrefixes(prefixText), [prefixText])
   const conflicts = React.useMemo(() => {
     if (!target || readOnly) return []
     const keys = locationKeys({ name, code, aliases })
@@ -79,9 +84,12 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
       for (const key of keys) {
         if (otherKeys.has(key)) found.push(`"${key}" is already used by ${other.name}${other.status === "archived" ? " (archived)" : ""}.`)
       }
+      for (const prefix of stockPrefixes) {
+        if ((other.stockPrefixes || []).includes(prefix)) found.push(`Stock numbers starting with "${prefix}" already belong to ${other.name}${other.status === "archived" ? " (archived)" : ""}.`)
+      }
     }
     return Array.from(new Set(found))
-  }, [target, readOnly, name, code, aliases, allLocations, existing])
+  }, [target, readOnly, name, code, aliases, stockPrefixes, allLocations, existing])
 
   const fieldIssues = (field: string) => issues.filter((issue) => issue.field === field || issue.field.startsWith(`${field}.`))
 
@@ -91,9 +99,9 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
     setIssues([])
     try {
       const data = target.mode === "create"
-        ? await locationRequest<{ location: CrmLocation }>(getToken, "post", "/api/crm/locations", { location: { code, name, aliases } })
+        ? await locationRequest<{ location: CrmLocation }>(getToken, "post", "/api/crm/locations", { location: { code, name, aliases, stockPrefixes } })
         : await locationRequest<{ location: CrmLocation; changed: boolean }>(getToken, "patch", `/api/crm/locations/${existing?.id}`, {
-          location: { name, aliases },
+          location: { name, aliases, stockPrefixes },
           expectedRevision: existing?.revision,
         })
       toast.success(target.mode === "create" ? "Location added" : "Location saved")
@@ -160,7 +168,7 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
 
           <div className="space-y-1">
             <label htmlFor="location-aliases" className="text-xs font-semibold">Other names for this location</label>
-            <p className="text-[11px] text-muted-foreground">One per line, up to 20. For example how it appears in Podium, on vehicles or in lead records. Spelling and capitals don&apos;t matter.</p>
+            <p className="text-[11px] text-muted-foreground">One per line, up to 20. For example how it appears on vehicles, in lead records or in other tools. Spelling and capitals don&apos;t matter.</p>
             <Textarea
               id="location-aliases"
               rows={4}
@@ -171,6 +179,21 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
               className="resize-y"
             />
             {fieldIssues("aliases").map((issue, index) => <p key={index} className="text-[11px] text-red-600 dark:text-red-400">{issue.message}</p>)}
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="location-stock-prefixes" className="text-xs font-semibold">Stock number starts with</label>
+            <p className="text-[11px] text-muted-foreground">Leads for a car whose stock number starts with this belong to this location. For example L for Lehi or M for Orem. Separate more than one with commas.</p>
+            <Input
+              id="location-stock-prefixes"
+              value={prefixText}
+              maxLength={70}
+              disabled={readOnly || busy}
+              onChange={(event) => setPrefixText(event.target.value.toUpperCase())}
+              placeholder="L"
+              className="font-mono"
+            />
+            {fieldIssues("stockPrefixes").map((issue, index) => <p key={index} className="text-[11px] text-red-600 dark:text-red-400">{issue.message}</p>)}
           </div>
 
           {conflicts.length > 0 && (
@@ -194,7 +217,8 @@ export function LocationEditorSheet({ target, canManage, allLocations, getToken,
                       {entry.action === "updated" && entry.before && (
                         <span className="block">
                           {entry.before.name !== entry.after.name ? `Name: ${entry.before.name} → ${entry.after.name}. ` : ""}
-                          {entry.before.aliases.join(", ") !== entry.after.aliases.join(", ") ? `Other names: ${entry.after.aliases.join(", ") || "none"}.` : ""}
+                          {entry.before.aliases.join(", ") !== entry.after.aliases.join(", ") ? `Other names: ${entry.after.aliases.join(", ") || "none"}. ` : ""}
+                          {(entry.before.stockPrefixes || []).join(", ") !== (entry.after.stockPrefixes || []).join(", ") ? `Stock number starts with: ${(entry.after.stockPrefixes || []).join(", ") || "none"}.` : ""}
                         </span>
                       )}
                     </li>

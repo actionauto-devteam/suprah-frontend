@@ -89,7 +89,7 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
       const err = error as { response?: { status?: number; data?: { message?: string } } };
       setFormError(err?.response?.data?.message || "Could not reach the meeting. Check the link and try again.");
       // A transient failure must not throw a waiting guest back to the name form.
-      if ([400, 401, 403, 404].includes(err.response?.status ?? 0)) setGate("form");
+      if ([400, 401, 403, 404, 409].includes(err.response?.status ?? 0)) setGate("form");
     } finally { requestPendingRef.current = false; }
   }, [code, tokenKey]);
 
@@ -284,12 +284,17 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
   }
 
   if (gate === "over" || meet.phase === "ended") {
+    const endedForEveryone = gate === 'over' || meet.meeting?.status === 'ended';
     return (
       <Shell>
         <SuprahMeetLogo className="size-12" />
-        <p className="text-lg font-medium">This meeting has ended</p>
+        <p className="text-lg font-medium">{endedForEveryone ? 'This meeting has ended' : meet.endedReason ? 'Connection interrupted' : 'You left the meeting'}</p>
         {(endedReason || meet.endedReason) && <p className="max-w-md text-sm text-emerald-200/60">{endedReason || meet.endedReason}</p>}
         <p className="text-sm text-emerald-200/60">Thanks for joining{name ? `, ${name.split(" ")[0]}` : ""}. You can close this tab.</p>
+        {!endedForEveryone && <Button onClick={() => {
+          setPrepared(false); joinedRef.current = false; setEndedReason(null); setGate('checking');
+          void meet.reset().then(() => request(name, email));
+        }}>Rejoin meeting</Button>}
       </Shell>
     );
   }
@@ -300,7 +305,10 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
         <SuprahMeetLogo className="size-12" />
         <p className="text-lg font-medium">Couldn&apos;t join this meeting</p>
         <p className="max-w-md text-sm text-emerald-200/60">{meet.error}</p>
-        <Button onClick={() => { joinedRef.current = false; setGate("form"); }}>Try again</Button>
+        <Button onClick={() => {
+          setPrepared(false); joinedRef.current = false;
+          void meet.reset().then(() => setGate('form'));
+        }}>Try again</Button>
       </Shell>
     );
   }

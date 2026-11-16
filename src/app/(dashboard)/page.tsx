@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -27,6 +26,7 @@ import {
   Star,
   Package,
   Target,
+  TreePine,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,8 @@ import { EmployeeOfMonthPanel } from "./components/EmployeeOfMonthPanel";
 // directly below the Feeds section per the dashboard layout spec.
 import { YapLineWidget } from "@/components/yapline/YapLineWidget";
 import { denverDayPeriod, denverTzAbbr } from "@/lib/timezone";
+// 🎄 Holiday layer — lights + snow cap on the welcome banner.
+import { ChristmasLights, SnowCap, useChristmasEffects } from "@/components/seasonal";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Shared bits
@@ -802,6 +804,18 @@ export default function Dashboard() {
   }, []);
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [revenuePeriod, setRevenuePeriod] = React.useState<string>("1Y");
+  const xmas = useChristmasEffects();
+  // Dec 24–25 (Denver) says "Merry Christmas"; the rest of the window says
+  // "Happy Holidays".
+  const denverMonthDay = currentTime.toLocaleDateString("en-US", {
+    month: "numeric",
+    day: "numeric",
+    timeZone: "America/Denver",
+  });
+  const holidayLabel =
+    denverMonthDay === "12/24" || denverMonthDay === "12/25"
+      ? "Merry Christmas"
+      : "Happy Holidays";
 
   const { data: metrics, isLoading, error } = useDashboardStats(revenuePeriod);
 
@@ -839,8 +853,16 @@ export default function Dashboard() {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.06),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Header banner with embedded compact Spotify ── */}
-      <div className="relative rounded-3xl border border-border/40 bg-card/40 px-4 py-5 backdrop-blur-xl sm:px-7 sm:py-6">
+      <div
+        className={`relative rounded-3xl border border-border/40 bg-card/40 px-4 py-5 backdrop-blur-xl sm:px-7 sm:py-6 ${
+          xmas.enabled ? "pt-9 sm:pt-10" : ""
+        }`}
+      >
+        {/* 🎄 settled snow on the banner's top edge */}
+        <SnowCap className="inset-x-8 -top-2 w-[calc(100%-4rem)]" />
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+          {/* 🎄 string lights hanging just under the snow */}
+          <ChristmasLights count={22} className="absolute inset-x-6 top-2.5" />
           <div className="absolute -right-20 -top-24 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
           <div className="absolute -left-16 -bottom-20 size-56 rounded-full bg-green-500/8 blur-3xl" />
           <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/50 to-transparent" />
@@ -864,6 +886,15 @@ export default function Dashboard() {
                   Live
                 </span>
               </span>
+              {xmas.enabled && (
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-rose-500/25 bg-rose-500/8 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-rose-500"
+                >
+                  <TreePine className="size-3 text-emerald-500" />
+                  {holidayLabel}
+                </Badge>
+              )}
               <div className="size-1 shrink-0 rounded-full bg-border" />
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 <Clock className="size-3 shrink-0" />
@@ -1102,4 +1133,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

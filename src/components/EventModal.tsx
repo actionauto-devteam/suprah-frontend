@@ -107,7 +107,7 @@ export function EventModal({
         dailyEndTime: editing.dailyEndTime ?? "10:00",
         includedDates: editing.includedDates ?? [],
         assignees: editing.assignees?.map((a) => a._id) ?? [],
-        generateMeetingLink: false,
+        generateMeetingLink: editing.generateMeetingLink !== false,
         status: editing.status ?? "scheduled",
       };
     }
@@ -126,7 +126,7 @@ export function EventModal({
       dailyEndTime: "10:00",
       includedDates: [],
       assignees: [],
-      generateMeetingLink: false,
+      generateMeetingLink: true,
       status: "scheduled",
     };
   }, [editing, presetStart]);
@@ -525,12 +525,16 @@ export function EventModal({
         </p>
       </div>
 
-      {/* Supra-Space */}
+      {editing?.meetingSyncPending && <p role="status" className="mb-3 text-sm text-cyan-200">
+        Your calendar change is saved. The Suprah Meet room will update when synchronization retries.
+      </p>}
+
+      {/* Suprah Meet */}
       {draft.type === "meeting" && (editing?.meetingLink || !readOnly) && (
         <div className="mb-4 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-3">
           {editing?.meetingLink ? (
             <div className="text-xs text-cyan-100">
-              <span className="mb-1 block font-medium">Supra-Space meeting</span>
+              <span className="mb-1 block font-medium">Suprah Meet</span>
               <a
                 href={editing.meetingLink}
                 target="_blank"
@@ -548,7 +552,7 @@ export function EventModal({
                 onChange={(e) => set("generateMeetingLink", e.target.checked)}
                 className="size-4 accent-cyan-500"
               />
-              Generate a Supra-Space meeting link
+              Create a Suprah Meet room
             </label>
           )}
         </div>

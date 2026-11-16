@@ -37,10 +37,11 @@ function roomHarness(guest = false) {
   };
   const meet = { phase: 'idle', tiles: [], roster: {}, chatMessages: [], reactions: [], meeting: null,
     join: async (code, options) => { joins.push({ code, options }); meet.phase = 'joining'; dirty = true; },
+    reset: async () => { meet.phase = 'idle'; meet.meeting = null; dirty = true; },
   };
   const ctx = { meet, activeCode: null, open: (code, options) => {
     joins.push({ code, options }); ctx.activeCode = code; meet.phase = 'joining'; dirty = true;
-  } };
+  }, close: () => { ctx.activeCode = null; meet.phase = 'idle'; meet.meeting = null; dirty = true; } };
   const api = {
     async post(url) {
       requestCount++;
@@ -102,6 +103,7 @@ function roomHarness(guest = false) {
     }
   };
   return { flush, start, poll, nodes, text, joins, listeners,
+    disconnect: async () => { meet.phase = 'ended'; meet.meeting = { status: 'live', title: 'Call' }; meet.endedReason = 'Connection lost'; dirty = true; await flush(); },
     setAdmission: (value) => { admission = value; }, requests: () => requestCount,
     prepare: async (choices) => { nodes().find((node) => node.type === 'MeetPreJoin').props.onJoin(choices); await flush(); },
   };
@@ -109,6 +111,22 @@ function roomHarness(guest = false) {
 
 for (const guest of [false, true]) {
   const label = guest ? 'guest' : 'signed-in attendee';
+  test(`${label} can prepare and rejoin after a local disconnection without seeing a false summary`, async () => {
+    const room = roomHarness(guest); await room.start();
+    await room.prepare({ mic: false, camera: false });
+    room.setAdmission(guest ? { admitted: true, live: true, guestToken: 'pass' } : { admitted: true });
+    await room.poll(); assert.equal(room.joins.length, 1);
+    await room.disconnect();
+    assert.match(room.text(), /Connection interrupted/);
+    assert.equal(room.nodes().some(node => node.type === 'MeetingSummaryPanel'), false);
+    room.nodes().find(node => node.type === 'Button' && room.text(node) === 'Rejoin meeting').props.onClick();
+    await room.flush(); await room.poll();
+    assert.ok(room.nodes().some(node => node.type === 'MeetPreJoin'));
+    assert.equal(room.joins.length, 1);
+    await room.prepare({ mic: false, camera: true }); await room.flush();
+    assert.equal(room.joins.length, 2);
+    assert.equal(room.joins[1].options.startCam, true);
+  });
   test(`${label} prepares before waiting, then enters automatically with the saved choices once`, async () => {
     const room = roomHarness(guest);
     await room.start();

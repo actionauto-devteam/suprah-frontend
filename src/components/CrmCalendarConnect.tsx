@@ -14,7 +14,7 @@ const GoogleIcon = () => (
   </svg>
 )
 
-export function CrmCalendarConnect() {
+export function CrmCalendarConnect({ returnTo }: { returnTo?: '/crm/suprah-meet' | '/crm/appointments' } = {}) {
   const [isConnected, setIsConnected] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isConnecting, setIsConnecting] = React.useState(false)
@@ -39,7 +39,7 @@ export function CrmCalendarConnect() {
   }, [])
 
   React.useEffect(() => {
-    if (!crmToken) { setIsLoading(false); return }
+    if (!localStorage.getItem('crm_token')) { setIsLoading(false); return }
     checkConnection()
     const handleVisibility = () => {
       if (document.visibilityState === "visible") checkConnection()
@@ -75,6 +75,7 @@ export function CrmCalendarConnect() {
       setIsConnecting(true)
       const res = await apiClient.get("/api/crm/calendar/auth", {
         headers: { Authorization: `Bearer ${token}` },
+        params: { returnTo },
       })
       const { url } = res.data?.data || res.data
       if (!url) {

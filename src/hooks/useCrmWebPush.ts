@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useCrmToken } from "@/hooks/useCrmToken";
+import { recoverDevicePush, setDevicePushDisabled } from "@/lib/web-push-subscription";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const CRM_SUBSCRIBE_URL = "/api/crm/timeproof/push/subscribe";
@@ -61,6 +62,7 @@ export function useCrmWebPush() {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const checking = useRef(false);
 
   const urlBase64ToUint8Array = (base64String: string) => {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -108,36 +110,11 @@ export function useCrmWebPush() {
     try {
       setIsSupported(true);
       const registration = await getServiceWorkerRegistration();
-      let subscription = await registration.pushManager.getSubscription();
-
-      if (!subscription && Notification.permission === "granted" && VAPID_PUBLIC_KEY) {
-        try {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-          });
-        } catch {
-          setIsSubscribed(false);
-          return null;
-        }
-      }
+      const subscription = await recoverDevicePush(registration, VAPID_PUBLIC_KEY);
 
       if (subscription) {
         const token = crmToken || localStorage.getItem("crm_token");
         if (token) {
-          if (subscription.expirationTime && subscription.expirationTime <= Date.now() && VAPID_PUBLIC_KEY) {
-            try {
-              await subscription.unsubscribe();
-              subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-              });
-              setIsSubscribed(!!subscription);
-            } catch {
-              // Refresh failed — fall back to re-syncing whatever we still have.
-            }
-          }
-
           const saved = await postWithRetry(
             CRM_SUBSCRIBE_URL,
             { subscription, deviceHint: getDeviceHint(), appSource: getAppSource() },
@@ -161,7 +138,25 @@ export function useCrmWebPush() {
   }, [crmToken, getServiceWorkerRegistration]);
 
   useEffect(() => {
-    checkSubscription();
+    let lastCheck = 0;
+    const refresh = () => {
+      if (checking.current || document.visibilityState === 'hidden') return;
+      if (Date.now() - lastCheck < 15_000) return;
+      lastCheck = Date.now();
+      checking.current = true;
+      void checkSubscription().finally(() => { checking.current = false; });
+    };
+    refresh();
+    window.addEventListener('online', refresh);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    const timer = window.setInterval(refresh, 60_000);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [checkSubscription]);
 
   const subscribe = async (): Promise<"subscribed" | "permission-rejected" | "failed"> => {
@@ -187,6 +182,7 @@ export function useCrmWebPush() {
       }
 
       const registration = await getServiceWorkerRegistration();
+      setDevicePushDisabled(false);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -222,7 +218,9 @@ export function useCrmWebPush() {
   const unsubscribe = async () => {
     try {
       setIsLoading(true);
-      const subscription = await checkSubscription();
+      setDevicePushDisabled(true);
+      const registration = await getServiceWorkerRegistration();
+      const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         await subscription.unsubscribe();
         const token = crmToken || localStorage.getItem("crm_token");
@@ -233,6 +231,7 @@ export function useCrmWebPush() {
         setIsSubscribed(false);
         toast.info("Device notifications disabled.");
       }
+      setIsSubscribed(false);
     } catch (error) {
       console.error("[CrmWebPush] Unsubscribe failed:", error);
       toast.error("Failed to disable notifications.");

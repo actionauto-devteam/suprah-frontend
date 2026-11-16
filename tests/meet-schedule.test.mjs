@@ -45,6 +45,14 @@ test('Paste rejects unrelated or malformed clipboard contents', () => {
   }
 });
 
+test('calendar room codes work in pasted codes, guest links, and invite text', () => {
+  for (const value of ['12345678', 'MEET-12345678', 'https://suprah.example/meet/MEET-12345678',
+    'Join HR planning: https://suprah.example/crm/suprah-meet/room/MEET-12345678']) {
+    assert.equal(extractMeetCode(value), 'MEET-12345678');
+  }
+  assert.equal(extractMeetCode('MEET-123456789'), null);
+});
+
 test('displayed schedules and shared invites use the date Mountain abbreviation across daylight saving', () => {
   assert.match(formatMeetDateTime('2026-10-30T17:00:00Z'), /11:00 AM MDT$/);
   assert.match(formatMeetDateTime('2026-11-02T18:00:00Z'), /11:00 AM MST$/);

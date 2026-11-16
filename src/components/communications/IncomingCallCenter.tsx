@@ -9,6 +9,7 @@ import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { DIAL_KEYS } from "@/lib/phoneDialing";
 import { CallRecordingControls } from './CallRecordingControls';
 import { CallTimer } from './CallTimer';
+import { CallMicrophoneControl } from './CallMicrophoneControl';
 
 const RINGTONE_SRC = "/sounds/ringtone.wav";
 
@@ -90,6 +91,7 @@ function CallWindow({ call, onHangup, onMute, onHold, onDigit }: { call: ActiveC
             End call
           </button>
         </div>
+        <CallMicrophoneControl variant="dark" autoStart muted={Boolean(call.muted)} />
         <div className="mt-3">
           <CallRecordingControls callId={call.callLogId} />
         </div>

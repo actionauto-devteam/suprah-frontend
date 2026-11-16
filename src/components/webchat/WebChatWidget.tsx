@@ -700,11 +700,11 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
                     required
                     className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
                   >
-                    <option value="" disabled>
+                    <option value="" disabled className="bg-background text-muted-foreground">
                       Choose a dealership
                     </option>
                     {locationOptions.map((option) => (
-                      <option key={option} value={option}>
+                      <option key={option} value={option} className="bg-background text-foreground">
                         {option}
                       </option>
                     ))}

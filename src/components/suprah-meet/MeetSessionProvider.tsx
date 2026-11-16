@@ -49,42 +49,47 @@ export function MeetSessionProvider({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [activeCode, setActiveCode] = React.useState<string | null>(null);
 
-  // Refs so open/close stay referentially stable (safe as effect deps).
-  const meetRef = React.useRef(meet);
-  meetRef.current = meet;
+  const { join, reset, phase, bindAudio } = meet;
+  // Reserve a pending start before asynchronous cleanup finishes.
   const activeRef = React.useRef<string | null>(null);
-  activeRef.current = activeCode;
-  const usedRef = React.useRef(false); // a session has run on this hook instance
 
   const open = React.useCallback((code: string, options?: MeetJoinOptions) => {
     const clean = code.trim().toUpperCase();
     if (!clean) return;
     if (activeRef.current === clean) return;           // already this session
     if (activeRef.current) return;                     // busy — room page shows the choice
-    if (usedRef.current) { window.location.reload(); return; } // fresh hook for a fresh session
-    usedRef.current = true;
     activeRef.current = clean;
-    setActiveCode(clean);
-    void meetRef.current.join(clean, options);
-  }, []);
+    void (async () => {
+      await reset();
+      if (activeRef.current !== clean) return;
+      setActiveCode(clean);
+      await join(clean, options);
+    })();
+  }, [join, reset]);
 
   const close = React.useCallback(() => {
+    if (phase === 'in' || phase === 'joining') return;
     activeRef.current = null;
     setActiveCode(null);
-  }, []);
+    void reset();
+  }, [phase, reset]);
 
   // When a session ends/errors while the user is NOT on its room page (they
   // minimized it), release the slot so a new meeting can be opened cleanly.
   const onOwnRoomPage =
     !!activeCode &&
-    (pathname ?? "").toUpperCase().startsWith("/CRM/SUPRAH-MEET/ROOM/");
+    (pathname ?? "").replace(/\/$/, '').toUpperCase() === `/CRM/SUPRAH-MEET/ROOM/${activeCode}`;
   React.useEffect(() => {
     if (!activeCode) return;
     if ((meet.phase === "ended" || meet.phase === "error") && !onOwnRoomPage) close();
   }, [meet.phase, activeCode, onOwnRoomPage, close]);
 
   const value = React.useMemo(
-    () => ({ meet, activeCode, open, close }),
+    // The old summary belongs to its ended room while that page is open.
+    // Once released, a different room must get a clean pre-join state even
+    // while the old media controller finishes asynchronous cleanup.
+    () => ({ meet: activeCode ? meet : { ...meet, phase: 'idle' as const,
+      meeting: null, error: null, endedReason: null }, activeCode, open, close }),
     [meet, activeCode, open, close]
   );
 
@@ -95,7 +100,7 @@ export function MeetSessionProvider({ children }: { children: React.ReactNode })
   return (
     <Ctx.Provider value={value}>
       {/* Meeting audio lives here so sound continues while minimized. */}
-      <audio ref={meet.bindAudio} autoPlay style={{ display: "none" }} />
+      <audio ref={bindAudio} autoPlay style={{ display: "none" }} />
       {stableChildren}
       <MiniMeetWindow />
     </Ctx.Provider>
