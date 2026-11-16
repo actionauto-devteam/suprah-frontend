@@ -8,6 +8,7 @@ import { userErrorMessage } from "@/lib/user-error"
 import {
   CHANGEABLE_VEHICLE_STATUSES,
   VEHICLE_STATUS_CHOICES,
+  statusChangedByOthers,
   vehicleStatusChangedMessage,
   type ChangeableVehicleStatus,
 } from "@/lib/vehicle-status"
@@ -37,11 +38,14 @@ export function VehicleStatusControl({
   vehicle,
   onTheWay = false,
   onChanged,
+  onStale,
   className,
 }: {
   vehicle: Vehicle
   onTheWay?: boolean
   onChanged: (status: ChangeableVehicleStatus) => void
+  /** Someone else changed the car meanwhile: its status now. */
+  onStale?: (status: string) => void
   className?: string
 }) {
   const { getToken } = useAuth()
@@ -61,7 +65,9 @@ export function VehicleStatusControl({
       const token = await getToken()
       await apiClient.patch(
         `/api/vehicles/${encodeURIComponent(vehicle.id)}/status`,
-        { status: choice },
+        // The status this person saw, so a change someone else made
+        // meanwhile isn't quietly replaced.
+        { status: choice, ...(current ? { expectedStatus: current } : {}) },
         token ? { headers: { Authorization: `Bearer ${token}` } } : {},
       )
       setOpen(false)
@@ -69,6 +75,8 @@ export function VehicleStatusControl({
       onChanged(choice)
     } catch (err) {
       setError(userErrorMessage(err, "change this car's status"))
+      const latest = statusChangedByOthers(err)
+      if (latest) onStale?.(latest)
     } finally {
       setBusy(false)
     }

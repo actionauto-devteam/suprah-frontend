@@ -23,6 +23,22 @@ export function isVehicleOnTheWay(state: InventoryShippingState | null | undefin
   return state?.kind === "load" && ON_THE_WAY.has(state.load.status)
 }
 
+/**
+ * The car's status now, when the server refused a change because someone else
+ * changed the car meanwhile (2026-11-16), so the window can show it. Null for
+ * any other failure.
+ */
+export function statusChangedByOthers(error: unknown): string | null {
+  const response = (error as { response?: { status?: number; data?: { errors?: unknown } } } | null)?.response
+  if (response?.status !== 409) return null
+  const errors: unknown[] = Array.isArray(response.data?.errors) ? response.data.errors : []
+  const conflict = errors.find(
+    (item): item is { type: string; status?: unknown } =>
+      Boolean(item) && (item as { type?: unknown }).type === "vehicle_status_changed",
+  )
+  return conflict && typeof conflict.status === "string" && conflict.status.trim() ? conflict.status.trim() : null
+}
+
 /** The confirmation after a change. */
 export function vehicleStatusChangedMessage(vehicleLabel: string, status: ChangeableVehicleStatus): string {
   const label = vehicleLabel.trim() || "This car"
