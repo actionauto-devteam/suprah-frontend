@@ -1522,6 +1522,11 @@ function InventoryContent() {
                   handleVehicleClick({ ...selectedVehicle, status });
                   void fetchVehicles(false);
                 }}
+                onStale={(status) => {
+                  // Someone else changed it meanwhile: show what it is now.
+                  handleVehicleClick({ ...selectedVehicle, status });
+                  void fetchVehicles(false);
+                }}
               />
             ) : undefined
           }

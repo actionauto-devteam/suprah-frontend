@@ -15,7 +15,7 @@ function loadLib(name) {
   return cjs.exports;
 }
 
-const { CHANGEABLE_VEHICLE_STATUSES, VEHICLE_STATUS_CHOICES, isVehicleOnTheWay, vehicleStatusChangedMessage } = loadLib('vehicle-status');
+const { CHANGEABLE_VEHICLE_STATUSES, VEHICLE_STATUS_CHOICES, isVehicleOnTheWay, statusChangedByOthers, vehicleStatusChangedMessage } = loadLib('vehicle-status');
 
 test('staff can choose Ready for Sale, In Recon or Sold, each explained plainly', () => {
   assert.deepEqual([...CHANGEABLE_VEHICLE_STATUSES], ['Ready for Sale', 'In Recon', 'Sold']);
@@ -32,6 +32,22 @@ test("a car on a load that's been picked up can't be changed", () => {
   assert.equal(isVehicleOnTheWay(load('Assigned')), false);
   assert.equal(isVehicleOnTheWay({ kind: 'quote', quote: { _id: 'q1', status: 'pending' } }), false);
   assert.equal(isVehicleOnTheWay(undefined), false);
+});
+
+test('a change someone else made meanwhile is read from the refusal (2026-11-16)', () => {
+  const refusal = (status, errors) => ({ response: { status, data: { errors } } });
+  assert.equal(statusChangedByOthers(refusal(409, [{ type: 'vehicle_status_changed', status: 'Sold' }])), 'Sold');
+  assert.equal(statusChangedByOthers(refusal(409, [])), null);
+  assert.equal(statusChangedByOthers(refusal(400, [{ type: 'vehicle_status_changed', status: 'Sold' }])), null);
+  assert.equal(statusChangedByOthers(new Error('Network Error')), null);
+});
+
+test('Change status sends the status the person saw, and shows the new one when refused', () => {
+  const control = fs.readFileSync(fileURLToPath(new URL('../src/components/inventory/VehicleStatusControl.tsx', import.meta.url)), 'utf8');
+  assert.match(control, /\{ status: choice, \.\.\.\(current \? \{ expectedStatus: current \} : \{\}\) \}/);
+  assert.match(control, /if \(latest\) onStale\?\.\(latest\)/);
+  const page = fs.readFileSync(fileURLToPath(new URL('../src/app/(dashboard)/inventory/page.tsx', import.meta.url)), 'utf8');
+  assert.match(page, /onStale=\{\(status\) => \{/);
 });
 
 test('confirms the change in plain words', () => {
