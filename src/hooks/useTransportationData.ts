@@ -9,6 +9,8 @@ import { LoadStats } from "@/lib/api/loads";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import { subscribeToLoadChanges, type LoadRefreshReason } from "@/lib/live-load-updates";
+import { subscribeToQuoteChanges } from "@/lib/live-quote-updates";
+import { quoteTabCounts } from "@/lib/quote-tab-counts";
 import { userErrorMessage } from "@/lib/user-error";
 import { convertedSameVehicleWarning, type VehicleShippingLoad } from "@/lib/vehicle-shipping";
 
@@ -390,6 +392,8 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   const quoteSnapshotRef = React.useRef<WarmQuoteSnapshot | null>(
     canUseWarmCache ? transportationWarmCache.quoteSnapshot : null,
   );
+  // Only the newest quote refresh may update the screen (2026-11-16).
+  const quoteSnapshotSequenceRef = React.useRef(0);
 
   React.useEffect(() => {
     loadsPageRef.current = loadsPage;
@@ -761,6 +765,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   }, [cacheOwnerKey, getAuthConfig]);
 
   const refreshQuoteSnapshot = React.useCallback(async () => {
+    const sequence = ++quoteSnapshotSequenceRef.current;
     try {
       const config = await getAuthConfig();
       if (!config) return false;
@@ -770,6 +775,8 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         params: { page: 1, limit: 100 },
         timeout: 15_000,
       });
+      // A newer refresh started meanwhile: its answer wins, not this older one.
+      if (sequence !== quoteSnapshotSequenceRef.current) return false;
 
       const raw = res.data?.data ?? res.data;
       const { items, pagination } = extractPaginatedItems<Quote>(raw, "quotes");
@@ -784,20 +791,12 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         transportationWarmCache.quoteSnapshot = quoteSnapshotRef.current;
       }
 
-      const nextQuoteStats: Record<string, number> = {
-        all: total,
-        pending: 0,
-        accepted: 0,
-        booked: 0,
-        rejected: 0,
-      };
-
-      for (const quote of items) {
-        const status = String(quote.status || "").toLowerCase();
-        if (status in nextQuoteStats) {
-          nextQuoteStats[status] += 1;
-        }
-      }
+      // Every quote of the dealership, counted by the server (see quote-tab-counts).
+      const nextQuoteStats: Record<string, number> = quoteTabCounts(
+        (raw as { statusCounts?: unknown } | null)?.statusCounts,
+        items,
+        total,
+      );
 
       if (cacheOwnerKey) {
         transportationWarmCache.ownerKey = cacheOwnerKey;
@@ -1140,11 +1139,12 @@ export function useTransportationData(filters: TransportationFilters = {}) {
             setLoads((current) => current.filter((load) => String(load._id) !== loadId));
           },
         });
-        sock.on("quote:change", handleQuoteChange);
+        // A burst of quote changes refreshes once.
+        const stopQuoteChanges = subscribeToQuoteChanges(sock, handleQuoteChange);
 
         cleanup = () => {
           stopLoadChanges();
-          sock.off("quote:change", handleQuoteChange);
+          stopQuoteChanges();
         };
       } catch { }
     };
