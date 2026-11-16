@@ -11,7 +11,7 @@ import { loadStatusWords, type InventoryShippingState } from "@/lib/vehicle-ship
  */
 export function VehicleShippingTag({ state, className }: { state: InventoryShippingState; className?: string }) {
   const base =
-    "flex w-full min-w-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "flex w-full min-w-0 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   if (state.kind === "load") {
     const { load, moreLoads } = state;
@@ -26,8 +26,8 @@ export function VehicleShippingTag({ state, className }: { state: InventoryShipp
         )}
         title="This car is already on a load. Open it before you create another."
       >
-        <Truck className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="min-w-0 truncate">
+        <Truck className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
           On load <span className="font-semibold">{load.loadNumber}</span> · {status}
           {moreLoads > 0 ? ` (+${moreLoads} more)` : ""}
         </span>
@@ -45,8 +45,8 @@ export function VehicleShippingTag({ state, className }: { state: InventoryShipp
       )}
       title="A shipping quote for this car is waiting. Find it under Quotes in Transportation."
     >
-      <FileText className="size-3.5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 truncate">
+      <FileText className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">
         {state.quote.status === "accepted" ? "Shipping quote accepted" : "Shipping quote waiting"}
       </span>
     </Link>
