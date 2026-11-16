@@ -105,7 +105,7 @@ export function InspectionSection({
 
   return (
     <div>
-      <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-3 flex items-center gap-1.5">
+      <p className="text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-3 flex items-center gap-1.5">
         <ScanLine className="size-3" /> Inspect Vehicles
       </p>
 
@@ -157,7 +157,7 @@ export function InspectionSection({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 gap-1.5 text-[10px] font-black uppercase tracking-widest"
+              className="h-8 gap-1.5 text-[11px] font-black uppercase tracking-widest"
               onClick={mode === "create" && pendingFile ? removePending : pickFile}
               disabled={isUploading}
             >
@@ -190,13 +190,13 @@ export function InspectionSection({
               <Camera className="size-4 text-emerald-500" />
             </div>
           )}
-          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
             {isUploading ? "Uploading…" : "Upload a condition photo, or a QR/tag photo"}
           </span>
         </button>
       )}
 
-      <p className="text-[10px] text-muted-foreground/70 mt-2">
+      <p className="text-[11px] text-muted-foreground/70 mt-2">
         Optional — a photo per vehicle helps document condition at pickup.
         Not required to {mode === "edit" ? "save" : "post"} the load.
       </p>

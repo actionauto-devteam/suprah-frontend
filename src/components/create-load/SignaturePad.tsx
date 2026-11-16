@@ -213,7 +213,7 @@ export function SignaturePad({
             alt="Saved signature"
             className="w-full h-full object-contain p-3"
           />
-          <span className="absolute bottom-2 right-3 flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600">
+          <span className="absolute bottom-2 right-3 flex items-center gap-1 text-[11px] font-black uppercase tracking-widest text-emerald-600">
             <Check className="size-3" />
             {savedSignature === value ? "Saved to profile" : "Applied"}
           </span>
@@ -223,7 +223,7 @@ export function SignaturePad({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-[10px] font-black uppercase tracking-widest"
+            className="h-8 gap-1.5 text-[11px] font-black uppercase tracking-widest"
             onClick={() => setIsDrawingMode(true)}
           >
             <Pen className="size-3" /> Draw New
@@ -232,7 +232,7 @@ export function SignaturePad({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-rose-500"
+            className="h-8 gap-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground hover:text-rose-500"
             onClick={removeSignature}
             disabled={isSaving}
           >
@@ -276,7 +276,7 @@ export function SignaturePad({
           <Button
             type="button"
             size="sm"
-            className="h-8 gap-1.5 text-[10px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+            className="h-8 gap-1.5 text-[11px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
             onClick={confirmSignature}
             disabled={!hasStrokes || isSaving}
           >
@@ -291,7 +291,7 @@ export function SignaturePad({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-[10px] font-black uppercase tracking-widest"
+            className="h-8 gap-1.5 text-[11px] font-black uppercase tracking-widest"
             onClick={clearCanvas}
             disabled={!hasStrokes}
           >
@@ -301,7 +301,7 @@ export function SignaturePad({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+            className="h-8 text-[11px] font-black uppercase tracking-widest text-muted-foreground"
             onClick={() => {
               setIsDrawingMode(false)
               setHasStrokes(false)
@@ -329,7 +329,7 @@ export function SignaturePad({
       <div className="size-9 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center">
         <Pen className="size-4 text-emerald-500" />
       </div>
-      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+      <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
         Tap to draw your signature
       </span>
     </button>

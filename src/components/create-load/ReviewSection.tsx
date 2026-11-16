@@ -57,7 +57,7 @@ function Card({
 }) {
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 p-4">
-      <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5">
+      <p className="text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5">
         <Icon className="size-3" /> {title}
       </p>
       {children}
@@ -99,7 +99,7 @@ export function ReviewSection({
             : "border-amber-500/30 bg-amber-500/5",
         )}
       >
-        <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5 text-muted-foreground/60">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5 text-muted-foreground/60">
           <ClipboardCheck className="size-3" />
           {validation.valid ? "Ready to " + (mode === "edit" ? "save" : "post") : "Still needed"}
         </p>
@@ -141,7 +141,7 @@ export function ReviewSection({
           <Row label="Inspection photos" value={`${photosCount} of ${vehicles.length}`} />
           <div className="mt-1 space-y-1">
             {vehicles.map((v, i) => (
-              <p key={v.id} className="text-[11px] text-muted-foreground truncate">
+              <p key={v.id} className="text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">
                 {i + 1}. {v.year} {v.make} {v.model}
                 {v.vin ? ` — ${v.vin}` : ""}
               </p>
@@ -250,7 +250,7 @@ export function ReviewSection({
           <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
             <ScrollText className="size-3.5 text-muted-foreground" /> I agree to the transport terms
           </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             Vehicles are transported in the condition received, normal road wear excepted, and load details are accurate to the best of your knowledge.
           </p>
         </div>

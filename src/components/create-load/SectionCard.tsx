@@ -64,7 +64,7 @@ export function SectionCard({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-foreground">{title}</span>
               {badge && (
-                <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${badgeColors[badgeVariant]}`}>
+                <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border ${badgeColors[badgeVariant]}`}>
                   {badgeVariant === "success" && <CheckCircle2 className="size-2.5" />}
                   {badge}
                 </span>

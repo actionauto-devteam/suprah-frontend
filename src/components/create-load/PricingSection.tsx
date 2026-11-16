@@ -71,11 +71,11 @@ export function PricingSection({ pickupZip, deliveryZip, vehicles, trailerType }
         <div className="space-y-3">
           <div className="rounded-lg bg-green-500/8 border border-green-500/20 p-3.5 flex items-center justify-between gap-4">
             <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Estimated Rate</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Estimated Rate</p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 ${result.estimatedRate.toLocaleString()}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Auto-calculated based on distance and vehicle details</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Auto-calculated based on distance and vehicle details</p>
             </div>
             <div className="size-11 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
               <TrendingUp className="size-5 text-green-500" />
@@ -88,7 +88,7 @@ export function PricingSection({ pickupZip, deliveryZip, vehicles, trailerType }
                 <Route className="size-3.5 text-blue-500" />
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground">Distance</p>
+                <p className="text-[11px] text-muted-foreground">Distance</p>
                 <p className="text-sm font-semibold font-mono">{Math.round(result.miles).toLocaleString()} mi</p>
               </div>
             </div>
@@ -97,13 +97,13 @@ export function PricingSection({ pickupZip, deliveryZip, vehicles, trailerType }
                 <Clock className="size-3.5 text-amber-500" />
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground">Est. Transit</p>
+                <p className="text-[11px] text-muted-foreground">Est. Transit</p>
                 <p className="text-sm font-semibold">{result.eta.min}–{result.eta.max} days</p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Zap className="size-3 text-green-500 shrink-0" />
             Rate via SupraPay — $1.50/mi base, min $300.
           </div>

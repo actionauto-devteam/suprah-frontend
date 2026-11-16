@@ -52,7 +52,7 @@ export function ContractSection({
       {/* ── Terms ── */}
       <div className="rounded-xl border border-border/60 bg-background/40 p-4 relative overflow-hidden">
         <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
-        <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-3 flex items-center gap-1.5">
+        <p className="text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-3 flex items-center gap-1.5">
           <ScrollText className="size-3" /> Transport Terms
         </p>
         <ol className="space-y-2">
@@ -102,7 +102,7 @@ export function ContractSection({
       <div>
         <label
           htmlFor="contract-signer-name"
-          className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5"
+          className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5"
         >
           Signer Name
         </label>
@@ -125,7 +125,7 @@ export function ContractSection({
 
       {/* ── Signature pad ── */}
       <div>
-        <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5 flex items-center gap-1.5">
+        <p className="text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5 flex items-center gap-1.5">
           <FileSignature className="size-3" /> Digital Signature
         </p>
         <SignaturePad
@@ -133,7 +133,7 @@ export function ContractSection({
           onChange={setSignature}
           saveToProfile
         />
-        <p className="text-[10px] text-muted-foreground/70 mt-1.5">
+        <p className="text-[11px] text-muted-foreground/70 mt-1.5">
           Your signature is saved to your profile and applied automatically on
           future loads. You can redraw or remove it anytime.
         </p>
