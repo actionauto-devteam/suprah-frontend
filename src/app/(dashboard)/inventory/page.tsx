@@ -15,6 +15,7 @@ import { checkableVins, inventoryShippingStates, type VehicleShippingResult } fr
 import { toast } from "@/lib/readable-toast";
 import { Button } from "@/components/ui/button";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
+import { INVENTORY_VERSION_URL, inventoryUnchanged, inventoryVersionOf } from "@/lib/inventory-version";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
 import { userErrorMessage } from "@/lib/user-error";
@@ -457,6 +458,13 @@ function InventoryContent() {
     active: null,
     archived: null,
   });
+  // The "has anything changed?" stamp each downloaded list came with, and the
+  // one for the cars on screen in each view (see inventory-version).
+  const downloadedVersionsRef = React.useRef(new WeakMap<Vehicle[], string>());
+  const shownVersionRef = React.useRef<Record<InventoryView, string | null>>({
+    active: null,
+    archived: null,
+  });
   const inventoryViewRequestRef = React.useRef<
     Record<InventoryView, Promise<Vehicle[]> | null>
   >({ active: null, archived: null });
@@ -544,13 +552,34 @@ function InventoryContent() {
       });
 
       const responseData = response.data?.data ?? response.data;
-      return Array.isArray(responseData)
+      const vehicles: Vehicle[] = Array.isArray(responseData)
         ? responseData
         : Array.isArray(responseData?.vehicles)
           ? responseData.vehicles
           : Array.isArray(responseData?.data?.vehicles)
             ? responseData.data.vehicles
             : [];
+      const version = inventoryVersionOf(responseData);
+      if (version) downloadedVersionsRef.current.set(vehicles, version);
+      return vehicles;
+    },
+    [getToken],
+  );
+
+  // The current stamp for a view, or null when it can't be read.
+  const fetchInventoryVersion = React.useCallback(
+    async (view: InventoryView): Promise<string | null> => {
+      try {
+        const token = await getToken();
+        const response = await apiClient.get(INVENTORY_VERSION_URL, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: view === "archived" ? { archived: "true" } : {},
+          timeout: 10000,
+        });
+        return inventoryVersionOf(response.data?.data ?? response.data);
+      } catch {
+        return null;
+      }
     },
     [getToken],
   );
@@ -602,6 +631,8 @@ function InventoryContent() {
         if (requestSequence !== requestSequenceRef.current) return;
 
         inventoryViewCacheRef.current[inventoryView] = vehiclesFromResponse;
+        shownVersionRef.current[inventoryView] =
+          downloadedVersionsRef.current.get(vehiclesFromResponse) ?? null;
         setAllVehicles(vehiclesFromResponse);
         hasLoadedOnceRef.current = true;
       } catch (err) {
@@ -706,9 +737,24 @@ function InventoryContent() {
     quietRefreshRef.current = true;
     const sequence = requestSequenceRef.current;
     try {
+      // Nothing added, removed or changed since the cars on screen: skip the
+      // full download. The other view is fetched again when it's opened.
+      const shown = shownVersionRef.current[inventoryView];
+      if (shown) {
+        const latest = await fetchInventoryVersion(inventoryView);
+        if (sequence !== requestSequenceRef.current) return;
+        if (inventoryUnchanged(shown, latest)) {
+          for (const view of Object.keys(inventoryViewCacheRef.current) as InventoryView[]) {
+            if (view !== inventoryView) inventoryViewCacheRef.current[view] = null;
+          }
+          return;
+        }
+      }
+
       const fresh = await fetchVehicleDataset(inventoryView);
       // The staff member changed view or reloaded meanwhile: theirs wins.
       if (sequence !== requestSequenceRef.current) return;
+      shownVersionRef.current[inventoryView] = downloadedVersionsRef.current.get(fresh) ?? null;
       setAllVehicles((current) => {
         const leadCounts = new Map(current.map((vehicle) => [vehicle.id, vehicle.leadCount]));
         return fresh.map((vehicle) =>
@@ -726,7 +772,7 @@ function InventoryContent() {
     } finally {
       quietRefreshRef.current = false;
     }
-  }, [fetchVehicleDataset, inventoryView]);
+  }, [fetchInventoryVersion, fetchVehicleDataset, inventoryView]);
 
   React.useEffect(() => {
     const onVisible = () => {
@@ -1036,6 +1082,10 @@ function InventoryContent() {
           await preloadInventoryVehicleImages(sorted.slice(0, Math.min(limit, 4)), 220);
           if (sequence !== viewSwitchSequenceRef.current) return;
           skipNextInventoryViewFetchRef.current = view;
+          // A list downloaded for this switch has its own stamp; a list kept
+          // from earlier keeps the stamp it was shown with.
+          shownVersionRef.current[view] =
+            downloadedVersionsRef.current.get(vehicles) ?? shownVersionRef.current[view];
           setAllVehicles(vehicles);
           hasLoadedOnceRef.current = true;
           // Commit page, heading and data together, never reset the old list first.
