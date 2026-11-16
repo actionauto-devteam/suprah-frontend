@@ -32,7 +32,8 @@ export function CustomerRequestActions({
   className,
 }: {
   quote: Quote
-  onSetStatus: (quoteId: string, status: "accepted" | "rejected", declineReason?: string) => Promise<unknown>
+  /** expectedStatus: the status this card showed, so an answer someone else already gave isn't replaced. */
+  onSetStatus: (quoteId: string, status: "accepted" | "rejected", declineReason?: string, expectedStatus?: string) => Promise<unknown>
   /** Smaller buttons for the phone card. */
   compact?: boolean
   className?: string
@@ -67,7 +68,7 @@ export function CustomerRequestActions({
     setSaving(true)
     setError(null)
     try {
-      await onSetStatus(quote._id, mode === "accept" ? "accepted" : "rejected", mode === "decline" ? trimmed : undefined)
+      await onSetStatus(quote._id, mode === "accept" ? "accepted" : "rejected", mode === "decline" ? trimmed : undefined, quote.status)
       toast.success(
         mode === "accept"
           ? `You accepted ${customer}'s request. They've been told.`

@@ -1,23 +1,30 @@
 "use client"
 
 import { useState } from "react"
-import { X, User, Car, MapPin, DollarSign, SlidersHorizontal, Loader2, FileText } from "lucide-react"
+import { X, User, Car, MapPin, DollarSign, SlidersHorizontal, Loader2, FileText, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getQuoteLoadRouteDraft } from "@/types/transportation"
-import type { Quote } from "@/types/transportation"
+import type { Quote, QuoteEdit } from "@/types/transportation"
 import { US_STATES } from "@/components/create-load/types"
 
 interface EditQuoteModalProps {
     quote: Quote
     isOpen: boolean
     onClose: () => void
-    onSave: (updatedQuote: Partial<Quote>) => Promise<void>
+    onSave: (updatedQuote: QuoteEdit) => Promise<void>
 }
 
+/**
+ * The cards mount this window only while it's open (2026-11-16), so the form
+ * starts from the latest quote every time, and the save carries the version
+ * the staff member opened.
+ */
 export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModalProps) {
     const routeDraft = getQuoteLoadRouteDraft(quote)
     const [isSaving, setIsSaving] = useState(false)
+    const [openedVersion] = useState(quote.updatedAt)
+    const [saveError, setSaveError] = useState<string | null>(null)
     const [formData, setFormData] = useState({
         firstName: quote.firstName,
         lastName: quote.lastName,
@@ -58,8 +65,10 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
     const handleSubmit = async (e: { preventDefault: () => void }) => {
         e.preventDefault()
         setIsSaving(true)
+        setSaveError(null)
         try {
             await onSave({
+                ...(openedVersion ? { expectedUpdatedAt: openedVersion } : {}),
                 firstName: formData.firstName,
                 lastName: formData.lastName,
                 email: formData.email,
@@ -103,7 +112,8 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
             })
             onClose()
         } catch (error) {
-            console.error('Error saving quote:', error)
+            // Say why instead of staying open with no answer.
+            setSaveError(error instanceof Error && error.message ? error.message : "We couldn't save this quote. Please try again.")
         } finally {
             setIsSaving(false)
         }
@@ -519,6 +529,16 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                         </div>
 
                     </div>
+
+                    {saveError && (
+                        <div
+                            role="alert"
+                            className="mx-4 sm:mx-6 mb-3 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+                        >
+                            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                            <span className="min-w-0 break-words">{saveError}</span>
+                        </div>
+                    )}
 
                     {/* Footer */}
                     <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-end gap-2 sm:gap-3 border-t border-border bg-muted/10">
