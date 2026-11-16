@@ -873,7 +873,7 @@ export function VehicleDetailView({
           <div className="border-b bg-background px-3 py-3 sm:hidden">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <h1 className="line-clamp-2 break-words text-base font-black leading-tight text-foreground">
+                <h1 className="break-words [overflow-wrap:anywhere] text-base font-black leading-tight text-foreground">
                   {vehicle.year} {vehicle.make} {vehicle.model}
                 </h1>
                 {vehicle.trim && (
@@ -1715,10 +1715,10 @@ export function VehicleDetailView({
                 ].map(({ label, icon: Icon }) => (
                   <div
                     key={label}
-                    className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2.5 dark:bg-zinc-900/50"
+                    className="flex min-w-0 items-start gap-2 rounded-lg bg-muted/30 px-3 py-2.5 dark:bg-zinc-900/50"
                   >
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-primary/60" />
-                    <span className="truncate text-xs font-medium text-foreground">
+                    <Icon className="mt-px h-3.5 w-3.5 shrink-0 text-primary/60" />
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere] text-xs font-medium text-foreground">
                       {label}
                     </span>
                   </div>
