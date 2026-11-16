@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { useAlert, AlertDialog } from "@/components/AlertDialog";
 import { EditQuoteModal } from "@/components/EditQuoteModal";
-import type { Quote } from "@/types/transportation";
+import type { Quote, QuoteEdit } from "@/types/transportation";
 import { linkedLead } from "@/lib/quote-lead";
 import { quoteWaitingLabel } from "@/lib/quote-age";
 import { quoteVehicleNotice } from "@/lib/quote-vehicle";
@@ -37,8 +37,8 @@ export type TransportationMobileQuoteTab = "overview" | "vehicle" | "financials"
 interface TransportationMobileQuoteCardProps {
   quote: Quote;
   onDelete: (id: string) => void;
-  onUpdate: (id: string, updatedQuote: Partial<Quote>) => Promise<void>;
-  onSetStatus: (id: string, status: "accepted" | "rejected", declineReason?: string) => Promise<unknown>;
+  onUpdate: (id: string, updatedQuote: QuoteEdit) => Promise<void>;
+  onSetStatus: (id: string, status: "accepted" | "rejected", declineReason?: string, expectedStatus?: string) => Promise<unknown>;
   onInspect: (quote: Quote, tab?: TransportationMobileQuoteTab) => void;
 }
 
@@ -465,7 +465,7 @@ export function TransportationMobileQuoteCard({
         initialIndex={0}
       />
 
-      <EditQuoteModal
+      {editOpen && (<EditQuoteModal
         quote={quote}
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}
@@ -477,7 +477,7 @@ export function TransportationMobileQuoteCard({
             message: "The quote has been successfully updated.",
           });
         }}
-      />
+      />)}
 
     </>
   );

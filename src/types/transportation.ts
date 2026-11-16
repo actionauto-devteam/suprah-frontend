@@ -1,5 +1,11 @@
 import type { QuoteLeadRef } from "@/lib/quote-lead";
 
+/**
+ * A quote edit, with the version of the quote the staff member opened
+ * (2026-11-16), so the server can refuse it if someone else saved meanwhile.
+ */
+export type QuoteEdit = Partial<Quote> & { expectedUpdatedAt?: string };
+
 export interface Quote {
   _id: string;
   firstName: string;
@@ -33,6 +39,7 @@ export interface Quote {
   eta: { min: number; max: number };
   status: string;
   createdAt: string;
+  updatedAt?: string;
   createdBy?: {
     _id: string;
     name?: string;

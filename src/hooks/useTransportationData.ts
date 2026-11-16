@@ -4,7 +4,7 @@ import { AxiosError } from "axios";
 import { toast } from "@/lib/readable-toast";
 import { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Load } from "@/types/load";
-import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
+import type { Quote, QuoteEdit, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadStats } from "@/lib/api/loads";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
@@ -1547,7 +1547,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   );
 
   const handleUpdateQuote = React.useCallback(
-    async (quoteId: string, updatedQuote: Partial<Quote>) => {
+    async (quoteId: string, updatedQuote: QuoteEdit) => {
       try {
         const config = await getAuthConfig();
         const response = await apiClient.put(
@@ -1584,12 +1584,17 @@ export function useTransportationData(filters: TransportationFilters = {}) {
    * customer. A decline can carry a short reason the customer sees.
    */
   const handleSetQuoteStatus = React.useCallback(
-    async (quoteId: string, status: "accepted" | "rejected", declineReason?: string) => {
+    async (quoteId: string, status: "accepted" | "rejected", declineReason?: string, expectedStatus?: string) => {
       try {
         const config = await getAuthConfig();
         const response = await apiClient.patch(
           `/api/quotes/${quoteId}/status`,
-          { status, ...(status === "rejected" && declineReason ? { declineReason } : {}) },
+          {
+            status,
+            ...(status === "rejected" && declineReason ? { declineReason } : {}),
+            // The status the card showed (2026-11-16).
+            ...(expectedStatus ? { expectedStatus } : {}),
+          },
           config ?? undefined,
         );
         const data = response.data?.data ?? response.data;
@@ -1607,6 +1612,8 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         void refreshQuoteSnapshot();
         return data;
       } catch (err) {
+        // Someone else may have answered it: show the card as it is now.
+        void refreshQuoteSnapshot();
         throw new Error(
           userErrorMessage(err as AxiosError, status === "accepted" ? "accept this request" : "decline this request"),
         );

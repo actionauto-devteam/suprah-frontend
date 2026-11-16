@@ -23,6 +23,7 @@ import {
 import { getQuoteLoadRouteDraft } from "@/types/transportation"
 import type {
     Quote,
+    QuoteEdit,
     QuoteLoadRouteDetails,
 } from "@/types/transportation"
 import { useAlert, AlertDialog } from "@/components/AlertDialog"
@@ -40,8 +41,8 @@ interface QuoteCardProps {
     quote: Quote
     onConvertToLoad: (id: string, routeDetails?: QuoteLoadRouteDetails) => Promise<boolean | void>
     onDelete: (id: string) => void
-    onUpdate: (id: string, updatedQuote: Partial<Quote>) => Promise<void>
-    onSetStatus: (id: string, status: "accepted" | "rejected", declineReason?: string) => Promise<unknown>
+    onUpdate: (id: string, updatedQuote: QuoteEdit) => Promise<void>
+    onSetStatus: (id: string, status: "accepted" | "rejected", declineReason?: string, expectedStatus?: string) => Promise<unknown>
 }
 
 /** HUD-style stat tile — matches the LoadCard info row.
@@ -322,7 +323,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
         })
     }
 
-    const handleSaveEdit = async (updatedQuote: Partial<Quote>) => {
+    const handleSaveEdit = async (updatedQuote: QuoteEdit) => {
         await onUpdate(quote._id, updatedQuote)
         showAlert({
             type: "success",
@@ -788,12 +789,14 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate, onSetSta
                 </DialogContent>
             </Dialog>
 
-            <EditQuoteModal
-                quote={quote}
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                onSave={handleSaveEdit}
-            />
+            {isEditModalOpen && (
+                <EditQuoteModal
+                    quote={quote}
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={handleSaveEdit}
+                />
+            )}
 
             <QuoteLoadRouteCompletionDialog
                 open={isRouteCompletionOpen}
