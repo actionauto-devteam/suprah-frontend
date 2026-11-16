@@ -534,8 +534,10 @@ export default function DriverDashboardPage() {
     // soon as it arrives. Current Load depends on BOTH assigned loads and the
     // driver's pending requests, so its first-load skeleton waits only for
     // those two requests rather than the slower stats/profile calls.
+    // Current loads only (2026-11-15): the dashboard doesn't need every
+    // delivered load; the completed count comes from the dashboard stats.
     const loadsTask = apiClient
-      .get("/api/driver-tracking/my-loads", { headers })
+      .get("/api/driver-tracking/my-loads?view=current", { headers })
       .then((loadsRes) => {
         if (!isLatest()) return;
         const loadsData = loadsRes.data?.data;
@@ -548,9 +550,7 @@ export default function DriverDashboardPage() {
           activeLoads: nextLoads.filter((load: any) =>
             isActiveLoadStatus(load.status),
           ).length,
-          completedLoads:
-            previous?.completedLoads ??
-            nextLoads.filter((load: any) => load.status === "Delivered").length,
+          completedLoads: previous?.completedLoads ?? 0,
           totalEarnings: previous?.totalEarnings ?? 0,
           profileCompletionScore: previous?.profileCompletionScore ?? 0,
           updatedAt: Date.now(),
@@ -745,7 +745,6 @@ export default function DriverDashboardPage() {
   }, []);
 
   const activeLoads = loads.filter((l) => isActiveLoadStatus(l.status));
-  const completedCount = loads.filter((l) => l.status === "Delivered").length;
   const activeLoadIdsKey = activeLoads.map((load) => String(load._id)).join("|");
   const currentLoad =
     activeLoads.find((load) => String(load._id) === selectedActiveLoadId) ??
@@ -881,7 +880,7 @@ export default function DriverDashboardPage() {
     ? activeLoads.length
     : (kpiSnapshot?.activeLoads ?? activeLoads.length);
   const displayedCompletedCount =
-    dashStats?.completedLoads ?? kpiSnapshot?.completedLoads ?? completedCount;
+    dashStats?.completedLoads ?? kpiSnapshot?.completedLoads ?? 0;
   const displayedEarnings =
     dashStats?.totalEarnings ?? kpiSnapshot?.totalEarnings ?? 0;
   const profileScore =

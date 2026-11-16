@@ -60,6 +60,12 @@ import { announceDeliveryCompleted } from '@/components/driver/KeepSharingAfterD
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import { userErrorMessage } from "@/lib/user-error";
 import {
+  CURRENT_LOADS_URL,
+  appendDeliveredLoads,
+  deliveredLoadsUrl,
+  refreshDeliveredLoads,
+} from "@/lib/driver-load-history";
+import {
   isNoConnectionError,
   useSendWhenBackOnline,
   WaitingForSignalNotice,
@@ -139,10 +145,18 @@ const getTabFromSearch = (search: string): Tab => {
 export default function DriverLoadsPage() {
   const { getToken } = useAuth();
   const workEligibility = useDriverWorkEligibility();
-  const [loads, setLoads] = React.useState<Load[]>([]);
+  // Current loads come in full; delivered loads come a page at a time from
+  // the server, newest first (2026-11-15).
+  const [currentLoads, setCurrentLoads] = React.useState<Load[]>([]);
+  const [deliveredLoads, setDeliveredLoads] = React.useState<Load[]>([]);
+  const loads = React.useMemo(() => [...currentLoads, ...deliveredLoads], [currentLoads, deliveredLoads]);
   const [requests, setRequests] = React.useState<Load[]>([]);
-  const [pagination, setPagination] = React.useState<{ hasMore: boolean; page: number; totalPages: number } | null>(null);
+  const [pagination, setPagination] = React.useState<{ hasMore: boolean; page: number; totalPages: number; total: number } | null>(null);
   const [page, setPage] = React.useState(1);
+  // Every delivered load the driver has, not only the ones shown so far.
+  const [deliveredTotal, setDeliveredTotal] = React.useState(0);
+  // The search text the delivered list was last loaded for.
+  const deliveredSearchRef = React.useRef("");
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [tab, setTab] = React.useState<Tab>('active');
@@ -211,23 +225,36 @@ export default function DriverLoadsPage() {
   const fetchLoads = React.useCallback(async (pageNum = 1, append = false) => {
     try {
       const token = await getToken();
-      const [loadsRes, reqRes] = await Promise.all([
-        apiClient.get(`/api/driver-tracking/my-loads?page=${pageNum}`, { headers: { Authorization: `Bearer ${token}` } }),
-        apiClient.get('/api/driver-tracking/my-requests', { headers: { Authorization: `Bearer ${token}` } }),
+      const headers = { Authorization: `Bearer ${token}` };
+      const search = deliveredSearchRef.current;
+
+      // Load more: the next page of delivered loads only.
+      if (append) {
+        const res = await apiClient.get(deliveredLoadsUrl(pageNum, search), { headers });
+        const delivered = res.data?.data;
+        setDeliveredLoads((prev) => appendDeliveredLoads(prev, delivered?.loads ?? []));
+        setPagination(delivered?.pagination ?? null);
+        setPage(pageNum);
+        return;
+      }
+
+      const [currentRes, deliveredRes, reqRes] = await Promise.all([
+        apiClient.get(CURRENT_LOADS_URL, { headers }),
+        apiClient.get(deliveredLoadsUrl(1, search), { headers }),
+        apiClient.get('/api/driver-tracking/my-requests', { headers }),
       ]);
 
-      const loadsData = loadsRes.data?.data;
-      const newLoads = loadsData?.loads || loadsData || [];
-      const newPagination = loadsData?.pagination || null;
-
-      if (append) {
-        setLoads(prev => [...prev, ...newLoads]);
-      } else {
-        setLoads(newLoads);
+      const current = currentRes.data?.data;
+      setCurrentLoads(Array.isArray(current) ? current : current?.loads ?? []);
+      const delivered = deliveredRes.data?.data;
+      const firstPage: Load[] = delivered?.loads ?? [];
+      // Skip a result for a search the driver has already changed.
+      if (search === deliveredSearchRef.current) {
+        // A refresh keeps the older pages already opened with Load more.
+        setDeliveredLoads((prev) => refreshDeliveredLoads(prev, firstPage));
+        setPagination(delivered?.pagination ?? null);
+        if (!search) setDeliveredTotal(delivered?.pagination?.total ?? firstPage.length);
       }
-      setPagination(newPagination);
-      if (!append) setPage(1);
-      else setPage(pageNum);
 
       setRequests(reqRes.data?.data || []);
     } catch (err: any) {
@@ -283,11 +310,35 @@ export default function DriverLoadsPage() {
 
   const handleRefresh = () => { setRefreshing(true); fetchLoads(1, false); };
 
+  const hasMoreDelivered = deliveredLoads.length < (pagination?.total ?? 0);
+
   const handleLoadMore = async () => {
-    if (!pagination || !pagination.hasMore || loadingMore) return;
+    if (!hasMoreDelivered || loadingMore) return;
     setLoadingMore(true);
     await fetchLoads(page + 1, true);
   };
+
+  // Delivered loads are searched on the server, so older ones not shown yet
+  // are found too; current loads are filtered on this page as before.
+  React.useEffect(() => {
+    const q = search.trim();
+    if (q === deliveredSearchRef.current) return;
+    const timer = window.setTimeout(async () => {
+      deliveredSearchRef.current = q;
+      try {
+        const token = await getToken();
+        const res = await apiClient.get(deliveredLoadsUrl(1, q), { headers: { Authorization: `Bearer ${token}` } });
+        if (deliveredSearchRef.current !== q) return;
+        const delivered = res.data?.data;
+        setDeliveredLoads(delivered?.loads ?? []);
+        setPagination(delivered?.pagination ?? null);
+        setPage(1);
+      } catch (err) {
+        toast.error(userErrorMessage(err, "search your completed loads"));
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search, getToken]);
 
   const requestLoadRelease = React.useCallback(
     async (
@@ -448,14 +499,11 @@ export default function DriverLoadsPage() {
 
   const pending = requests.filter((r) => r.myRequestStatus === "pending");
   const rejected = requests.filter((r) => r.myRequestStatus === "rejected");
-  const activeCount = loads.filter(
-    (l) => l.status !== "Delivered" && l.status !== "Cancelled",
-  ).length;
-  const completedCount = loads.filter((l) => l.status === "Delivered").length;
+  const activeCount = currentLoads.length;
+  // Totals from the server, since delivered loads are shown a page at a time.
+  const completedCount = deliveredTotal;
   // Every load this driver has: Assigned, Accepted, Picked Up, In Transit and Delivered.
-  const totalLoadCount = loads.filter((l) =>
-    ["Assigned", "Accepted", "Picked Up", "In-Transit", "Delivered"].includes(l.status),
-  ).length;
+  const totalLoadCount = currentLoads.length + deliveredTotal;
 
   const filtered = React.useMemo(() => {
     let result: Load[] = [];
@@ -468,6 +516,8 @@ export default function DriverLoadsPage() {
       const q = search.toLowerCase();
       result = result.filter(
         (l) =>
+          // Delivered loads were already searched on the server.
+          l.status === 'Delivered' ||
           l.loadNumber?.toLowerCase().includes(q) ||
           l.pickupLocation?.city?.toLowerCase().includes(q) ||
           l.deliveryLocation?.city?.toLowerCase().includes(q) ||
@@ -694,7 +744,7 @@ export default function DriverLoadsPage() {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
               </div>
             )}
-            {pagination?.hasMore && !loadingMore && (
+            {hasMoreDelivered && !loadingMore && (tab === 'completed' || tab === 'all') && (
               <Button variant="outline" className="w-full rounded-xl h-10 text-xs gap-2 border-border/70 hover:border-primary/30" onClick={handleLoadMore}>
                 <ChevronDown className="h-4 w-4" /> Load more loads
               </Button>

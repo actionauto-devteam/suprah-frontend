@@ -1,0 +1,49 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
+
+// Driver loads (2026-11-15): current loads in full, delivered loads a page at
+// a time from the server; the dashboard and Schedule ask for current loads only.
+const SRC = fileURLToPath(new URL('../src/', import.meta.url));
+function load(file) {
+  const { outputText } = ts.transpileModule(fs.readFileSync(`${file}.ts`, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  const cjs = { exports: {} };
+  new Function('exports', 'require', 'module', outputText)(cjs.exports, () => ({}), cjs);
+  return cjs.exports;
+}
+const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const { CURRENT_LOADS_URL, deliveredLoadsUrl, refreshDeliveredLoads, appendDeliveredLoads } = load(path.join(SRC, 'lib/driver-load-history'));
+
+test('delivered loads are asked for a page at a time, with search on the server', () => {
+  assert.equal(deliveredLoadsUrl(1, ''), '/api/driver-tracking/my-loads?view=history&page=1');
+  assert.equal(deliveredLoadsUrl(3, '  camry '), '/api/driver-tracking/my-loads?view=history&page=3&q=camry');
+  assert.equal(deliveredLoadsUrl(0, 'a&b'), '/api/driver-tracking/my-loads?view=history&page=1&q=a%26b');
+  assert.equal(CURRENT_LOADS_URL, '/api/driver-tracking/my-loads?view=current');
+});
+
+test('a refresh keeps older pages already opened, without repeats', () => {
+  const shown = [{ _id: 'c' }, { _id: 'b' }, { _id: 'a' }];
+  assert.deepEqual(refreshDeliveredLoads(shown, [{ _id: 'd' }, { _id: 'c' }]).map((l) => l._id), ['d', 'c', 'b', 'a']);
+});
+
+test('Load more adds the next page after the loads shown, without repeats', () => {
+  assert.deepEqual(appendDeliveredLoads([{ _id: 'd' }, { _id: 'c' }], [{ _id: 'c' }, { _id: 'b' }]).map((l) => l._id), ['d', 'c', 'b']);
+});
+
+test('the Loads page uses current loads plus paged delivered loads', () => {
+  const page = read('app/(driver)/driver/loads/page.tsx');
+  assert.doesNotMatch(page, /my-loads\?page=/);
+  assert.match(page, /apiClient\.get\(CURRENT_LOADS_URL, \{ headers \}\)/);
+  assert.match(page, /const totalLoadCount = currentLoads\.length \+ deliveredTotal;/);
+  assert.match(page, /hasMoreDelivered && !loadingMore && \(tab === 'completed' \|\| tab === 'all'\)/);
+});
+
+test('the dashboard and Schedule ask for current loads only', () => {
+  assert.match(read('app/(driver)/driver/page.tsx'), /my-loads\?view=current/);
+  assert.match(read('app/(driver)/driver/schedule/page.tsx'), /my-loads\?view=current/);
+});
