@@ -619,7 +619,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             />
             <span
               className={cn(
-                "text-[9px] font-black uppercase tracking-widest text-center",
+                "text-[11px] font-black uppercase tracking-widest text-center",
                 i === stepIndex
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-muted-foreground/60",
@@ -658,7 +658,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             {/* Trailer selection lives in the layout; the team's
                 VehicleSection reads it for its capacity gate */}
             <label className="block min-w-0">
-              <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
+              <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
                 Trailer Type
               </span>
               <Select value={trailerType} onValueChange={setTrailerType}>
@@ -791,7 +791,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         <Button
           type="button"
           variant="outline"
-          className="h-10 gap-1.5 text-[10px] font-black uppercase tracking-widest"
+          className="h-10 gap-1.5 text-[11px] font-black uppercase tracking-widest"
           onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
           disabled={stepIndex === 0 || isSubmitting}
         >
@@ -803,7 +803,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             <Button
               type="button"
               variant="outline"
-              className="h-10 gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
+              className="h-10 gap-2 px-4 text-[11px] font-black uppercase tracking-widest"
               onClick={() => void handleSubmit()}
               disabled={isSubmitting}
             >
@@ -812,7 +812,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             </Button>
             <Button
               type="button"
-              className="h-10 gap-2 px-5 text-[10px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
+              className="h-10 gap-2 px-5 text-[11px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
               onClick={() => void handleSubmit({ post: true })}
               disabled={isSubmitting}
             >
@@ -823,7 +823,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         ) : isLastStep ? (
           <Button
             type="button"
-            className="h-10 gap-2 px-5 text-[10px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
+            className="h-10 gap-2 px-5 text-[11px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
             onClick={() => void handleSubmit()}
             disabled={isSubmitting}
           >
@@ -851,7 +851,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         ) : (
           <Button
             type="button"
-            className="h-10 gap-1.5 px-5 text-[10px] font-black uppercase tracking-widest"
+            className="h-10 gap-1.5 px-5 text-[11px] font-black uppercase tracking-widest"
             onClick={goNext}
             disabled={isSubmitting}
           >
@@ -979,7 +979,7 @@ function PricingPanel({
     <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
       <div className="min-w-0 pr-3">
         <p className="text-xs font-medium text-foreground">Include Pricing</p>
-        <p className="mt-0.5 text-[10px] text-muted-foreground">
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
           {postType === "load-board"
             ? "Turn this off to post the load without entering pricing. Pricing can be added later from Edit Load."
             : "Turn this off to assign or publish the load without entering Total Driver Pay. Pricing can be added later from Edit Load."}
@@ -1010,7 +1010,7 @@ function PricingPanel({
             ? "Show Pricing on Load Board"
             : "Show Pricing to Driver"}
         </p>
-        <p className="mt-0.5 text-[10px] text-muted-foreground">
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
           {postType === "load-board"
             ? "Allow drivers viewing this load to see the posted compensation."
             : "Allow the assigned driver to see the Total Driver Pay."}
@@ -1035,7 +1035,7 @@ function PricingPanel({
           <>
         <div className="rounded-xl border border-border/60 bg-background/40 p-4">
           <label className="block">
-            <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
+            <span className="block text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
               Total Driver Pay (USD)
             </span>
             <input
@@ -1171,14 +1171,14 @@ function PricingPanel({
       <div className="rounded-xl border border-border/60 bg-background/40 p-4 relative overflow-hidden">
         <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/50 to-transparent" />
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
             Rate Estimate
           </span>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-[10px] font-black uppercase tracking-widest"
+            className="h-8 gap-1.5 text-[11px] font-black uppercase tracking-widest"
             onClick={runEstimate}
             disabled={isCalculating}
           >
@@ -1191,7 +1191,7 @@ function PricingPanel({
         {estimate ? (
           <div className="grid grid-cols-3 gap-3 mt-3">
             <div>
-              <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-0.5">
+              <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-0.5">
                 Distance
               </span>
               <span className="font-mono font-black tabular-nums">
@@ -1199,7 +1199,7 @@ function PricingPanel({
               </span>
             </div>
             <div>
-              <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-0.5">
+              <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-0.5">
                 Est. Rate
               </span>
               <span className="font-mono font-black tabular-nums text-emerald-600 dark:text-emerald-400">
@@ -1207,7 +1207,7 @@ function PricingPanel({
               </span>
             </div>
             <div>
-              <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-0.5">
+              <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-0.5">
                 ETA
               </span>
               <span className="font-mono font-black tabular-nums">
@@ -1227,7 +1227,7 @@ function PricingPanel({
       {/* Amounts */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <label className="block min-w-0">
-          <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
+          <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
             Price / Mile (USD)
           </span>
           <input
@@ -1252,7 +1252,7 @@ function PricingPanel({
           />
         </label>
         <label className="block min-w-0">
-          <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
+          <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
             Carrier Pay (USD)
           </span>
           <input
@@ -1267,7 +1267,7 @@ function PricingPanel({
           />
         </label>
         <label className="block min-w-0">
-          <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
+          <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
             COP / COD (USD)
           </span>
           <input
@@ -1282,7 +1282,7 @@ function PricingPanel({
           />
         </label>
         <div className="min-w-0">
-          <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
+          <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
             Balance (Pay − COD)
           </span>
           <div className="h-9 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-2.5 flex items-center">

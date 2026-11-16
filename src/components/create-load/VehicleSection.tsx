@@ -110,7 +110,7 @@ function VinPicker({ value, onChange }: VinPickerProps) {
             key={id}
             type="button"
             onClick={() => switchMode(id)}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${mode === id
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${mode === id
                 ? "bg-green-500 text-white border-green-500"
                 : "bg-muted text-muted-foreground border-border hover:text-foreground"
               }`}
@@ -181,7 +181,7 @@ function VinPicker({ value, onChange }: VinPickerProps) {
                           className="flex flex-col items-start gap-0.5 py-2"
                         >
                           <span className="font-mono text-xs font-medium">{v.vin}</span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             {v.year} {v.make} {v.model}{v.color ? ` · ${v.color}` : ""} · {v.condition}
                           </span>
                         </CommandItem>
@@ -197,10 +197,10 @@ function VinPicker({ value, onChange }: VinPickerProps) {
 
       {/* Status messages */}
       {vinStatus === "not-found" && mode === "manual" && (
-        <p className="text-[10px] text-destructive mt-1">Not in inventory — fill details manually</p>
+        <p className="text-[11px] text-destructive mt-1">Not in inventory — fill details manually</p>
       )}
       {vinStatus === "found" && (
-        <p className="text-[10px] text-green-600 dark:text-green-400 mt-1">Auto-filled from inventory</p>
+        <p className="text-[11px] text-green-600 dark:text-green-400 mt-1">Auto-filled from inventory</p>
       )}
     </Field>
   )
@@ -284,7 +284,7 @@ function VehicleForm({ value, onChange, errors = {} }: VehicleFormProps) {
         <VinPicker value={value} onChange={onChange} />
         <Field label="Color">
           <div className="invisible flex gap-1 mb-1.5" aria-hidden="true">
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border">
               <PenLine className="size-2.5" />
               Manual
             </span>
@@ -415,7 +415,7 @@ export function VehicleSection({ vehicles, onChange, trailerType = "open_3car_we
           </div>
         )}
 
-        <span className="ml-auto text-[10px] text-muted-foreground">
+        <span className="ml-auto text-[11px] text-muted-foreground">
           {vehicles.length} / {maxCapacity}
         </span>
       </div>

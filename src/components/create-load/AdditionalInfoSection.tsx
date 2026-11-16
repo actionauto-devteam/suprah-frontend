@@ -32,7 +32,7 @@ export function AdditionalInfoSection({ value, onChange }: AdditionalInfoSection
           maxLength={400}
           className="text-sm resize-none"
         />
-        <p className="text-[10px] text-muted-foreground text-right mt-1">{value.notes.length}/400</p>
+        <p className="text-[11px] text-muted-foreground text-right mt-1">{value.notes.length}/400</p>
       </Field>
 
       <Field label="Carrier Instructions">
@@ -44,7 +44,7 @@ export function AdditionalInfoSection({ value, onChange }: AdditionalInfoSection
           maxLength={400}
           className="text-sm resize-none"
         />
-        <p className="text-[10px] text-muted-foreground text-right mt-1">{value.instructions.length}/400</p>
+        <p className="text-[11px] text-muted-foreground text-right mt-1">{value.instructions.length}/400</p>
       </Field>
 
       <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
@@ -58,7 +58,7 @@ export function AdditionalInfoSection({ value, onChange }: AdditionalInfoSection
             <p className="text-xs font-medium text-foreground">
               {value.visibility === "public" ? "Visible on Load Board" : "Private — Not Listed"}
             </p>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               {value.visibility === "public"
                 ? "Carriers can find and bid on this load"
                 : "Only your organization can see this load"}

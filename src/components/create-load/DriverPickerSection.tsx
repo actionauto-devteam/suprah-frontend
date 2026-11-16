@@ -183,7 +183,7 @@ function CoreCompatibilityBadges({
       <Badge
         variant="outline"
         className={cn(
-          "h-auto whitespace-normal px-1.5 py-0.5 text-[10px] font-bold",
+          "h-auto whitespace-normal px-1.5 py-0.5 text-[11px] font-bold",
           availability === "match"
             ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
             : availability === "off_schedule"
@@ -208,7 +208,7 @@ function CoreCompatibilityBadges({
       <Badge
         variant="outline"
         className={cn(
-          "h-auto whitespace-normal px-1.5 py-0.5 text-[10px] font-bold",
+          "h-auto whitespace-normal px-1.5 py-0.5 text-[11px] font-bold",
           capacity === "match"
             ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
             : "border-red-500/25 bg-red-500/5 text-red-700 dark:text-red-400",
@@ -232,7 +232,7 @@ function CoreCompatibilityBadges({
         <Badge
           variant="outline"
           className={cn(
-            "h-auto whitespace-normal px-1.5 py-0.5 text-[10px] font-bold",
+            "h-auto whitespace-normal px-1.5 py-0.5 text-[11px] font-bold",
             trailer === "match"
               ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
               : "border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-400",
@@ -458,7 +458,7 @@ export function DriverPickerSection({
       <div className={cn(makeAvailable && "opacity-40 pointer-events-none")}>
         <div className="flex items-center justify-between mb-2 gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
+            <p className="text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
               <Radio className="size-3" /> Assign Driver
               {!isLoading && (
                 <span className="font-mono normal-case tracking-normal">
@@ -466,13 +466,13 @@ export function DriverPickerSection({
                 </span>
               )}
             </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75">
               Only drivers who can take a load right now are listed. Drivers who
               are On Leave, In Shop, inactive, or waiting on a Work Availability
               request aren&apos;t shown.
             </p>
             {loadPreview && (
-              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/75">
                 Drivers are ordered by eligibility, capacity, schedule, equipment,
                 service area, preferred route, and pickup proximity. Service area,
                 route preference, and distance are informational only. A distance
@@ -489,7 +489,7 @@ export function DriverPickerSection({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+              className="h-7 gap-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground"
               onClick={fetchDrivers}
               disabled={isLoading}
             >
@@ -522,7 +522,7 @@ export function DriverPickerSection({
             <p className="text-xs font-bold text-muted-foreground">
               No drivers can take a load right now
             </p>
-            <p className="text-[10px] text-muted-foreground/70 mt-1">
+            <p className="text-[11px] text-muted-foreground/70 mt-1">
               Choose &ldquo;Make it Available Load&rdquo; to let drivers request it, or check
               Driver Tracker for drivers who are On Leave or In Shop.
             </p>
@@ -584,19 +584,19 @@ export function DriverPickerSection({
                           {driver.name}
                         </p>
                         {isBestMatch && (
-                          <Badge className="h-5 border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                          <Badge className="h-5 border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                             Best Match
                           </Badge>
                         )}
                         {driver.equipment?.trailerType && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-full shrink-0">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-full shrink-0">
                             {driver.equipment.trailerType.replace(/_/g, " ")}
                           </span>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                        <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                        <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
                           {driver.activeLoadCount} active
                           {driver.equipment?.maxVehicleCapacity != null
                             ? ` · equipment cap ${driver.equipment.maxVehicleCapacity}`
@@ -609,7 +609,7 @@ export function DriverPickerSection({
                           return (
                             <span
                               key={w}
-                              className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full"
+                              className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full"
                             >
                               <Icon className="size-2.5" /> {meta.label}
                             </span>
