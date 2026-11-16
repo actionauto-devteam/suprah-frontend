@@ -231,6 +231,8 @@ export default function DriverLoadsPage() {
       // Load more: the next page of delivered loads only.
       if (append) {
         const res = await apiClient.get(deliveredLoadsUrl(pageNum, search), { headers });
+        // The driver changed the search meanwhile: this older page doesn't belong (2026-11-16).
+        if (search !== deliveredSearchRef.current) return;
         const delivered = res.data?.data;
         setDeliveredLoads((prev) => appendDeliveredLoads(prev, delivered?.loads ?? []));
         setPagination(delivered?.pagination ?? null);
