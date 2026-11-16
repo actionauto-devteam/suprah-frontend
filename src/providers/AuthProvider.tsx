@@ -340,7 +340,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // running and will resolve the state shortly. Redirecting here is
       // exactly the "forced logout on refresh spam" bug.
       if (!isPublic && !authIndeterminate) {
-        router.push("/sign-in" + search);
+        const keepsLink = /^\/crm\/(leads|conversations)\/?$/.test(path) && search.length > 1;
+        router.push(
+          keepsLink
+            ? `/sign-in?redirect_url=${encodeURIComponent(path + search)}`
+            : "/sign-in" + search,
+        );
       }
       return;
     }

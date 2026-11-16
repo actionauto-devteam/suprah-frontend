@@ -22,7 +22,7 @@ import {
   Sun,
   X,
 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useLeadTypeCounts, useAssignedNewCount, Lead } from "@/hooks/useLeads"
 import { isCampaignLeadType, leadTypeLabel } from "@/lib/leadType"
 import { ACTIVE_CALLS_KEY, useActiveCalls } from "@/hooks/useActiveCalls"
@@ -302,6 +302,22 @@ export interface LeadsTabPendingNav {
   leadSearch?: string;
 }
 
+const LEAD_ID_PATTERN = /^[a-f0-9]{24}$/i;
+
+function LeadLinkWatcher({ onChange }: { onChange: (search: string) => void }) {
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const firstRef = React.useRef(true);
+  React.useEffect(() => {
+    if (firstRef.current) {
+      firstRef.current = false;
+      return;
+    }
+    onChange(search);
+  }, [search, onChange]);
+  return null;
+}
+
 export function LeadsTab({
   pendingNav,
   onNavConsumed,
@@ -498,6 +514,7 @@ export function LeadsTab({
 
   // -- Pending deep-link lead (from ?leadId= or ?leadSearch= URL param) --
   const [pendingLeadId, setPendingLeadId] = React.useState<string | null>(null);
+  const combinedHopsRef = React.useRef(0);
   const [autoSelectOnSingleResult, setAutoSelectOnSingleResult] =
     React.useState(false);
 
@@ -586,10 +603,19 @@ export function LeadsTab({
   }, [selectedLead?._id]);
 
   React.useEffect(() => {
-    if (viewportMode === "wide") return;
     const id = selectedLead?._id || null;
+    if (!id && pendingLeadId) return;
     const url = new URL(window.location.href);
     const current = url.searchParams.get("lead");
+    if (viewportMode === "wide") {
+      if (id === current) return;
+      if (id) url.searchParams.set("lead", id);
+      else url.searchParams.delete("lead");
+      url.searchParams.delete("panel");
+      const rest = url.searchParams.toString();
+      window.history.replaceState(null, "", url.pathname + (rest ? `?${rest}` : ""));
+      return;
+    }
     if (id && current !== id) {
       url.searchParams.set("lead", id);
       url.searchParams.delete("panel");
@@ -616,7 +642,7 @@ export function LeadsTab({
       const rest = url.searchParams.toString();
       window.history.replaceState(null, "", url.pathname + (rest ? `?${rest}` : ""));
     }
-  }, [selectedLead?._id, viewportMode]);
+  }, [selectedLead?._id, viewportMode, pendingLeadId]);
 
   React.useEffect(() => {
     if (viewportMode !== "narrow" || !selectedLead?._id) return;
@@ -655,6 +681,40 @@ export function LeadsTab({
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const selectedLeadIdRef = React.useRef<string | null>(null);
+  const pendingLeadIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    selectedLeadIdRef.current = selectedLead?._id || null;
+  }, [selectedLead?._id]);
+  React.useEffect(() => {
+    pendingLeadIdRef.current = pendingLeadId;
+  }, [pendingLeadId]);
+
+  const handleUrlChange = React.useCallback((search: string) => {
+    const params = new URLSearchParams(search);
+    const linkedId = params.get("leadId");
+    const linkedSearch = params.get("leadSearch");
+    if (linkedId || linkedSearch) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("leadId");
+      url.searchParams.delete("leadSearch");
+      url.searchParams.delete("tab");
+      const rest = url.searchParams.toString();
+      window.history.replaceState(null, "", url.pathname + (rest ? `?${rest}` : ""));
+      if (linkedId) {
+        if (linkedId !== selectedLeadIdRef.current) setPendingLeadId(linkedId);
+      } else if (linkedSearch) {
+        setSearchQuery(linkedSearch);
+        setAutoSelectOnSingleResult(true);
+      }
+      return;
+    }
+    const urlLead = params.get("lead");
+    if (urlLead && urlLead !== selectedLeadIdRef.current && urlLead !== pendingLeadIdRef.current) {
+      setPendingLeadId(urlLead);
+    }
   }, []);
   const [localIsSyncing, setLocalIsSyncing] = React.useState(false);
   const [centralConnected, setCentralConnected] = React.useState(false);
@@ -1109,19 +1169,56 @@ export function LeadsTab({
   React.useEffect(() => {
     if (!pendingLeadId) return;
     let cancelled = false;
+    const failed = (title: string, description: string) => {
+      combinedHopsRef.current = 0;
+      setPendingLeadId(null);
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("lead") === pendingLeadId) {
+        url.searchParams.delete("lead");
+        url.searchParams.delete("panel");
+        const rest = url.searchParams.toString();
+        window.history.replaceState(null, "", url.pathname + (rest ? `?${rest}` : ""));
+      }
+      toast.error(title, { description });
+    };
+    const notFound = () =>
+      failed(
+        "This conversation could not be opened",
+        "The link may be old, the lead may have been removed, or it belongs to another dealership.",
+      );
     (async () => {
+      if (!LEAD_ID_PATTERN.test(pendingLeadId)) {
+        notFound();
+        return;
+      }
       try {
         const token = await getToken();
         const res = await apiClient.get(`/api/leads/${pendingLeadId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (cancelled) return;
         const lead: Lead = res.data?.data;
-        if (!cancelled && lead?._id) {
+        const survivor = lead?.combinedInto?.leadId ? String(lead.combinedInto.leadId) : "";
+        if (survivor && survivor !== pendingLeadId && combinedHopsRef.current < 3) {
+          combinedHopsRef.current += 1;
+          toast.info("This lead was combined into another lead", {
+            description: "Opening the lead it was combined into.",
+          });
+          setPendingLeadId(survivor);
+          return;
+        }
+        combinedHopsRef.current = 0;
+        if (lead?._id) {
           setPendingLeadId(null);
           setSelectedLead(lead); // eslint-disable-line react-hooks/exhaustive-deps
+        } else {
+          notFound();
         }
-      } catch {
-        setPendingLeadId(null);
+      } catch (error) {
+        if (cancelled) return;
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 404 || status === 400) notFound();
+        else failed("Could not open this conversation", "Check your connection and open the link again.");
       }
     })();
     return () => {
@@ -2595,6 +2692,9 @@ export function LeadsTab({
       data-has-active-lead={selectedLead ? "true" : "false"}
       data-details-expanded={showLeadDetails ? "true" : "false"}
     >
+      <React.Suspense fallback={null}>
+        <LeadLinkWatcher onChange={handleUrlChange} />
+      </React.Suspense>
       {/* ── TOPBAR ── */}
       {/* The mobile version stays compact by default. Full sync information is
           available on demand instead of permanently taking vertical space. */}
