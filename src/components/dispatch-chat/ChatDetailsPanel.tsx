@@ -150,7 +150,7 @@ export function ChatDetailsPanel({
         >
           <ChevronLeft className="size-4" />
         </button>
-        <p className="min-w-0 flex-1 truncate text-[15px] font-bold">Details</p>
+        <p className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[15px] font-bold">Details</p>
         <button
           type="button"
           onClick={onClose}
@@ -183,7 +183,7 @@ export function ChatDetailsPanel({
                   aria-selected={active}
                   onClick={() => onTabChange(item.key)}
                   className={cn(
-                    "h-9 min-w-0 truncate rounded-md px-2 text-xs font-bold transition-colors",
+                    "h-9 min-w-0 break-words [overflow-wrap:anywhere] rounded-md px-2 text-xs font-bold transition-colors",
                     active ? "bg-emerald-600 text-white shadow-sm" : "text-foreground/80 hover:bg-muted hover:text-foreground",
                   )}
                 >
@@ -228,7 +228,7 @@ export function ChatDetailsPanel({
                             className="flex aspect-square flex-col items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-2 text-center"
                           >
                             <AlertTriangle className="mb-1 size-4 text-amber-600 dark:text-amber-400" />
-                            <p className="text-[10px] leading-snug text-muted-foreground">Unavailable right now</p>
+                            <p className="text-[11px] leading-snug text-muted-foreground">Unavailable right now</p>
                           </div>
                         ),
                       )}
@@ -255,7 +255,7 @@ export function ChatDetailsPanel({
                                 <FileText className="size-4" />
                               </span>
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold">{attachment.originalName}</span>
+                                <span className="block min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold">{attachment.originalName}</span>
                                 <span className="mt-0.5 block text-xs text-muted-foreground">
                                   {[sizeText(attachment.size), message.author, dateText(message.createdAt)].filter(Boolean).join(" · ")}
                                 </span>
@@ -271,7 +271,7 @@ export function ChatDetailsPanel({
                                 <AlertTriangle className="size-4" />
                               </span>
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold">{attachment.originalName}</span>
+                                <span className="block min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold">{attachment.originalName}</span>
                                 <span className="mt-0.5 block text-xs text-muted-foreground">Unavailable right now</span>
                               </span>
                             </div>
@@ -313,10 +313,10 @@ export function ChatDetailsPanel({
                               title="Show this message in the conversation"
                             >
                               <span className="flex items-center justify-between gap-2">
-                                <span className="truncate text-xs font-bold">{message.author}</span>
-                                <span className="shrink-0 text-[10px] text-muted-foreground">{dateTimeText(message.createdAt)}</span>
+                                <span className="min-w-0 break-words [overflow-wrap:anywhere] text-xs font-bold">{message.author}</span>
+                                <span className="shrink-0 text-[11px] text-muted-foreground">{dateTimeText(message.createdAt)}</span>
                               </span>
-                              <span className="mt-1 line-clamp-4 block whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                              <span className="mt-1 block whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                                 {message.text || "Attachment"}
                               </span>
                               {message.attachments.length > 0 && (
@@ -324,7 +324,7 @@ export function ChatDetailsPanel({
                                   {message.attachments.map((attachment, index) => (
                                     <span
                                       key={`${message.id}:${index}`}
-                                      className="max-w-full truncate rounded-md border border-border/50 bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                      className="max-w-full min-w-0 break-words [overflow-wrap:anywhere] rounded-md border border-border/50 bg-muted/30 px-1.5 py-0.5 text-[11px] text-muted-foreground"
                                     >
                                       {attachment.originalName}
                                     </span>
@@ -368,10 +368,10 @@ export function ChatDetailsMemberRow({
     <li className="flex min-w-0 items-center gap-3 rounded-lg px-1 py-2">
       {avatar}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{name}</span>
+        <span className="block min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold">{name}</span>
         <span
           className={cn(
-            "block truncate text-xs",
+            "block min-w-0 break-words [overflow-wrap:anywhere] text-xs",
             noteTone === "accent" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
           )}
         >

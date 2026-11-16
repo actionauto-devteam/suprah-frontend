@@ -29,14 +29,14 @@ export function DriverDispatchChatSidebarItem() {
           className="relative"
         >
           <MessageSquare />
-          <span className="min-w-0 flex-1 truncate">
+          <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
             Suprah Dispatch Chat
           </span>
 
           {unreadTotal > 0 && (
             <span
               aria-label={`${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}`}
-              className="ml-auto min-w-5 h-5 px-1 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center group-data-[collapsible=icon]:hidden"
+              className="ml-auto min-w-5 h-5 px-1 rounded-full bg-emerald-600 text-white text-[11px] font-black flex items-center justify-center group-data-[collapsible=icon]:hidden leading-none"
             >
               {unreadTotal > 99 ? "99+" : unreadTotal}
             </span>

@@ -133,7 +133,7 @@ export function DriverInboxRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className={cn("min-w-0 flex-1 truncate text-[17px] leading-snug text-foreground", unread > 0 ? "font-bold" : "font-semibold")}>
+            <span className={cn("min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[17px] leading-snug text-foreground", unread > 0 ? "font-bold" : "font-semibold")}>
               {title}
             </span>
             {busy ? (
@@ -146,14 +146,14 @@ export function DriverInboxRow({
             {chips}
             <span
               className={cn(
-                "min-w-0 flex-1 truncate text-[15px] leading-snug",
+                "min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[15px] leading-snug",
                 unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground",
               )}
             >
               {subtitle}
             </span>
             {unread > 0 && (
-              <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-600 px-[5px] text-[10px] font-bold text-white">
+              <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-600 px-[5px] text-[11px] font-bold text-white leading-none">
                 {unread > 99 ? "99+" : unread}
               </span>
             )}

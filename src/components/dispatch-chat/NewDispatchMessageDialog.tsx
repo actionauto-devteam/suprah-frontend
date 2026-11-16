@@ -34,8 +34,8 @@ function ContactRow({
         </AvatarFallback>
       </Avatar>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-bold">{contact.dispatcher.name}</span>
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+        <span className="block min-w-0 break-words [overflow-wrap:anywhere] text-sm font-bold">{contact.dispatcher.name}</span>
+        <span className="mt-0.5 block min-w-0 break-words [overflow-wrap:anywhere] text-xs text-muted-foreground">
           {contact.load.loadNumber} · {contact.load.status}
           {route ? ` · ${route}` : ""}
         </span>
@@ -112,13 +112,13 @@ export function NewDispatchMessageDialog({
             <>
               {current.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Your current loads</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">Your current loads</p>
                   {renderRows(current)}
                 </div>
               )}
               {recent.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Delivered in the last 30 days
                   </p>
                   {renderRows(recent)}

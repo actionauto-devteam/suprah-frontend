@@ -31,11 +31,11 @@ export function DriverDispatchInboxSidebarItem({ onNavigate }: { onNavigate?: ()
       >
         <Link href="/driver/channels" onClick={onNavigate}>
           <MessageSquare />
-          <span className="min-w-0 flex-1 truncate">Messages</span>
+          <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">Messages</span>
           {unreadTotal > 0 && (
             <span
               aria-label={`${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}`}
-              className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-black text-white group-data-[collapsible=icon]:hidden"
+              className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[11px] font-black text-white group-data-[collapsible=icon]:hidden leading-none"
             >
               {unreadTotal > 99 ? "99+" : unreadTotal}
             </span>
