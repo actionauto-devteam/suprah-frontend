@@ -45,7 +45,7 @@ export function TransportationMobileViewSwitcher({
             )}
           >
             <Icon className="size-3.5 shrink-0" />
-            <span className="truncate text-[11px] font-black uppercase tracking-[0.06em] leading-none">
+            <span className="break-words [overflow-wrap:anywhere] text-[11px] font-black uppercase tracking-[0.06em] leading-tight">
               {label}
             </span>
           </button>

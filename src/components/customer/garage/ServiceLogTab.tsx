@@ -130,7 +130,7 @@ export function ServiceLogTab({ vehicles, onLogService }: ServiceLogTabProps) {
                   {/* Record card */}
                   <div className="flex-1 min-w-0 rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60 p-3.5 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-foreground truncate">
+                      <p className="text-sm font-bold text-foreground break-words [overflow-wrap:anywhere]">
                         {record.serviceType.replace(/_/g, " ")}
                       </p>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">

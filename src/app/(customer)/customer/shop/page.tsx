@@ -174,11 +174,11 @@ function SavedVehiclesFloatingButton({ savedVehicles, liftForTray }: { savedVehi
                             className="h-12 w-16 rounded-lg object-cover shrink-0 border border-border/30"
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-foreground truncate leading-snug">
+                            <p className="text-xs font-bold text-foreground break-words [overflow-wrap:anywhere] leading-snug">
                               {v.year} {v.make} {v.model}
                             </p>
                             {v.trim && (
-                              <p className="text-[11px] text-muted-foreground truncate">{v.trim}</p>
+                              <p className="text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">{v.trim}</p>
                             )}
                             <p className="text-xs font-black text-primary mt-0.5">
                               {Number(v.price) > 0 ? `$${v.price.toLocaleString()}` : "Price Pending"}

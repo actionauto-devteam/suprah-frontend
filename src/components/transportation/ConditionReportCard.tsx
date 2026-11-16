@@ -121,7 +121,8 @@ function StopReport({
           </p>
 
           {report.photos.length > 0 ? (
-            <div className="grid grid-cols-4 gap-1.5">
+            // Same-size squares; each part label sits under its photo and wraps (2026-11-14).
+            <div className="grid grid-cols-4 items-start gap-1.5">
               {report.photos.map((photo) =>
                 photo.url ? (
                   <a
@@ -134,19 +135,28 @@ function StopReport({
                         ? `Open the ${(CONDITION_AREA_LABELS[photo.area] ?? photo.area).toLowerCase()} photo in a new tab`
                         : "Open photo in a new tab"
                     }
-                    className="relative block aspect-square overflow-hidden rounded-md border border-border bg-muted"
+                    className="flex min-w-0 flex-col gap-0.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt="Vehicle condition photo" className="size-full object-cover" />
+                    <span className="relative block aspect-square overflow-hidden rounded-md border border-border bg-muted">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.url} alt="Vehicle condition photo" className="size-full object-cover" />
+                    </span>
                     {photo.area && (
-                      <span className="absolute bottom-0.5 left-0.5 max-w-[calc(100%-0.25rem)] truncate rounded bg-black/65 px-1 py-px text-[11px] font-semibold text-white">
+                      <span className="break-words text-[11px] font-semibold leading-tight text-muted-foreground [overflow-wrap:anywhere]">
                         {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
                       </span>
                     )}
                   </a>
                 ) : (
-                  <div key={photo.id} className="flex aspect-square items-center justify-center rounded-md border border-border bg-muted">
-                    <ImageIcon className="size-4 text-muted-foreground" />
+                  <div key={photo.id} className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex aspect-square items-center justify-center rounded-md border border-border bg-muted">
+                      <ImageIcon className="size-4 text-muted-foreground" />
+                    </div>
+                    {photo.area && (
+                      <span className="break-words text-[11px] font-semibold leading-tight text-muted-foreground [overflow-wrap:anywhere]">
+                        {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
+                      </span>
+                    )}
                   </div>
                 ),
               )}

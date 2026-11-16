@@ -324,19 +324,17 @@ function ConditionPhotos({
       )}
 
       {photos.length > 0 || uploading > 0 ? (
-        <div className="grid grid-cols-3 gap-2">
+        // Each photo keeps the same square size; its part label sits under it
+        // and wraps, instead of being cut off on top of the photo (2026-11-14).
+        <div className="grid grid-cols-3 items-start gap-2">
           {photos.map((photo) => (
-            <div key={photo.id} className="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
+            <div key={photo.id} className="flex min-w-0 flex-col gap-1">
+            <div className="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
               {photo.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photo.url} alt="Vehicle condition photo" className="size-full object-cover" />
               ) : (
                 <ImageIcon className="m-auto size-6 text-muted-foreground" />
-              )}
-              {photo.area && (
-                <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                  {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
-                </span>
               )}
               {editable && (
                 <button
@@ -350,6 +348,12 @@ function ConditionPhotos({
                     {removingId === photo.id ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
                   </span>
                 </button>
+              )}
+            </div>
+              {photo.area && (
+                <span className="break-words text-[11px] font-semibold leading-tight text-muted-foreground [overflow-wrap:anywhere]">
+                  {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
+                </span>
               )}
             </div>
           ))}
@@ -582,7 +586,7 @@ function ConditionDamage({
             const partPhotos = photos.filter((photo) => photo.area === area)
             return (
               <div key={area} className="flex min-w-0 items-center gap-2 rounded-lg border border-border/60 px-2.5 py-1.5">
-                <span className="min-w-0 flex-1 truncate text-xs font-medium">{label}</span>
+                <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-xs font-medium">{label}</span>
                 {partPhotos.map((photo) =>
                   photo.url ? (
                     // eslint-disable-next-line @next/next/no-img-element

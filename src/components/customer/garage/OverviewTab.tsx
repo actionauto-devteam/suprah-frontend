@@ -318,7 +318,7 @@ export function OverviewTab() {
                         </span>
                       )}
                       {abs === 0 && (
-                        <span className="absolute bottom-3 right-3 text-xs font-bold text-white/90 bg-black/40 backdrop-blur-sm rounded-full px-2.5 py-1 max-w-[60%] truncate">
+                        <span className="absolute bottom-3 right-3 text-xs font-bold text-white/90 bg-black/40 backdrop-blur-sm rounded-xl px-2.5 py-1 max-w-[60%] text-right break-words [overflow-wrap:anywhere]">
                           {v.year} {v.make} {v.model}
                         </span>
                       )}
@@ -391,10 +391,10 @@ export function OverviewTab() {
               return (
                 <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-border/30 min-h-14">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-foreground truncate leading-snug">
+                    <p className="text-sm font-bold text-foreground break-words [overflow-wrap:anywhere] leading-snug">
                       {active.year} {active.make} {active.model}
                     </p>
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                    <p className="text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere] mt-0.5">
                       {active.trim || " "}
                     </p>
                   </div>
@@ -573,7 +573,7 @@ export function OverviewTab() {
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground truncate leading-snug">
+                    <p className="text-xs font-bold text-foreground break-words [overflow-wrap:anywhere] leading-snug">
                       {appt.title || "Service Appointment"}
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -649,13 +649,13 @@ export function OverviewTab() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn(
-                      "text-xs leading-snug truncate",
+                      "text-xs leading-snug break-words [overflow-wrap:anywhere]",
                       notif.isRead ? "font-medium text-foreground/80" : "font-bold text-foreground",
                     )}>
                       {notif.title}
                     </p>
                     {/* Two readable lines of each update instead of one tiny cut-off line (2026-11-09). */}
-                    <p className="mt-0.5 line-clamp-2 break-words text-xs text-muted-foreground">{notif.message}</p>
+                    <p className="mt-0.5 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{notif.message}</p>
                   </div>
                   {!notif.isRead && (
                     <span className="shrink-0 mt-1.5 h-2 w-2 rounded-full bg-primary" />

@@ -195,7 +195,7 @@ function StatusRow({
               isActive && theme.glow,
             )}
           />
-          <span className={cn("truncate text-sm", isActive && "font-semibold")}>
+          <span className={cn("break-words [overflow-wrap:anywhere] text-sm", isActive && "font-semibold")}>
             {label ?? status}
           </span>
         </span>

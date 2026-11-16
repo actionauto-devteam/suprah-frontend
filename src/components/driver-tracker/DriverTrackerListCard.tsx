@@ -857,11 +857,11 @@ export function DriverTrackerListCard({
                         >
                           <Package className="size-3 text-primary shrink-0" />
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-bold truncate">
+                            <p className="text-sm font-bold break-words [overflow-wrap:anywhere]">
                               {s.trackingNumber || s.id}
                             </p>
                             {(s.origin || s.destination) && (
-                              <p className="text-xs text-muted-foreground/80 truncate">
+                              <p className="text-xs text-muted-foreground/80 break-words [overflow-wrap:anywhere]">
                                 {s.origin} → {s.destination}
                               </p>
                             )}

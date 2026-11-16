@@ -2173,7 +2173,7 @@ export default function DriverDashboardPage() {
                 ) : (
                   <LocateFixed className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                 )}
-                <span className="truncate">{followingLive ? "Following your location" : "Follow my location"}</span>
+                <span className="break-words [overflow-wrap:anywhere]">{followingLive ? "Following your location" : "Follow my location"}</span>
               </button>
 
               <div
