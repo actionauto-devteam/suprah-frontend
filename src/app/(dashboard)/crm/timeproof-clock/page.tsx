@@ -148,6 +148,17 @@ function getDeviceHint() {
   return "desktop-web"
 }
 
+async function getCrmTokenFromMainSession(mainToken: string): Promise<string | null> {
+  const headers = { Authorization: `Bearer ${mainToken}` }
+  const viaSession = await apiClient.post("/api/supraspace/session-token", {}, { headers })
+    .then((res) => res.data?.data?.token as string | undefined)
+    .catch(() => undefined)
+  if (viaSession) return viaSession
+  return apiClient.get("/api/auth/crm-sso", { headers })
+    .then((res) => (res.data?.data?.token as string | undefined) || null)
+    .catch(() => null)
+}
+
 async function isSwitchingCrmSession(crmToken: string): Promise<boolean> {
   try {
     const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${crmToken}` } })
@@ -641,7 +652,7 @@ export default function TimeprofClockPage() {
 
   React.useEffect(() => {
     const check = async () => {
-      const crmT = localStorage.getItem("crm_token")
+      let crmT = localStorage.getItem("crm_token")
       const mainToken = getWindowAuthToken() || null
 
       if (mainToken) {
@@ -660,6 +671,11 @@ export default function TimeprofClockPage() {
             }
           }
         } catch { }
+      }
+
+      if (!crmT && mainToken) {
+        crmT = await getCrmTokenFromMainSession(mainToken)
+        if (crmT) localStorage.setItem("crm_token", crmT)
       }
 
       if (crmT) {
