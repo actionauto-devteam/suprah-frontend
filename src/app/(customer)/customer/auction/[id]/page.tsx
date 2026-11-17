@@ -51,8 +51,8 @@ function SpecGrid({ rows }: { rows: { label: string; value?: string }[] }) {
     <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
       {visible.map((row) => (
         <div key={row.label} className="min-w-0">
-          <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{row.label}</dt>
-          <dd className="truncate text-xs font-semibold text-foreground">{row.value}</dd>
+          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{row.label}</dt>
+          <dd className="min-w-0 break-words [overflow-wrap:anywhere] text-xs font-semibold text-foreground whitespace-normal">{row.value}</dd>
         </div>
       ))}
     </dl>
@@ -158,7 +158,7 @@ export default function ListingDetailPage() {
             <ChevronLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-black tracking-tight text-foreground sm:text-xl">
+            <h1 className="min-w-0 break-words [overflow-wrap:anywhere] text-lg font-black tracking-tight text-foreground sm:text-xl whitespace-normal">
               {getListingTitle(listing)}
             </h1>
             <div className="flex items-center gap-2">
@@ -284,13 +284,13 @@ export default function ListingDetailPage() {
                 </div>
               )}
               {mainPhoto && (
-                <span className="absolute left-3 bottom-3 rounded-full bg-background/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold text-foreground">
+                <span className="absolute left-3 bottom-3 rounded-full bg-background/80 backdrop-blur-sm px-2.5 py-1 text-[11px] font-bold text-foreground">
                   {PHOTO_SLOT_META[mainPhoto.slot].label}
                 </span>
               )}
             </div>
             {photos.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto p-3">
+              <div className="flex flex-wrap gap-2 p-3">
                 {photos.map((photo, i) => (
                   <button
                     key={`${photo.slot}-${photo.url}`}
@@ -343,13 +343,13 @@ export default function ListingDetailPage() {
             />
             {listing.accidentNotes && (
               <div className="mt-3 rounded-xl bg-muted/50 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Accident Notes</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Accident Notes</p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground">{listing.accidentNotes}</p>
               </div>
             )}
             {listing.knownIssues && (
               <div className="mt-3 rounded-xl bg-muted/50 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Known Issues</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Known Issues</p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground">{listing.knownIssues}</p>
               </div>
             )}
@@ -358,7 +358,7 @@ export default function ListingDetailPage() {
                 {listing.features.map((feature) => (
                   <span
                     key={feature}
-                    className="rounded-full border border-border/50 bg-muted/50 px-2.5 py-1 text-[10px] font-semibold text-foreground"
+                    className="rounded-full border border-border/50 bg-muted/50 px-2.5 py-1 text-[11px] font-semibold text-foreground"
                   >
                     {feature}
                   </span>

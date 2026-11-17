@@ -196,17 +196,19 @@ function CompareContent() {
         </div>
       </div>
 
-      {/* Comparison table — scrollable on mobile */}
-      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      {/* Comparison table. On phones each detail's label is a full-width row
+          heading with the cars' values in columns below it, so nothing scrolls
+          sideways (2026-11-17); larger screens keep the label column. */}
+      <div>
         <div
-          className="min-w-140"
-          style={{ display: "grid", gridTemplateColumns: `180px repeat(${colCount}, 1fr)`, gap: "0" }}
+          className="grid grid-cols-[repeat(var(--compare-cols),minmax(0,1fr))] sm:grid-cols-[180px_repeat(var(--compare-cols),minmax(0,1fr))]"
+          style={{ "--compare-cols": colCount } as React.CSSProperties}
         >
           {/* ── Vehicle header row ── */}
           {/* Empty label cell */}
-          <div className="p-3 border-b border-border/40" />
+          <div className="hidden p-3 border-b border-border/40 sm:block" />
           {vehicles.map((vehicle: Vehicle) => (
-            <div key={vehicle.id} className="p-3 border-b border-border/40 border-l border-l-border/20">
+            <div key={vehicle.id} className="min-w-0 p-2 border-b border-border/40 border-l border-l-border/20 sm:p-3">
               <div className="space-y-2">
                 <div className="relative overflow-hidden rounded-xl aspect-4/3 bg-muted">
                   <img
@@ -217,15 +219,15 @@ function CompareContent() {
                   />
                 </div>
                 <div>
-                  <p className="font-bold text-sm leading-snug text-foreground">
+                  <p className="font-bold text-sm leading-snug text-foreground break-words [overflow-wrap:anywhere] whitespace-normal">
                     {vehicle.year} {vehicle.make} {vehicle.model}
                   </p>
                   {vehicle.trim && (
-                    <p className="text-xs text-muted-foreground">{vehicle.trim}</p>
+                    <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere] whitespace-normal">{vehicle.trim}</p>
                   )}
                 </div>
                 {vehicle.status && (
-                  <Badge variant="secondary" className="text-[10px]">{vehicle.status}</Badge>
+                  <Badge variant="secondary" className="text-[11px]">{vehicle.status}</Badge>
                 )}
               </div>
             </div>
@@ -237,7 +239,7 @@ function CompareContent() {
               {/* Label cell */}
               <div
                 className={cn(
-                  "px-3 py-2.5 text-xs font-semibold text-muted-foreground border-b border-border/30",
+                  "col-span-full px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border/30 sm:col-span-1 sm:py-2.5",
                   rowIdx % 2 === 0 ? "bg-muted/20" : "bg-transparent",
                 )}
               >
@@ -256,7 +258,7 @@ function CompareContent() {
                   <div
                     key={vehicle.id}
                     className={cn(
-                      "px-3 py-2.5 text-sm border-b border-border/30 border-l border-l-border/20",
+                      "min-w-0 px-2 py-2 text-sm border-b border-border/30 border-l border-l-border/20 break-words [overflow-wrap:anywhere] sm:px-3 sm:py-2.5 whitespace-normal",
                       rowIdx % 2 === 0 ? "bg-muted/20" : "bg-transparent",
                     )}
                   >
@@ -264,7 +266,7 @@ function CompareContent() {
                       "font-medium",
                       isLowest ? "text-primary font-bold" : "text-foreground",
                     )}>
-                      {isLowest && <span className="mr-1 text-[10px] font-bold text-primary">▼</span>}
+                      {isLowest && <span className="mr-1 text-[11px] font-bold text-primary">▼</span>}
                       {formatted}
                     </span>
                   </div>
@@ -274,15 +276,15 @@ function CompareContent() {
           ))}
 
           {/* ── Action row ── */}
-          <div className="p-3 border-t border-border/40 bg-muted/10" />
+          <div className="hidden p-3 border-t border-border/40 bg-muted/10 sm:block" />
           {vehicles.map((vehicle: Vehicle) => (
             <div
               key={vehicle.id}
-              className="p-3 border-t border-border/40 border-l border-l-border/20 bg-muted/10 space-y-2"
+              className="min-w-0 p-2 border-t border-border/40 border-l border-l-border/20 bg-muted/10 space-y-2 sm:p-3"
             >
               <Button
                 size="sm"
-                className="w-full gap-1.5 text-xs font-bold"
+                className="h-auto min-h-8 w-full gap-1.5 whitespace-normal py-1.5 text-center text-xs font-bold leading-tight"
                 onClick={() => handleApplyNow(vehicle)}
               >
                 <DollarSign className="h-3.5 w-3.5" /> Apply for Financing
@@ -290,7 +292,7 @@ function CompareContent() {
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full gap-1.5 text-xs"
+                className="h-auto min-h-8 w-full gap-1.5 whitespace-normal py-1.5 text-center text-xs leading-tight"
                 onClick={() => handleCheckAvailability(vehicle)}
               >
                 <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" /> Inquire
@@ -298,7 +300,7 @@ function CompareContent() {
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full gap-1.5 text-xs"
+                className="h-auto min-h-8 w-full gap-1.5 whitespace-normal py-1.5 text-center text-xs leading-tight"
                 onClick={() => handleGetQuote(vehicle)}
               >
                 <TruckIcon className="h-3.5 w-3.5 text-emerald-500" /> Get Quote

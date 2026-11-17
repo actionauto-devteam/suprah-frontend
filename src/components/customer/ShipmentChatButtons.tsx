@@ -30,11 +30,11 @@ function ChatButton({
       variant="outline"
       onClick={() => onOpen(kind)}
       disabled={!chat.readable}
-      className="h-10 w-full justify-center gap-2 rounded-xl text-sm font-semibold sm:w-auto"
+      className="h-auto min-h-10 w-full justify-center gap-2 whitespace-normal rounded-xl py-2 text-sm font-semibold leading-tight sm:w-auto"
       aria-label={`${label}${unread ? ` (${unread})` : ""}`}
     >
       <Icon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{label}</span>
       {unread && (
         <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white" aria-hidden="true">
           {unread}

@@ -184,7 +184,7 @@ function DateSep({ date }: { date: string }) {
   return (
     <div className="flex items-center gap-3 my-4 px-4">
       <div className="flex-1 h-px bg-border/40" />
-      <span className="text-[10px] text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full border border-border/30">
+      <span className="text-[11px] text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full border border-border/30">
         {fmtDate(date)}
       </span>
       <div className="flex-1 h-px bg-border/40" />
@@ -242,7 +242,7 @@ function MessageBubble({
                 className="h-7.5 w-7.5 rounded-xl object-cover shadow-sm"
               />
             ) : (
-              <div className="h-7.5 w-7.5 rounded-xl flex items-center justify-center text-[10px] font-bold text-white shadow-sm bg-linear-to-br from-emerald-500 to-emerald-700">
+              <div className="h-7.5 w-7.5 rounded-xl flex items-center justify-center text-[11px] font-bold text-white shadow-sm bg-linear-to-br from-emerald-500 to-emerald-700">
                 {ini(ownName)}
               </div>
             )
@@ -343,10 +343,10 @@ function MessageBubble({
             >
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium truncate">
+                <p className="text-xs font-medium min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                   {att.originalName}
                 </p>
-                <p className="text-[10px] opacity-50">{fmtSize(att.size)}</p>
+                <p className="text-[11px] opacity-50">{fmtSize(att.size)}</p>
               </div>
               <Download className="h-3 w-3 shrink-0 opacity-50" />
             </a>
@@ -359,7 +359,7 @@ function MessageBubble({
               isOwn && "flex-row-reverse",
             )}
           >
-            <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+            <span className="text-[11px] text-muted-foreground/60 tabular-nums">
               {fmtTime(message.createdAt)}
             </span>
             {isOwn &&
@@ -413,7 +413,7 @@ function PendingFileItem({
           <FileText className="h-5 w-5 text-muted-foreground" />
         </div>
       )}
-      <p className="px-1 py-0.5 text-[9px] text-muted-foreground truncate">
+      <p className="px-1 py-0.5 text-[11px] text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
         {file.name}
       </p>
       <button
@@ -496,7 +496,7 @@ function ConversationListPanel({
                   </span>
                   <span
                     className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                      "rounded-full px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide",
                       c.resolved
                         ? "bg-muted text-muted-foreground"
                         : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
@@ -505,15 +505,15 @@ function ConversationListPanel({
                     {c.resolved ? "Resolved" : "Open"}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                <p className="text-[11px] text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] mt-0.5 whitespace-normal">
                   {c.lastMessage || "No messages yet"}
                 </p>
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                <p className="text-[11px] text-muted-foreground/60 mt-0.5">
                   {c.lastMessageAt ? fmtDate(c.lastMessageAt) : fmtDate(c.createdAt)}
                 </p>
               </div>
               {c.unreadCount > 0 && (
-                <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[10px] font-bold flex items-center justify-center px-1 shrink-0 mt-0.5">
+                <span className="h-4.5 min-w-4.5 rounded-full bg-linear-to-br from-violet-500 to-violet-700 text-white text-[11px] font-bold flex items-center justify-center px-1 shrink-0 mt-0.5 leading-none">
                   {c.unreadCount > 9 ? "9+" : c.unreadCount}
                 </span>
               )}
@@ -566,7 +566,7 @@ function ChatHeader({
         <div className="flex items-center gap-1.5">
           <p className="font-bold text-sm leading-none tracking-tight">Support Chat</p>
           {caseNumber != null && (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">
               Case #{caseNumber}
             </span>
           )}
@@ -605,7 +605,7 @@ function ChatHeader({
       >
         <History className="h-4 w-4" />
         {totalUnread > 0 && (
-          <span className="absolute -top-1 -right-1 h-3.5 min-w-3.5 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center px-0.5">
+          <span className="absolute -top-1 -right-1 h-3.5 min-w-3.5 rounded-full bg-violet-500 text-white text-[11px] font-bold flex items-center justify-center px-0.5 leading-none">
             {totalUnread > 9 ? "9+" : totalUnread}
           </span>
         )}
@@ -1033,7 +1033,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   ) : (
     <div className="shrink-0 px-3 pb-3 pt-2 space-y-1.5 border-t border-border/50">
       {pendingFiles.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex flex-wrap gap-1.5 pb-0.5">
           {pendingFiles.map((f, i) => (
             <PendingFileItem
               key={i}
@@ -1129,7 +1129,7 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
           >
             <MessageCircle className="h-6 w-6" />
             {unread > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+              <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center px-1 leading-none">
                 {unread > 9 ? "9+" : unread}
               </span>
             )}
