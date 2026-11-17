@@ -1486,22 +1486,29 @@ function InventoryContent() {
                     );
                   }
 
-                  return withShippingTag(
-                    vehicle.id,
-                    <PremiumVehicleCard
-                      key={vehicle.id}
-                      vehicle={vehicle}
-                      shippingPrice={shippingRates[vehicle.id]}
-                      onGetQuote={handleGetQuote}
-                      onVehicleClick={handleVehicleClick}
-                      onCheckAvailability={handleCheckAvailability}
-                      onApplyNow={handleApplyNow}
-                      onCallUs={handleCallUs}
-                      onVideo={handleVideo}
-                      onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
-                      showInventoryMeta
-                      imagePriority={vehicleIndex < 4}
-                    />
+                  // Computers and tablets: the card (8 rows) and its shipping
+                  // tag (a 9th row) share the grid's rows, so the same details
+                  // line up across every card in a row (subgrid, 2026-11-17).
+                  const shippingState = shippingStates.get(vehicle.id);
+                  return (
+                    <div key={vehicle.id} className="row-span-9 grid min-w-0 grid-rows-subgrid gap-0">
+                      <PremiumVehicleCard
+                        vehicle={vehicle}
+                        shippingPrice={shippingRates[vehicle.id]}
+                        onGetQuote={handleGetQuote}
+                        onVehicleClick={handleVehicleClick}
+                        onCheckAvailability={handleCheckAvailability}
+                        onApplyNow={handleApplyNow}
+                        onCallUs={handleCallUs}
+                        onVideo={handleVideo}
+                        onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
+                        showInventoryMeta
+                        imagePriority={vehicleIndex < 4}
+                      />
+                      <div className="min-w-0 pt-1.5 empty:hidden">
+                        {shippingState ? <VehicleShippingTag state={shippingState} /> : null}
+                      </div>
+                    </div>
                   );
                 }
 

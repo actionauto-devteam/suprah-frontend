@@ -28,7 +28,8 @@ test('the desktop card wraps every piece of text instead of cutting it off', () 
 });
 
 test('the photo header grows instead of hiding a long name', () => {
-  assert.match(premium, /className="relative grid grid-cols-1 overflow-hidden bg-zinc-950"/);
+  // min-h-min: its row in the shared grid is never smaller than the photo.
+  assert.match(premium, /className="@container relative grid min-h-min grid-cols-1 overflow-hidden bg-zinc-950"/);
   assert.match(premium, /<div className="col-start-1 row-start-1 aspect-16\/10" aria-hidden="true" \/>/);
   assert.doesNotMatch(premium, /absolute inset-x-0 bottom-0 z-10/);
   assert.doesNotMatch(premium, /absolute top-4 left-4/);
@@ -36,14 +37,31 @@ test('the photo header grows instead of hiding a long name', () => {
 });
 
 test('prices drop under their label on a narrow card', () => {
-  assert.equal(premium.match(/flex flex-wrap justify-between items-center gap-x-2/g)?.length, 2);
-  assert.match(premium, /ml-auto text-xl @min-\[20rem\]:text-2xl font-extrabold text-primary tabular-nums/);
+  assert.match(premium, /"flex flex-wrap items-center justify-between gap-x-2 pb-2"/);
+  assert.match(premium, /"@container flex flex-wrap justify-between items-center gap-x-2 bg-primary\/8/);
+  assert.match(premium, /ml-auto text-xl @min-\[16rem\]:text-2xl font-extrabold text-primary tabular-nums/);
   assert.match(premium, /mt-2\.5 flex flex-wrap items-center justify-between/);
 });
 
-test('the specs sit two by two unless the card is wide', () => {
-  assert.match(premium, /"grid-cols-2 gap-y-3 @min-\[26rem\]:grid-cols-4 @min-\[26rem\]:gap-y-0"/);
-  assert.equal(premium.match(/max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words \[overflow-wrap:anywhere\]/g)?.length, 3);
+test('the same details sit on the same rows across the cards of a grid row (2026-11-17)', () => {
+  // The card is a subgrid of the Inventory grid: 8 rows, plus a 9th for the
+  // shipping tag on the Inventory page. It can't be a size container (that
+  // would stop the subgrid), so container queries live inside it.
+  assert.match(premium, /"group relative row-span-8 grid grid-rows-subgrid gap-0 overflow-hidden rounded-2xl/);
+  assert.doesNotMatch(premium, /"@container group relative row-span-8/);
+  for (const row of ['Row 2: mileage and days on lot', 'Row 3: engine', 'Row 4: location', 'Rows 5–7: the price box', 'Row 8: the buttons']) {
+    assert.match(premium, new RegExp(`\\{/\\* ${row.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), row);
+  }
+  assert.match(premium, /"mx-4 mt-1 row-span-3 grid grid-rows-subgrid gap-0 rounded-xl border/);
+  assert.match(premium, /"row-span-2 rounded-lg border-l-4 border-primary bg-primary\/8 px-3 py-3/, 'Price Pending fills the two price rows');
+  assert.match(page, /<div key=\{vehicle\.id\} className="row-span-9 grid min-w-0 grid-rows-subgrid gap-0">/);
+  assert.match(page, /<div className="min-w-0 pt-1\.5 empty:hidden">\s*\{shippingState \? <VehicleShippingTag state=\{shippingState\} \/> : null\}/);
+});
+
+test('the price date says plainly when there is none', () => {
+  assert.equal(premium.match(/return "Not recorded";/g)?.length, 2);
+  assert.doesNotMatch(premium, /No price update recorded/);
+  assert.match(premium, /\{hasPrice \? "Price updated" : "Pricing pending"\}/);
 });
 
 test('list rows switch layout by their own width and never clip a long name', () => {

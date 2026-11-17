@@ -180,9 +180,9 @@ function PremiumVehicleCardComponent({
     Number.isFinite(vehicle.daysOnLot) ? Number(vehicle.daysOnLot) : 0,
   );
   const priceUpdatedLabel = React.useMemo(() => {
-    if (!vehicle.priceUpdatedAt) return "No price update recorded";
+    if (!vehicle.priceUpdatedAt) return "Not recorded";
     const date = new Date(vehicle.priceUpdatedAt);
-    if (Number.isNaN(date.getTime())) return "No price update recorded";
+    if (Number.isNaN(date.getTime())) return "Not recorded";
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
@@ -198,13 +198,16 @@ function PremiumVehicleCardComponent({
 
   return (
     <Card
-      className="@container group relative overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-primary/50 shadow-sm hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full cursor-pointer"
+      className="group relative row-span-8 grid grid-rows-subgrid gap-0 overflow-hidden rounded-2xl py-0 bg-card border border-border/60 hover:border-primary/50 shadow-sm hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 cursor-pointer"
       onClick={() => onVehicleClick?.(vehicle)}
     >
+      {/* The card can't be a size container (@container): that would stop it
+          being a subgrid. Container queries live on the header and the
+          one-time payment line instead (2026-11-17). */}
       {/* Premium Image Header. The photo keeps its 16:10 shape; when a long
           name or badge wraps onto more lines, the header grows taller instead
           of cutting the words off (2026-11-17). */}
-      <div className="relative grid grid-cols-1 overflow-hidden bg-zinc-950">
+      <div className="@container relative grid min-h-min grid-cols-1 overflow-hidden bg-zinc-950">
         <div className="col-start-1 row-start-1 aspect-16/10" aria-hidden="true" />
         {imgError ? (
           /* ── Unified fallback: single flex layout, no absolute layer conflicts ── */
@@ -320,146 +323,158 @@ function PremiumVehicleCardComponent({
         )}
       </div>
 
-      {/* Card Body */}
-      <div className="p-4 sm:p-5 flex flex-col flex-1 bg-linear-to-b from-transparent to-muted/30">
-        {/* Core Specs Grid */}
-        <div
-          className={cn(
-            "grid items-stretch py-4 border-b border-border/50 mb-4",
-            showInventoryMeta
-              ? "grid-cols-2 gap-y-3 @min-[26rem]:grid-cols-4 @min-[26rem]:gap-y-0"
-              : "grid-cols-3",
-          )}
-        >
-          <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
-            <GaugeIcon className="w-4 h-4 text-muted-foreground mb-1" />
-            <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
-              {safeMileage.toLocaleString()} mi
-            </span>
-          </div>
+      {/* Below the photo, one row per piece of information (2026-11-17). The
+          card is a subgrid of the Inventory grid, so each row is shared with
+          the other cards in the same grid row: mileage, engine, location, the
+          prices and the buttons start on the same line on every card, and a
+          longer engine name moves that row down on all of them together. The
+          card spans 8 rows; the Inventory page adds a 9th for the shipping tag. */}
 
-          {showInventoryMeta && (
-            <div className="flex min-w-0 flex-col items-center border-border/50 px-1 @min-[26rem]:border-r">
-              <Clock3 className="w-4 h-4 text-primary/70 mb-1" />
-              <span className="text-xs sm:text-sm font-semibold text-foreground">
-                {daysOnLot}d
-              </span>
-              <span className="text-[11px] text-muted-foreground uppercase tracking-wide text-center leading-tight">
-                Days on lot
-              </span>
-            </div>
-          )}
+      {/* Row 2: mileage and days on lot */}
+      <div
+        className={cn(
+          "mx-4 mt-4 grid border-b border-border/50 pb-3 sm:mx-5",
+          showInventoryMeta ? "grid-cols-2" : "grid-cols-1",
+        )}
+      >
+        <div className={cn("flex min-w-0 flex-col items-center px-1", showInventoryMeta && "border-r border-border/50")}>
+          <GaugeIcon className="w-4 h-4 text-muted-foreground mb-1" />
+          <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
+            {safeMileage.toLocaleString()} mi
+          </span>
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wide text-center leading-tight">
+            Mileage
+          </span>
+        </div>
 
-          <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
-            <div className="text-muted-foreground font-medium text-[11px] uppercase tracking-wider mb-1">
-              Eng
-            </div>
-            <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
-              {safeEngine}
-            </span>
-          </div>
-
+        {showInventoryMeta && (
           <div className="flex min-w-0 flex-col items-center px-1">
-            <MapPinIcon className="w-4 h-4 text-muted-foreground mb-1" />
-            <span className="max-w-full text-center text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
-              {safeLocation}
+            <Clock3 className="w-4 h-4 text-primary/70 mb-1" />
+            <span className="text-xs sm:text-sm font-semibold text-foreground">
+              {daysOnLot}d
+            </span>
+            <span className="text-[11px] text-muted-foreground uppercase tracking-wide text-center leading-tight">
+              Days on lot
             </span>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Financials Box */}
-        <div className="bg-muted/40 rounded-xl p-4 mb-6 border border-border/50">
-          {hasPrice ? (
-            <>
-              <div className="flex flex-wrap justify-between items-center gap-x-2 mb-2">
-                <span className="text-muted-foreground font-medium">
-                  Retail Price:
-                </span>
-                <span className="ml-auto text-muted-foreground/70 font-bold line-through decoration-2 text-lg tabular-nums">
-                  ${retailPrice.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex flex-wrap justify-between items-center gap-x-2 bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
-                <span className="text-foreground font-bold tracking-tight">
-                  One Time Payment:
-                </span>
-                <span className="ml-auto text-xl @min-[20rem]:text-2xl font-extrabold text-primary tabular-nums">
-                  ${memberPrice.toLocaleString()}
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-lg border-l-4 border-primary bg-primary/8 px-3 py-3 dark:bg-primary/12">
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Price</p>
-              <p className="mt-0.5 text-xl font-extrabold text-primary">Price Pending</p>
-              <p className="mt-1 text-xs text-muted-foreground">Pricing is being finalized.</p>
-            </div>
-          )}
+      {/* Row 3: engine */}
+      <div className="mx-4 flex min-w-0 items-start justify-between gap-3 border-b border-border/50 py-2.5 sm:mx-5">
+        <span className="shrink-0 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Engine
+        </span>
+        <span className="min-w-0 text-right text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
+          {safeEngine}
+        </span>
+      </div>
 
-          {showInventoryMeta && (
-            <div
-              className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-muted-foreground"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <span className="flex items-center gap-1 font-medium">
-                <CalendarClock className="h-3.5 w-3.5 text-primary/70" />
-                {hasPrice ? "Price update recorded" : "Pricing pending"}
+      {/* Row 4: location */}
+      <div className="mx-4 flex min-w-0 items-start justify-between gap-3 py-2.5 sm:mx-5">
+        <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <MapPinIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          Location
+        </span>
+        <span className="min-w-0 text-right text-xs sm:text-sm font-semibold text-foreground break-words [overflow-wrap:anywhere]">
+          {safeLocation}
+        </span>
+      </div>
+
+      {/* Rows 5–7: the price box (retail price, one-time payment, price updated) */}
+      <div className="mx-4 mt-1 row-span-3 grid grid-rows-subgrid gap-0 rounded-xl border border-border/50 bg-muted/40 px-4 py-3 sm:mx-5">
+        {hasPrice ? (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-x-2 pb-2">
+              <span className="text-muted-foreground font-medium">
+                Retail Price:
               </span>
-              <VehiclePriceHistoryDialog
-                vehicle={vehicle}
-                triggerLabel={priceUpdatedLabel}
-                triggerClassName="ml-auto font-semibold text-foreground/80 tabular-nums"
-              />
+              <span className="ml-auto text-muted-foreground/70 font-bold line-through decoration-2 text-lg tabular-nums">
+                ${retailPrice.toLocaleString()}
+              </span>
             </div>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div
-          className="mt-auto flex flex-col gap-2 sm:gap-2.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-            <Button
-              onClick={() => onCheckAvailability?.(vehicle)}
-              variant="outline"
-              className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
-            >
-              <CheckCircle2 className="w-4 h-4 mr-1.5 sm:mr-2 text-blue-500 shrink-0" />
-              Availability
-            </Button>
-            <Button
-              onClick={() => onVideo?.(vehicle)}
-              variant="outline"
-              className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
-            >
-              <Play className="w-4 h-4 mr-1.5 sm:mr-2 text-red-500 shrink-0" /> Video
-            </Button>
+            <div className="@container flex flex-wrap justify-between items-center gap-x-2 bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
+              <span className="text-foreground font-bold tracking-tight">
+                One Time Payment:
+              </span>
+              <span className="ml-auto text-xl @min-[16rem]:text-2xl font-extrabold text-primary tabular-nums">
+                ${memberPrice.toLocaleString()}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="row-span-2 rounded-lg border-l-4 border-primary bg-primary/8 px-3 py-3 dark:bg-primary/12">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Price</p>
+            <p className="mt-0.5 text-xl font-extrabold text-primary">Price Pending</p>
+            <p className="mt-1 text-xs text-muted-foreground">Pricing is being finalized.</p>
           </div>
+        )}
 
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-            <Button
-              onClick={() => onApplyNow?.(vehicle)}
-              className="w-full text-xs sm:text-sm h-11 font-semibold shadow-md"
-            >
-              Apply Now
-            </Button>
-            <Button
-              onClick={() => onCallUs?.(vehicle)}
-              variant="outline"
-              className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
-            >
-              <Phone className="w-4 h-4 mr-1.5 sm:mr-2 text-primary shrink-0" /> Call Us
-            </Button>
-          </div>
-
-          <Button
-            onClick={() => (onCreateLoad || onGetQuote)?.(vehicle)}
-            className="w-full shadow-md active:scale-[0.99] transition-all"
+        {showInventoryMeta ? (
+          <div
+            className="mt-2.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-muted-foreground"
+            onClick={(event) => event.stopPropagation()}
           >
-            <TruckIcon className="w-4 h-4 mr-2" /> Create Managed Load
+            <span className="flex items-center gap-1 font-medium">
+              <CalendarClock className="h-3.5 w-3.5 text-primary/70" />
+              {hasPrice ? "Price updated" : "Pricing pending"}
+            </span>
+            <VehiclePriceHistoryDialog
+              vehicle={vehicle}
+              triggerLabel={priceUpdatedLabel}
+              triggerClassName="ml-auto font-semibold text-foreground/80 tabular-nums"
+            />
+          </div>
+        ) : (
+          <div aria-hidden="true" />
+        )}
+      </div>
+
+      {/* Row 8: the buttons */}
+      <div
+        className="mx-4 mb-4 mt-4 flex flex-col gap-2 sm:mx-5 sm:mb-5 sm:gap-2.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+          <Button
+            onClick={() => onCheckAvailability?.(vehicle)}
+            variant="outline"
+            className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
+          >
+            <CheckCircle2 className="w-4 h-4 mr-1.5 sm:mr-2 text-blue-500 shrink-0" />
+            Availability
+          </Button>
+          <Button
+            onClick={() => onVideo?.(vehicle)}
+            variant="outline"
+            className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
+          >
+            <Play className="w-4 h-4 mr-1.5 sm:mr-2 text-red-500 shrink-0" /> Video
           </Button>
         </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+          <Button
+            onClick={() => onApplyNow?.(vehicle)}
+            className="w-full text-xs sm:text-sm h-11 font-semibold shadow-md"
+          >
+            Apply Now
+          </Button>
+          <Button
+            onClick={() => onCallUs?.(vehicle)}
+            variant="outline"
+            className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
+          >
+            <Phone className="w-4 h-4 mr-1.5 sm:mr-2 text-primary shrink-0" /> Call Us
+          </Button>
+        </div>
+
+        <Button
+          onClick={() => (onCreateLoad || onGetQuote)?.(vehicle)}
+          className="w-full shadow-md active:scale-[0.99] transition-all"
+        >
+          <TruckIcon className="w-4 h-4 mr-2" /> Create Managed Load
+        </Button>
       </div>
     </Card>
   );
