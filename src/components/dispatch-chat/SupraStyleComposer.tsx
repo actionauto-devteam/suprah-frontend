@@ -121,7 +121,7 @@ export function SupraStyleComposer({
 
       {emojiOpen && (
         <div className="absolute bottom-full right-0 z-20 mb-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-popover p-2 shadow-xl md:left-0 md:right-auto">
-          <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Quick emotes</p>
+          <p className="px-1 pb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">Quick emotes</p>
           <div className="grid grid-cols-8 gap-1">
             {emojis.map((emoji) => (
               <button
@@ -256,7 +256,7 @@ export function SupraStyleComposer({
           </div>
           <div className="flex items-center gap-2">
             {draft.length > maxLength - 500 && (
-              <span className="text-[10px] tabular-nums text-muted-foreground">
+              <span className="text-[11px] tabular-nums text-muted-foreground">
                 {draft.length}/{maxLength}
               </span>
             )}
