@@ -43,6 +43,13 @@ test('the Loads page uses current loads plus paged delivered loads', () => {
   assert.match(page, /hasMoreDelivered && !loadingMore && \(tab === 'completed' \|\| tab === 'all'\)/);
 });
 
+test('Load more drops a page that arrives after the search changed (2026-11-16)', () => {
+  const page = read('app/(driver)/driver/loads/page.tsx');
+  const loadMore = page.slice(page.indexOf('if (append) {'), page.indexOf('setDeliveredLoads((prev) => appendDeliveredLoads('));
+  assert.ok(loadMore.includes('const res = await apiClient.get(deliveredLoadsUrl(pageNum, search), { headers });'));
+  assert.ok(loadMore.includes('if (search !== deliveredSearchRef.current) return;'));
+});
+
 test('the dashboard and Schedule ask for current loads only', () => {
   assert.match(read('app/(driver)/driver/page.tsx'), /my-loads\?view=current/);
   assert.match(read('app/(driver)/driver/schedule/page.tsx'), /my-loads\?view=current/);
