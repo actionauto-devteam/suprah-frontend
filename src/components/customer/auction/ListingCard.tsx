@@ -30,14 +30,14 @@ export function ListingCard({ listing }: { listing: AuctionListing }) {
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground/40">
             <CarFront className="h-8 w-8" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">No photos yet</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">No photos yet</span>
           </div>
         )}
         <div className="absolute left-2.5 top-2.5">
           <ListingStatusBadge status={listing.status} className="backdrop-blur-sm bg-background/80" />
         </div>
         {listing.photos.length > 0 && (
-          <span className="absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full bg-background/80 backdrop-blur-sm px-2 py-0.5 text-[10px] font-semibold text-foreground tabular-nums">
+          <span className="absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full bg-background/80 backdrop-blur-sm px-2 py-0.5 text-[11px] font-semibold text-foreground tabular-nums">
             <Camera className="h-3 w-3" />
             {listing.photos.length}
           </span>
@@ -45,7 +45,7 @@ export function ListingCard({ listing }: { listing: AuctionListing }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5 p-3.5">
-        <p className="text-sm font-bold text-foreground truncate">{getListingTitle(listing)}</p>
+        <p className="text-sm font-bold text-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{getListingTitle(listing)}</p>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {listing.mileage ? (
             <span className="inline-flex items-center gap-1 tabular-nums">
@@ -55,7 +55,7 @@ export function ListingCard({ listing }: { listing: AuctionListing }) {
           ) : (
             <span>Mileage not set</span>
           )}
-          {listing.trim && <span className="truncate">· {listing.trim}</span>}
+          {listing.trim && <span className="min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">· {listing.trim}</span>}
         </div>
         <div className="mt-auto flex items-center justify-between pt-1.5">
           {price ? (
@@ -64,7 +64,7 @@ export function ListingCard({ listing }: { listing: AuctionListing }) {
             <span className="text-xs font-semibold text-muted-foreground">Price not set</span>
           )}
           {listing.isNegotiable && price && (
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Negotiable</span>
+            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Negotiable</span>
           )}
         </div>
       </div>

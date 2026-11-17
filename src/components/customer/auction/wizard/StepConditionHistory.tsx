@@ -52,7 +52,7 @@ export function StepConditionHistory({ form, patch }: { form: WizardForm; patch:
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-foreground">{c.label}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{c.description}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">{c.description}</p>
               </div>
             </button>
           ))}
@@ -86,7 +86,7 @@ export function StepConditionHistory({ form, patch }: { form: WizardForm; patch:
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-foreground">{t.label}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight">{t.description}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">{t.description}</p>
               </div>
             </button>
           ))}
@@ -120,7 +120,7 @@ export function StepConditionHistory({ form, patch }: { form: WizardForm; patch:
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold text-foreground">Has it been in an accident?</p>
-            <p className="text-[10px] text-muted-foreground">Be honest — this is verified during review.</p>
+            <p className="text-[11px] text-muted-foreground">Be honest — this is verified during review.</p>
           </div>
           <Switch
             checked={form.hasAccidentHistory}
@@ -140,7 +140,7 @@ export function StepConditionHistory({ form, patch }: { form: WizardForm; patch:
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3.5">
         <div className="min-w-0">
           <p className="text-xs font-bold text-foreground">Service records available?</p>
-          <p className="text-[10px] text-muted-foreground">Maintenance history helps your car sell faster.</p>
+          <p className="text-[11px] text-muted-foreground">Maintenance history helps your car sell faster.</p>
         </div>
         <Switch
           checked={form.hasServiceHistory}

@@ -83,7 +83,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white leading-none">
               {dealerName}
             </p>
-            <p className="text-[10px] tracking-[0.16em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
+            <p className="text-[11px] tracking-[0.16em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
               Jiffy Lube Partner
             </p>
           </div>
@@ -117,15 +117,15 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
               </linearGradient>
             </defs>
           </svg>
-          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>{tierName} Member</span>
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>{tierName} Member</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
         </div>
 
         {/* Cardholder */}
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Cardholder</p>
-            <p className="text-xs font-bold tracking-widest uppercase text-white leading-tight truncate max-w-44">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Cardholder</p>
+            <p className="text-xs font-bold tracking-widest uppercase text-white leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-44 whitespace-normal">
               {memberName}
             </p>
             <p className="font-mono text-[11px] font-semibold tracking-[0.12em] mt-0.5" style={{ color: `${tierPrimary}e6` }}>
@@ -133,7 +133,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Since</p>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Since</p>
             <p className="font-mono text-white/85 text-[11px] font-semibold">{sinceYear}</p>
           </div>
         </div>
@@ -147,14 +147,14 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
           }}
         >
           <div
-            className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white"
+            className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white leading-none"
             style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
           >
             JS
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-bold text-white/90 leading-tight">{dealerName} Customer Benefit</p>
-            <p className="text-[10px] text-white/70 leading-snug mt-0.5">
+            <p className="text-[11px] text-white/70 leading-snug mt-0.5">
               {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services at participating locations
             </p>
           </div>
@@ -163,7 +163,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
       </div>
 
       {onClick && (
-        <span className="absolute bottom-2 right-2.5 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/85 backdrop-blur-sm">
+        <span className="absolute bottom-2 right-2.5 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white/85 backdrop-blur-sm">
           Tap to view
         </span>
       )}

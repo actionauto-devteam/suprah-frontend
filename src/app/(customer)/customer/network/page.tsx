@@ -518,7 +518,7 @@ export default function ServiceNetworkPage() {
                   }`}
               >
                 {userCoords && i === 0 && (
-                  <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 font-bold uppercase tracking-wider rounded-bl-lg">
+                  <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[11px] px-1.5 py-0.5 font-bold uppercase tracking-wider rounded-bl-lg">
                     Closest
                   </div>
                 )}

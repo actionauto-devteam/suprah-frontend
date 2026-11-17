@@ -33,7 +33,7 @@ export function ListingStatusTimeline({ listing }: { listing: AuctionListing }) 
             <div className={cn("min-w-0 flex-1", !isLast && "pb-4")}>
               <p className="text-xs font-bold text-foreground">{meta.label}</p>
               {event.note && <p className="text-xs text-muted-foreground">{event.note}</p>}
-              <p className="text-[10px] text-muted-foreground/70 tabular-nums">{formatDate(event.at)}</p>
+              <p className="text-[11px] text-muted-foreground/70 tabular-nums">{formatDate(event.at)}</p>
             </div>
           </div>
         );
@@ -51,7 +51,7 @@ export function ListingStatusTimeline({ listing }: { listing: AuctionListing }) 
             <p className="text-xs text-muted-foreground leading-relaxed">
               Dealership review is a work in progress — your listing will stay under review for now. We&apos;ll notify you once a decision is made.
             </p>
-            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
               <Clock className="h-3 w-3" />
               Pending
             </span>

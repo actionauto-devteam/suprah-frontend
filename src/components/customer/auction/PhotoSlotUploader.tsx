@@ -100,7 +100,7 @@ export function PhotoSlotUploader({
             className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground/60 hover:text-muted-foreground transition-colors"
           >
             <Camera className="h-5 w-5" />
-            <span className="text-[10px] font-medium px-2 text-center leading-tight">{description}</span>
+            <span className="text-[11px] font-medium px-2 text-center leading-tight">{description}</span>
           </button>
         )}
 
@@ -112,7 +112,7 @@ export function PhotoSlotUploader({
       </div>
 
       <div className="flex items-center justify-between px-0.5">
-        <span className="text-[11px] font-semibold text-foreground truncate">{label}</span>
+        <span className="text-[11px] font-semibold text-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{label}</span>
         {required && (
           <span
             className={cn(

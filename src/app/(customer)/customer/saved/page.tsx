@@ -130,7 +130,7 @@ function WishlistContent() {
             <div className="space-y-2.5 min-w-0">
               <div className="flex items-center gap-2">
                 <Heart className="h-3 w-3 fill-rose-500 text-rose-500 shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-rose-500/80">
+                <span className="text-[11px] font-black uppercase tracking-[0.25em] text-rose-500/80">
                   Saved Vehicles
                 </span>
               </div>
@@ -308,7 +308,7 @@ function WishlistContent() {
                     <div className="h-14 w-20 shrink-0 rounded-lg bg-muted" aria-hidden="true" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground" title={name}>{name}</p>
+                    <p className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-semibold text-foreground whitespace-normal" title={name}>{name}</p>
                     <p className="text-xs text-muted-foreground">No longer available</p>
                   </div>
                   <Button

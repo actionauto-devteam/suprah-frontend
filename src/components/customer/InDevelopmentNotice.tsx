@@ -40,7 +40,7 @@ export function InDevelopmentNotice() {
         <div className="min-w-0 space-y-1.5 text-sm">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-black text-foreground">Still under development</span>
-            <span className="rounded-full border border-emerald-500/30 bg-background/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+            <span className="rounded-full border border-emerald-500/30 bg-background/60 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
               Suprah AI
             </span>
           </p>

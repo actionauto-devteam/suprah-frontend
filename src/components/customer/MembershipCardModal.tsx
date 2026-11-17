@@ -107,7 +107,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 <p className="text-xs font-black tracking-[0.22em] uppercase text-white leading-none">
                   {dealerName}
                 </p>
-                <p className="text-[10px] tracking-[0.18em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
+                <p className="text-[11px] tracking-[0.18em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
                   Jiffy Lube Partner
                 </p>
               </div>
@@ -169,8 +169,8 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
             <div className="flex items-end justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/70 mb-1">Cardholder</p>
-                <p className="text-sm font-bold tracking-[0.12em] uppercase text-white leading-none truncate max-w-40">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/70 mb-1">Cardholder</p>
+                <p className="text-sm font-bold tracking-[0.12em] uppercase text-white leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-40 whitespace-normal">
                   {memberName}
                 </p>
                 <p className="font-mono text-xs font-semibold tracking-[0.14em] mt-1" style={{ color: `${tierPrimary}e6` }}>
@@ -178,7 +178,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/70 mb-1">Since</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/70 mb-1">Since</p>
                 <p className="font-mono text-white/85 text-xs font-semibold">{sinceYear}</p>
               </div>
             </div>
