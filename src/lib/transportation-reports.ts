@@ -766,7 +766,8 @@ export function generateBolHtml(load: Load, companyName: string = "Your Dealersh
       .footer {
         margin-top: 9pt;
         padding-top: 6pt;
-        font-size: 8pt;
+        /* 11px on screen, like all other text (2026-11-18). */
+        font-size: 8.25pt;
       }
 
       .table-wrap {

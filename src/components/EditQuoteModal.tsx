@@ -262,7 +262,7 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-bold text-primary uppercase">Origin</p>
+                                    <p className="text-[11px] font-bold text-primary uppercase">Origin</p>
 
                                     <div>
                                         <label className={labelClass}>Location Name — Optional</label>
@@ -333,7 +333,7 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                                 </div>
 
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-bold text-rose-500 uppercase">Destination</p>
+                                    <p className="text-[11px] font-bold text-rose-500 uppercase">Destination</p>
 
                                     <div>
                                         <label className={labelClass}>Location Name — Optional</label>
@@ -484,7 +484,7 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                                 <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
                                     <div>
                                         <p className="text-sm font-bold">Enclosed Trailer</p>
-                                        <p className="text-[10px] text-muted-foreground font-medium">Ship vehicle in an enclosed trailer</p>
+                                        <p className="text-[11px] text-muted-foreground font-medium">Ship vehicle in an enclosed trailer</p>
                                     </div>
                                     <button
                                         type="button"
@@ -506,7 +506,7 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                                 <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-background">
                                     <div>
                                         <p className="text-sm font-bold">Vehicle Inoperable</p>
-                                        <p className="text-[10px] text-muted-foreground font-medium">Vehicle cannot be driven onto the carrier</p>
+                                        <p className="text-[11px] text-muted-foreground font-medium">Vehicle cannot be driven onto the carrier</p>
                                     </div>
                                     <button
                                         type="button"

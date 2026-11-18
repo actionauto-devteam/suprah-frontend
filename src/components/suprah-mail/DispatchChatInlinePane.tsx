@@ -936,18 +936,18 @@ export function DispatchChatInlinePane({
 
           <Avatar className="size-9 shrink-0 border border-emerald-500/25">
             {resolvedAvatar && <AvatarImage src={resolvedAvatar} alt={resolvedDriverName} className="object-cover" />}
-            <AvatarFallback className="bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+            <AvatarFallback className="bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
               {initials(resolvedDriverName)}
             </AvatarFallback>
           </Avatar>
 
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <p className="truncate text-base font-black">{resolvedDriverName}</p>
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              <p className="min-w-0 break-words [overflow-wrap:anywhere] text-base font-black whitespace-normal">{resolvedDriverName}</p>
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 <ShieldCheck className="size-2.5" /> Private
               </span>
-              <span className="rounded-full border border-border/60 px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+              <span className="rounded-full border border-border/60 px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">
                 {statusLabel(driver.status)}
               </span>
             </div>
@@ -961,7 +961,7 @@ export function DispatchChatInlinePane({
                   {(primaryLoad.origin || primaryLoad.destination) && (
                     <>
                       <Route className="hidden size-3 shrink-0 sm:block" />
-                      <span className="min-w-0 truncate">
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                         {primaryLoad.origin || "Origin"} → {primaryLoad.destination || "Destination"}
                       </span>
                     </>
@@ -1110,7 +1110,7 @@ export function DispatchChatInlinePane({
                       <div className="mb-1 flex items-center gap-1.5 px-1 text-[11.5px] font-semibold text-muted-foreground">
                         {mine ? "You" : message.sender?.name || "Driver"}
                         {!mine && (
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide">
                             Driver
                           </span>
                         )}
@@ -1138,7 +1138,7 @@ export function DispatchChatInlinePane({
                         ))}
                       </div>
 
-                      <div className="mt-1 flex items-center gap-1 px-1 text-[10.5px] font-medium text-muted-foreground">
+                      <div className="mt-1 flex items-center gap-1 px-1 text-[11px] font-medium text-muted-foreground">
                         {formatDispatchChatTime(message.createdAt)}
                         {mine && message.readBy.length > 1 && (
                           <>
@@ -1185,7 +1185,7 @@ export function DispatchChatInlinePane({
               className="absolute bottom-[calc(100%-4px)] left-3 z-20 mb-2 w-[min(16rem,calc(100cqw-1.5rem))] rounded-2xl border border-border p-2 shadow-xl"
               style={{ background: "var(--bg-elevated)" }}
             >
-              <p className="px-1 pb-1.5 text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="px-1 pb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                 Quick emotes
               </p>
               <div className="grid grid-cols-8 gap-1">

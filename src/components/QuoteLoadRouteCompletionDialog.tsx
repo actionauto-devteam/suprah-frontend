@@ -92,7 +92,7 @@ function LocationEditor({
       </div>
 
       <label className="block">
-        <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-muted-foreground">
           Street Address <span className="text-destructive">*</span>
         </span>
         <input
@@ -113,7 +113,7 @@ function LocationEditor({
 
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_130px] gap-3">
         <label className="block">
-          <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-muted-foreground">
             City <span className="text-destructive">*</span>
           </span>
           <input
@@ -133,7 +133,7 @@ function LocationEditor({
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-muted-foreground">
             State <span className="text-destructive">*</span>
           </span>
           <select
@@ -166,7 +166,7 @@ function LocationEditor({
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-[11px] font-black uppercase tracking-wider text-muted-foreground">
             ZIP <span className="text-destructive">*</span>
           </span>
           <input

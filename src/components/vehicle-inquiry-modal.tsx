@@ -55,7 +55,7 @@ type InquiryData = z.infer<typeof InquirySchema>;
 function ErrorMsg({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <div className="text-[10px] font-bold uppercase tracking-tight text-red-500 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+    <div className="text-[11px] font-bold uppercase tracking-tight text-red-500 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
       <AlertCircle className="w-3 h-3" /> {message}
     </div>
   );
@@ -238,11 +238,11 @@ export function VehicleInquiryModal({
               </div>
 
               <div className="min-w-0 flex flex-col justify-center py-1.5">
-                <p className="text-[15px] xs:text-base font-extrabold leading-tight text-zinc-900 dark:text-white line-clamp-2">
+                <p className="text-[15px] xs:text-base font-extrabold leading-tight text-zinc-900 dark:text-white break-words [overflow-wrap:anywhere] whitespace-normal">
                   {vehicle.year} {vehicle.make} {vehicle.model}
                 </p>
                 {vehicle.trim && (
-                  <p className="mt-1.5 line-clamp-2 text-[11px] xs:text-xs font-medium leading-snug text-zinc-500 dark:text-zinc-400">
+                  <p className="mt-1.5 text-[11px] xs:text-xs font-medium leading-snug text-zinc-500 dark:text-zinc-400 break-words [overflow-wrap:anywhere] whitespace-normal">
                     {vehicle.trim}
                   </p>
                 )}
@@ -252,7 +252,7 @@ export function VehicleInquiryModal({
                     {Number(vehicle.price) > 0 ? `$${vehicle.price.toLocaleString()}` : "Price Pending"}
                   </span>
                   {vehicle.stockNumber && (
-                    <span className="text-[10px] xs:text-[11px] text-zinc-500">
+                    <span className="text-[11px] text-zinc-500">
                       Stock #{vehicle.stockNumber}
                     </span>
                   )}
@@ -431,7 +431,7 @@ export function VehicleInquiryModal({
                     </div>
                   )}
                 </Button>
-                <p className="text-[10px] text-zinc-400 text-center uppercase tracking-widest font-medium pt-2">
+                <p className="text-[11px] text-zinc-400 text-center uppercase tracking-widest font-medium pt-2">
                   Secure & Private Inquiries
                 </p>
               </form>

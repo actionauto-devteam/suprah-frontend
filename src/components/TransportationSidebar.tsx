@@ -141,7 +141,7 @@ function SectionLabel({
   children: React.ReactNode;
 }) {
   return (
-    <p className="text-[10px] sm:text-[11px] font-black text-muted-foreground/70 uppercase tracking-[0.18em] mb-1.5 sm:mb-2 flex items-center gap-1.5 select-none">
+    <p className="text-[11px] font-black text-muted-foreground/70 uppercase tracking-[0.18em] mb-1.5 sm:mb-2 flex items-center gap-1.5 select-none">
       <Icon className="size-3" /> {children}
     </p>
   );
@@ -193,7 +193,7 @@ function StatusRow({
           />
           <span
             className={cn(
-              "truncate text-xs sm:text-sm",
+              "min-w-0 break-words [overflow-wrap:anywhere] text-xs sm:text-sm whitespace-normal",
               isActive && "font-semibold",
             )}
           >
@@ -248,7 +248,7 @@ function MobileCollapsibleSection({
   return (
     <section>
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-black text-muted-foreground/70 uppercase tracking-[0.18em] flex items-center gap-1.5 select-none">
+        <p className="text-[11px] font-black text-muted-foreground/70 uppercase tracking-[0.18em] flex items-center gap-1.5 select-none">
           <Icon className="size-3" />
           {title}
         </p>
@@ -322,7 +322,7 @@ export function TransportationMobileStatusPanel({
                 <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
                 <span className="flex items-end justify-between gap-2">
                   <span className="min-w-0">
-                    <span className="block text-[10px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
+                    <span className="block text-[11px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
                       Total Quotes
                     </span>
                     <span className="block text-2xl font-black tracking-tight font-mono tabular-nums text-foreground leading-none mt-1">
@@ -331,7 +331,7 @@ export function TransportationMobileStatusPanel({
                   </span>
                   <span
                     className={cn(
-                      "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
+                      "text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
                       selectedQuoteStatus === "all"
                         ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                         : "border-border/60 text-muted-foreground",
@@ -387,7 +387,7 @@ export function TransportationMobileStatusPanel({
                 <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
                 <span className="flex items-end justify-between gap-2">
                   <span className="min-w-0">
-                    <span className="block text-[10px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
+                    <span className="block text-[11px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
                       {activeTab === "load-board" ? "Total Vehicles" : "Total Loads"}
                     </span>
                     <span className="block text-2xl font-black tracking-tight font-mono tabular-nums text-foreground leading-none mt-1">
@@ -396,7 +396,7 @@ export function TransportationMobileStatusPanel({
                   </span>
                   <span
                     className={cn(
-                      "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
+                      "text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
                       selectedStatus === "all"
                         ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                         : "border-border/60 text-muted-foreground",
@@ -529,10 +529,10 @@ export function TransportationSidebar({
               <Truck className="size-4 text-emerald-500" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-black tracking-tight text-foreground leading-none truncate">
+              <p className="text-sm font-black tracking-tight text-foreground leading-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                 Transport
               </p>
-              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.18em] mt-1 truncate">
+              <p className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-[0.18em] mt-1 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                 Dispatch Console
               </p>
             </div>
@@ -575,7 +575,7 @@ export function TransportationSidebar({
                 )}
               >
                 <Icon className="size-3.5" />
-                <span className="text-[10px] font-black uppercase tracking-wider leading-none">
+                <span className="text-[11px] font-black uppercase tracking-wider leading-none">
                   {label}
                 </span>
               </button>
@@ -601,7 +601,7 @@ export function TransportationSidebar({
                 <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
                 <span className="flex items-end justify-between gap-2">
                   <span className="min-w-0">
-                    <span className="block text-[10px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
+                    <span className="block text-[11px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
                       Total Quotes
                     </span>
                     <span className="block text-2xl font-black tracking-tight font-mono tabular-nums text-foreground leading-none mt-1">
@@ -610,7 +610,7 @@ export function TransportationSidebar({
                   </span>
                   <span
                     className={cn(
-                      "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
+                      "text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
                       selectedQuoteStatus === "all"
                         ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                         : "border-border/60 text-muted-foreground",
@@ -658,7 +658,7 @@ export function TransportationSidebar({
             <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
             <span className="flex items-end justify-between gap-2">
               <span className="min-w-0">
-                <span className="block text-[10px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
+                <span className="block text-[11px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
                   {activeTab === "load-board" ? "Total Vehicles" : "Total Loads"}
                 </span>
                 <span className="block text-2xl font-black tracking-tight font-mono tabular-nums text-foreground leading-none mt-1">
@@ -667,7 +667,7 @@ export function TransportationSidebar({
               </span>
               <span
                 className={cn(
-                  "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
+                  "text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
                   selectedStatus === "all"
                     ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                     : "border-border/60 text-muted-foreground",

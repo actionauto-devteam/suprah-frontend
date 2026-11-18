@@ -217,7 +217,7 @@ function DriverRow({
       <div className="relative shrink-0">
         <Avatar className="size-9 border border-border/60 transition-transform duration-150 group-hover:scale-[1.04]">
           {avatar && <AvatarImage src={avatar} alt={driver.name} className="object-cover" />}
-          <AvatarFallback className="bg-emerald-500/10 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+          <AvatarFallback className="bg-emerald-500/10 text-[11px] font-black text-emerald-700 dark:text-emerald-300">
             {initials(driver.name)}
           </AvatarFallback>
         </Avatar>
@@ -230,7 +230,7 @@ function DriverRow({
         />
         {collapsed && unread > 0 && (
           <span
-            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white @lg:block"
+            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[11px] font-black leading-4 text-white @lg:block"
             aria-label={`${unread} unread`}
           >
             {unread > 9 ? "9+" : unread}
@@ -241,20 +241,20 @@ function DriverRow({
       <div className={cn("min-w-0 flex-1", collapsed && "@lg:hidden")}>
         <div className="flex min-w-0 items-center gap-2">
           <p
-            className={cn("sm5-title-sm truncate", unread > 0 ? "font-bold" : "font-semibold")}
+            className={cn("sm5-title-sm min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal", unread > 0 ? "font-bold" : "font-semibold")}
             style={{ fontSize: 13.5, color: "var(--text-primary)" }}
           >
             {driver.name}
           </p>
           {driver.activeLoadCount > 0 && (
-            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+            <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
               {driver.activeLoadCount} active
             </span>
           )}
         </div>
 
         <div
-          className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10.5px] font-medium"
+          className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium"
           style={{ color: "var(--text-tertiary)" }}
         >
           <span className="shrink-0">
@@ -276,7 +276,7 @@ function DriverRow({
               <Navigation2 className="size-3 shrink-0 text-emerald-500" />
             )}
             <span
-              className="truncate font-semibold"
+              className="min-w-0 break-words [overflow-wrap:anywhere] font-semibold whitespace-normal"
               style={{
                 color: driver.isSharing
                   ? "var(--accent-text)"
@@ -289,7 +289,7 @@ function DriverRow({
         </div>
 
         <p
-          className="sm5-supporting mt-0.5 truncate"
+          className="sm5-supporting mt-0.5 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal"
           style={{
             fontSize: 11.5,
             fontWeight: unread > 0 ? 600 : 400,
@@ -322,7 +322,7 @@ function DriverRow({
           <span
             className="shrink-0 rounded-full text-center font-bold text-white"
             style={{
-              fontSize: 10,
+              fontSize: 11,
               minWidth: 18,
               height: 18,
               lineHeight: "18px",
@@ -365,7 +365,7 @@ function CustomerChatRow({
       aria-pressed={selected}
     >
       <Avatar className="size-9 shrink-0 border border-sky-500/25 transition-transform duration-150 group-hover:scale-[1.04]">
-        <AvatarFallback className="bg-sky-500/10 text-[10px] font-black text-sky-700 dark:text-sky-300">
+        <AvatarFallback className="bg-sky-500/10 text-[11px] font-black text-sky-700 dark:text-sky-300">
           {initials(name)}
         </AvatarFallback>
       </Avatar>
@@ -373,24 +373,24 @@ function CustomerChatRow({
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <p
-            className={cn("sm5-title-sm truncate", unread > 0 ? "font-bold" : "font-semibold")}
+            className={cn("sm5-title-sm min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal", unread > 0 ? "font-bold" : "font-semibold")}
             style={{ fontSize: 13.5, color: "var(--text-primary)" }}
           >
             {name}
           </p>
           {!chat.open && (
-            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-foreground">
               Closed
             </span>
           )}
         </div>
         {about && (
-          <p className="mt-0.5 truncate text-[10.5px] font-medium" style={{ color: "var(--text-tertiary)" }}>
+          <p className="mt-0.5 min-w-0 break-words [overflow-wrap:anywhere] text-[11px] font-medium whitespace-normal" style={{ color: "var(--text-tertiary)" }}>
             {about}
           </p>
         )}
         <p
-          className="sm5-supporting mt-0.5 truncate"
+          className="sm5-supporting mt-0.5 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal"
           style={{
             fontSize: 11.5,
             fontWeight: unread > 0 ? 600 : 400,
@@ -411,7 +411,7 @@ function CustomerChatRow({
         {unread > 0 && (
           <span
             className="shrink-0 rounded-full text-center font-bold text-white"
-            style={{ fontSize: 10, minWidth: 18, height: 18, lineHeight: "18px", padding: "0 5px", background: "var(--accent)" }}
+            style={{ fontSize: 11, minWidth: 18, height: 18, lineHeight: "18px", padding: "0 5px", background: "var(--accent)" }}
             aria-label={`${unread} unread customer message${unread === 1 ? "" : "s"}`}
           >
             {unread > 99 ? "99+" : unread}
@@ -490,10 +490,10 @@ function NewDispatchChatModal({
           <div className="flex min-w-0 items-center gap-2">
             <MessageSquare className="h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} />
             <div className="min-w-0">
-              <h2 className="sm5-title-lg truncate" style={{ fontSize: 16, color: "var(--text-primary)" }}>
+              <h2 className="sm5-title-lg min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal" style={{ fontSize: 16, color: "var(--text-primary)" }}>
                 New Dispatch Chat
               </h2>
-              <p className="sm5-supporting mt-1 truncate" style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+              <p className="sm5-supporting mt-1 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal" style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
                 Choose a driver to open your private conversation
               </p>
             </div>
@@ -517,7 +517,7 @@ function NewDispatchChatModal({
               className="sm5-input h-10 w-full pl-9 pr-3 text-sm"
             />
           </div>
-          <p className="mt-2 px-1 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+          <p className="mt-2 px-1 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
             {remote.loading
               ? "Searching all drivers…"
               : remote.failed
@@ -537,7 +537,7 @@ function NewDispatchChatModal({
               <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
                 No matching drivers
               </p>
-              <p className="max-w-64 text-[10px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+              <p className="max-w-64 text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
                 Try another driver name, load number, city, or route.
               </p>
             </div>
@@ -565,7 +565,7 @@ function NewDispatchChatModal({
                           className="object-cover"
                         />
                       )}
-                      <AvatarFallback className="bg-emerald-500/10 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                      <AvatarFallback className="bg-emerald-500/10 text-[11px] font-black text-emerald-700 dark:text-emerald-300">
                         {initials(driver.name)}
                       </AvatarFallback>
                     </Avatar>
@@ -573,18 +573,18 @@ function NewDispatchChatModal({
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <p
-                          className={cn("sm5-title-sm truncate", unread > 0 ? "font-bold" : "font-semibold")}
+                          className={cn("sm5-title-sm min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal", unread > 0 ? "font-bold" : "font-semibold")}
                           style={{ fontSize: 13, color: "var(--text-primary)" }}
                         >
                           {driver.name}
                         </p>
                         {driver.activeLoadCount > 0 && (
-                          <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                          <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
                             {driver.activeLoadCount} active
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                      <p className="mt-0.5 min-w-0 break-words [overflow-wrap:anywhere] text-[11px] whitespace-normal" style={{ color: "var(--text-tertiary)" }}>
                         {meta?.lastMessagePreview ||
                           `${workAvailabilityLabel(driver.operationalStatus)} · ${statusLabel(driver.status)}${driver.email ? ` · ${driver.email}` : ""}`}
                       </p>
@@ -606,7 +606,7 @@ function NewDispatchChatModal({
                         <span
                           className="rounded-full text-center font-bold text-white"
                           style={{
-                            fontSize: 10,
+                            fontSize: 11,
                             minWidth: 18,
                             height: 18,
                             lineHeight: "18px",
@@ -1594,14 +1594,14 @@ export function DispatchChatTab({
             railCollapsed && "@lg:hidden",
           )}
         >
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm5-scroll">
+          <div className="flex flex-wrap items-center gap-1 pb-0.5">
             {filters.map((item) => (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => setFilter(item.key)}
                 className={cn(
-                  "sm5-pill shrink-0 px-2.5 py-2 text-[10px] font-bold",
+                  "sm5-pill shrink-0 px-2.5 py-2 text-[11px] font-bold",
                   filter === item.key &&
                     "!border-emerald-500/30 !bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-300",
                 )}
@@ -1611,7 +1611,7 @@ export function DispatchChatTab({
             ))}
 
             {pillUnread > 0 && (
-              <span className="ml-auto shrink-0 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-black text-white">
+              <span className="ml-auto shrink-0 rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-black text-white">
                 {pillUnread > 99 ? "99+" : pillUnread} unread
               </span>
             )}
@@ -1621,11 +1621,11 @@ export function DispatchChatTab({
         {refreshWarning && drivers.length > 0 && (
           <div
             className={cn(
-              "flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.06] px-3 py-1.5 text-[10px] text-amber-700 dark:text-amber-300",
+              "flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.06] px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-300",
               railCollapsed && "@lg:hidden",
             )}
           >
-            <span className="min-w-0 truncate">{refreshWarning}</span>
+            <span className="min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{refreshWarning}</span>
             <button
               type="button"
               onClick={() => void fetchDrivers(true)}
@@ -1639,7 +1639,7 @@ export function DispatchChatTab({
         <div className="min-h-0 flex-1 overflow-y-auto sm5-scroll">
           <div className={cn("border-b border-border/50", railCollapsed && "@lg:hidden")}>
             <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
                 Channels
               </p>
               <button
@@ -1668,7 +1668,7 @@ export function DispatchChatTab({
             )}
             {filter === "all" && (
               <div className="mt-1 border-t border-border/50">
-                <p className="px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                <p className="px-3 pb-1 pt-2.5 text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
                   Customers
                 </p>
                 {filteredCustomerChats.length > 0 ? (
@@ -1694,7 +1694,7 @@ export function DispatchChatTab({
               </div>
             )}
             <p
-              className="mt-1 border-t border-border/50 px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider"
+              className="mt-1 border-t border-border/50 px-3 pb-1 pt-2.5 text-[11px] font-bold uppercase tracking-wider"
               style={{ color: "var(--text-tertiary)" }}
             >
               Drivers
@@ -1711,12 +1711,12 @@ export function DispatchChatTab({
                 <p className="text-xs font-bold text-red-600 dark:text-red-400">
                   Could not load drivers
                 </p>
-                <p className="mt-1 text-[10px] text-muted-foreground">{error}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{error}</p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-3 h-8 text-[10px]"
+                  className="mt-3 h-8 text-[11px]"
                   onClick={() => void fetchDrivers(false)}
                 >
                   Try again
@@ -1729,7 +1729,7 @@ export function DispatchChatTab({
               <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
                 No matching drivers
               </p>
-              <p className="max-w-64 text-[10px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+              <p className="max-w-64 text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
                 This list shows drivers you work or chat with. Change the search
                 or filter, or use New Chat to search every driver.
               </p>

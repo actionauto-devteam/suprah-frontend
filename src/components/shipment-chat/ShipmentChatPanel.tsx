@@ -449,7 +449,7 @@ export function ShipmentChatPanel({ source, fallbackName, onActivity }: Shipment
                 {photos.map((photo, index) => (
                   <li key={`${photo.name}-${index}`} className="flex max-w-full items-center gap-1 rounded-full border border-border/60 bg-muted/40 py-1 pl-3 pr-1 text-xs">
                     <ImageIcon className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                    <span className="max-w-40 truncate">{photo.name}</span>
+                    <span className="max-w-40 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{photo.name}</span>
                     <button
                       type="button"
                       onClick={() => setPhotos((list) => list.filter((_, i) => i !== index))}
