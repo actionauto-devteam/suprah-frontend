@@ -19,6 +19,7 @@ import { AiAgentTasksSection } from "./AiAgentTasksSection";
 import { VehicleOfInterestCard } from "./VehicleOfInterestCard";
 import { DriverLicenseScanDialog, type LicenseAppliedValues } from "./DriverLicenseScanDialog";
 import { CustomerRecordLink } from "./CustomerRecordLink";
+import { LeadHandlersCard } from "./LeadHandlersCard";
 import { LeadShippingCard } from "@/components/transportation/LeadShippingCard";
 
 function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
@@ -41,15 +42,49 @@ function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["ki
   }
 }
 
-function toWorkspaceActivities(items: CustomerTimelineItem[]): WorkspaceActivityItem[] {
-  return items.map((item) => ({
-    id: item.id,
-    kind: timelineItemKind(item),
-    title: item.title,
-    description: item.body,
-    createdAt: item.occurredAt,
-    metadata: item.metadata as WorkspaceActivityItem["metadata"],
-  }));
+function activityActor(item: CustomerTimelineItem): string | undefined {
+  if (item.direction === "inbound") {
+    const answeredBy = item.metadata?.answeredBy;
+    return typeof answeredBy === "string" && answeredBy ? `Answered by ${answeredBy}` : undefined;
+  }
+  const actor = typeof item.actor === "string" ? item.actor.trim() : "";
+  if (!actor || actor === "System") return undefined;
+  return `By ${actor}`;
+}
+
+const EMAIL_SENDER_WINDOW_MS = 5 * 60_000;
+
+export function toWorkspaceActivities(items: CustomerTimelineItem[]): WorkspaceActivityItem[] {
+  const senders = items.filter((item) => item.id.startsWith("handling-email:"));
+  const usedSenders = new Set<string>();
+  const emailLabels = new Map<string, string | undefined>();
+  for (const item of items) {
+    if (!item.id.startsWith("central-email:") || item.direction !== "outbound") continue;
+    const sentAt = new Date(item.occurredAt).getTime();
+    let match: CustomerTimelineItem | null = null;
+    let matchGap = Infinity;
+    for (const sender of senders) {
+      if (usedSenders.has(sender.id)) continue;
+      const gap = Math.abs(new Date(sender.occurredAt).getTime() - sentAt);
+      if (gap <= EMAIL_SENDER_WINDOW_MS && gap < matchGap) {
+        match = sender;
+        matchGap = gap;
+      }
+    }
+    if (match) usedSenders.add(match.id);
+    emailLabels.set(item.id, match?.actor ? `By ${match.actor}` : undefined);
+  }
+  return items
+    .filter((item) => !usedSenders.has(item.id))
+    .map((item) => ({
+      id: item.id,
+      kind: timelineItemKind(item),
+      title: item.title,
+      description: item.body,
+      createdAt: item.occurredAt,
+      actorLabel: emailLabels.has(item.id) ? emailLabels.get(item.id) : activityActor(item),
+      metadata: item.metadata as WorkspaceActivityItem["metadata"],
+    }));
 }
 
 interface LeadDetailsUpdate {
@@ -339,6 +374,11 @@ export function LeadDetailsPanel({
         lead?._id ? (
           <div className="space-y-2">
             <CustomerRecordLink lead={lead} />
+            <LeadHandlersCard
+              key={`handlers-${lead._id}`}
+              leadId={String(lead._id)}
+              refreshKey={`${timelineItems[0]?.id || ""}|${lead?.assignedTo || ""}|${lead?.status || ""}`}
+            />
             <VehicleOfInterestCard key={lead._id} lead={lead} />
             {/* Transportation's part: shipping quotes for this lead. */}
             <LeadShippingCard key={`shipping-${lead._id}`} lead={lead} />

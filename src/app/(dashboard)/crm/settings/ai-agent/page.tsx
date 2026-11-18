@@ -22,6 +22,7 @@ import { TrainingRulesPanel } from "@/components/crm/aiHub/TrainingRulesPanel"
 import { TestingLabPanel } from "@/components/crm/aiHub/TestingLabPanel"
 import { KnowledgeBasePanel } from "@/components/crm/knowledgeBase/KnowledgeBasePanel"
 import { AgentSettingsPanel, normalizeFollowUpHours } from "@/components/crm/aiHub/AgentSettingsPanel"
+import { cleanTopicTeams, type AiHandoffTopicTeams } from "@/lib/aiHandoffTopics"
 import { AutomationPanel } from "@/components/crm/aiHub/automation/AutomationPanel"
 import { useTrainingStatus } from "@/hooks/useAiTraining"
 import { canViewAiHub, SHADOW_DRAFT_STATUSES } from "@/lib/aiShadowDrafts"
@@ -73,6 +74,7 @@ function AiAgentHubContent() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [settings, setSettings] = React.useState<AiAgentSettingsSummary>({ agentName: "" })
   const [fallbackGroupId, setFallbackGroupId] = React.useState("")
+  const [topicTeams, setTopicTeams] = React.useState<AiHandoffTopicTeams>({})
   const [settingsReady, setSettingsReady] = React.useState(false)
   const { groups } = useCrmLeadGroups()
 
@@ -101,6 +103,7 @@ function AiAgentHubContent() {
               followUpIntervalHours: typeof data.aiFollowUpIntervalHours === "number" ? data.aiFollowUpIntervalHours : undefined,
             })
             setFallbackGroupId(data.aiHandoffFallbackGroupId || "")
+            setTopicTeams(cleanTopicTeams(data.aiHandoffTopicTeams))
             setSettingsReady(true)
           }
         }
@@ -248,11 +251,13 @@ function AiAgentHubContent() {
                     initial={{
                       agentName: settings.agentName,
                       fallbackGroupId,
+                      topicTeams,
                       followUpIntervalHours: normalizeFollowUpHours(settings.followUpIntervalHours),
                     }}
                     onSaved={(next) => {
                       setSettings((current) => ({ ...current, agentName: next.agentName, followUpIntervalHours: next.followUpIntervalHours }))
                       setFallbackGroupId(next.fallbackGroupId)
+                      setTopicTeams(next.topicTeams)
                     }}
                   />
                 </TabsContent>

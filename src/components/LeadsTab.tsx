@@ -400,6 +400,7 @@ export function LeadsTab({
 
   const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
   const [assigneeFilterId, setAssigneeFilterId] = React.useState<string | null>(null);
+  const [handledByFilterId, setHandledByFilterId] = React.useState<string | null>(null);
   const isMobile = useIsMobile();
   const { data: teamMembers = [] } = useTeamMembers();
   const [locationFilter, setLocationFilter] = React.useState<string | null>(null);
@@ -440,6 +441,7 @@ export function LeadsTab({
     statusGroup: statusFilter ? null : activeStatusCategory,
     sortBy,
     assignedTo: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
+    handledBy: handledByFilterId,
     location: locationFilter,
     source: sourceFilter,
     leadType: leadTypeFilter,
@@ -2582,9 +2584,20 @@ export function LeadsTab({
     setSelectedLead(null);
   };
 
+  const handleHandledByFilter = (userId: string | null) => {
+    setHandledByFilterId(userId);
+    setCurrentPage(1);
+    setSelectedLead(null);
+  };
+
   const dateFilterActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
   const assigneeFilterName = assigneeFilterId
     ? teamMembers.find((member: { _id: string; name: string }) => member._id === assigneeFilterId)?.name || "Team member"
+    : null;
+  const handledByFilterName = handledByFilterId
+    ? handledByFilterId === currentUserId
+      ? "Me"
+      : teamMembers.find((member: { _id: string; name: string }) => member._id === handledByFilterId)?.name || "Team member"
     : null;
   const activeFilterChips: LeadsActiveFilterChip[] = [
     ...(statusFilter && statusFilter !== "Inbound Calls"
@@ -2610,6 +2623,7 @@ export function LeadsTab({
           }]
         : []),
     ...(assigneeFilterName ? [{ key: "assignee", label: `Assigned: ${assigneeFilterName}`, onRemove: () => handleAssigneeFilter(null) }] : []),
+    ...(handledByFilterName ? [{ key: "handled-by", label: `Handled by: ${handledByFilterName}`, onRemove: () => handleHandledByFilter(null) }] : []),
     ...(leadTypeFilter
       ? [{
           key: "lead-type",
@@ -2672,6 +2686,7 @@ export function LeadsTab({
     setLocationFilter(null);
     setLeadTypeFilter(null);
     setAssigneeFilterId(null);
+    setHandledByFilterId(null);
     if (isMobile) setSortBy("latest_activity");
     setCurrentPage(1);
     setSelectedLead(null);
@@ -3103,6 +3118,12 @@ export function LeadsTab({
                               currentUserId,
                               members: teamMembers.map((member: { _id: string; name: string }) => ({ _id: member._id, name: member.name })),
                               onChange: handleAssigneeFilter,
+                            }}
+                            handledBy={{
+                              value: handledByFilterId,
+                              currentUserId,
+                              members: teamMembers.map((member: { _id: string; name: string }) => ({ _id: member._id, name: member.name })),
+                              onChange: handleHandledByFilter,
                             }}
                             location={{
                               value: locationFilter,

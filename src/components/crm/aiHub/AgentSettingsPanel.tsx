@@ -11,11 +11,13 @@ import { apiClient } from "@/lib/api-client"
 import type { CrmLeadGroup } from "@/hooks/useCrmLeadGroups"
 import { refreshAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
 import { AI_AGENT_NAME_MAX_LENGTH, cleanAiAgentName, isValidAiAgentName } from "@/lib/aiAgentIdentity"
+import { AI_HANDOFF_TOPICS, type AiHandoffTopicTeams, sameTopicTeams } from "@/lib/aiHandoffTopics"
 import { HubCard } from "./ShadowStatusBadge"
 
 export interface AgentSettingsValues {
   agentName: string
   fallbackGroupId: string
+  topicTeams: AiHandoffTopicTeams
   followUpIntervalHours: number
 }
 
@@ -39,22 +41,27 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
 }) {
   const [agentName, setAgentName] = React.useState(initial.agentName)
   const [fallbackGroupId, setFallbackGroupId] = React.useState(initial.fallbackGroupId)
+  const [topicTeams, setTopicTeams] = React.useState<AiHandoffTopicTeams>(initial.topicTeams)
   const [followUpIntervalHours, setFollowUpIntervalHours] = React.useState(initial.followUpIntervalHours)
   const [saving, setSaving] = React.useState(false)
   const queryClient = useQueryClient()
+  const initialTopicTeamsKey = JSON.stringify(initial.topicTeams)
 
   React.useEffect(() => {
     setAgentName(initial.agentName)
     setFallbackGroupId(initial.fallbackGroupId)
+    setTopicTeams(JSON.parse(initialTopicTeamsKey) as AiHandoffTopicTeams)
     setFollowUpIntervalHours(initial.followUpIntervalHours)
-  }, [ready, initial.agentName, initial.fallbackGroupId, initial.followUpIntervalHours])
+  }, [ready, initial.agentName, initial.fallbackGroupId, initialTopicTeamsKey, initial.followUpIntervalHours])
 
   const activeGroups = groups.filter((group) => group.isActive)
-  const unknownGroup = Boolean(fallbackGroupId) && !activeGroups.some((group) => group._id === fallbackGroupId)
+  const isActiveGroup = (groupId: string) => activeGroups.some((group) => group._id === groupId)
+  const unknownGroup = Boolean(fallbackGroupId) && !isActiveGroup(fallbackGroupId)
   const cleanedName = cleanAiAgentName(agentName)
   const nameInvalid = Boolean(cleanedName) && !isValidAiAgentName(cleanedName)
   const dirty = cleanedName !== initial.agentName
     || fallbackGroupId !== initial.fallbackGroupId
+    || !sameTopicTeams(topicTeams, initial.topicTeams)
     || followUpIntervalHours !== initial.followUpIntervalHours
   const disabled = !isAdmin || !ready || saving
   const displayName = cleanedName && !nameInvalid ? cleanedName : "the AI Agent"
@@ -70,14 +77,25 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
       const token = await getToken()
       const name = cleanedName
       const intervalHours = normalizeFollowUpHours(followUpIntervalHours)
+      const savedTopicTeams: AiHandoffTopicTeams = {}
+      for (const topic of AI_HANDOFF_TOPICS) {
+        const groupId = topicTeams[topic.key]
+        if (groupId && isActiveGroup(groupId)) savedTopicTeams[topic.key] = groupId
+      }
       await apiClient.patch(
         "/api/crm/org-settings",
-        { aiAgentName: name, aiHandoffFallbackGroupId: fallbackGroupId, aiFollowUpIntervalHours: intervalHours },
+        {
+          aiAgentName: name,
+          aiHandoffFallbackGroupId: fallbackGroupId,
+          aiHandoffTopicTeams: savedTopicTeams,
+          aiFollowUpIntervalHours: intervalHours,
+        },
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setAgentName(name)
+      setTopicTeams(savedTopicTeams)
       setFollowUpIntervalHours(intervalHours)
-      onSaved({ agentName: name, fallbackGroupId, followUpIntervalHours: intervalHours })
+      onSaved({ agentName: name, fallbackGroupId, topicTeams: savedTopicTeams, followUpIntervalHours: intervalHours })
       void refreshAiAgentIdentity(queryClient)
       toast.success("AI agent settings saved")
     } catch (error) {
@@ -129,7 +147,7 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
 
         <div className="max-w-xl space-y-1.5">
           <label htmlFor="agent-settings-fallback" className="text-xs font-semibold">Fallback group for unassigned handoffs</label>
-          <p className="text-[11px] text-muted-foreground/70">When {displayName} needs a human on a lead with no assigned rep, it mentions this group in its note. Leave unset to skip the mention.</p>
+          <p className="text-[11px] text-muted-foreground/70">When {displayName} needs a human on a lead with no assigned rep, and the topic has no team below, it mentions this group in its note. Leave unset to skip the mention.</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               id="agent-settings-fallback"
@@ -146,6 +164,40 @@ export function AgentSettingsPanel({ getToken, isAdmin, ready, initial, groups, 
               Manage Lead Groups <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
+        </div>
+
+        <div className="max-w-2xl space-y-2" data-testid="agent-settings-topic-teams">
+          <p className="text-xs font-semibold">Team to tag for each topic</p>
+          <p className="text-[11px] text-muted-foreground/70">
+            When {displayName} hands a customer to a person, it tags the team you pick for that topic, plus the assigned rep. The team members and the rep get a notification. Topics with no team tag only the assigned rep, or the fallback group above when nobody is assigned.
+          </p>
+          <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+            {AI_HANDOFF_TOPICS.map((topic) => {
+              const value = topicTeams[topic.key] || ""
+              const missing = Boolean(value) && !isActiveGroup(value)
+              const id = `agent-settings-topic-${topic.key}`
+              return (
+                <div key={topic.key} className="min-w-0 space-y-1">
+                  <label htmlFor={id} className="block text-[11px] font-semibold">{topic.label}</label>
+                  <p className="text-[10px] text-muted-foreground/70">{topic.hint}</p>
+                  <select
+                    id={id}
+                    disabled={disabled}
+                    value={value}
+                    onChange={(event) => setTopicTeams((current) => ({ ...current, [topic.key]: event.target.value }))}
+                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">No specific team</option>
+                    {missing && <option value={value}>Unavailable group (inactive or deleted)</option>}
+                    {activeGroups.map((group) => <option key={group._id} value={group._id}>{group.name}</option>)}
+                  </select>
+                </div>
+              )
+            })}
+          </div>
+          <p className="rounded-lg border border-dashed px-3 py-2 text-[11px] text-muted-foreground">
+            Example note: <span className="font-medium text-foreground">@{activeGroups.find((group) => group._id === topicTeams.availability)?.name || "Team name"}, @Rep name, Customer wants to confirm the 2021 Tacoma is still on the lot. Topic: Vehicle availability.</span>
+          </p>
         </div>
 
         <div className="max-w-xl space-y-1.5">

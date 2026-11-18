@@ -27,6 +27,7 @@ export interface WorkspaceActivityItem {
   title: string;
   description?: string;
   createdAt?: string | Date;
+  actorLabel?: string;
   metadata?: {
     authorType?: "user" | "ai";
     authorName?: string;

@@ -112,6 +112,7 @@ interface UseLeadsOptions {
   statusGroup?: string | null
   sortBy?: "latest_activity" | "customer_activity" | "newest" | "oldest" | "waiting_longest"
   assignedTo?: string | null
+  handledBy?: string | null
   location?: string | null
   source?: string | null
   leadType?: string | null
@@ -136,6 +137,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   statusGroup = null,
   sortBy = 'latest_activity',
   assignedTo = null,
+  handledBy = null,
   location = null,
   source = null,
   leadType = null,
@@ -174,6 +176,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       statusGroup,
       sortBy,
       assignedTo,
+      handledBy,
       location,
       source,
       leadType,
@@ -206,6 +209,10 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
       if (assignedTo) {
         params.append("assignedTo", assignedTo);
+      }
+
+      if (handledBy) {
+        params.append("handledBy", handledBy);
       }
 
       if (location) {

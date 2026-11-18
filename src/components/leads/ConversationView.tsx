@@ -173,6 +173,21 @@ const getFieldFromText = (
   return "";
 };
 
+const getCoApplicantSections = (text: string): InquirySection[] =>
+  text
+    .split(/\r?\n[ \t]*—[ \t]*Co-applicant[ \t]*—[ \t]*\r?\n/i)
+    .slice(1)
+    .map((block) => {
+      const details = block.split(/\r?\n[ \t]*(?:\r?\n|—)/)[0];
+      return [
+        { label: "Name", value: getFieldFromText(details, ["Name"]) },
+        { label: "Email", value: getFieldFromText(details, ["Email"]) },
+        { label: "Phone", value: getFieldFromText(details, ["Phone"]) },
+      ].filter((field) => field.value);
+    })
+    .filter((fields) => fields.length > 0)
+    .map((fields, index) => ({ title: index ? `Co-applicant ${index + 1}` : "Co-applicant", fields }));
+
 const buildInquirySections = (
   lead: any,
   message: any,
@@ -267,6 +282,7 @@ const buildInquirySections = (
       title: "Contact Information",
       fields: contactFields,
     },
+    ...getCoApplicantSections(text),
     {
       title: "Vehicle Interest",
       fields: vehicleFields,
