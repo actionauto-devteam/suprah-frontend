@@ -34,9 +34,26 @@ interface DealershipNumber {
   telnyx: TelnyxCheck
 }
 
+interface AllLocationsLine {
+  type: "number" | "menu"
+  label: string
+  number?: string
+  location?: string
+  digit?: string
+  menu?: string
+}
+
+interface AllLocations {
+  groupId: string | null
+  groupName: string
+  groupActive: boolean
+  appliesTo: AllLocationsLine[]
+}
+
 interface NumbersResponse {
   numbers: DealershipNumber[]
   suggestion: { number: string } | null
+  allLocations?: AllLocations
 }
 
 interface TeamMember {
@@ -71,7 +88,9 @@ function errorStatus(error: unknown) {
   return (error as { response?: { status?: number } })?.response?.status
 }
 
-function TeamMembers({ groupId, load }: { groupId: string; load: (groupId: string) => Promise<TeamMember[]> }) {
+const MISSED_CALL_NOTE = "If nobody answers, the caller hears the missed-call message and gets a text back."
+
+function TeamMembers({ groupId, load, note, emptyNote }: { groupId: string; load: (groupId: string) => Promise<TeamMember[]>; note?: string; emptyNote?: string }) {
   const query = useQuery({
     queryKey: ["crm-phone-team-members", groupId],
     retry: false,
@@ -93,7 +112,7 @@ function TeamMembers({ groupId, load }: { groupId: string; load: (groupId: strin
   if (query.data.length === 0) {
     return (
       <p role="status" className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
-        This department has no active people yet, so calls to this number will ring everyone in Suprah CRM.
+        {emptyNote || "This department has no active people yet, so calls to this number will ring everyone in Suprah CRM."}
       </p>
     )
   }
@@ -108,15 +127,114 @@ function TeamMembers({ groupId, load }: { groupId: string; load: (groupId: strin
         ))}
       </ul>
       <p className="mt-2 text-xs text-muted-foreground">
-        Only this department gets the call. If nobody answers, the caller hears the missed-call message and gets a text back, and the department and admins are notified.
+        {note || `Only this department gets the call. ${MISSED_CALL_NOTE} The lead's rep is told, or this department when the lead has no rep.`}
       </p>
     </div>
+  )
+}
+
+function AllLocationsCard({
+  data,
+  teams,
+  loadTeamMembers,
+  saving,
+  onSave,
+}: {
+  data: AllLocations
+  teams: { _id: string; name: string }[]
+  loadTeamMembers: (groupId: string) => Promise<TeamMember[]>
+  saving: boolean
+  onSave: (groupId: string) => Promise<void>
+}) {
+  const savedGroupId = data.groupActive && data.groupId ? data.groupId : ""
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const [error, setError] = React.useState("")
+  const [saved, setSaved] = React.useState(false)
+  const groupId = draft ?? savedGroupId
+  const changed = groupId !== savedGroupId
+
+  const submit = async () => {
+    setError("")
+    setSaved(false)
+    try {
+      await onSave(groupId)
+      setDraft(null)
+      setSaved(true)
+    } catch (err) {
+      setError(errorMessage(err, "Could not save this setting."))
+    }
+  }
+
+  return (
+    <section aria-label="Sales calls for all locations" data-testid="all-locations-card" className="space-y-3 rounded-xl border bg-card p-4">
+      <div>
+        <h3 className="text-sm font-semibold">Sales calls for all locations</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Pick a department whose people should also get the sales calls of every location. They ring at the same time as the location&apos;s own department, and the first person to answer gets the call.
+        </p>
+      </div>
+      {data.groupId && !data.groupActive && (
+        <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+          The department chosen before is no longer active, so nobody extra rings. Pick another one.
+        </p>
+      )}
+      <label className="block text-xs font-medium text-muted-foreground">
+        Also ring this department
+        <select data-testid="all-locations-select" value={groupId} onChange={(e) => { setSaved(false); setDraft(e.target.value) }} className={field}>
+          <option value="">No one else</option>
+          {teams.map((team) => <option key={team._id} value={team._id}>{team.name}</option>)}
+        </select>
+      </label>
+      {groupId && (
+        <TeamMembers
+          groupId={groupId}
+          load={loadTeamMembers}
+          note="These people ring together with each location's own department. Department numbers and keys, like Service, do not ring them."
+          emptyNote="This department has no active people yet, so nobody extra rings."
+        />
+      )}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">Works for these calls</p>
+        {data.appliesTo.length ? (
+          <ul data-testid="all-locations-applies" className="mt-1 space-y-1 text-xs">
+            {data.appliesTo.map((line) => (
+              <li key={`${line.type}-${line.number || `${line.menu}-${line.digit}`}`} className="break-words rounded-lg border bg-muted/30 px-2.5 py-1.5">
+                {line.type === "number" ? (
+                  <>
+                    <span className="font-medium text-foreground">{line.label}</span>
+                    <span className="text-muted-foreground"> · {formatSmsRecipient(line.number || "") || line.number}{line.location ? ` · ${line.location}` : ""}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-foreground">{line.label}</span>
+                    <span className="text-muted-foreground"> · key {line.digit} in the Phone Menu &ldquo;{line.menu}&rdquo;</span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p role="status" className="mt-1 text-xs text-muted-foreground">
+            There is no location number with a department yet, and no location key in a Phone Menu, so there are no calls for this to ring.
+          </p>
+        )}
+      </div>
+      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {saved && !changed && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>}
+        <button type="button" onClick={submit} disabled={saving || !changed} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save
+        </button>
+      </div>
+    </section>
   )
 }
 
 function NumberForm({
   initial,
   phoneMenuName,
+  allLocationsNote,
   locations,
   locationsLoading,
   locationsError,
@@ -128,6 +246,7 @@ function NumberForm({
 }: {
   initial: FormValues
   phoneMenuName?: string
+  allLocationsNote?: (ringGroupId: string) => string | undefined
   locations: string[]
   locationsLoading: boolean
   locationsError: string | null
@@ -230,7 +349,13 @@ function NumberForm({
           </select>
           {values.kind !== "department" && !values.ringGroupId && <span className="mt-1 block font-normal">Everyone who uses Suprah CRM gets the call. Choose a department to ring only those people.</span>}
         </label>
-        {values.ringGroupId && <TeamMembers groupId={values.ringGroupId} load={loadTeamMembers} />}
+        {values.ringGroupId && (
+          <TeamMembers
+            groupId={values.ringGroupId}
+            load={loadTeamMembers}
+            note={values.kind === "location" && !phoneMenuName ? allLocationsNote?.(values.ringGroupId) : undefined}
+          />
+        )}
         <p className="mt-1 text-xs text-muted-foreground">
           Departments and their people are set in <Link href="/crm/settings/lead-groups" className="font-medium text-primary underline">Lead Groups</Link>.
         </p>
@@ -303,9 +428,22 @@ export function PhoneNumbersPanel() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
   })
 
+  const saveAllLocations = useMutation({
+    mutationFn: async (groupId: string) =>
+      (await apiClient.put("/api/crm/phone-numbers/all-locations", { groupId: groupId || null }, await headers())).data.data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  })
+
   const numbers = query.data?.numbers || []
   const suggestion = query.data?.suggestion || null
   const hasMain = numbers.some((row) => row.kind === "main")
+  const allLocations = query.data?.allLocations
+  const allLocationsGroupId = allLocations?.groupActive ? allLocations.groupId || "" : ""
+  const allLocationsName = allLocations?.groupActive ? allLocations.groupName : ""
+  const alsoRings = (ringGroupId: string | null) => Boolean(ringGroupId && allLocationsName && ringGroupId !== allLocationsGroupId)
+  const allLocationsNote = (ringGroupId: string) => alsoRings(ringGroupId)
+    ? `${allLocationsName} also gets these calls, because it is chosen for sales calls of all locations. ${MISSED_CALL_NOTE} The lead's rep is told, or both departments when the lead has no rep.`
+    : undefined
 
   const startNew = (values?: Partial<FormValues>) => {
     setNotice("")
@@ -341,6 +479,7 @@ export function PhoneNumbersPanel() {
               key={editing.id || "new"}
               initial={editing.values}
               phoneMenuName={editing.id ? numbers.find((row) => row._id === editing.id)?.phoneMenuName || "" : ""}
+              allLocationsNote={allLocationsNote}
               locations={locations}
               locationsLoading={crmLocations.loading}
               locationsError={crmLocations.error}
@@ -359,6 +498,16 @@ export function PhoneNumbersPanel() {
               <Plus className="h-4 w-4" />
               Add phone number
             </button>
+          )}
+
+          {allLocations && !editing && (
+            <AllLocationsCard
+              data={allLocations}
+              teams={teams}
+              loadTeamMembers={loadTeamMembers}
+              saving={saveAllLocations.isPending}
+              onSave={async (groupId) => { await saveAllLocations.mutateAsync(groupId) }}
+            />
           )}
 
           <ul className="space-y-2" aria-label="Phone numbers">
@@ -396,6 +545,9 @@ export function PhoneNumbersPanel() {
                 ) : (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Calls ring: <span className="font-medium text-foreground">{row.ringGroupId ? row.ringGroupName || "A Lead Group that is no longer active (everyone)" : "Everyone"}</span>
+                    {row.kind === "location" && row.ringGroupName && alsoRings(row.ringGroupId) && (
+                      <> and <span className="font-medium text-foreground">{allLocationsName}</span> (all locations)</>
+                    )}
                   </p>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">

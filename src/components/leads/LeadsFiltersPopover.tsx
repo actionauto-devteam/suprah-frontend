@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeftRight, ArrowUpDown, CalendarDays, Check, ChevronDown, Headset, MapPin, SlidersHorizontal, Tag, UserRound } from "lucide-react";
+import { ArrowLeftRight, ArrowUpDown, CalendarDays, Check, ChevronDown, Headset, MapPin, MapPinned, MessageSquareDot, SlidersHorizontal, Tag, UserRound } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ import {
   UNMAPPED_LEAD_SOURCE_LABEL,
 } from "@/lib/leadSource";
 import { LEAD_TYPE_GROUPS, isCampaignLeadType, leadTypeLabel } from "@/lib/leadType";
+import { CUSTOMER_AREA_FILTER_OPTIONS, customerAreaFilterLabel } from "@/lib/customerArea";
 
 export type LeadDatePreset =
   | "all"
@@ -55,6 +56,16 @@ export interface LeadTypeFilterControl {
   onChange: (value: string | null) => void;
 }
 
+export interface LeadCustomerAreaFilterControl {
+  value: string | null;
+  onChange: (value: string | null) => void;
+}
+
+export interface LeadNeedsReplyFilterControl {
+  value: boolean;
+  onChange: (value: boolean) => void;
+}
+
 export interface LeadSortFilterControl {
   value: string;
   defaultValue: string;
@@ -79,12 +90,14 @@ interface LeadsFiltersPopoverProps {
   onClearDate: () => void;
   assignee?: LeadAssigneeFilterControl;
   handledBy?: LeadAssigneeFilterControl;
+  customerArea?: LeadCustomerAreaFilterControl;
+  needsReply?: LeadNeedsReplyFilterControl;
   location?: LeadLocationFilterControl;
   leadType?: LeadTypeFilterControl;
   sort?: LeadSortFilterControl;
 }
 
-type FilterType = "sort" | "status" | "assignee" | "handledBy" | "leadType" | "source" | "location" | "date";
+type FilterType = "sort" | "status" | "needsReply" | "assignee" | "handledBy" | "customerArea" | "leadType" | "source" | "location" | "date";
 
 const optionClass =
   "flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-medium transition";
@@ -164,6 +177,8 @@ export function LeadsFiltersPopover({
   onClearDate,
   assignee,
   handledBy,
+  customerArea,
+  needsReply,
   location,
   leadType,
   sort,
@@ -177,6 +192,8 @@ export function LeadsFiltersPopover({
   const dateActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
   const assigneeActive = Boolean(assignee?.value) && assignee?.value !== assignee?.currentUserId;
   const handledByActive = Boolean(handledBy?.value);
+  const customerAreaActive = Boolean(customerArea?.value);
+  const needsReplyActive = Boolean(needsReply?.value);
   const locationActive = Boolean(location?.value);
   const leadTypeActive = Boolean(leadType?.value);
   const campaignDates = isCampaignLeadType(leadType?.value);
@@ -188,6 +205,8 @@ export function LeadsFiltersPopover({
     (dateActive ? 1 : 0) +
     (assigneeActive ? 1 : 0) +
     (handledByActive ? 1 : 0) +
+    (customerAreaActive ? 1 : 0) +
+    (needsReplyActive ? 1 : 0) +
     (isMobile && locationActive ? 1 : 0) +
     (sortActive ? 1 : 0);
   const selectedLabel =
@@ -219,8 +238,10 @@ export function LeadsFiltersPopover({
   const types: Array<{ key: FilterType; label: string; icon: React.ReactNode; active: boolean }> = [
     ...(showSort ? [{ key: "sort" as const, label: "Sort", icon: <ArrowUpDown className="h-3.5 w-3.5" />, active: sortActive }] : []),
     { key: "status", label: "Status", icon: <SlidersHorizontal className="h-3.5 w-3.5" />, active: statusActive },
+    ...(needsReply ? [{ key: "needsReply" as const, label: "Needs reply", icon: <MessageSquareDot className="h-3.5 w-3.5" />, active: needsReplyActive }] : []),
     ...(assignee ? [{ key: "assignee" as const, label: "Assigned to", icon: <UserRound className="h-3.5 w-3.5" />, active: assigneeActive }] : []),
     ...(handledBy ? [{ key: "handledBy" as const, label: "Handled by", icon: <Headset className="h-3.5 w-3.5" />, active: handledByActive }] : []),
+    ...(customerArea ? [{ key: "customerArea" as const, label: "Customer area", icon: <MapPinned className="h-3.5 w-3.5" />, active: customerAreaActive }] : []),
     ...(leadType ? [{ key: "leadType" as const, label: "Lead type", icon: <ArrowLeftRight className="h-3.5 w-3.5" />, active: leadTypeActive }] : []),
     { key: "source", label: "Source", icon: <Tag className="h-3.5 w-3.5" />, active: Boolean(sourceFilter) },
     ...(showLocation ? [{ key: "location" as const, label: "Location", icon: <MapPin className="h-3.5 w-3.5" />, active: locationActive }] : []),
@@ -235,14 +256,18 @@ export function LeadsFiltersPopover({
     if (leadTypeActive) leadType?.onChange(null);
     if (assigneeActive) assignee?.onChange(null);
     if (handledByActive) handledBy?.onChange(null);
+    if (customerAreaActive) customerArea?.onChange(null);
+    if (needsReplyActive) needsReply?.onChange(false);
     if (showLocation && location?.value) location.onChange(null);
     if (sortActive && sort) sort.onChange(sort.defaultValue);
   };
 
   const summary = [
     `Status: ${selectedLabel}`,
+    needsReplyActive ? "Needs reply" : "",
     assigneeName ? `Assigned: ${assigneeName}` : "",
     handledByName ? `Handled by: ${handledByName}` : "",
+    customerAreaActive ? `Area: ${customerAreaFilterLabel(customerArea?.value)}` : "",
     leadTypeActive ? `Type: ${leadTypeLabel(leadType?.value)}` : "",
     sourceFilter ? `Source: ${sourceFilter}` : "",
     showLocation && locationLabel ? `Location: ${locationLabel}` : "",
@@ -386,6 +411,48 @@ export function LeadsFiltersPopover({
             {handledByMembers.length === 0 && memberQuery && (
               <p className="px-2.5 py-2 text-[12px]" style={{ color: "var(--text-tertiary)" }}>No team members match.</p>
             )}
+          </div>
+        </>
+      )}
+
+      {currentType === "customerArea" && customerArea && (
+        <>
+          <SectionHeader title="Customer area" onClear={customerAreaActive ? () => customerArea.onChange(null) : null} />
+          <p className="mb-2 px-1 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            Where the customer seems to be, from their address or their phone&apos;s area code.
+          </p>
+          <div className="space-y-1" data-testid="customer-area-options">
+            <OptionButton selected={!customerArea.value} onClick={() => customerArea.onChange(null)}>All areas</OptionButton>
+            {CUSTOMER_AREA_FILTER_OPTIONS.map((option) => (
+              <OptionButton
+                key={option.value}
+                selected={customerArea.value === option.value}
+                onClick={() => customerArea.onChange(customerArea.value === option.value ? null : option.value)}
+              >
+                <span className="block truncate">{option.label}</span>
+                <span className="mt-0.5 block whitespace-normal text-[11px] font-normal leading-snug" style={{ color: "var(--text-tertiary)" }}>
+                  {option.hint}
+                </span>
+              </OptionButton>
+            ))}
+          </div>
+        </>
+      )}
+
+      {currentType === "needsReply" && needsReply && (
+        <>
+          <SectionHeader title="Needs reply" onClear={needsReplyActive ? () => needsReply.onChange(false) : null} />
+          <p className="mb-2 px-1 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            Customers whose last text, email or web chat message has no answer yet.
+          </p>
+          <div className="space-y-1" data-testid="needs-reply-options">
+            <OptionButton selected={!needsReply.value} onClick={() => needsReply.onChange(false)}>All leads</OptionButton>
+            <OptionButton selected={needsReply.value} onClick={() => needsReply.onChange(!needsReply.value)}>
+              <span className="block truncate">Waiting for a reply</span>
+              <span className="mt-0.5 block whitespace-normal text-[11px] font-normal leading-snug" style={{ color: "var(--text-tertiary)" }}>
+                Closed leads are left out.
+              </span>
+            </OptionButton>
           </div>
         </>
       )}

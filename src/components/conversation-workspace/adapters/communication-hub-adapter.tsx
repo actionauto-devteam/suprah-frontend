@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Lead } from "@/hooks/useLeads";
 import { resolveCustomerEmail } from "../customer-email";
+import { customerAreaDetailRow } from "./customer-area-row";
 import type {
   WorkspaceActivityItem,
   WorkspaceContact,
@@ -71,6 +72,7 @@ export function communicationDetailSections(lead: Lead, eventCount: number): Wor
         },
         { id: "phone", label: "Phone", value: lead.phone, icon: <Phone size={15} />, copyText: lead.phone || "" },
         { id: "email", label: "Email", value: customerEmail || "No customer email", icon: <Mail size={15} />, copyText: customerEmail },
+        customerAreaDetailRow(lead.customerArea),
       ],
     },
     {
