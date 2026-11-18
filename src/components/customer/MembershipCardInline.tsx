@@ -6,6 +6,8 @@ import { useUser, useAuthActions } from "@/providers/AuthProvider"
 import { useOrg } from "@/hooks/useOrg"
 import { useMyMembership } from "@/hooks/api/useMembership"
 import { ACTION_AUTO_SERVICE_DISCOUNT_PERCENT, buildMemberBenefitsUrl } from "@/lib/customer-benefits"
+import { DEFAULT_TIER_COLORS, MEMBER_CARD_DOTS, MEMBER_CARD_SURFACE, TIER_TEXT, tierColorVars } from "@/lib/membership-theme"
+import { cn } from "@/lib/utils"
 
 function getMemberId(userId: string): string {
   const hex = userId.slice(-12).toUpperCase()
@@ -38,22 +40,29 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
 
   const tier = membership?.currentTier
   const tierName = tier?.name ?? "Ignition"
-  const tierPrimary = tier?.colorTheme.primary ?? "#9ca3af"
-  const tierGradient = tier?.colorTheme.gradient ?? ["#374151", "#9ca3af"]
+  const tierPrimary = tier?.colorTheme.primary ?? DEFAULT_TIER_COLORS.primary
+  const tierGradient = tier?.colorTheme.gradient ?? DEFAULT_TIER_COLORS.gradient
 
+  // Follows the light/dark theme (2026-11-18): Suprah mint on light screens,
+  // the green-black card on dark screens.
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
       aria-label={onClick ? "View full membership card" : undefined}
-      className="relative w-full min-h-min overflow-hidden rounded-xl text-white shrink-0 mb-4 select-none text-left disabled:cursor-default touch-manipulation transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-      style={{
-        background: "linear-gradient(140deg, #060d10 0%, #0b1a14 40%, #071210 100%)",
-        boxShadow: "0 12px 28px -8px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.06)",
-        aspectRatio: "1.586",
-      }}
+      className={cn(
+        "relative grid grid-cols-[minmax(0,1fr)] w-full overflow-hidden rounded-xl shrink-0 mb-4 select-none text-left disabled:cursor-default touch-manipulation transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+        "shadow-[0_12px_28px_-8px_rgba(6,78,59,0.22)] dark:shadow-[0_12px_28px_-8px_rgba(0,0,0,0.75)]",
+        MEMBER_CARD_SURFACE,
+      )}
+      style={tierColorVars(tier?.colorTheme)}
     >
+      {/* Card shape (2026-11-18): this keeps the bank-card proportions as the
+          minimum, and the text below shares its grid cell, so on narrow
+          phones the card grows taller instead of cutting the last lines off. */}
+      <span aria-hidden="true" className="col-start-1 row-start-1 w-full self-start" style={{ aspectRatio: "1.586" }} />
+
       {/* Tier-colored top stripe */}
       <div
         className="absolute top-0 left-0 right-0 h-0.5"
@@ -66,28 +75,28 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
 
       {/* Dot-matrix texture */}
       <div
-        className="pointer-events-none absolute inset-0"
+        className={cn("pointer-events-none absolute inset-0", MEMBER_CARD_DOTS)}
         style={{
-          backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.10) 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
           backgroundSize: "8px 8px",
           maskImage: "radial-gradient(ellipse 100% 100% at 50% 50%, black 30%, transparent 100%)",
           WebkitMaskImage: "radial-gradient(ellipse 100% 100% at 50% 50%, black 30%, transparent 100%)",
         }}
       />
 
-      <div className="relative z-10 h-full flex flex-col justify-between gap-2 px-3.5 py-3">
+      <div className="relative z-10 col-start-1 row-start-1 flex flex-col justify-between gap-2 px-3.5 py-3">
 
         {/* Top row */}
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white leading-none">
+            <p className="text-[11px] font-black tracking-[0.2em] uppercase text-foreground dark:text-white leading-none">
               {dealerName}
             </p>
-            <p className="text-[11px] tracking-[0.16em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
+            <p className="text-[11px] tracking-[0.16em] uppercase mt-1 text-(--tier-ink) dark:text-(--tier)/80">
               Jiffy Lube Partner
             </p>
           </div>
-          <div className="bg-white rounded-md p-1 shadow-lg">
+          <div className="bg-white rounded-md p-1 shadow-lg ring-1 ring-emerald-900/10 dark:ring-0">
             <QRCodeSVG
               value={qrValue}
               size={36}
@@ -101,7 +110,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
 
         {/* Chip + tier badge */}
         <div className="flex items-center gap-2 flex-wrap">
-          <svg width="30" height="23" viewBox="0 0 38 30" fill="none">
+          <svg width="30" height="23" viewBox="0 0 38 30" fill="none" aria-hidden="true">
             <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
             <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipGi)" />
             <line x1="13" y1="0.5" x2="13" y2="29.5" stroke="rgba(0,0,0,0.28)" strokeWidth="0.75" />
@@ -117,34 +126,33 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
               </linearGradient>
             </defs>
           </svg>
-          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>{tierName} Member</span>
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
+          <span className={cn("text-[11px] font-bold uppercase tracking-wider", TIER_TEXT)}>{tierName} Member</span>
+          <span className="rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-emerald-800 dark:bg-white/10 dark:text-white">{ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% Service</span>
         </div>
 
         {/* Cardholder */}
         <div className="flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Cardholder</p>
-            <p className="text-xs font-bold tracking-widest uppercase text-white leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-44 whitespace-normal">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground dark:text-white/70 mb-0.5">Cardholder</p>
+            <p className="text-xs font-bold tracking-widest uppercase text-foreground dark:text-white leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-44 whitespace-normal">
               {memberName}
             </p>
-            <p className="font-mono text-[11px] font-semibold tracking-[0.12em] mt-0.5" style={{ color: `${tierPrimary}e6` }}>
+            <p className="font-mono text-[11px] font-semibold tracking-[0.12em] mt-0.5 text-(--tier-ink) dark:text-(--tier)/90">
               {memberId}
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-white/70 mb-0.5">Since</p>
-            <p className="font-mono text-white/85 text-[11px] font-semibold">{sinceYear}</p>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground dark:text-white/70 mb-0.5">Since</p>
+            <p className="font-mono text-foreground/85 dark:text-white/85 text-[11px] font-semibold">{sinceYear}</p>
           </div>
         </div>
 
         {/* Representative section */}
         <div
-          className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5${onClick ? " pr-28" : ""}`}
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-          }}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-2.5 py-1.5 border-t bg-emerald-900/5 border-emerald-900/10 dark:bg-white/4 dark:border-white/6",
+            onClick && "pr-28",
+          )}
         >
           <div
             className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white leading-none"
@@ -153,8 +161,8 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             JS
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold text-white/90 leading-tight">{dealerName} Customer Benefit</p>
-            <p className="text-[11px] text-white/70 leading-snug mt-0.5">
+            <p className="text-[11px] font-bold text-foreground dark:text-white/90 leading-tight">{dealerName} Customer Benefit</p>
+            <p className="text-[11px] text-muted-foreground dark:text-white/70 leading-snug mt-0.5">
               {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services at participating locations
             </p>
           </div>
@@ -163,7 +171,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
       </div>
 
       {onClick && (
-        <span className="absolute bottom-2 right-2.5 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white/85 backdrop-blur-sm">
+        <span className="absolute bottom-2 right-2.5 z-10 rounded-full bg-emerald-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white backdrop-blur-sm dark:bg-black/55 dark:text-white/85">
           Tap to view
         </span>
       )}

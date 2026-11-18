@@ -4,13 +4,20 @@ import * as React from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { useUser, useAuthActions } from "@/providers/AuthProvider"
 import { useOrg } from "@/hooks/useOrg"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { CarFront, ExternalLink, Share2 } from "lucide-react"
+import { CarFront, ExternalLink, Share2, X } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { useMyMembership } from "@/hooks/api/useMembership"
 import { ACTION_AUTO_BENEFITS_REP, ACTION_AUTO_SERVICE_DISCOUNT_PERCENT, buildMemberBenefitsUrl } from "@/lib/customer-benefits"
+import { DEFAULT_TIER_COLORS, MEMBER_CARD_DOTS, MEMBER_CARD_SURFACE, TIER_TEXT, tierColorVars } from "@/lib/membership-theme"
+import { cn } from "@/lib/utils"
+
+// The buttons under the card: solid on light screens, glass on dark screens.
+const CARD_ACTION =
+  "w-full rounded-xl h-11 font-semibold border bg-white text-emerald-950 border-white hover:bg-emerald-50 hover:text-emerald-950 " +
+  "dark:bg-white/8 dark:hover:bg-white/15 dark:border-white/15 dark:text-white dark:hover:text-white dark:backdrop-blur-sm"
 
 function getMemberId(userId: string): string {
   const hex = userId.slice(-12).toUpperCase()
@@ -48,8 +55,8 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
   const tier = membership?.currentTier
   const tierName = tier?.name ?? "Ignition"
-  const tierPrimary = tier?.colorTheme.primary ?? "#9ca3af"
-  const tierGradient = tier?.colorTheme.gradient ?? ["#374151", "#9ca3af"]
+  const tierPrimary = tier?.colorTheme.primary ?? DEFAULT_TIER_COLORS.primary
+  const tierGradient = tier?.colorTheme.gradient ?? DEFAULT_TIER_COLORS.gradient
   const lifetimePts = membership?.points.lifetimePoints ?? 0
 
   const handleShare = async () => {
@@ -64,18 +71,39 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      {/* The close button sits above the card (2026-11-18): the shared
+          one sat on top of the dealership name. */}
       <DialogContent
+        showCloseButton={false}
         overlayClassName="bg-black/70 backdrop-blur-[4px]"
-        className="w-[calc(100vw-2rem)] max-w-sm p-0 overflow-hidden bg-transparent border-0 shadow-none [&>button]:text-white/80 [&>button]:top-3 [&>button]:left-3 [&>button]:right-auto [&>button]:z-50">
+        className="w-[calc(100vw-2rem)] max-w-sm gap-3 p-0 bg-transparent border-0 shadow-none">
+        <DialogTitle className="sr-only">{dealerName} membership card</DialogTitle>
+        <DialogDescription className="sr-only">
+          Show this card&apos;s QR code at participating service locations for {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services.
+        </DialogDescription>
+        <div className="flex justify-end">
+          <DialogClose
+            aria-label="Close"
+            className="flex size-10 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/25 transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <X className="size-5" />
+          </DialogClose>
+        </div>
 
+        {/* Follows the light/dark theme (2026-11-18). */}
         <div
-          className="relative min-h-min overflow-hidden rounded-2xl text-white select-none"
-          style={{
-            background: "linear-gradient(140deg, #060d10 0%, #0b1a14 40%, #071210 100%)",
-            boxShadow: "0 32px 64px -12px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.08)",
-            aspectRatio: "1.586",
-          }}
+          className={cn(
+            "relative grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl select-none",
+            "shadow-[0_32px_64px_-12px_rgba(0,0,0,0.55)] dark:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.85)]",
+            MEMBER_CARD_SURFACE,
+          )}
+          style={tierColorVars(tier?.colorTheme)}
         >
+          {/* Card shape (2026-11-18): the bank-card proportions are the
+              minimum, and the text shares this grid cell, so on narrow phones
+              the card grows taller instead of cutting the last lines off. */}
+          <span aria-hidden="true" className="col-start-1 row-start-1 w-full self-start" style={{ aspectRatio: "1.586" }} />
+
           <div
             className="absolute top-0 left-0 right-0 h-1"
             style={{ background: `linear-gradient(90deg, transparent, ${tierPrimary}, transparent)` }}
@@ -91,28 +119,28 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
           />
 
           <div
-            className="pointer-events-none absolute inset-0"
+            className={cn("pointer-events-none absolute inset-0", MEMBER_CARD_DOTS)}
             style={{
-              backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)",
+              backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
               backgroundSize: "10px 10px",
               maskImage: "radial-gradient(ellipse 100% 100% at 50% 50%, black 40%, transparent 100%)",
               WebkitMaskImage: "radial-gradient(ellipse 100% 100% at 50% 50%, black 40%, transparent 100%)",
             }}
           />
 
-          <div className="relative z-10 h-full flex flex-col justify-between gap-2 px-5 py-4 sm:px-6 sm:py-5">
+          <div className="relative z-10 col-start-1 row-start-1 flex flex-col justify-between gap-2 px-5 py-4 sm:px-6 sm:py-5">
 
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-black tracking-[0.22em] uppercase text-white leading-none">
+                <p className="text-xs font-black tracking-[0.22em] uppercase text-foreground dark:text-white leading-none">
                   {dealerName}
                 </p>
-                <p className="text-[11px] tracking-[0.18em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
+                <p className="text-[11px] tracking-[0.18em] uppercase mt-1 text-(--tier-ink) dark:text-(--tier)/80">
                   Jiffy Lube Partner
                 </p>
               </div>
 
-              <div className="bg-white rounded-lg p-1.5 shadow-xl">
+              <div className="bg-white rounded-lg p-1.5 shadow-xl ring-1 ring-emerald-900/10 dark:ring-0">
                 <QRCodeSVG
                   value={qrValue}
                   size={72}
@@ -125,7 +153,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              <svg width="38" height="30" viewBox="0 0 38 30" fill="none">
+              <svg width="38" height="30" viewBox="0 0 38 30" fill="none" aria-hidden="true">
                 <rect x="0.5" y="0.5" width="37" height="29" rx="5" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
                 <rect x="0.5" y="0.5" width="37" height="29" rx="5" fill="url(#chipG2)" />
                 <line x1="13" y1="0.5" x2="13" y2="29.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.75" />
@@ -142,26 +170,20 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 </defs>
               </svg>
 
-              <div
-                className="flex items-center gap-1 rounded-full px-2.5 py-1 border"
-                style={{ background: `${tierPrimary}1a`, borderColor: `${tierPrimary}50` }}
-              >
-                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: tierPrimary }}>
+              <div className="flex items-center gap-1 rounded-full px-2.5 py-1 border border-(--tier-ink)/30 bg-(--tier-ink)/8 dark:border-(--tier)/30 dark:bg-(--tier)/10">
+                <span className={cn("text-[11px] font-bold uppercase tracking-wider", TIER_TEXT)}>
                   {tierName} Member
                 </span>
               </div>
 
-              <div
-                className="rounded-full border px-2.5 py-1"
-                style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.14)" }}
-              >
-                <span className="text-[11px] font-black uppercase tracking-wider text-white">
+              <div className="rounded-full border px-2.5 py-1 bg-primary/12 border-primary/25 dark:bg-white/8 dark:border-white/14">
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800 dark:text-white">
                   {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off services
                 </span>
               </div>
 
               {lifetimePts > 0 && (
-                <span className="text-[11px] font-semibold text-white/80 ml-auto">
+                <span className="text-[11px] font-semibold text-foreground/80 dark:text-white/80 ml-auto">
                   {lifetimePts.toLocaleString()} pts
                 </span>
               )}
@@ -169,57 +191,43 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
 
             <div className="flex items-end justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/70 mb-1">Cardholder</p>
-                <p className="text-sm font-bold tracking-[0.12em] uppercase text-white leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-40 whitespace-normal">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground dark:text-white/70 mb-1">Cardholder</p>
+                <p className="text-sm font-bold tracking-[0.12em] uppercase text-foreground dark:text-white leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-40 whitespace-normal">
                   {memberName}
                 </p>
-                <p className="font-mono text-xs font-semibold tracking-[0.14em] mt-1" style={{ color: `${tierPrimary}e6` }}>
+                <p className="font-mono text-xs font-semibold tracking-[0.14em] mt-1 text-(--tier-ink) dark:text-(--tier)/90">
                   {memberId}
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/70 mb-1">Since</p>
-                <p className="font-mono text-white/85 text-xs font-semibold">{sinceYear}</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground dark:text-white/70 mb-1">Since</p>
+                <p className="font-mono text-foreground/85 dark:text-white/85 text-xs font-semibold">{sinceYear}</p>
               </div>
             </div>
 
-            <div
-              className="rounded-xl px-3 py-2"
-              style={{ background: "rgba(255,255,255,0.04)", borderTop: "1px solid rgba(255,255,255,0.07)" }}
-            >
-              <p className="text-xs font-bold text-white/90 leading-tight">
+            <div className="rounded-xl px-3 py-2 border-t bg-emerald-900/5 border-emerald-900/10 dark:bg-white/4 dark:border-white/7">
+              <p className="text-xs font-bold text-foreground dark:text-white/90 leading-tight">
                 {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services
               </p>
-              <p className="text-[11px] text-white/75 leading-snug mt-0.5">
+              <p className="text-[11px] text-muted-foreground dark:text-white/75 leading-snug mt-0.5">
                 Verify {dealerName} customer status with {ACTION_AUTO_BENEFITS_REP.name}.
               </p>
             </div>
 
           </div>
         </div>
-        <div className="mt-3 grid gap-2">
-          <Button
-            onClick={handleShare}
-            className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
-          >
+        <div className="grid gap-2">
+          <Button onClick={handleShare} className={CARD_ACTION}>
             <Share2 className="w-4 h-4 mr-2" />
             Share Card
           </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
-          >
+          <Button asChild variant="outline" className={CARD_ACTION}>
             <Link href={qrValue} target="_blank" rel="noreferrer">
               <ExternalLink className="w-4 h-4 mr-2" />
               View Benefits
             </Link>
           </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="w-full bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-xl h-11 font-semibold backdrop-blur-sm"
-          >
+          <Button asChild variant="outline" className={CARD_ACTION}>
             <Link href="/customer?tab=vehicles&add=vehicle" onClick={() => onOpenChange(false)}>
               <CarFront className="w-4 h-4 mr-2" />
               Register VIN

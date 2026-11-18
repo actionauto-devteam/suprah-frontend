@@ -19,6 +19,7 @@ import { MembershipCardModal } from "@/components/customer/MembershipCardModal";
 import type { PointSourceType } from "@/types/membership";
 import { cn } from "@/lib/utils";
 import { ACTION_AUTO_BENEFITS_REP, ACTION_AUTO_SERVICE_DISCOUNT_PERCENT } from "@/lib/customer-benefits";
+import { TIER_TEXT, tierColorVars } from "@/lib/membership-theme";
 
 const TIER_ICONS: Record<string, React.ElementType> = {
   ignition: Key,
@@ -80,11 +81,11 @@ function Odometer({ value }: { value: number }) {
     <div className="flex max-w-full flex-wrap items-center gap-0.5 gap-y-1">
       {digits.map((d, i) =>
         d === "," ? (
-          <span key={i} className="px-0.5 text-xl font-black text-white/70 sm:text-2xl lg:text-3xl">,</span>
+          <span key={i} className="px-0.5 text-xl font-black text-foreground/60 sm:text-2xl lg:text-3xl dark:text-white/70">,</span>
         ) : (
           <span
             key={i}
-            className="shrink-0 rounded-md bg-black/35 px-1 py-1 font-mono text-xl font-black tabular-nums text-white shadow-inner ring-1 ring-white/10 sm:px-1.5 sm:text-2xl lg:text-3xl"
+            className="shrink-0 rounded-md bg-card px-1 py-1 font-mono text-xl font-black tabular-nums text-foreground shadow-sm ring-1 ring-primary/20 sm:px-1.5 sm:text-2xl lg:text-3xl dark:bg-black/35 dark:text-white dark:shadow-inner dark:ring-white/10"
           >
             {d}
           </span>
@@ -155,15 +156,17 @@ export default function MembershipPage() {
     );
   }
 
+  // `accent` reads well on dark screens, `ink` on light screens (2026-11-18).
+  const ink = tier?.colorTheme.secondary ?? "#4b5563";
   const stats = [
-    { label: "Member Pricing", value: `${tier?.discountPercent ?? 0}%`,  sub: "off vehicles & parts", icon: Tag,        accent: primary },
-    { label: "Drive Points",   value: lifetime.toLocaleString(),          sub: "lifetime earned",      icon: Sparkles,   accent: "#34d399" },
-    { label: "Current Class",  value: tier?.name ?? "Ignition",           sub: `Class ${tier?.rank ?? 1} of 7`, icon: TierIcon, accent: primary },
+    { label: "Member Pricing", value: `${tier?.discountPercent ?? 0}%`,  sub: "off vehicles & parts", icon: Tag,        accent: primary, ink },
+    { label: "Drive Points",   value: lifetime.toLocaleString(),          sub: "lifetime earned",      icon: Sparkles,   accent: "#34d399", ink: "#047857" },
+    { label: "Current Class",  value: tier?.name ?? "Ignition",           sub: `Class ${tier?.rank ?? 1} of 7`, icon: TierIcon, accent: primary, ink },
     {
       label: "Next Class",
       value: nextTier?.name ?? "Maxed",
       sub: nextTier ? `${membership?.pointsToNextTier?.toLocaleString()} pts to go` : "Top class reached",
-      icon: TrendingUp, accent: "#60a5fa",
+      icon: TrendingUp, accent: "#60a5fa", ink: "#1d4ed8",
     },
   ];
 
@@ -191,14 +194,20 @@ export default function MembershipPage() {
       </div>
 
       {/* ── Cockpit hero ──────────────────────────────────────────── */}
+      {/* Follows the light/dark theme (2026-11-18): Suprah mint with class-colored
+          accents on light screens, the class gradient on dark screens. */}
       <div
-        className="relative overflow-hidden rounded-3xl p-5 shadow-xl sm:p-7"
-        style={{ background: `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1] ?? primary} ${grad.length > 2 ? "55%" : "100%"}${grad[2] ? `, ${grad[2]} 100%` : ""})` }}
+        className="relative overflow-hidden rounded-3xl bg-linear-135 from-card via-primary/5 to-primary/15 p-5 shadow-xl ring-1 ring-primary/20 sm:p-7 dark:ring-0"
+        style={tierColorVars(tier?.colorTheme)}
       >
-        <div className="absolute inset-0 bg-black/45" />
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "14px 14px" }}
+          className="absolute inset-0 hidden dark:block"
+          style={{ background: `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1] ?? primary} ${grad.length > 2 ? "55%" : "100%"}${grad[2] ? `, ${grad[2]} 100%` : ""})` }}
+        />
+        <div className="absolute inset-0 hidden bg-black/45 dark:block" />
+        <div
+          className="pointer-events-none absolute inset-0 text-emerald-900 opacity-[0.07] dark:text-white"
+          style={{ backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)", backgroundSize: "14px 14px" }}
         />
         <div
           className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full blur-3xl"
@@ -208,23 +217,23 @@ export default function MembershipPage() {
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur">
-                <TierIcon className="h-7 w-7 text-white" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-primary/20 backdrop-blur dark:bg-white/15 dark:shadow-none dark:ring-white/25">
+                <TierIcon className="h-7 w-7 text-(--tier-ink) dark:text-white" />
               </div>
               <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-white backdrop-blur">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/12 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-emerald-800 backdrop-blur dark:bg-white/15 dark:text-white">
                   Class {tier?.rank ?? 1} of 7
                 </div>
-                <h2 className="mt-1 text-2xl font-black uppercase tracking-tight text-white drop-shadow sm:text-3xl">
+                <h2 className="mt-1 text-2xl font-black uppercase tracking-tight text-foreground sm:text-3xl dark:text-white dark:drop-shadow">
                   {tier?.name ?? "Ignition"}
                 </h2>
               </div>
             </div>
 
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/75">Drive Points</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground dark:text-white/75">Drive Points</p>
               <div className="mt-1.5"><Odometer value={lifetime} /></div>
-              <p className="mt-2 max-w-md text-sm font-medium text-white/90">
+              <p className="mt-2 max-w-md text-sm font-medium text-foreground/90 dark:text-white/90">
                 {tier && tier.discountPercent > 0
                   ? `${firstName}, you're saving ${tier.discountPercent}% on every vehicle and part in the shop.`
                   : `Welcome aboard, ${firstName}. Earn points to unlock member pricing.`}
@@ -233,30 +242,30 @@ export default function MembershipPage() {
           </div>
 
           {/* Progress gauge */}
-          <div className="w-full max-w-sm rounded-2xl bg-black/40 p-4 ring-1 ring-white/15 backdrop-blur lg:w-80">
-            <div className="flex items-center justify-between text-xs font-semibold text-white/90">
+          <div className="w-full max-w-sm rounded-2xl bg-card/80 p-4 shadow-sm ring-1 ring-primary/15 backdrop-blur lg:w-80 dark:bg-black/40 dark:shadow-none dark:ring-white/15">
+            <div className="flex items-center justify-between text-xs font-semibold text-foreground/90 dark:text-white/90">
               <span>Member since {sinceYear}</span>
               <span className="tabular-nums">{progress}%</span>
             </div>
-            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/20">
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-primary/15 dark:bg-white/20">
               <div
-                className="h-full rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] transition-all duration-1000"
+                className="h-full rounded-full bg-primary transition-all duration-1000 dark:bg-white dark:shadow-[0_0_10px_rgba(255,255,255,0.8)]"
                 style={{ width: `${progress}%` }}
               />
             </div>
             <div className="mt-3 flex items-center justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-wide text-white/70">Current</p>
-                <p className="text-sm font-bold text-white">{tier?.name}</p>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground dark:text-white/70">Current</p>
+                <p className="text-sm font-bold text-foreground dark:text-white">{tier?.name}</p>
               </div>
-              <ChevronRight className="h-4 w-4 text-white/60" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground dark:text-white/60" />
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-wide text-white/70">{nextTier ? "Next" : "Status"}</p>
-                <p className="text-sm font-bold text-white">{nextTier?.name ?? "Maxed Out"}</p>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground dark:text-white/70">{nextTier ? "Next" : "Status"}</p>
+                <p className="text-sm font-bold text-foreground dark:text-white">{nextTier?.name ?? "Maxed Out"}</p>
               </div>
             </div>
             {nextTier && (
-              <p className="mt-2 rounded-lg bg-white/15 px-2.5 py-1.5 text-center text-[11px] font-semibold text-white">
+              <p className="mt-2 rounded-lg bg-primary/10 px-2.5 py-1.5 text-center text-[11px] font-semibold text-emerald-800 dark:bg-white/15 dark:text-white">
                 {membership?.pointsToNextTier?.toLocaleString()} pts to {nextTier.name} · unlocks {nextTier.discountPercent}% pricing
               </p>
             )}
@@ -267,14 +276,14 @@ export default function MembershipPage() {
       {/* ── Stat band ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-[14px] border border-border bg-card p-3.5 sm:p-4">
+          <div key={s.label} className="rounded-[14px] border border-border bg-card p-3.5 sm:p-4" style={tierColorVars({ primary: s.accent, secondary: s.ink })}>
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: `${s.accent}1a`, color: s.accent }}>
+              <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg bg-(--tier-ink)/10 dark:bg-(--tier)/10", TIER_TEXT)}>
                 <s.icon className="h-3.5 w-3.5" />
               </div>
               <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{s.label}</p>
             </div>
-            <p className="mt-2 min-w-0 break-words [overflow-wrap:anywhere] text-lg font-black sm:text-xl whitespace-normal" style={{ color: s.accent }}>{s.value}</p>
+            <p className={cn("mt-2 min-w-0 break-words [overflow-wrap:anywhere] text-lg font-black sm:text-xl whitespace-normal", TIER_TEXT)}>{s.value}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">{s.sub}</p>
           </div>
         ))}
@@ -321,44 +330,52 @@ export default function MembershipPage() {
               const isCurrent = t.slug === tier?.slug;
               const unlocked = lifetime >= t.minPoints;
               return (
+                // Your class: Suprah mint with a green outline on light screens,
+                // the class gradient on dark screens (2026-11-18).
                 <div
                   key={t.slug}
                   className={cn(
                     "relative flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition-all sm:p-3",
                     isCurrent
-                      ? "border-transparent shadow-lg"
+                      ? "border-primary/50 bg-linear-160 from-primary/8 to-primary/20 shadow-lg dark:border-transparent dark:[background-image:var(--tier-grad)]"
                       : unlocked
                         ? "border-border bg-muted/30"
                         : "border-dashed border-muted-foreground/40 bg-muted/10",
                   )}
-                  style={isCurrent ? { background: `linear-gradient(160deg, ${grad[0]}, ${grad[1] ?? primary})` } : undefined}
+                  style={{
+                    ...tierColorVars(t.colorTheme),
+                    ...(isCurrent ? { "--tier-grad": `linear-gradient(160deg, ${grad[0]}, ${grad[1] ?? primary})` } : {}),
+                  } as React.CSSProperties}
                 >
                   <div
-                    className={cn("flex h-9 w-9 items-center justify-center rounded-full", isCurrent ? "bg-white/20" : "bg-muted")}
-                    style={!isCurrent && unlocked ? { color: t.colorTheme.primary } : undefined}
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full",
+                      isCurrent ? "bg-card shadow-sm dark:bg-white/20 dark:shadow-none" : "bg-muted",
+                      (isCurrent || unlocked) && TIER_TEXT,
+                    )}
                   >
                     {unlocked ? (
-                      <Icon className={cn("h-5 w-5", isCurrent && "text-white")} />
+                      <Icon className={cn("h-5 w-5", isCurrent && "dark:text-white")} />
                     ) : (
                       <Lock className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  <p className={cn("text-[11px] font-black uppercase tracking-tight sm:text-xs", isCurrent ? "text-white" : "text-foreground")}>
+                  <p className={cn("text-[11px] font-black uppercase tracking-tight sm:text-xs text-foreground", isCurrent && "dark:text-white")}>
                     {t.name}
                   </p>
-                  <p className={cn("text-[11px] font-semibold tabular-nums", isCurrent ? "text-white/80" : "text-muted-foreground")}>
+                  <p className={cn("text-[11px] font-semibold tabular-nums text-muted-foreground", isCurrent && "dark:text-white/80")}>
                     {t.minPoints.toLocaleString()} pts
                   </p>
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.5 text-[11px] font-black uppercase",
-                      isCurrent ? "bg-white/20 text-white" : "bg-muted text-muted-foreground",
+                      isCurrent ? "bg-primary/15 text-emerald-800 dark:bg-white/20 dark:text-white" : "bg-muted text-muted-foreground",
                     )}
                   >
                     {t.discountPercent > 0 ? `${t.discountPercent}% off` : "Base"}
                   </span>
                   {isCurrent && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-zinc-900 shadow">
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-white shadow dark:bg-white dark:text-zinc-900">
                       You
                     </span>
                   )}
@@ -395,9 +412,11 @@ export default function MembershipPage() {
                         onClick={() => setMobilePerkTier(t.slug)}
                         className={cn(
                           "shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors",
-                          selected ? "border-transparent text-white" : "border-border text-muted-foreground",
+                          selected
+                            ? "border-transparent bg-(--tier-ink) text-white dark:bg-(--tier) dark:text-zinc-950"
+                            : "border-border text-muted-foreground",
                         )}
-                        style={selected ? { background: t.colorTheme.primary } : undefined}
+                        style={tierColorVars(t.colorTheme)}
                       >
                         {t.name}
                       </button>
@@ -414,7 +433,10 @@ export default function MembershipPage() {
                       <div key={row} className="flex items-center justify-between gap-3 px-4 py-3">
                         <span className="text-[12px] font-medium text-foreground">{row}</span>
                         {ri === 0 ? (
-                          <span className="text-xs font-black shrink-0" style={{ color: selTier && selTier.discountPercent > 0 ? selTier.colorTheme.primary : undefined }}>
+                          <span
+                            className={cn("text-xs font-black shrink-0", selTier && selTier.discountPercent > 0 && TIER_TEXT)}
+                            style={tierColorVars(selTier?.colorTheme)}
+                          >
                             {selTier && selTier.discountPercent > 0 ? `${selTier.discountPercent}%` : "—"}
                           </span>
                         ) : has ? (
@@ -440,11 +462,12 @@ export default function MembershipPage() {
                         {(allTiers ?? []).map((t) => (
                           <th
                             key={t.slug}
-                            className="px-2 py-3 text-center text-[11px] font-black uppercase tracking-tight break-words [overflow-wrap:anywhere] whitespace-normal"
-                            style={{
-                              color: t.colorTheme.primary,
-                              background: t.slug === tier?.slug ? `${t.colorTheme.primary}14` : undefined,
-                            }}
+                            className={cn(
+                              "px-2 py-3 text-center text-[11px] font-black uppercase tracking-tight break-words [overflow-wrap:anywhere] whitespace-normal",
+                              TIER_TEXT,
+                              t.slug === tier?.slug && "bg-(--tier-ink)/8 dark:bg-(--tier)/8",
+                            )}
+                            style={tierColorVars(t.colorTheme)}
                           >
                             {t.name}
                           </th>
@@ -458,11 +481,11 @@ export default function MembershipPage() {
                           {(allTiers ?? []).map((t, ti) => (
                             <td
                               key={t.slug}
-                              className="px-2 py-3 text-center"
-                              style={{ background: t.slug === tier?.slug ? `${t.colorTheme.primary}0a` : undefined }}
+                              className={cn("px-2 py-3 text-center", t.slug === tier?.slug && "bg-(--tier-ink)/5 dark:bg-(--tier)/4")}
+                              style={tierColorVars(t.colorTheme)}
                             >
                               {ri === 0 ? (
-                                <span className="text-xs font-black" style={{ color: t.discountPercent > 0 ? t.colorTheme.primary : undefined }}>
+                                <span className={cn("text-xs font-black", t.discountPercent > 0 && TIER_TEXT)}>
                                   {t.discountPercent > 0 ? `${t.discountPercent}%` : "—"}
                                 </span>
                               ) : ti >= ri ? (

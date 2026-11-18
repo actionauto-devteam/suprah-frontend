@@ -169,7 +169,11 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="flex-1 overflow-auto p-4 lg:p-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
+          {/* `relative` keeps hidden helpers (like a chat's file picker) inside
+              this scrolling area; outside it they made the whole frame
+              scrollable, and a chat jumping to its newest message slid the
+              page up and left an empty band above the bottom bar (2026-11-18). */}
+          <main className="relative flex-1 overflow-auto p-4 lg:p-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
             <div className="w-full">
               {/* Sections that aren't finished yet say so, and what works now. */}
               <InDevelopmentNotice />

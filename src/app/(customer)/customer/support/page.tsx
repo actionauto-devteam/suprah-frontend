@@ -29,7 +29,9 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
-import { cn } from "@/lib/utils";
+import { useProfileContext } from "@/context/ProfileContext";
+import { cn, resolveImageUrl } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { initializeSocket } from "@/lib/socket.client";
 import type { Socket } from "socket.io-client";
 import { userErrorMessage } from "@/lib/user-error";
@@ -235,17 +237,15 @@ function MessageBubble({
       <div className="h-7.5 w-7.5 shrink-0">
         {groupStart &&
           (isOwn ? (
-            ownAvatar ? (
-              <img
-                src={ownAvatar}
-                alt={ownName}
-                className="h-7.5 w-7.5 rounded-xl object-cover shadow-sm"
-              />
-            ) : (
-              <div className="h-7.5 w-7.5 rounded-xl flex items-center justify-center text-[11px] font-bold text-white shadow-sm bg-linear-to-br from-emerald-500 to-emerald-700">
+            // Same photo as the header (2026-11-18): a saved photo address is
+            // turned into one the browser can load, and the initials show
+            // when there's no photo or it doesn't load.
+            <Avatar className="h-7.5 w-7.5 rounded-xl shadow-sm">
+              {ownAvatar && <AvatarImage src={ownAvatar} alt={ownName} className="rounded-xl" />}
+              <AvatarFallback className="rounded-xl text-[11px] font-bold text-white bg-linear-to-br from-emerald-500 to-emerald-700">
                 {ini(ownName)}
-              </div>
-            )
+              </AvatarFallback>
+            </Avatar>
           ) : (
             <img
               src="/favicon.png"
@@ -917,7 +917,11 @@ function CustomerConcernChat({ mode = "page" }: { mode?: Mode }) {
   const isResolved = !!activeCase?.resolved;
   const canStartNew = !activeCaseId || messages.length > 0;
   const ownName = user?.fullName || "You";
-  const ownAvatar = user?.imageUrl;
+  // The header's photo: a just-changed photo first, else the saved one; the
+  // stand-in "/placeholder-avatar.png" isn't a real file, so it shows initials.
+  const { avatarUrl } = useProfileContext();
+  const savedAvatar = avatarUrl !== null ? avatarUrl : user?.imageUrl;
+  const ownAvatar = savedAvatar && !savedAvatar.endsWith("/placeholder-avatar.png") ? resolveImageUrl(savedAvatar) : undefined;
 
   // ── Chat body ──────────────────────────────────────────────────────────────
 

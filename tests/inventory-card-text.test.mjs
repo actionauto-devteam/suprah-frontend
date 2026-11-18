@@ -13,10 +13,15 @@ const card = read('components/car-inventory-card.tsx');
 const filters = read('components/shop-inventory-filters.tsx');
 const paging = read('components/inventory-pagination.tsx');
 
-test('the grid fits as many cards as the space allows, each at least 17rem wide', () => {
-  const autoFill = /md:grid-cols-\[repeat\(auto-fill,minmax\(17rem,1fr\)\)\]/g;
-  assert.equal(page.match(autoFill)?.length, 2, 'the cards and the loading preview');
+test('the grid fits up to four cards per row, each at least 17rem wide', () => {
+  // 2026-11-18: at most four per row; fewer when four can't be 17rem wide.
+  const upToFour = 'md:grid-cols-[repeat(auto-fill,minmax(max(17rem,calc((100%_-_4.5rem)/4_-_1px)),1fr))]';
+  assert.equal(page.split(upToFour).length - 1, 2, 'the cards and the loading preview');
+  assert.doesNotMatch(page, /minmax\(17rem,1fr\)/);
   assert.doesNotMatch(page, /xl:grid-cols-4/);
+  // The 4.5rem is the three gaps between four cards: gap-6 (1.5rem) from sm up.
+  assert.match(page, /"grid grid-cols-1 md:grid-cols-\[[^"]+\] gap-4 sm:gap-6"/);
+  assert.match(page, /<div className="hidden gap-4 md:grid md:grid-cols-\[[^"]+\] sm:gap-6" aria-hidden="true">/);
 });
 
 test('the desktop card wraps every piece of text instead of cutting it off', () => {
