@@ -143,7 +143,7 @@ const PAYOUT_STATUS_CLASSES: Record<string, { badge: string; dot: string }> = {
 function PayoutStatusBadge({ status }: { status: string }) {
   const c = PAYOUT_STATUS_CLASSES[status] || PAYOUT_STATUS_CLASSES.pending;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider", c.badge)}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider", c.badge)}>
       <span className={cn("size-1.5 rounded-full", c.dot)} />
       {status}
     </span>
@@ -289,7 +289,7 @@ export default function DriverPayoutsPage() {
   );
 
   const loadIdLabel = (
-    <p className="font-mono text-[10px] tracking-wider text-muted-foreground">LOAD #</p>
+    <p className="font-mono text-[11px] tracking-wider text-muted-foreground">LOAD #</p>
   );
 
   return (
@@ -315,7 +315,7 @@ export default function DriverPayoutsPage() {
               { label: "All Payouts", val: String(payouts.length), color: "text-blue-600 dark:text-blue-400" },
             ].map(({ label, val, color }) => (
               <div key={label} className="rounded-xl border border-border bg-card px-4 py-3.5">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+                <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
                 <p className={cn("mt-1.5 text-[22px] font-bold", color)}>{val}</p>
               </div>
             ))}
@@ -342,7 +342,7 @@ export default function DriverPayoutsPage() {
                 {count > 0 && (
                   <span
                     className={cn(
-                      "rounded-lg px-1.5 py-px font-mono text-[10px]",
+                      "rounded-lg px-1.5 py-px font-mono text-[11px]",
                       tab === key ? "bg-black/15 text-primary-foreground" : "bg-primary/15 text-primary",
                     )}
                   >
@@ -450,32 +450,50 @@ export default function DriverPayoutsPage() {
             ))}
 
           {tab === "history" && (
+            // Fits phones without sideways scrolling, and a failed payout says
+            // why (2026-11-19).
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              <div className="overflow-x-auto">
-                <div className="grid min-w-[480px] grid-cols-[1fr_1fr_auto_auto] gap-3 border-b border-border px-4 py-3">
-                  {["Driver", "Load", "Amount", "Status"].map((h) => (
-                    <span key={h} className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{h}</span>
-                  ))}
-                </div>
-
-                {loading ? (
-                  loader
-                ) : payouts.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-muted-foreground">No payouts yet</p>
-                ) : (
-                  payouts.map((p) => (
-                    <div key={p._id} className="grid min-w-[480px] grid-cols-[1fr_1fr_auto_auto] items-center gap-3 border-b border-border px-4 py-3.5 last:border-b-0">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{(p.driverId as any)?.name || "-"}</p>
-                        <p className="font-mono text-[11px] text-muted-foreground">{new Date(p.createdAt || "").toLocaleDateString()}</p>
-                      </div>
-                      <p className="font-mono text-xs text-muted-foreground">{(p.loadId as any)?.loadNumber || (p.loadId as any)?.trackingNumber || "-"}</p>
-                      <p className="font-mono text-sm font-bold text-foreground">{formatCurrency(p.amount)}</p>
-                      <PayoutStatusBadge status={p.status} />
-                    </div>
-                  ))
-                )}
+              <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] gap-3 border-b border-border px-4 py-3 sm:grid">
+                {["Driver", "Load", "Amount", "Status"].map((h) => (
+                  <span key={h} className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{h}</span>
+                ))}
               </div>
+
+              {loading ? (
+                loader
+              ) : payouts.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">No payouts yet</p>
+              ) : (
+                payouts.map((p) => {
+                  const load = typeof p.loadId === "object" ? p.loadId : null;
+                  const loadLabel = load?.loadNumber || load?.trackingNumber || "-";
+                  const driverName = (typeof p.driverId === "object" ? p.driverId?.name : "") || p.driverName || "-";
+                  return (
+                    <div
+                      key={p._id}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
+                    >
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-semibold text-foreground">{driverName}</p>
+                        <p className="break-words font-mono text-[11px] text-muted-foreground">
+                          {new Date(p.createdAt || "").toLocaleDateString()}
+                          <span className="sm:hidden"> · Load {loadLabel}</span>
+                        </p>
+                      </div>
+                      <p className="hidden break-words font-mono text-xs text-muted-foreground sm:block">{loadLabel}</p>
+                      <div className="flex flex-col items-end gap-1.5 sm:contents">
+                        <p className="font-mono text-sm font-bold text-foreground">{formatCurrency(p.amount)}</p>
+                        <PayoutStatusBadge status={p.status} />
+                      </div>
+                      {p.status === "failed" && p.failureReason && (
+                        <p className="col-span-full break-words text-xs text-red-700 dark:text-red-400">
+                          Why it failed: {p.failureReason}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>

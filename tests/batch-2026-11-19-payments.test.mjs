@@ -83,3 +83,41 @@ test('partly refunded payments are labelled and counted as such', () => {
   assert.match(billingReport, /notRefunded\(\{ \.\.\.payment, status: "succeeded" \}\)/);
   assert.match(billingReport, /refundedSoFar\(\{ \.\.\.payment, status: normalizeStatus\(payment\.status\) \}\)/);
 });
+
+// ── Driver payout account status and failed payouts ─────────────────────────
+function loadTypes(name) {
+  const filename = fileURLToPath(new URL(`../src/types/${name}.ts`, import.meta.url));
+  const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  const cjs = { exports: {} };
+  new Function('exports', 'require', 'module', outputText)(cjs.exports, () => ({}), cjs);
+  return cjs.exports;
+}
+const { payoutAccountReady } = loadTypes('driver-payout');
+const driverSettings = read('app/(driver)/driver/settings/page.tsx');
+const staffPayouts = read('app/(dashboard)/billing/driver-payouts/page.tsx');
+
+test("a finished payout account shows ready even though card charges stay off", () => {
+  assert.equal(payoutAccountReady({ connected: true, ready: true, chargesEnabled: false }), true);
+  assert.equal(payoutAccountReady({ connected: true, ready: false, payoutsEnabled: true, detailsSubmitted: true }), false);
+  // An older server without "ready": bank payouts on and details sent.
+  assert.equal(payoutAccountReady({ connected: true, chargesEnabled: false, payoutsEnabled: true, detailsSubmitted: true }), true);
+  assert.equal(payoutAccountReady({ connected: true, payoutsEnabled: false, detailsSubmitted: true }), false);
+  assert.equal(payoutAccountReady({ connected: false }), false);
+  assert.equal(payoutAccountReady(null), false);
+});
+
+test('the driver settings card no longer waits for card charges', () => {
+  assert.doesNotMatch(driverSettings, /chargesEnabled/);
+  assert.match(driverSettings, /const payoutReady = payoutAccountReady\(connectStatus\)/);
+  assert.match(driverSettings, /Stripe is checking your details/);
+  assert.match(driverSettings, /Tap Complete Setup to finish\./);
+});
+
+test('staff payout history fits phones and says why a payout failed', () => {
+  assert.doesNotMatch(staffPayouts, /min-w-\[480px\]/);
+  assert.doesNotMatch(staffPayouts, /text-\[10px\]/);
+  assert.match(staffPayouts, /Why it failed: \{p\.failureReason\}/);
+  assert.match(staffPayouts, /sm:contents/);
+});
