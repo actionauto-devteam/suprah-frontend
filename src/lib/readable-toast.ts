@@ -1,5 +1,16 @@
 import { toast as sonnerToast, type ExternalToast } from "sonner"
-import { MAX_TOAST_LIFETIME } from "@/lib/toast-deck"
+
+/*
+ * Toasts people have time to read. Sonner's default hides every toast after
+ * 4 seconds, often before a plain-English note (what went wrong, what to do,
+ * the support email) has been read. Here:
+ * - errors and warnings stay 8 to 15 seconds, by length, with a close button;
+ * - successes and other notes stay 4 to 8 seconds, by length;
+ * - a duration passed by the caller always wins, and loading toasts stay
+ *   until they're replaced, as before.
+ *
+ * Same API as sonner's `toast`: import { toast } from "@/lib/readable-toast".
+ */
 
 type ToastKind = "error" | "warning" | "success" | "info" | "message"
 type ToastMessage = Parameters<typeof sonnerToast>[0]
@@ -8,11 +19,11 @@ type ToastMessage = Parameters<typeof sonnerToast>[0]
 const MS_PER_WORD = 300
 
 const LIMITS: Record<ToastKind, { min: number; max: number; extra: number }> = {
-  error: { min: 5_000, max: MAX_TOAST_LIFETIME, extra: 3_000 },
-  warning: { min: 5_000, max: MAX_TOAST_LIFETIME, extra: 3_000 },
-  success: { min: 4_000, max: MAX_TOAST_LIFETIME, extra: 1_500 },
-  info: { min: 4_000, max: MAX_TOAST_LIFETIME, extra: 1_500 },
-  message: { min: 4_000, max: MAX_TOAST_LIFETIME, extra: 1_500 },
+  error: { min: 8_000, max: 15_000, extra: 3_000 },
+  warning: { min: 8_000, max: 15_000, extra: 3_000 },
+  success: { min: 4_000, max: 8_000, extra: 1_500 },
+  info: { min: 4_000, max: 8_000, extra: 1_500 },
+  message: { min: 4_000, max: 8_000, extra: 1_500 },
 }
 
 const wordsIn = (value: unknown) => (typeof value === "string" ? value.split(/\s+/).filter(Boolean).length : 0)
