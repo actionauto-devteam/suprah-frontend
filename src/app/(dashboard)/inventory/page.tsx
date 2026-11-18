@@ -408,7 +408,7 @@ function InventoryInitialLoadingState() {
       </div>
 
       {/* Desktop/tablet: preserve the card-shaped first-row preview. */}
-      <div className="hidden gap-4 md:grid md:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] sm:gap-6" aria-hidden="true">
+      <div className="hidden gap-4 md:grid md:grid-cols-[repeat(auto-fill,minmax(max(17rem,calc((100%_-_4.5rem)/4_-_1px)),1fr))] sm:gap-6" aria-hidden="true">
         {Array.from({ length: 4 }, (_, index) => (
           <div
             key={index}
@@ -1455,10 +1455,13 @@ function InventoryContent() {
               className={cn(
                 "items-stretch",
                 viewMode === "grid"
-                  ? // As many cards per row as fit at 17rem or wider: the screen
-                    // width alone ignores the sidebar, which squeezed four cards
-                    // into a laptop screen and pushed their text out (2026-11-17).
-                    "grid grid-cols-1 md:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-4 sm:gap-6"
+                  ? // Up to four cards per row, each at least 17rem wide: fewer
+                    // when the space beside the sidebar can't fit four at 17rem,
+                    // so text is never squeezed (2026-11-17). Each column is also
+                    // at least a quarter of the row after the three 1.5rem gaps,
+                    // so a fifth card never fits; the 1px absorbs rounding
+                    // (2026-11-18).
+                    "grid grid-cols-1 md:grid-cols-[repeat(auto-fill,minmax(max(17rem,calc((100%_-_4.5rem)/4_-_1px)),1fr))] gap-4 sm:gap-6"
                   : "flex flex-col gap-2.5",
               )}
             >
