@@ -60,9 +60,9 @@ export function CustomerChatPane({
             <UserRound className="size-4 text-sky-700 dark:text-sky-300" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">Customer</p>
-            <h2 className="truncate text-sm font-black tracking-tight sm:text-base">{name}</h2>
-            {about && <p className="truncate text-xs text-muted-foreground">{about}</p>}
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">Customer</p>
+            <h2 className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-black tracking-tight sm:text-base whitespace-normal">{name}</h2>
+            {about && <p className="min-w-0 break-words [overflow-wrap:anywhere] text-xs text-muted-foreground whitespace-normal">{about}</p>}
           </div>
           <Button asChild variant="outline" size="sm" className="max-md:min-h-11 h-9 shrink-0 gap-1.5 rounded-xl text-xs font-semibold">
             <Link href={loadHref} aria-label={`Open load${chat?.loadNumber || item?.loadNumber ? ` ${chat?.loadNumber || item?.loadNumber}` : ""}`}>

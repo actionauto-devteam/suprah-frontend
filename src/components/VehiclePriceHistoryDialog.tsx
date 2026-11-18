@@ -184,14 +184,14 @@ export function VehiclePriceHistoryDialog({
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <History className="h-4 w-4" />
                       </span>
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/80">
+                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/80">
                         Suprah AI Inventory
                       </span>
                     </div>
-                    <h2 className="truncate text-lg font-black text-foreground sm:text-xl">
+                    <h2 className="min-w-0 break-words [overflow-wrap:anywhere] text-lg font-black text-foreground sm:text-xl whitespace-normal">
                       Pricing Log
                     </h2>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    <p className="mt-0.5 min-w-0 break-words [overflow-wrap:anywhere] text-xs text-muted-foreground whitespace-normal">
                       {vehicle.year} {vehicle.make} {vehicle.model}
                       {vehicle.trim ? ` · ${vehicle.trim}` : ""}
                       {vehicle.stockNumber ? ` · Stock #${vehicle.stockNumber}` : ""}
@@ -212,7 +212,7 @@ export function VehiclePriceHistoryDialog({
               <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
                 <div className="mb-5 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-border/50 bg-muted/25 p-4">
-                    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    <div className="mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                       <DollarSign className="h-3.5 w-3.5 text-primary/70" />
                       Current Price
                     </div>
@@ -222,7 +222,7 @@ export function VehiclePriceHistoryDialog({
                   </div>
 
                   <div className="rounded-xl border border-border/50 bg-muted/25 p-4">
-                    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    <div className="mb-1 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                       <CalendarClock className="h-3.5 w-3.5 text-primary/70" />
                       Last Price Change Recorded
                     </div>
@@ -317,7 +317,7 @@ export function VehiclePriceHistoryDialog({
                                       <span className="text-muted-foreground/40">→</span>
                                     </>
                                   ) : (
-                                    <span className="rounded-full bg-primary/8 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                                    <span className="rounded-full bg-primary/8 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
                                       Initial price
                                     </span>
                                   )}
@@ -328,7 +328,7 @@ export function VehiclePriceHistoryDialog({
                                   {hasPrevious && delta !== 0 && (
                                     <span
                                       className={cn(
-                                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums",
+                                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums",
                                         decreased &&
                                           "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                                         increased &&
@@ -365,7 +365,7 @@ export function VehiclePriceHistoryDialog({
                                 </div>
                               </div>
 
-                              <span className="rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
+                              <span className="rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
                                 {entry.source || "Suprah AI"}
                               </span>
                             </div>

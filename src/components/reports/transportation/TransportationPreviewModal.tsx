@@ -216,6 +216,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** One "label: value" line of a phone card in the preview (2026-11-18). */
+function PreviewField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words [overflow-wrap:anywhere] text-foreground">{children}</dd>
+    </>
+  );
+}
+
 function LoadPreview({
   loads,
   periodLabel,
@@ -262,7 +272,7 @@ function LoadPreview({
 
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Cancelled
           </p>
           <p className="text-sm font-bold text-red-600 dark:text-red-400">
@@ -270,7 +280,7 @@ function LoadPreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Avg Rate
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -278,7 +288,7 @@ function LoadPreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Total Miles
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -286,7 +296,7 @@ function LoadPreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Avg Delivery
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -296,7 +306,7 @@ function LoadPreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Success Rate
           </p>
           <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
@@ -320,39 +330,68 @@ function LoadPreview({
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <div className="overflow-y-auto max-h-105">
-                <Table>
+            <div className="overflow-y-auto max-h-105">
+              {/* Phones and tablets: one card per load, so nothing scrolls sideways (2026-11-18). */}
+              <ul className="divide-y divide-border lg:hidden">
+                {loads.map((l) => (
+                  <li key={l._id} className="space-y-2 p-3 text-xs">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] font-mono text-[11px] font-semibold text-foreground">
+                        {l.loadNumber || "—"}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`h-auto whitespace-normal text-[11px] font-medium ${statusBadgeClass(l.status)}`}
+                      >
+                        {l.status}
+                      </Badge>
+                    </div>
+                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                      <PreviewField label="Customer">{loadCustomer(l)}</PreviewField>
+                      <PreviewField label="Vehicle">{loadVehicle(l)}</PreviewField>
+                      <PreviewField label="VIN"><span className="font-mono text-[11px]">{loadVin(l)}</span></PreviewField>
+                      <PreviewField label="Origin">{l.pickupLocation?.city || "—"}</PreviewField>
+                      <PreviewField label="Destination">{l.deliveryLocation?.city || "—"}</PreviewField>
+                      <PreviewField label="Type">{loadTransportType(l)}</PreviewField>
+                      <PreviewField label="Rate"><span className="font-semibold">{fmtCurrency(loadRate(l))}</span></PreviewField>
+                      <PreviewField label="Driver">{driverName(l)}</PreviewField>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              {/* Computers: the table, columns sized to fit and text that wraps. */}
+              <div className="hidden lg:block">
+                <Table className="table-fixed [&_td]:whitespace-normal [&_td]:break-words [&_th]:whitespace-normal">
                   <TableHeader>
                     <TableRow className="bg-muted/60 hover:bg-muted/60">
-                      <TableHead className="w-25 text-center text-xs font-semibold">
+                      <TableHead className="w-[10%] text-center text-xs font-semibold">
                         Load #
                       </TableHead>
-                      <TableHead className="w-22.5 text-center text-xs font-semibold">
+                      <TableHead className="w-[9%] text-center text-xs font-semibold">
                         Status
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-27.5">
+                      <TableHead className="text-xs font-semibold w-[11%]">
                         Customer
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-30">
+                      <TableHead className="text-xs font-semibold w-[12%]">
                         Vehicle
                       </TableHead>
-                      <TableHead className="w-30 text-center text-xs font-semibold">
+                      <TableHead className="w-[14%] text-center text-xs font-semibold">
                         VIN
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-22.5">
+                      <TableHead className="text-xs font-semibold w-[9%]">
                         Origin
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-22.5">
+                      <TableHead className="text-xs font-semibold w-[9%]">
                         Destination
                       </TableHead>
-                      <TableHead className="w-17.5 text-center text-xs font-semibold">
+                      <TableHead className="w-[7%] text-center text-xs font-semibold">
                         Type
                       </TableHead>
-                      <TableHead className="w-20 text-right text-xs font-semibold">
+                      <TableHead className="w-[8%] text-right text-xs font-semibold">
                         Rate
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-25">
+                      <TableHead className="text-xs font-semibold w-[11%]">
                         Driver
                       </TableHead>
                     </TableRow>
@@ -369,7 +408,7 @@ function LoadPreview({
                         <TableCell className="text-center">
                           <Badge
                             variant="outline"
-                            className={`text-[10px] font-medium ${statusBadgeClass(l.status)}`}
+                            className={`text-[11px] font-medium ${statusBadgeClass(l.status)}`}
                           >
                             {l.status}
                           </Badge>
@@ -380,7 +419,7 @@ function LoadPreview({
                         <TableCell className="whitespace-normal break-words text-muted-foreground">
                           {loadVehicle(l)}
                         </TableCell>
-                        <TableCell className="text-center font-mono text-[10px] text-muted-foreground">
+                        <TableCell className="text-center font-mono text-[11px] text-muted-foreground">
                           {loadVin(l)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
@@ -390,7 +429,7 @@ function LoadPreview({
                           {l.deliveryLocation?.city || "—"}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-[11px]">
                             {loadTransportType(l)}
                           </Badge>
                         </TableCell>
@@ -453,7 +492,7 @@ function QuotePreview({
 
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Avg Rate
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -461,7 +500,7 @@ function QuotePreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Total Value
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -469,7 +508,7 @@ function QuotePreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Total Miles
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -477,7 +516,7 @@ function QuotePreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Enclosed
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -485,7 +524,7 @@ function QuotePreview({
           </p>
         </div>
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-          <p className="text-[10px] text-muted-foreground font-medium">
+          <p className="text-[11px] text-muted-foreground font-medium">
             Inoperable
           </p>
           <p className="text-sm font-bold text-foreground">
@@ -509,39 +548,68 @@ function QuotePreview({
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <div className="overflow-y-auto max-h-105">
-                <Table>
+            <div className="overflow-y-auto max-h-105">
+              {/* Phones and tablets: one card per quote, so nothing scrolls sideways (2026-11-18). */}
+              <ul className="divide-y divide-border lg:hidden">
+                {quotes.map((q) => (
+                  <li key={q._id} className="space-y-2 p-3 text-xs">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] font-semibold text-foreground">
+                        {quoteCustomer(q)}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`h-auto whitespace-normal text-[11px] font-medium capitalize ${quoteStatusBadgeClass(q.status)}`}
+                      >
+                        {q.status}
+                      </Badge>
+                    </div>
+                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                      <PreviewField label="Vehicle">{quoteVehicle(q)}</PreviewField>
+                      <PreviewField label="From">{quoteFromAddr(q)}</PreviewField>
+                      <PreviewField label="To">{quoteToAddr(q)}</PreviewField>
+                      <PreviewField label="Miles">{fmtNumber(q.miles || 0)}</PreviewField>
+                      <PreviewField label="Rate"><span className="font-semibold">{fmtCurrency(q.rate || 0)}</span></PreviewField>
+                      <PreviewField label="ETA">{quoteEta(q)}</PreviewField>
+                      <PreviewField label="Type">{quoteTransportType(q)}</PreviewField>
+                      <PreviewField label="Units">{q.units || 1}</PreviewField>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              {/* Computers: the table, columns sized to fit and text that wraps. */}
+              <div className="hidden lg:block">
+                <Table className="table-fixed [&_td]:whitespace-normal [&_td]:break-words [&_th]:whitespace-normal">
                   <TableHeader>
                     <TableRow className="bg-muted/60 hover:bg-muted/60">
-                      <TableHead className="text-xs font-semibold w-27.5">
+                      <TableHead className="text-xs font-semibold w-[13%]">
                         Customer
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-30">
+                      <TableHead className="text-xs font-semibold w-[14%]">
                         Vehicle
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-25">
+                      <TableHead className="text-xs font-semibold w-[12%]">
                         From
                       </TableHead>
-                      <TableHead className="text-xs font-semibold w-25">
+                      <TableHead className="text-xs font-semibold w-[12%]">
                         To
                       </TableHead>
-                      <TableHead className="w-17.5 text-right text-xs font-semibold">
+                      <TableHead className="w-[8%] text-right text-xs font-semibold">
                         Miles
                       </TableHead>
-                      <TableHead className="w-20 text-right text-xs font-semibold">
+                      <TableHead className="w-[10%] text-right text-xs font-semibold">
                         Rate
                       </TableHead>
-                      <TableHead className="w-15 text-center text-xs font-semibold">
+                      <TableHead className="w-[7%] text-center text-xs font-semibold">
                         ETA
                       </TableHead>
-                      <TableHead className="w-17.5 text-center text-xs font-semibold">
+                      <TableHead className="w-[8%] text-center text-xs font-semibold">
                         Type
                       </TableHead>
-                      <TableHead className="w-12.5 text-center text-xs font-semibold">
+                      <TableHead className="w-[6%] text-center text-xs font-semibold">
                         Units
                       </TableHead>
-                      <TableHead className="w-20 text-center text-xs font-semibold">
+                      <TableHead className="w-[10%] text-center text-xs font-semibold">
                         Status
                       </TableHead>
                     </TableRow>
@@ -574,7 +642,7 @@ function QuotePreview({
                           {quoteEta(q)}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-[11px]">
                             {quoteTransportType(q)}
                           </Badge>
                         </TableCell>
@@ -584,7 +652,7 @@ function QuotePreview({
                         <TableCell className="text-center">
                           <Badge
                             variant="outline"
-                            className={`text-[10px] font-medium capitalize ${quoteStatusBadgeClass(q.status)}`}
+                            className={`text-[11px] font-medium capitalize ${quoteStatusBadgeClass(q.status)}`}
                           >
                             {q.status}
                           </Badge>

@@ -69,12 +69,12 @@ function QuoteFieldLabel({
         )}
       </span>
       {importance === "recommended" && (
-        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300">
+        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
           Recommended
         </span>
       )}
       {importance === "optional" && (
-        <span className="text-[9px] font-semibold text-muted-foreground/70">
+        <span className="text-[11px] font-semibold text-muted-foreground/70">
           Optional
         </span>
       )}
@@ -449,7 +449,7 @@ export function ShippingQuoteModal({
                   <SelectItem value="__none__">Select a vehicle...</SelectItem>
                   {vehicles.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
-                      <span className="block min-w-0 flex-1 truncate">
+                      <span className="block min-w-0 flex-1 break-words [overflow-wrap:anywhere] whitespace-normal">
                         {vehicle.year} {vehicle.make} {vehicle.model} -{" "}
                         {vehicle.stockNumber}
                       </span>
@@ -473,7 +473,11 @@ export function ShippingQuoteModal({
                       <Package className="h-6 w-6 text-muted-foreground" />
                     )}
                   </div>
-                  <div className="flex-1 text-xs">
+                  <div className="min-w-0 flex-1 break-words text-xs [overflow-wrap:anywhere]">
+                    {/* The full name, which the one-line picker above may shorten (2026-11-18). */}
+                    <p className="text-sm font-semibold text-foreground">
+                      {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
+                    </p>
                     <p>
                       <strong>Stock:</strong> {selectedVehicle.stockNumber}
                     </p>
@@ -505,7 +509,7 @@ export function ShippingQuoteModal({
                   <p className="text-sm font-black text-foreground">
                     Customer / Contact Information
                   </p>
-                  <span className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                  <span className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
                     Customer
                   </span>
                 </div>
@@ -626,12 +630,12 @@ export function ShippingQuoteModal({
                       <p className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                         Pickup Location
                       </p>
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-[11px] text-muted-foreground">
                         Where the vehicle is coming from
                       </p>
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                  <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                     Origin
                   </span>
                 </div>
@@ -772,12 +776,12 @@ export function ShippingQuoteModal({
                       <p className="text-xs font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
                         Delivery Location
                       </p>
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-[11px] text-muted-foreground">
                         Where the vehicle is going
                       </p>
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                  <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-1 text-[11px] font-black uppercase tracking-wide text-blue-700 dark:text-blue-300">
                     Destination
                   </span>
                 </div>
@@ -929,7 +933,7 @@ export function ShippingQuoteModal({
                     className="text-sm font-medium cursor-pointer"
                   >
                     Enclosed Trailer
-                    <span className="ml-1.5 text-[9px] font-semibold text-muted-foreground/70">
+                    <span className="ml-1.5 text-[11px] font-semibold text-muted-foreground/70">
                       Optional
                     </span>
                   </Label>
@@ -954,7 +958,7 @@ export function ShippingQuoteModal({
                     className="text-sm font-medium cursor-pointer"
                   >
                     Vehicle is inoperable
-                    <span className="ml-1.5 text-[9px] font-semibold text-muted-foreground/70">
+                    <span className="ml-1.5 text-[11px] font-semibold text-muted-foreground/70">
                       Optional
                     </span>
                   </Label>

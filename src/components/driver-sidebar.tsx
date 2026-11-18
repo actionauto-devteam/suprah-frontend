@@ -385,7 +385,7 @@ const DSB_FX_CSS = `
 }
 .dsb-section-label {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.28em;
@@ -397,7 +397,7 @@ const DSB_FX_CSS = `
 }
 .dsb-telemetry {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 8.5px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   color: var(--dsb-telemetry);
   text-transform: uppercase;
@@ -513,10 +513,10 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
             <Truck className="size-5 relative" />
           </div>
           <div className="flex min-w-0 flex-col gap-1 leading-none group-data-[collapsible=icon]:hidden">
-            <span className="dsb-brand text-sm truncate">
+            <span className="dsb-brand text-sm min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
               Suprah AI
             </span>
-            <span className="truncate text-xs text-muted-foreground">{organization?.name || "Driver workspace"}</span>
+            <span className="min-w-0 break-words [overflow-wrap:anywhere] text-xs leading-tight text-muted-foreground whitespace-normal">{organization?.name || "Driver workspace"}</span>
             <span className="dsb-telemetry">
               Driver Portal
             </span>
@@ -580,7 +580,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="dsb-hud-card w-full rounded-lg backdrop-blur-md data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+                  className="dsb-hud-card h-auto min-h-12 w-full rounded-lg backdrop-blur-md data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
                 >
                   <div className="relative">
                     <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
@@ -592,10 +592,10 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
                     <span className="dsb-status-dot" aria-hidden="true" />
                   </div>
                   <div className="grid flex-1 min-w-0 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="dsb-user-name truncate font-semibold">
+                    <span className="dsb-user-name min-w-0 break-words [overflow-wrap:anywhere] font-semibold whitespace-normal">
                       {user?.fullName}
                     </span>
-                    <span className="dsb-user-sub truncate text-xs">
+                    <span className="dsb-user-sub min-w-0 break-words [overflow-wrap:anywhere] text-xs whitespace-normal">
                       {user?.primaryEmailAddress?.emailAddress}
                     </span>
                   </div>
@@ -617,8 +617,8 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">{user?.fullName}</span>
-                      <span className="truncate text-xs">
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] font-semibold whitespace-normal">{user?.fullName}</span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] text-xs whitespace-normal">
                         {user?.primaryEmailAddress?.emailAddress}
                       </span>
                     </div>

@@ -104,11 +104,11 @@ export function QuoteResultModal({
               }}
             />
             <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3 sm:p-4">
-              <h3 className="text-white font-semibold text-base sm:text-lg truncate">{vehicleName}</h3>
+              <h3 className="text-white font-semibold text-base sm:text-lg min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{vehicleName}</h3>
               {quote.vehicleLocation && (
                 <div className="flex items-center gap-1 text-white/90 text-xs sm:text-sm mt-1">
                   <MapPin className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{quote.vehicleLocation}</span>
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{quote.vehicleLocation}</span>
                 </div>
               )}
             </div>
@@ -151,12 +151,12 @@ export function QuoteResultModal({
               <div className="flex-1 space-y-6 min-w-0">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Origin</p>
-                  <p className="font-semibold text-foreground truncate">{quote.fromAddress}</p>
+                  <p className="font-semibold text-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{quote.fromAddress}</p>
                   <p className="text-sm text-muted-foreground">{quote.fromZip}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Destination</p>
-                  <p className="font-semibold text-foreground truncate">{quote.toAddress}</p>
+                  <p className="font-semibold text-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{quote.toAddress}</p>
                   <p className="text-sm text-muted-foreground">{quote.toZip}</p>
                 </div>
               </div>
@@ -172,38 +172,38 @@ export function QuoteResultModal({
             <div className="bg-linear-to-br from-primary/50 to-primary/10 border border-primary/20 rounded-lg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
-                <h4 className="font-semibold text-foreground text-xs sm:text-base truncate">Transport Rate</h4>
+                <h4 className="font-semibold text-foreground text-xs sm:text-base min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Transport Rate</h4>
               </div>
-              <p className="text-xl sm:text-3xl font-bold text-primary truncate">${quote.rate.toLocaleString()}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Total shipping cost</p>
+              <p className="text-xl sm:text-3xl font-bold text-primary min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">${quote.rate.toLocaleString()}</p>
+              <p className="text-[11px] sm:text-xs text-muted-foreground mt-1">Total shipping cost</p>
             </div>
 
             <div className="bg-linear-to-br from-primary/50 to-primary/10 border border-primary/20 rounded-lg p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
-                <h4 className="font-semibold text-foreground text-xs sm:text-base truncate">Estimated Time</h4>
+                <h4 className="font-semibold text-foreground text-xs sm:text-base min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Estimated Time</h4>
               </div>
               <p className="text-xl sm:text-3xl font-bold text-primary">{quote.eta.min}-{quote.eta.max}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">days</p>
+              <p className="text-[11px] sm:text-xs text-muted-foreground mt-1">days</p>
             </div>
           </div>
 
           {/* Transport Options */}
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="bg-card rounded-lg p-2.5 sm:p-3 border border-border">
-              <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Transport Type</p>
-              <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
+              <p className="text-[11px] sm:text-xs text-muted-foreground mb-1">Transport Type</p>
+              <p className="text-xs sm:text-sm font-semibold text-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                 {quote.enclosedTrailer ? 'Enclosed' : 'Open'}
               </p>
             </div>
             <div className="bg-card rounded-lg p-2.5 sm:p-3 border border-border">
-              <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Vehicle Status</p>
-              <p className="text-xs sm:text-sm font-semibold text-foreground truncate">
+              <p className="text-[11px] sm:text-xs text-muted-foreground mb-1">Vehicle Status</p>
+              <p className="text-xs sm:text-sm font-semibold text-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                 {quote.vehicleInoperable ? 'Inoperable' : 'Operable'}
               </p>
             </div>
             <div className="bg-card rounded-lg p-2.5 sm:p-3 border border-border">
-              <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Units</p>
+              <p className="text-[11px] sm:text-xs text-muted-foreground mb-1">Units</p>
               <p className="text-xs sm:text-sm font-semibold text-foreground">{quote.units}</p>
             </div>
           </div>
