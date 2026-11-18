@@ -151,19 +151,20 @@ export default function ReferAndEarnPage() {
                 {/* Left Col: Digital Wallet & Link (Takes 2 columns) */}
                 <div className="lg:col-span-2 space-y-6 sm:space-y-8">
 
-                    {/* Dealership Black Card (Digital Wallet) */}
-                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-zinc-950 text-white shadow-2xl border border-zinc-800 p-5 sm:p-8 lg:p-10 group">
+                    {/* Wallet card: follows the light/dark theme (2026-11-18) — Suprah
+                        mint on light screens, the black card on dark screens. */}
+                    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-linear-to-br from-card via-primary/5 to-primary/15 text-foreground shadow-xl border border-primary/20 p-5 sm:p-8 lg:p-10 group dark:bg-none dark:bg-zinc-950 dark:text-white dark:shadow-2xl dark:border-zinc-800">
                         <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-1000" />
                         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/15 rounded-full blur-3xl group-hover:bg-primary/25 transition-colors duration-1000" />
 
                         <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-6 sm:gap-8">
                             <div className="min-w-0">
-                                <p className="text-zinc-400 font-medium tracking-widest uppercase mb-2 text-xs sm:text-sm">Available Balance</p>
-                                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-400 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
+                                <p className="text-muted-foreground font-medium tracking-widest uppercase mb-2 text-xs sm:text-sm dark:text-zinc-400">Available Balance</p>
+                                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-emerald-950 to-emerald-700 dark:from-white dark:to-zinc-400 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                                     ${walletBalance.toFixed(2)}
                                 </h2>
                                 {totalPendingWithdrawals > 0 && (
-                                    <p className="text-orange-400 text-xs sm:text-sm font-medium mt-1">
+                                    <p className="text-orange-700 dark:text-orange-400 text-xs sm:text-sm font-medium mt-1">
                                         (${totalPendingWithdrawals.toFixed(2)} pending) — ${netAvailableBalance.toFixed(2)} available
                                     </p>
                                 )}
@@ -204,7 +205,7 @@ export default function ReferAndEarnPage() {
                             <Button variant="outline" onClick={shareToFacebook} className="w-full h-11 sm:h-12 text-sm bg-blue-600/10 text-blue-600 hover:bg-blue-600 hover:text-white border-blue-600/20 transition-colors touch-manipulation">
                                 Facebook
                             </Button>
-                            <Button onClick={handleNativeShare} className="w-full h-11 sm:h-12 text-sm bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 touch-manipulation">
+                            <Button onClick={handleNativeShare} className="w-full h-11 sm:h-12 text-sm bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation">
                                 <Share2 className="w-4 h-4 mr-2" /> Share Link
                             </Button>
                         </div>
