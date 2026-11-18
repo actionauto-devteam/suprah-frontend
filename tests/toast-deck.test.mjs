@@ -17,6 +17,7 @@ function load(file) {
 }
 const {
   DEFAULT_TOAST_LIFETIME,
+  MAX_TOAST_LIFETIME,
   countingDownIds,
   deckIndexAfterChange,
   deckPositionLabel,
@@ -55,12 +56,18 @@ test('when the toast on show closes, the one that took its place shows', () => {
   assert.equal(deckIndexAfterChange(['a'], [], 'a', 0), 0);
 });
 
-test('loading toasts stay until they are updated; others use their own time or the default', () => {
+test('loading stays pending while completed toasts use bounded durations', () => {
   assert.equal(toastLifetime({ type: 'loading' }), Infinity);
-  assert.equal(toastLifetime({ type: 'success', duration: 6500 }), 6500);
+  assert.equal(toastLifetime({ type: 'success', duration: 6500 }), 5000);
+  assert.equal(toastLifetime({ type: 'success', duration: 3000 }), 3000);
   assert.equal(toastLifetime({ type: 'success' }), DEFAULT_TOAST_LIFETIME);
-  assert.equal(toastLifetime({ type: 'error' }, 9000), 9000);
+  assert.equal(toastLifetime({ type: 'error' }, 9000), 5000);
+  assert.equal(toastLifetime({ type: 'info', duration: Infinity }), 5000);
+  assert.equal(toastLifetime({ type: 'info', duration: 60000 }), 5000);
+  assert.equal(toastLifetime({ duration: NaN }), DEFAULT_TOAST_LIFETIME);
+  assert.equal(toastLifetime({ duration: -1 }, NaN), DEFAULT_TOAST_LIFETIME);
   assert.equal(DEFAULT_TOAST_LIFETIME, 4000);
+  assert.equal(MAX_TOAST_LIFETIME, 5000);
 });
 
 test('screen readers hear where they are and what the button does', () => {
@@ -77,21 +84,17 @@ test('the app Toaster draws the one-card deck; screens keep calling toast()', ()
   assert.match(deck, /const \{ toasts \} = useSonner\(\)/);
   assert.match(deck, /count > 1 \? \(/);
   assert.match(deck, /aria-label=\{deckSwitchLabel\(index, count\)\}/);
-  // Pointing at the card pauses the countdown; which toasts count down comes from countingDownIds.
   assert.match(deck, /if \(interacting \|\| pageHidden\) return/);
-  assert.match(deck, /countingDownIds\(toasts, index, duration\)/);
+  assert.match(deck, /countingDownIds\(toasts, duration\)/);
 });
 
-test('only the toast on screen counts down', () => {
+test('visible and queued completed toasts count down together', () => {
   const list = [{ id: 'c', type: 'success' }, { id: 'b', type: 'error' }, { id: 'a', type: 'info' }];
-  assert.deepEqual(countingDownIds(list, 0), ['c']);
-  assert.deepEqual(countingDownIds(list, 2), ['a']);
-  assert.deepEqual(countingDownIds([], 0), []);
+  assert.deepEqual(countingDownIds(list), ['c', 'b', 'a']);
+  assert.deepEqual(countingDownIds([]), []);
 });
 
 test('while the toast on screen is loading, the waiting ones count down and close on their own', () => {
   const list = [{ id: 'up', type: 'loading' }, { id: 'saved', type: 'success' }, { id: 'prep', type: 'loading' }, { id: 'err', type: 'error' }];
-  assert.deepEqual(countingDownIds(list, 0), ['saved', 'err']);
-  // Looking at a waiting toast: only that one counts down.
-  assert.deepEqual(countingDownIds(list, 1), ['saved']);
+  assert.deepEqual(countingDownIds(list), ['saved', 'err']);
 });

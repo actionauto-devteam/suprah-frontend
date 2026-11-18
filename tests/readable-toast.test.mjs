@@ -30,28 +30,28 @@ const { readableDuration, readableOptions, toast } = loadLib('readable-toast');
 
 const words = (n) => Array.from({ length: n }, () => 'word').join(' ');
 
-test('problems stay 8 to 15 seconds, by how much there is to read', () => {
-  assert.equal(readableDuration('error', 'Saved.'), 8000);
-  assert.equal(readableDuration('warning', words(25)), 10500);
-  assert.equal(readableDuration('error', words(20), words(20)), 15000);
-  assert.equal(readableDuration('error', words(200)), 15000);
+test('problems dismiss after five seconds regardless of message length', () => {
+  assert.equal(readableDuration('error', 'Saved.'), 5000);
+  assert.equal(readableDuration('warning', words(25)), 5000);
+  assert.equal(readableDuration('error', words(20), words(20)), 5000);
+  assert.equal(readableDuration('error', words(200)), 5000);
 });
 
-test('good news and notes stay 4 to 8 seconds', () => {
+test('good news and notes stay four to five seconds', () => {
   assert.equal(readableDuration('success', 'Saved.'), 4000);
-  assert.equal(readableDuration('info', words(14)), 5700);
-  assert.equal(readableDuration('message', words(100)), 8000);
+  assert.equal(readableDuration('info', words(14)), 5000);
+  assert.equal(readableDuration('message', words(100)), 5000);
   // Text that isn't plain (a component) gets the shortest time for its kind.
   assert.equal(readableDuration('success', { type: 'span' }), 4000);
 });
 
 test('problems get a close button; the caller can always choose', () => {
-  assert.deepEqual(readableOptions('error', 'It failed.'), { closeButton: true, duration: 8000 });
+  assert.deepEqual(readableOptions('error', 'It failed.'), { closeButton: true, duration: 5000 });
   assert.deepEqual(readableOptions('success', 'Done.'), { duration: 4000 });
   assert.deepEqual(readableOptions('error', 'It failed.', { duration: 3000, closeButton: false, id: 'x' }), {
     closeButton: false, duration: 3000, id: 'x',
   });
-  assert.equal(readableOptions('warning', 'Careful', { description: words(30) }).duration, 12300);
+  assert.equal(readableOptions('warning', 'Careful', { description: words(30) }).duration, 5000);
 });
 
 test('works like sonner: same calls, with reading time added; loading and dismiss unchanged', () => {
@@ -62,7 +62,7 @@ test('works like sonner: same calls, with reading time added; loading and dismis
   toast.loading('Saving…');
   toast.dismiss('t1');
   assert.deepEqual(calls.map(([kind]) => kind), ['error', 'success', 'toast', 'loading', 'dismiss']);
-  assert.deepEqual(calls[0][2], { closeButton: true, duration: 8000 });
+  assert.deepEqual(calls[0][2], { closeButton: true, duration: 5000 });
   assert.deepEqual(calls[1][2], { id: 't1', duration: 4000 });
   assert.equal(calls[2][2].duration, 4000);
   assert.equal(calls[3][2], undefined);

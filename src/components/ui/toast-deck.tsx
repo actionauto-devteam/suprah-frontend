@@ -37,14 +37,7 @@ const show = (value: ToastT["title"]): React.ReactNode => (typeof value === "fun
 const sameIds = (a: readonly DeckToastId[], b: readonly DeckToastId[]) =>
   a.length === b.length && a.every((id, index) => id === b[index])
 
-/**
- * The app's toasts as ONE card (2026-11-13). Every screen keeps calling
- * sonner's toast(); this reads sonner's list of open toasts and shows one of
- * them. With several open, the button on the card's right shows the next one
- * (1 → 2 → 3 → 1 …). A new toast shows at once; only the toast on screen
- * counts down, and pointing at or focusing the card pauses it.
- */
-export function ToastDeck({ position = "top-right", offset = {}, icons = {}, duration, closeButton = false }: ToastDeckProps) {
+export function ToastDeck({ position = "top-right", offset = {}, icons = {}, duration, closeButton = true }: ToastDeckProps) {
   const { toasts } = useSonner()
   const ids = React.useMemo(() => toasts.map((toast) => toast.id), [toasts])
 
@@ -57,7 +50,15 @@ export function ToastDeck({ position = "top-right", offset = {}, icons = {}, dur
   const index = Math.min(deck.index, Math.max(count - 1, 0))
   const shown: ToastT | undefined = toasts[index]
 
-  const [interacting, setInteracting] = React.useState(false)
+  const [hovered, setHovered] = React.useState(false)
+  const [focused, setFocused] = React.useState(false)
+  const interacting = hovered || focused
+  const resetInteraction = React.useCallback((element: HTMLDivElement | null) => {
+    if (!element) {
+      setHovered(false)
+      setFocused(false)
+    }
+  }, [])
   const [pageHidden, setPageHidden] = React.useState(false)
   React.useEffect(() => {
     const update = () => setPageHidden(document.visibilityState === "hidden")
@@ -66,9 +67,6 @@ export function ToastDeck({ position = "top-right", offset = {}, icons = {}, dur
     return () => document.removeEventListener("visibilitychange", update)
   }, [])
 
-  // Time left per toast. A toast's time only runs while it's on screen, so
-  // nobody misses a message that was waiting behind another one, except while
-  // the toast on screen is still loading (see countingDownIds).
   const remaining = React.useRef(new Map<DeckToastId, { ms: number; key: string }>())
   React.useEffect(() => {
     for (const id of [...remaining.current.keys()]) {
@@ -88,7 +86,7 @@ export function ToastDeck({ position = "top-right", offset = {}, icons = {}, dur
     [dismiss],
   )
 
-  const counting = React.useMemo(() => countingDownIds(toasts, index, duration), [toasts, index, duration])
+  const counting = React.useMemo(() => countingDownIds(toasts, duration), [toasts, duration])
   React.useEffect(() => {
     if (interacting || pageHidden) return
     const stops: Array<() => void> = []
@@ -144,12 +142,16 @@ export function ToastDeck({ position = "top-right", offset = {}, icons = {}, dur
     >
       {shown ? (
         <div
+          key={shown.id}
+          ref={resetInteraction}
           className="pointer-events-auto w-full sm:w-[356px]"
-          onPointerEnter={() => setInteracting(true)}
-          onPointerLeave={() => setInteracting(false)}
-          onFocus={() => setInteracting(true)}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== "touch") setHovered(true)
+          }}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setInteracting(false)
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
           }}
         >
           <DeckCard
