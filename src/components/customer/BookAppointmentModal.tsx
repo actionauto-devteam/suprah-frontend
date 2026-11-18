@@ -259,7 +259,7 @@ export function BookAppointmentModal({
                       >
                         <span>{slot.label}</span>
                         {slot.isFull && (
-                          <span className="text-[9px] font-normal opacity-70">Full</span>
+                          <span className="text-[11px] font-normal opacity-70">Full</span>
                         )}
                       </button>
                     )

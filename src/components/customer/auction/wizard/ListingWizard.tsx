@@ -183,7 +183,7 @@ export function ListingWizard({ listingId: initialListingId }: { listingId?: str
       )}
 
       <div className="space-y-2">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+        <div className="flex flex-wrap items-center gap-1 gap-y-2">
           {STEPS.map((s, i) => (
             <React.Fragment key={s.n}>
               {i > 0 && <div className="h-px w-3 shrink-0 bg-border sm:w-6" />}

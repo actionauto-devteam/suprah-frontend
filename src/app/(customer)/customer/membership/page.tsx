@@ -77,7 +77,7 @@ function timeAgo(iso: string): string {
 function Odometer({ value }: { value: number }) {
   const digits = value.toLocaleString().split("");
   return (
-    <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar max-w-full">
+    <div className="flex max-w-full flex-wrap items-center gap-0.5 gap-y-1">
       {digits.map((d, i) =>
         d === "," ? (
           <span key={i} className="px-0.5 text-xl font-black text-white/70 sm:text-2xl lg:text-3xl">,</span>
@@ -176,7 +176,7 @@ export default function MembershipPage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            <span className="text-[10px] font-black uppercase tracking-[0.28em] text-primary/80">
+            <span className="text-[11px] font-black uppercase tracking-[0.28em] text-primary/80">
               {dealerName} · Drivers Club
             </span>
           </div>
@@ -212,7 +212,7 @@ export default function MembershipPage() {
                 <TierIcon className="h-7 w-7 text-white" />
               </div>
               <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-white backdrop-blur">
                   Class {tier?.rank ?? 1} of 7
                 </div>
                 <h2 className="mt-1 text-2xl font-black uppercase tracking-tight text-white drop-shadow sm:text-3xl">
@@ -222,7 +222,7 @@ export default function MembershipPage() {
             </div>
 
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/75">Drive Points</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/75">Drive Points</p>
               <div className="mt-1.5"><Odometer value={lifetime} /></div>
               <p className="mt-2 max-w-md text-sm font-medium text-white/90">
                 {tier && tier.discountPercent > 0
@@ -246,12 +246,12 @@ export default function MembershipPage() {
             </div>
             <div className="mt-3 flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-white/70">Current</p>
+                <p className="text-[11px] uppercase tracking-wide text-white/70">Current</p>
                 <p className="text-sm font-bold text-white">{tier?.name}</p>
               </div>
               <ChevronRight className="h-4 w-4 text-white/60" />
               <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wide text-white/70">{nextTier ? "Next" : "Status"}</p>
+                <p className="text-[11px] uppercase tracking-wide text-white/70">{nextTier ? "Next" : "Status"}</p>
                 <p className="text-sm font-bold text-white">{nextTier?.name ?? "Maxed Out"}</p>
               </div>
             </div>
@@ -272,9 +272,9 @@ export default function MembershipPage() {
               <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: `${s.accent}1a`, color: s.accent }}>
                 <s.icon className="h-3.5 w-3.5" />
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{s.label}</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{s.label}</p>
             </div>
-            <p className="mt-2 truncate text-lg font-black sm:text-xl" style={{ color: s.accent }}>{s.value}</p>
+            <p className="mt-2 min-w-0 break-words [overflow-wrap:anywhere] text-lg font-black sm:text-xl whitespace-normal" style={{ color: s.accent }}>{s.value}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">{s.sub}</p>
           </div>
         ))}
@@ -346,19 +346,19 @@ export default function MembershipPage() {
                   <p className={cn("text-[11px] font-black uppercase tracking-tight sm:text-xs", isCurrent ? "text-white" : "text-foreground")}>
                     {t.name}
                   </p>
-                  <p className={cn("text-[10px] font-semibold tabular-nums", isCurrent ? "text-white/80" : "text-muted-foreground")}>
+                  <p className={cn("text-[11px] font-semibold tabular-nums", isCurrent ? "text-white/80" : "text-muted-foreground")}>
                     {t.minPoints.toLocaleString()} pts
                   </p>
                   <span
                     className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase",
+                      "rounded-full px-1.5 py-0.5 text-[11px] font-black uppercase",
                       isCurrent ? "bg-white/20 text-white" : "bg-muted text-muted-foreground",
                     )}
                   >
                     {t.discountPercent > 0 ? `${t.discountPercent}% off` : "Base"}
                   </span>
                   {isCurrent && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-zinc-900 shadow">
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-zinc-900 shadow">
                       You
                     </span>
                   )}
@@ -382,9 +382,11 @@ export default function MembershipPage() {
             <Skeleton className="h-72 w-full rounded-[14px]" />
           ) : (
             <>
-              {/* Mobile: pick a class, see its perk checklist — the 7-tier table is too wide for a phone */}
-              <div className="space-y-3 sm:hidden">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+              {/* Phones and tablets: pick a class, see its perk checklist — the
+                  7-tier table needs a wide screen (2026-11-17: up to lg, and the
+                  class chips wrap instead of scrolling sideways) */}
+              <div className="space-y-3 lg:hidden">
+                <div className="flex flex-wrap gap-2">
                   {(allTiers ?? []).map((t) => {
                     const selected = t.slug === (mobilePerkTier ?? tier?.slug);
                     return (
@@ -426,19 +428,19 @@ export default function MembershipPage() {
                 </div>
               </div>
 
-              {/* Tablet/desktop: full side-by-side comparison */}
-              <div className="hidden overflow-hidden rounded-[14px] border border-border bg-card sm:block">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-200 text-sm">
+              {/* Larger screens: full side-by-side comparison that fits the width */}
+              <div className="hidden overflow-hidden rounded-[14px] border border-border bg-card lg:block">
+                <div>
+                  <table className="w-full table-fixed text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
-                        <th className="w-56 px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                        <th className="w-40 px-4 py-3 text-left text-[11px] font-black uppercase tracking-wider text-muted-foreground xl:w-56">
                           Perk
                         </th>
                         {(allTiers ?? []).map((t) => (
                           <th
                             key={t.slug}
-                            className="px-2 py-3 text-center text-[11px] font-black uppercase tracking-tight"
+                            className="px-2 py-3 text-center text-[11px] font-black uppercase tracking-tight break-words [overflow-wrap:anywhere] whitespace-normal"
                             style={{
                               color: t.colorTheme.primary,
                               background: t.slug === tier?.slug ? `${t.colorTheme.primary}14` : undefined,
@@ -452,7 +454,7 @@ export default function MembershipPage() {
                     <tbody>
                       {PERK_ROWS.map((row, ri) => (
                         <tr key={row} className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-3 text-[12px] font-medium text-foreground">{row}</td>
+                          <td className="px-4 py-3 text-[12px] font-medium text-foreground break-words [overflow-wrap:anywhere] whitespace-normal">{row}</td>
                           {(allTiers ?? []).map((t, ti) => (
                             <td
                               key={t.slug}
@@ -523,7 +525,7 @@ export default function MembershipPage() {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-foreground">{tx.description}</p>
+                      <p className="min-w-0 break-words [overflow-wrap:anywhere] text-[13px] font-semibold text-foreground whitespace-normal">{tx.description}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">{timeAgo(tx.createdAt)} · {meta.label}</p>
                     </div>
                     <span className={cn("shrink-0 text-[15px] font-black tabular-nums", tx.delta > 0 ? "text-primary" : "text-destructive")}>

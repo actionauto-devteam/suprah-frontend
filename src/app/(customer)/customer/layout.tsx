@@ -135,10 +135,10 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col min-w-0">
-                        <p className="text-sm font-bold text-foreground leading-none truncate">
+                        <p className="text-sm font-bold text-foreground leading-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                           {user?.fullName}
                         </p>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-none truncate">
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                           {user?.primaryEmailAddress?.emailAddress}
                         </p>
                         <span className="mt-1.5 inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-black uppercase tracking-widest text-primary w-fit">

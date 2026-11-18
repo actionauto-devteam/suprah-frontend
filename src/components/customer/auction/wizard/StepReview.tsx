@@ -35,8 +35,8 @@ function SummarySection({
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
         {rows.map((row) => (
           <div key={row.label} className="min-w-0">
-            <dt className="text-[10px] text-muted-foreground">{row.label}</dt>
-            <dd className="truncate text-xs font-semibold text-foreground">{row.value || "—"}</dd>
+            <dt className="text-[11px] text-muted-foreground">{row.label}</dt>
+            <dd className="min-w-0 break-words [overflow-wrap:anywhere] text-xs font-semibold text-foreground whitespace-normal">{row.value || "—"}</dd>
           </div>
         ))}
       </dl>
@@ -74,7 +74,7 @@ export function StepReview({
                 key={r.key}
                 type="button"
                 onClick={() => onJump(r.step)}
-                className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-background px-2.5 py-1 text-[10px] font-semibold text-amber-700 transition-colors hover:border-amber-500/60 dark:text-amber-400"
+                className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-background px-2.5 py-1 text-[11px] font-semibold text-amber-700 transition-colors hover:border-amber-500/60 dark:text-amber-400"
               >
                 <XCircle className="h-3 w-3" />
                 {r.label}
@@ -143,7 +143,7 @@ export function StepReview({
         {photos.length === 0 ? (
           <p className="text-xs text-muted-foreground">No photos uploaded yet.</p>
         ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex flex-wrap gap-2 pb-1">
             {photos.map((p) => (
               <div key={`${p.slot}-${p.url}`} className="shrink-0 space-y-1">
                 <img

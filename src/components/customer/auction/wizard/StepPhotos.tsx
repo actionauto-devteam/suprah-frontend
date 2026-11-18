@@ -81,7 +81,7 @@ export function StepPhotos({ listing }: { listing: AuctionListing }) {
         </p>
         <span
           className={cn(
-            "inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold tabular-nums",
+            "inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold tabular-nums",
             requiredDone === REQUIRED_PHOTO_SLOTS.length
               ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -113,7 +113,7 @@ export function StepPhotos({ listing }: { listing: AuctionListing }) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-xs font-bold text-foreground">Extra Photos</p>
-          <span className="text-[10px] text-muted-foreground tabular-nums">
+          <span className="text-[11px] text-muted-foreground tabular-nums">
             {extras.length}/{MAX_EXTRA_PHOTOS}
           </span>
         </div>
@@ -160,7 +160,7 @@ export function StepPhotos({ listing }: { listing: AuctionListing }) {
               ) : (
                 <>
                   <Plus className="h-4 w-4" />
-                  <span className="text-[10px] font-medium">Add photo</span>
+                  <span className="text-[11px] font-medium">Add photo</span>
                 </>
               )}
             </button>

@@ -159,7 +159,7 @@ export default function ReferAndEarnPage() {
                         <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-end gap-6 sm:gap-8">
                             <div className="min-w-0">
                                 <p className="text-zinc-400 font-medium tracking-widest uppercase mb-2 text-xs sm:text-sm">Available Balance</p>
-                                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-400 truncate">
+                                <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-400 min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                                     ${walletBalance.toFixed(2)}
                                 </h2>
                                 {totalPendingWithdrawals > 0 && (
@@ -187,7 +187,7 @@ export default function ReferAndEarnPage() {
 
                         <div className="flex flex-col sm:flex-row gap-4 items-center">
                             <div className="flex-1 w-full min-w-0 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 sm:p-4 flex justify-between items-center gap-2">
-                                <span className="font-mono text-base sm:text-lg font-bold tracking-wider text-primary truncate">{referralCode}</span>
+                                <span className="font-mono text-base sm:text-lg font-bold tracking-wider text-primary min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{referralCode}</span>
                                 <Button onClick={handleCopyLink} variant="ghost" size="icon" className="shrink-0 hover:bg-primary/10 hover:text-primary text-zinc-400 touch-manipulation">
                                     <Copy className="w-5 h-5" />
                                 </Button>
@@ -262,10 +262,10 @@ export default function ReferAndEarnPage() {
                                                 {t.type === 'deposit' ? <ArrowUpRight className="w-4.5 h-4.5 sm:w-5 sm:h-5 rotate-180" /> : <ArrowUpRight className="w-4.5 h-4.5 sm:w-5 sm:h-5" />}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="font-semibold text-sm text-foreground capitalize truncate">
+                                                <p className="font-semibold text-sm text-foreground capitalize min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                                                     {t.type} {t.status === 'pending' && <span className="text-xs ml-1 text-orange-500">(Pending)</span>}
                                                 </p>
-                                                <p className="text-xs text-muted-foreground truncate max-w-28 sm:max-w-40">{t.note}</p>
+                                                <p className="text-xs text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] max-w-28 sm:max-w-40 whitespace-normal">{t.note}</p>
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">

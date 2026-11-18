@@ -184,7 +184,7 @@ function CallStatusStepper({ status }: { status: CallStatus }) {
               </div>
               <span
                 className={cn(
-                  "text-[10px] font-medium whitespace-nowrap",
+                  "text-[11px] font-medium whitespace-nowrap",
                   active ? "text-foreground" : "text-muted-foreground/70",
                 )}
               >
@@ -786,7 +786,7 @@ export default function CustomerCallCenterPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm leading-snug">{m.content}</p>
-                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                        <p className="text-[11px] text-muted-foreground/60 mt-0.5">
                           {fromStaff && m.metadata?.crmUserName
                             ? `${m.metadata.crmUserName} · `
                             : ""}

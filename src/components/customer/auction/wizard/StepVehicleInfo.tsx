@@ -200,7 +200,7 @@ export function StepVehicleInfo({ form, patch }: { form: WizardForm; patch: Form
               Decode
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             We&apos;ll automatically pull the make, model, year, and trim.
           </p>
         </div>

@@ -299,7 +299,7 @@ export function TradeInEstimatorModal({ isOpen, onOpenChange }: TradeInEstimator
                   {year} {make} {model} · {Number(mileage).toLocaleString()} mi · {condition}
                 </p>
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-primary/70">
                 Rough Estimated Range
               </p>
               <p className="text-4xl font-black text-foreground tabular-nums">

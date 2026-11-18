@@ -102,19 +102,19 @@ function InvoiceCard({
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="font-bold text-sm tracking-tight truncate">{inv.description}</p>
+            <p className="font-bold text-sm tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{inv.description}</p>
             {inv.source === "aftermarket" && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground font-mono">
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground font-mono">
                 <Package className="h-3 w-3" /> aftermarket
               </span>
             )}
           </div>
-          <p className="text-[10px] font-mono font-semibold tracking-wide text-muted-foreground/60 mt-0.5">
+          <p className="text-[11px] font-mono font-semibold tracking-wide text-muted-foreground/60 mt-0.5">
             {inv.invoiceNumber || inv._id.slice(-8).toUpperCase()} · {fmtDate(inv.createdAt)}
             {inv.dueDate && inv.status === "pending" ? ` · due ${fmtDate(inv.dueDate)}` : ""}
           </p>
         </div>
-        <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full shrink-0", meta.cls)}>
+        <span className={cn("inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full shrink-0", meta.cls)}>
           <Icon className={cn("h-3 w-3", inv.status === "processing" && "animate-spin")} />
           {meta.label}
         </span>
@@ -143,7 +143,7 @@ function InvoiceCard({
 
       <div className="flex flex-col gap-3 px-5 py-4 border-t border-border mt-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60 font-mono">Total</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground/60 font-mono">Total</p>
           <p className="text-lg font-bold tabular-nums font-mono">{money(inv.amount)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -185,7 +185,7 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: any; label: string
         <Icon className="h-5 w-5" />
       </div>
       <div>
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60 font-mono">{label}</p>
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground/60 font-mono">{label}</p>
         <p className="text-lg font-bold tabular-nums font-mono">{value}</p>
       </div>
     </div>
@@ -309,8 +309,8 @@ function PaymentsView() {
             <Wallet className="h-4 w-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-bold text-lg tracking-tight truncate">Suprah Pay</h1>
-            <p className="text-xs text-muted-foreground truncate">Invoices & payment history</p>
+            <h1 className="font-bold text-lg tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Suprah Pay</h1>
+            <p className="text-xs text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Invoices & payment history</p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-9 w-9 shrink-0 p-0 rounded-xl hover:bg-primary/10 hover:text-primary">

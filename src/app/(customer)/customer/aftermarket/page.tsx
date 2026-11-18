@@ -83,7 +83,7 @@ function InquiryModal({
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-2xl">
         <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-4 border-b border-border">
-          <p className="font-bold text-sm tracking-tight truncate">Ask about {product.name}</p>
+          <p className="font-bold text-sm tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Ask about {product.name}</p>
           <button onClick={onClose} className="h-8 w-8 shrink-0 rounded-xl flex items-center justify-center hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
@@ -166,7 +166,7 @@ function ProductCard({
             {priced ? money(product.price) : "Quote"}
           </p>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 flex-1">{product.description}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed flex-1 break-words [overflow-wrap:anywhere] whitespace-normal">{product.description}</p>
 
         {product.file?.url && (
           <a
@@ -255,7 +255,7 @@ function CartSheet({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold truncate">{l.product.name}</p>
+                  <p className="text-xs font-semibold min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">{l.product.name}</p>
                   <p className="text-[11px] text-muted-foreground tabular-nums font-mono">{money(l.product.price)}</p>
                   <div className="flex items-center gap-1.5 mt-2">
                     <button onClick={() => setQty(l.product._id, l.qty - 1)} className="h-8 w-8 rounded-md border border-border flex items-center justify-center hover:bg-muted active:bg-muted">
@@ -284,7 +284,7 @@ function CartSheet({
             {checkingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
             Checkout
           </Button>
-          <p className="text-[10px] text-muted-foreground text-center">
+          <p className="text-[11px] text-muted-foreground text-center">
             Checkout creates an order; you'll settle payment on your Payments page.
           </p>
         </div>
@@ -376,15 +376,15 @@ export default function CustomerAftermarketPage() {
             <Package className="h-4 w-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-bold text-lg tracking-tight truncate">Aftermarket</h1>
-            <p className="text-xs text-muted-foreground truncate">Parts, accessories & add-ons</p>
+            <h1 className="font-bold text-lg tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Aftermarket</h1>
+            <p className="text-xs text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Parts, accessories & add-ons</p>
           </div>
         </div>
         <Button variant="outline" onClick={() => setCartOpen(true)} className="shrink-0 rounded-xl gap-2 relative px-3 sm:px-4">
           <ShoppingCart className="h-4 w-4" />
           <span className="hidden sm:inline">Cart</span>
           {cartCount > 0 && (
-            <span className="absolute -top-2 -right-2 h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1">
+            <span className="absolute -top-2 -right-2 h-5 min-w-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center px-1 leading-none">
               {cartCount}
             </span>
           )}

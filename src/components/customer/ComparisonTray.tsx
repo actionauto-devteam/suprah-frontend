@@ -36,27 +36,29 @@ export function ComparisonTray({ vehicles, onRemove, onClear, onCompare }: Compa
         >
           <div className="mx-auto max-w-4xl px-4">
             <div className="rounded-2xl border border-border/60 bg-background/90 backdrop-blur-xl shadow-[0_-8px_32px_rgba(0,0,0,0.18)] px-4 py-3">
-              <div className="flex items-center gap-3">
+              {/* Nothing scrolls sideways (2026-11-17): on phones the cars show
+                  as photos with the buttons on their own line. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 {/* Vehicle thumbnails */}
-                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto">
+                <div className="flex min-w-0 flex-1 basis-full flex-wrap items-center gap-1.5 sm:basis-0 sm:gap-2">
                   {vehicles.map((vehicle) => {
                     const imgSrc = resolveImageUrl(vehicle.image) || CARD_FALLBACK;
                     return (
                       <div
                         key={vehicle.id}
-                        className="relative shrink-0 flex items-center gap-2 rounded-xl border border-border/50 bg-muted/60 px-2.5 py-1.5 pr-7"
+                        className="relative flex min-w-0 items-center gap-2 rounded-xl border border-border/50 bg-muted/60 px-2 py-1.5 pr-6 sm:px-2.5 sm:pr-7"
                       >
                         <img
                           src={imgSrc}
                           alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                          className="h-9 w-14 object-cover rounded-lg"
+                          className="h-9 w-11 object-cover rounded-lg sm:w-14"
                           onError={(e) => { (e.target as HTMLImageElement).src = CARD_FALLBACK; }}
                         />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-foreground leading-tight truncate max-w-25">
+                        <div className="hidden min-w-0 sm:block">
+                          <p className="text-xs font-bold text-foreground leading-tight min-w-0 break-words [overflow-wrap:anywhere] max-w-25 whitespace-normal">
                             {vehicle.year} {vehicle.make}
                           </p>
-                          <p className="text-[10px] text-muted-foreground truncate max-w-25">
+                          <p className="text-[11px] text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] max-w-25 whitespace-normal">
                             {vehicle.model}
                           </p>
                         </div>
@@ -75,7 +77,7 @@ export function ComparisonTray({ vehicles, onRemove, onClear, onCompare }: Compa
                   {Array.from({ length: Math.max(0, 3 - vehicles.length) }).map((_, i) => (
                     <div
                       key={`empty-${i}`}
-                      className="shrink-0 flex h-13 w-37 items-center justify-center rounded-xl border border-dashed border-border/50 text-[10px] text-muted-foreground/50"
+                      className="hidden shrink-0 h-13 w-37 items-center justify-center rounded-xl border border-dashed sm:flex border-border/50 text-[11px] text-muted-foreground/50"
                     >
                       Add vehicle
                     </div>
@@ -83,7 +85,7 @@ export function ComparisonTray({ vehicles, onRemove, onClear, onCompare }: Compa
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="ml-auto flex items-center gap-2 shrink-0">
                   <button
                     onClick={onClear}
                     className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted"
@@ -104,7 +106,7 @@ export function ComparisonTray({ vehicles, onRemove, onClear, onCompare }: Compa
               </div>
 
               {vehicles.length < 2 && (
-                <p className="mt-1.5 text-[10px] text-muted-foreground/60 text-center">
+                <p className="mt-1.5 text-[11px] text-muted-foreground/60 text-center">
                   Select at least 2 vehicles to compare
                 </p>
               )}

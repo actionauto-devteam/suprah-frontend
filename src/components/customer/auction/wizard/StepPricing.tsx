@@ -33,7 +33,7 @@ export function StepPricing({ form, patch }: { form: WizardForm; patch: FormPatc
           />
         </div>
         {Number(form.askingPrice) > 0 && (
-          <p className="text-[10px] text-muted-foreground tabular-nums">
+          <p className="text-[11px] text-muted-foreground tabular-nums">
             You&apos;re asking {Number(form.askingPrice).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
           </p>
         )}
@@ -42,7 +42,7 @@ export function StepPricing({ form, patch }: { form: WizardForm; patch: FormPatc
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3.5">
         <div className="min-w-0">
           <p className="text-xs font-bold text-foreground">Open to offers?</p>
-          <p className="text-[10px] text-muted-foreground">Buyers will see your price is negotiable.</p>
+          <p className="text-[11px] text-muted-foreground">Buyers will see your price is negotiable.</p>
         </div>
         <Switch checked={form.isNegotiable} onCheckedChange={(v) => patch({ isNegotiable: v })} />
       </div>
@@ -57,7 +57,7 @@ export function StepPricing({ form, patch }: { form: WizardForm; patch: FormPatc
           onChange={(e) => patch({ description: e.target.value })}
           rows={6}
         />
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           A detailed, honest description builds trust and speeds up review.
         </p>
       </div>

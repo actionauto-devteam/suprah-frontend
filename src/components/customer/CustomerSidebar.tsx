@@ -211,12 +211,12 @@ export function CustomerSidebar() {
             />
           </div>
           <div className="group-data-[collapsible=icon]:hidden min-w-0">
-            <p className="text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-50 leading-none truncate">
+            <p className="text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-50 leading-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
               {organization?.name || "Your Dealership"}
             </p>
             <div className="flex items-center gap-1 mt-1.5">
               <Zap className="w-2.5 h-2.5 text-green-500 fill-green-500" />
-              <span className="text-[9px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest leading-none">
+              <span className="text-[11px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest leading-none">
                 Powered by Suprah AI
               </span>
             </div>
@@ -236,17 +236,17 @@ export function CustomerSidebar() {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-50 truncate leading-tight">
+              <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-50 min-w-0 break-words [overflow-wrap:anywhere] leading-tight whitespace-normal">
                 {displayName}
               </p>
-              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 min-w-0 break-words [overflow-wrap:anywhere] mt-0.5 whitespace-normal">
                 {user?.primaryEmailAddress?.emailAddress}
               </p>
             </div>
             <Link
               href="/customer/membership"
               onClick={closeMobileSidebar}
-              className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-colors"
+              className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-colors"
               style={{
                 color: membership?.currentTier.colorTheme.primary ?? "#16a34a",
                 background: `${membership?.currentTier.colorTheme.primary ?? "#16a34a"}1a`,
@@ -273,7 +273,7 @@ export function CustomerSidebar() {
         <TooltipProvider delayDuration={400}>
           {visibleSections.map((section) => (
             <SidebarGroup key={section.label} className="py-0.5 px-0">
-              <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 h-6 px-2 group-data-[collapsible=icon]:hidden">
+              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 h-6 px-2 group-data-[collapsible=icon]:hidden">
                 {section.label}
               </SidebarGroupLabel>
               <SidebarGroupContent>

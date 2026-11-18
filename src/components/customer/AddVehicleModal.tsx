@@ -204,7 +204,7 @@ export function AddVehicleModal({
                                             onChange={(e) => setVin(e.target.value.toUpperCase())}
                                             autoFocus
                                         />
-                                        <p className="text-[10px] text-muted-foreground">
+                                        <p className="text-[11px] text-muted-foreground">
                                             We&apos;ll automatically pull your car&apos;s make, model, and trim.
                                         </p>
                                     </div>
@@ -276,10 +276,10 @@ export function AddVehicleModal({
                                                         )}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
-                                                        <p className="text-xs font-bold truncate">
+                                                        <p className="text-xs font-bold min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                                                             {v.year} {v.make} {v.model}
                                                         </p>
-                                                        <p className="text-[10px] text-muted-foreground truncate">
+                                                        <p className="text-[11px] text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">
                                                             {v.trim ? `${v.trim} · ` : ""}
                                                             {v.vin ? `VIN ${String(v.vin).slice(-6)}` : "No VIN on file"}
                                                         </p>

@@ -137,7 +137,7 @@ export function AuctionListings() {
                 <div className="flex items-center gap-2">
                   <span className={cn("h-2 w-2 rounded-full", meta.dotClass)} />
                   <h2 className="text-sm font-bold text-foreground uppercase tracking-wide">{meta.label}</h2>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground tabular-nums">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground tabular-nums">
                     {items.length}
                   </span>
                 </div>

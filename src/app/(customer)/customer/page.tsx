@@ -150,7 +150,7 @@ function CustomerDashboardContent() {
                 <div className="space-y-2.5 min-w-0">
                   <div className="flex items-center gap-2">
                     <LayoutDashboard className="h-3 w-3 text-primary shrink-0" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary/80">
+                    <span className="text-[11px] font-black uppercase tracking-[0.25em] text-primary/80">
                       Member Portal
                     </span>
                   </div>
@@ -194,10 +194,10 @@ function CustomerDashboardContent() {
                     <TabsTrigger value={tab.value} className={GARAGE_TAB_CLASS}>
                       <tab.icon className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
                       <span className="flex min-w-0 max-w-full items-center justify-center gap-1">
-                        <span className="truncate sm:hidden">{tab.short}</span>
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere] sm:hidden whitespace-normal">{tab.short}</span>
                         <span className="hidden sm:inline">{tab.label}</span>
                         {tab.value === "vehicles" && vehicles && vehicles.length > 0 && (
-                          <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 text-[9px] font-black text-primary">
+                          <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 text-[11px] font-black text-primary leading-none">
                             {vehicles.length}
                             <span className="sr-only"> vehicles</span>
                           </span>

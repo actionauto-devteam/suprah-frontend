@@ -143,7 +143,7 @@ export function EditVehicleModal({ vehicle, isOpen, onOpenChange }: EditVehicleM
                                 {previewUrl ? "Change Photo" : "Upload Photo"}
                             </Button>
                         </div>
-                        <p className="text-[10px] text-muted-foreground">Upload a photo to customize how your car looks in your garage.</p>
+                        <p className="text-[11px] text-muted-foreground">Upload a photo to customize how your car looks in your garage.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
