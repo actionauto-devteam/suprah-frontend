@@ -11,7 +11,6 @@ export type DeckToastId = string | number;
 
 /** The library's own default, used when a toast doesn't set its duration. */
 export const DEFAULT_TOAST_LIFETIME = 4000;
-export const MAX_TOAST_LIFETIME = 5000;
 
 /** The toast after the one on show; after the last one comes the first again. */
 export function nextDeckIndex(current: number, count: number): number {
@@ -50,16 +49,26 @@ export function toastLifetime(
   fallback: number = DEFAULT_TOAST_LIFETIME,
 ): number {
   if (toast.type === "loading") return Infinity;
-  const requested = typeof toast.duration === "number" && toast.duration > 0 ? toast.duration : fallback;
-  return Math.min(requested > 0 ? requested : DEFAULT_TOAST_LIFETIME, MAX_TOAST_LIFETIME);
+  if (typeof toast.duration === "number" && toast.duration > 0) return toast.duration;
+  return fallback;
 }
 
+/**
+ * Which toasts count down right now: only the one on screen, so nobody misses
+ * a waiting message. While the one on screen is still loading ("Preparing…"),
+ * the waiting ones count down and close on their own, as they did before the
+ * one-card deck (2026-11-14).
+ */
 export function countingDownIds(
   toasts: ReadonlyArray<{ id: DeckToastId; type?: string; duration?: number }>,
+  shownIndex: number,
   fallback: number = DEFAULT_TOAST_LIFETIME,
 ): DeckToastId[] {
+  const shown = toasts[shownIndex];
+  if (!shown) return [];
+  if (toastLifetime(shown, fallback) !== Infinity) return [shown.id];
   return toasts
-    .filter((toast) => toastLifetime(toast, fallback) !== Infinity)
+    .filter((toast, index) => index !== shownIndex && toastLifetime(toast, fallback) !== Infinity)
     .map((toast) => toast.id);
 }
 

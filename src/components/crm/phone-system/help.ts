@@ -19,6 +19,7 @@ export const PHONE_SYSTEM_HELP: Record<PhoneSystemTab, HelpTopic> = {
       "The location list comes from CRM Settings, Locations. If a location is missing, add it there first.",
       "The department only decides who gets calls. Texts go to Leads, where everyone in Suprah CRM can see them.",
       "If a Phone Menu is on for a number, the menu answers that number first and the card shows Answered by: Phone Menu. Who answers is then only used if the menu is turned off.",
+      "Sales calls for all locations: pick one department whose people also get the calls of every location, together with that location's own department. Department numbers, like Service, do not ring them.",
     ],
   },
   menu: {
@@ -36,6 +37,7 @@ export const PHONE_SYSTEM_HELP: Record<PhoneSystemTab, HelpTopic> = {
       "If the caller presses nothing or a wrong key, they hear the menu again.",
       "If nobody answers, Reception gets the call. You can also let it ring everyone.",
       "If still nobody answers, the caller gets a text back.",
+      "A store key also rings the department chosen in Sales calls for all locations, on the Numbers tab.",
     ],
   },
   "my-calls": {

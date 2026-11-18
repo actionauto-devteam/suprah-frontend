@@ -23,6 +23,8 @@ import {
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
+import { CustomerAreaChip } from "./atomic/CustomerAreaChip";
+import { NeedsReplyBanner } from "./atomic/NeedsReplyBanner";
 import { CallCard } from "./CallCard";
 import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
@@ -46,6 +48,8 @@ interface ConversationViewProps {
   onCombineUndone?: () => void;
   onBack?: () => void;
   onShowDetails?: () => void;
+  onNoReplyNeeded?: () => void;
+  noReplyBusy?: boolean;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -598,6 +602,8 @@ export function ConversationView({
   onCombineUndone,
   onBack,
   onShowDetails,
+  onNoReplyNeeded,
+  noReplyBusy = false,
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -745,7 +751,8 @@ export function ConversationView({
                   <span className="shrink-0">·</span>
                 </>
               )}
-              <span className="truncate">
+              <CustomerAreaChip area={lead?.customerArea} className="min-w-0 truncate leading-3 max-[479px]:hidden" />
+              <span className="min-w-0 flex-1 truncate">
                 {lead?.source || "Lead Inbox"}
                 {lead?.subject ? ` · ${lead.subject}` : ""}
               </span>
@@ -782,6 +789,8 @@ export function ConversationView({
 
       {/* Sticky lead-details strip — always visible, never scrolls away */}
       <LeadInquiryDetails lead={lead} />
+
+      <NeedsReplyBanner since={lead?.needsReplySince} onNoReplyNeeded={onNoReplyNeeded} busy={noReplyBusy} />
 
       {siblingCount > 0 && (
         <button

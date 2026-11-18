@@ -326,6 +326,42 @@ const API_BASE_URL = (
 const DEFAULT_NOTIFICATION_ICON = self.location.origin === "https://space.suprah-app.com" ? "/supra-space/icon-192.png" : "/icon-192x192.png";
 const SUPRASPACE_NOTIFICATION_ICON = "/supra-space/icon-192.png";
 const SUMMARY_NOTIFICATION_TAG = "notification-summary";
+const DEVICE_NOTIFICATION_BURST_MS = 5000;
+const deviceNotificationQueues = new Map<string, Promise<void>>();
+
+type DeviceNotificationOptions = NotificationOptions & { renotify?: boolean; [key: string]: unknown };
+
+function queueDeviceNotification(tag: string | undefined, show: () => Promise<void>): Promise<void> {
+  if (!tag) return show();
+  const previous = deviceNotificationQueues.get(tag) ?? Promise.resolve();
+  const pending = previous.catch(() => {}).then(show);
+  deviceNotificationQueues.set(tag, pending);
+  return pending.finally(() => {
+    if (deviceNotificationQueues.get(tag) === pending) deviceNotificationQueues.delete(tag);
+  });
+}
+
+async function presentDeviceNotification(title: string, options: DeviceNotificationOptions, repeatAlerts = false): Promise<void> {
+  const registration = (self as unknown as { registration: ServiceWorkerRegistration }).registration;
+  const now = Date.now();
+  const existing: { data?: { _suprahShownAt?: number }; timestamp?: number }[] =
+    options.tag && options.renotify && !repeatAlerts
+      ? await registration.getNotifications({ tag: options.tag }).catch(() => []) : [];
+  const recent = existing.some(notification => {
+    const shownAt = notification.data?._suprahShownAt ?? notification.timestamp;
+    return typeof shownAt === "number" && shownAt <= now && now - shownAt < DEVICE_NOTIFICATION_BURST_MS;
+  });
+  await registration.showNotification(title, {
+    ...options,
+    requireInteraction: false,
+    renotify: !!options.renotify && !recent,
+    data: { ...options.data, _suprahShownAt: now },
+  } as NotificationOptions);
+}
+
+function showDeviceNotification(title: string, options: DeviceNotificationOptions, repeatAlerts = false): Promise<void> {
+  return queueDeviceNotification(options.tag, () => presentDeviceNotification(title, options, repeatAlerts));
+}
 
 function getSafeNotificationAsset(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
@@ -416,41 +452,43 @@ async function isAppActive(): Promise<boolean> {
  * new one, while the app is closed/backgrounded. Reads the previous count off
  * the still-showing notification's own `data` (no extra storage needed) — and
  * because it reuses one `tag`, there is only ever ONE of these in the tray at
- * a time; `renotify: true` still alerts/vibrates on every bump. It self-resets
+ * a time. It self-resets
  * next burst because clicking (or dismissing) closes it, so the next push
  * finds nothing under this tag and starts back at 1.
  */
 async function showBurstSummary(data: any): Promise<void> {
-  const existing = await (self as any).registration.getNotifications({
-    tag: SUMMARY_NOTIFICATION_TAG,
-  });
-  const count = (existing[0]?.data?.count || 0) + 1;
-  const title = cleanPushNotificationText(data.title);
-  const body = cleanPushNotificationText(data.body);
-  const latest = title && body ? `${title}: ${body}` : (title || body || "New activity");
-
-  await (self as any).registration.showNotification(
-    `You have ${count} new notification${count === 1 ? "" : "s"}`,
-    {
-      body: count === 1 ? latest : `Latest: ${latest}`,
-      icon: getNotificationIcon(data),
-      badge: DEFAULT_NOTIFICATION_ICON,
+  return queueDeviceNotification(SUMMARY_NOTIFICATION_TAG, async () => {
+    const existing = await (self as any).registration.getNotifications({
       tag: SUMMARY_NOTIFICATION_TAG,
-      renotify: true,
-      vibrate: [100, 50, 100],
-      // Tapping this collapsed summary should open the most recent thing it
-      // summarizes, not a generic page with no way back to it — carry the
-      // latest push's own conversationId/messageId through so
-      // notificationclick's URL-resolution logic (below) can use them same
-      // as it would for a non-collapsed push.
-      data: {
-        url: data.data?.url || "/notifications",
-        conversationId: data.data?.conversationId,
-        messageId: data.data?.messageId,
-        count,
+    });
+    const count = (existing[0]?.data?.count || 0) + 1;
+    const title = cleanPushNotificationText(data.title);
+    const body = cleanPushNotificationText(data.body);
+    const latest = title && body ? `${title}: ${body}` : (title || body || "New activity");
+
+    await presentDeviceNotification(
+      `You have ${count} new notification${count === 1 ? "" : "s"}`,
+      {
+        body: count === 1 ? latest : `Latest: ${latest}`,
+        icon: getNotificationIcon(data),
+        badge: DEFAULT_NOTIFICATION_ICON,
+        tag: SUMMARY_NOTIFICATION_TAG,
+        renotify: true,
+        vibrate: [100, 50, 100],
+        // Tapping this collapsed summary should open the most recent thing it
+        // summarizes, not a generic page with no way back to it — carry the
+        // latest push's own conversationId/messageId through so
+        // notificationclick's URL-resolution logic (below) can use them same
+        // as it would for a non-collapsed push.
+        data: {
+          url: data.data?.url || "/notifications",
+          conversationId: data.data?.conversationId,
+          messageId: data.data?.messageId,
+          count,
+        },
       },
-    },
-  );
+    );
+  });
 }
 
 /**
@@ -620,7 +658,7 @@ self.addEventListener("push", (event: any) => {
 
       if (!event.data) {
         if (!(await isAppActive())) return void (await showBurstSummary(fallback));
-        await (self as any).registration.showNotification(fallback.title, {
+        await showDeviceNotification(fallback.title, {
           body: fallback.body,
           icon: DEFAULT_NOTIFICATION_ICON,
           badge: DEFAULT_NOTIFICATION_ICON,
@@ -634,7 +672,7 @@ self.addEventListener("push", (event: any) => {
       } catch (err) {
         console.error("[SW] Push payload parse error:", err);
         if (!(await isAppActive())) return void (await showBurstSummary(fallback));
-        await (self as any).registration.showNotification(fallback.title, {
+        await showDeviceNotification(fallback.title, {
           body: fallback.body,
           icon: DEFAULT_NOTIFICATION_ICON,
           badge: DEFAULT_NOTIFICATION_ICON,
@@ -649,7 +687,7 @@ self.addEventListener("push", (event: any) => {
         notifications.forEach(notification => notification.close());
         // Compatibility with pushes queued by older servers. Every delivered
         // push must remain visible, including read synchronization messages.
-        await registration.showNotification("Notifications updated", {
+        await showDeviceNotification("Notifications updated", {
           body: "Your read notifications have been cleared.",
           icon: DEFAULT_NOTIFICATION_ICON, tag: "notification-read-sync",
           silent: true, data: { url: "/notifications" },
@@ -747,13 +785,6 @@ self.addEventListener("push", (event: any) => {
             ? { silent: true }
             : {}
         ),
-        // Without this, a second push sharing the same tag (e.g. another
-        // message in the same conversation — see pushToConversationMembers'
-        // tag: conv._id) silently replaces the prior notification on
-        // Chrome/Android with no new alert, sound, or vibration — it just
-        // looks like nothing arrived. Safari/iOS doesn't collapse same-tag
-        // notifications the same way, which is why this only ever showed up
-        // as "Android stops after the first one, iOS keeps working."
         renotify: !!data.tag,
       };
 
@@ -781,12 +812,12 @@ self.addEventListener("push", (event: any) => {
 
       try {
         await Promise.all([
-          (self as any).registration.showNotification(data.title, options),
+          showDeviceNotification(data.title, options, needsImmediateAttention),
           notifyClients,
         ]);
       } catch (err) {
         console.error("[SW] showNotification failed, falling back:", err);
-        await (self as any).registration.showNotification(data.title || "New notification", {
+        await showDeviceNotification(data.title || "New notification", {
           body: data.body || "You have a new notification.",
           icon: DEFAULT_NOTIFICATION_ICON,
           badge: DEFAULT_NOTIFICATION_ICON,
@@ -968,7 +999,7 @@ async function handleBackgroundAction(action: string, data: any, replyText?: str
 
       if (!result.ok) throw new Error(`HTTP ${result.status}`);
 
-      await (self as any).registration.showNotification("Dispatch Response Sent", {
+      await showDeviceNotification("Dispatch Response Sent", {
         body:
           response === "on_my_way"
             ? "Your status was sent as On My Way."
@@ -985,7 +1016,7 @@ async function handleBackgroundAction(action: string, data: any, replyText?: str
     const requestId = data?.driverRequestId;
     if (!requestId) return false;
 
-    await (self as any).registration.showNotification("Processing Request", {
+    await showDeviceNotification("Processing Request", {
       body: `Your request to ${action} this driver is being processed...`,
       icon: DEFAULT_NOTIFICATION_ICON,
     });
@@ -1005,14 +1036,14 @@ async function handleBackgroundAction(action: string, data: any, replyText?: str
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    await (self as any).registration.showNotification("Success", {
+    await showDeviceNotification("Success", {
       body: `Driver request has been successfully ${action}ed.`,
       icon: DEFAULT_NOTIFICATION_ICON,
     });
     return true;
   } catch (err) {
     console.error("[SW] Background action failed:", err);
-    await (self as any).registration.showNotification("Action Failed", {
+    await showDeviceNotification("Action Failed", {
       body: "Could not process the request in the background. Please open the app.",
       icon: DEFAULT_NOTIFICATION_ICON,
     });

@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import type { LeadStatus } from "@/lib/leadStatus";
 import type { Lead as LinkedLead } from "@/types/lead";
+import type { CustomerArea } from "@/lib/customerArea";
 
 export interface Lead {
   _id: string;
@@ -47,6 +48,8 @@ export interface Lead {
   dealershipLine?: string;
   comments: string;
   address?: string;
+  customerArea?: CustomerArea | null;
+  needsReplySince?: string | null;
   birthday?: string;
   tags?: string[];
   aiSummary?: string;
@@ -113,6 +116,8 @@ interface UseLeadsOptions {
   sortBy?: "latest_activity" | "customer_activity" | "newest" | "oldest" | "waiting_longest"
   assignedTo?: string | null
   handledBy?: string | null
+  customerArea?: string | null
+  needsReply?: boolean
   location?: string | null
   source?: string | null
   leadType?: string | null
@@ -138,6 +143,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   sortBy = 'latest_activity',
   assignedTo = null,
   handledBy = null,
+  customerArea = null,
+  needsReply = false,
   location = null,
   source = null,
   leadType = null,
@@ -152,6 +159,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   // Without this, concurrent mutation onSuccess callbacks (e.g. markAsRead
   // firing while a sync is in progress) stack up and cause request pile-up.
   const refetchInProgress = useRef(false);
+  const refetchQueued = useRef(false);
+  const queuedRefetch = useRef<(() => Promise<void>) | null>(null);
 
   const getAuthHeaders = async () => {
     const token = await getToken();
@@ -182,6 +191,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       leadType,
       dateFrom,
       dateTo,
+      customerArea,
+      needsReply,
     ],
 
     queryFn: async ({ signal }) => {
@@ -213,6 +224,14 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
       if (handledBy) {
         params.append("handledBy", handledBy);
+      }
+
+      if (customerArea) {
+        params.append("customerArea", customerArea);
+      }
+
+      if (needsReply) {
+        params.append("needsReply", "true");
       }
 
       if (location) {
@@ -282,7 +301,10 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   // ── Shared invalidation helper — guards against concurrent calls ──────────
   const invalidateAndRefetch = useCallback(
     async (waitMs = 600) => {
-      if (refetchInProgress.current) return;
+      if (refetchInProgress.current) {
+        refetchQueued.current = true;
+        return;
+      }
       refetchInProgress.current = true;
       try {
         if (waitMs > 0) await delay(waitMs);
@@ -290,10 +312,18 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
         await refetch();
       } finally {
         refetchInProgress.current = false;
+        if (refetchQueued.current) {
+          refetchQueued.current = false;
+          void queuedRefetch.current?.();
+        }
       }
     },
     [queryClient, refetch],
   );
+
+  useEffect(() => {
+    queuedRefetch.current = () => invalidateAndRefetch(0);
+  }, [invalidateAndRefetch]);
 
   // ── Update lead status ─────────────────────────────────────────────────────
   const updateLeadMutation = useMutation({
@@ -598,6 +628,31 @@ export const useAssignedNewCount = (enabled: boolean, liveRefreshMs = 0) => {
     queryFn: async ({ signal }) => {
       const token = await getToken();
       const response = await apiClient.get("/api/leads/assigned-new-count", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      const resData = response.data?.data || response.data;
+      return Number(resData?.count) || 0;
+    },
+
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: enabled && liveRefreshMs > 0 ? liveRefreshMs : false,
+  });
+
+  return data || 0;
+};
+
+export const useNeedsReplyCount = (enabled: boolean, liveRefreshMs = 0) => {
+  const { getToken } = useAuth();
+
+  const { data } = useQuery({
+    queryKey: ["leads", "needs-reply"],
+    enabled,
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const response = await apiClient.get("/api/leads/needs-reply-count", {
         headers: { Authorization: `Bearer ${token}` },
         signal,
       });
