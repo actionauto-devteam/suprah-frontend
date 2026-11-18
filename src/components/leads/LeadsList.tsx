@@ -11,6 +11,8 @@ import { Search, ChevronLeft, ChevronRight, Inbox, CheckSquare, Phone, TriangleA
 import { cn } from "@/lib/utils";
 import { Avatar } from "./atomic/Avatar";
 import { STATUS_CONFIG } from "./atomic/StatusPill";
+import { CustomerAreaChip } from "./atomic/CustomerAreaChip";
+import { NeedsReplyChip } from "./atomic/NeedsReplyChip";
 import { SupraLeoReadButton } from "@/components/supra-leo-ai/SupraLeoReadButton";
 import { useTeamMembers } from "@/hooks/useTeamPulse";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
@@ -455,6 +457,7 @@ export const LeadsList = React.memo(
                               New for you
                             </span>
                           )}
+                          <NeedsReplyChip since={lead?.needsReplySince} />
                           {lead?.channel && (
                             <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                               {lead.channel}
@@ -483,6 +486,7 @@ export const LeadsList = React.memo(
                               {shortStoreName(lead.storeName)}
                             </span>
                           )}
+                          <CustomerAreaChip area={lead?.customerArea} />
                           {lead?.intakeIdentity === "unverified" && (
                             <span
                               className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"

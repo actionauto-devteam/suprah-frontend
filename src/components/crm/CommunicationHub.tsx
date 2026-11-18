@@ -82,6 +82,9 @@ import { AiAgentTasksSection } from "@/components/leads/AiAgentTasksSection";
 import { VehicleOfInterestCard } from "@/components/leads/VehicleOfInterestCard";
 import { CustomerRecordLink } from "@/components/leads/CustomerRecordLink";
 import { LeadHandlersCard } from "@/components/leads/LeadHandlersCard";
+import { CustomerAreaChip } from "@/components/leads/atomic/CustomerAreaChip";
+import { NeedsReplyChip } from "@/components/leads/atomic/NeedsReplyChip";
+import { customerAreaLabel } from "@/lib/customerArea";
 import { LeadShippingCard } from "@/components/transportation/LeadShippingCard";
 
 type CommChannel = "sms" | "email" | "call";
@@ -329,7 +332,7 @@ export function CommunicationHub() {
     limit: 100,
     search: leadSearch,
     status: statusFilter,
-    sortBy,
+    sortBy: sortBy === "newest" ? "customer_activity" : sortBy,
   });
 
   const [viewportMode, setViewportMode] =
@@ -642,9 +645,8 @@ export function CommunicationHub() {
       }
     };
 
-    const onLeadUpdate = (updatedLead: Lead) => {
-      if (!updatedLead?._id) return;
-      if (updatedLead._id === selectedLeadId) {
+    const onLeadUpdate = (updatedLead?: Lead) => {
+      if (updatedLead?._id && updatedLead._id === selectedLeadId) {
         setSelectedLead((current) =>
           current?._id === updatedLead._id
             ? { ...current, ...updatedLead }
@@ -1176,6 +1178,12 @@ export function CommunicationHub() {
               total={total}
               searchQuery={leadSearch}
               onSearchChange={setLeadSearch}
+              renderBadge={(contact: WorkspaceContact) => (
+                <NeedsReplyChip short since={(contact.raw as Lead | undefined)?.needsReplySince} className="shrink-0 leading-3" />
+              )}
+              renderTrailing={(contact: WorkspaceContact) => (
+                <CustomerAreaChip short area={(contact.raw as Lead | undefined)?.customerArea} className="min-w-0 truncate @max-[3rem]:hidden" />
+              )}
               onContactSelect={(contact: WorkspaceContact) => {
                 const lead = (contact.raw as Lead | undefined) ||
                   leads.find((item) => item._id === contact.id);
@@ -1323,6 +1331,9 @@ export function CommunicationHub() {
                 meta={[
                   selectedLead.source ||
                   "Communication Hub",
+                  customerAreaLabel(selectedLead.customerArea)
+                    ? `Customer area: ${customerAreaLabel(selectedLead.customerArea)}`
+                    : "",
                   capabilities.sms.mode ===
                     "simulation"
                     ? "SMS simulation active"

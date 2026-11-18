@@ -38,6 +38,7 @@ export interface ConversationListPanelProps {
   selectedIds?: Set<string>;
   onToggleSelect?: (contact: WorkspaceContact) => void;
   renderTrailing?: (contact: WorkspaceContact) => React.ReactNode;
+  renderBadge?: (contact: WorkspaceContact) => React.ReactNode;
 }
 
 export function ConversationListPanel({
@@ -65,6 +66,7 @@ export function ConversationListPanel({
   selectedIds,
   onToggleSelect,
   renderTrailing,
+  renderBadge,
 }: ConversationListPanelProps) {
   const listRef = React.useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = React.useRef<HTMLInputElement>(null);
@@ -271,6 +273,7 @@ export function ConversationListPanel({
                     <p className="ss4-conv-name min-w-0 flex-1 truncate font-semibold leading-tight" style={{ fontSize: 13, opacity: contact.isRead ? 0.92 : 1 }}>
                       {contact.name}
                     </p>
+                    {renderBadge ? renderBadge(contact) : null}
                     <span className="ml-1 shrink-0 tabular-nums" style={{ fontSize: 9.5, color: "var(--text-tertiary)" }}>
                       {formatWorkspaceShortDate(contact.timestamp)}
                     </span>
@@ -289,7 +292,7 @@ export function ConversationListPanel({
                     {contact.count && contact.count > 1 ? (
                       <span className="ss4-badge inline-flex shrink-0 items-center">+{contact.count - 1}</span>
                     ) : null}
-                    {renderTrailing ? <div className="ml-auto shrink-0">{renderTrailing(contact)}</div> : null}
+                    {renderTrailing ? <div className="@container flex min-w-0 flex-1 justify-end">{renderTrailing(contact)}</div> : null}
                   </div>
                 </div>
               </div>

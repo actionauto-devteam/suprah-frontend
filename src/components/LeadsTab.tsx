@@ -13,6 +13,7 @@ import {
   ListChecks,
   Mail,
   MessageSquare,
+  MessageSquareDot,
   Moon,
   MoreHorizontal,
   Plus,
@@ -23,8 +24,10 @@ import {
   X,
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useLeadTypeCounts, useAssignedNewCount, Lead } from "@/hooks/useLeads"
+import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useLeadTypeCounts, useAssignedNewCount, useNeedsReplyCount, Lead } from "@/hooks/useLeads"
 import { isCampaignLeadType, leadTypeLabel } from "@/lib/leadType"
+import { customerAreaFilterLabel } from "@/lib/customerArea"
+import { needsReplyCountLabel } from "@/lib/needsReply"
 import { ACTIVE_CALLS_KEY, useActiveCalls } from "@/hooks/useActiveCalls"
 import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import { useQueryClient } from "@tanstack/react-query"
@@ -249,6 +252,7 @@ const isEmailLead = (lead: Lead | null | undefined): boolean => {
 type LeadSortOption = "latest_activity" | "customer_activity" | "oldest" | "waiting_longest";
 
 const LEAD_SORT_STORAGE_KEY = "crm-leads-sort-activity";
+const DEFAULT_LEAD_SORT: LeadSortOption = "customer_activity";
 const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
   { value: "latest_activity", label: "Recent" },
   { value: "customer_activity", label: "Newest" },
@@ -339,17 +343,16 @@ export function LeadsTab({
   // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
   const [activeStatusCategory, setActiveStatusCategory] = React.useState<LeadStatusCategory | null>(null);
-  const [sortBy, setSortBy] = React.useState<LeadSortOption>("latest_activity");
+  const [sortBy, setSortBy] = React.useState<LeadSortOption>(DEFAULT_LEAD_SORT);
   React.useEffect(() => {
     try {
-      const saved = window.sessionStorage.getItem(LEAD_SORT_STORAGE_KEY);
-      if (saved === "customer_activity" || saved === "newest") setSortBy("customer_activity");
-      else if (saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
+      const saved = window.localStorage.getItem(LEAD_SORT_STORAGE_KEY);
+      if (saved === "latest_activity" || saved === "oldest" || saved === "waiting_longest") setSortBy(saved);
     } catch {}
   }, []);
   React.useEffect(() => {
     try {
-      window.sessionStorage.setItem(LEAD_SORT_STORAGE_KEY, sortBy);
+      window.localStorage.setItem(LEAD_SORT_STORAGE_KEY, sortBy);
     } catch {}
   }, [sortBy]);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -401,6 +404,9 @@ export function LeadsTab({
   const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
   const [assigneeFilterId, setAssigneeFilterId] = React.useState<string | null>(null);
   const [handledByFilterId, setHandledByFilterId] = React.useState<string | null>(null);
+  const [customerAreaFilter, setCustomerAreaFilter] = React.useState<string | null>(null);
+  const [needsReplyFilter, setNeedsReplyFilter] = React.useState(false);
+  const [noReplyBusyId, setNoReplyBusyId] = React.useState<string | null>(null);
   const isMobile = useIsMobile();
   const { data: teamMembers = [] } = useTeamMembers();
   const [locationFilter, setLocationFilter] = React.useState<string | null>(null);
@@ -442,6 +448,8 @@ export function LeadsTab({
     sortBy,
     assignedTo: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
     handledBy: handledByFilterId,
+    customerArea: customerAreaFilter,
+    needsReply: needsReplyFilter,
     location: locationFilter,
     source: sourceFilter,
     leadType: leadTypeFilter,
@@ -454,6 +462,7 @@ export function LeadsTab({
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadTypeCounts } = useLeadTypeCounts(LEADS_LIVE_REFRESH_MS);
   const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
+  const needsReplyCount = useNeedsReplyCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
   const queryClient = useQueryClient();
   const activeCalls = useActiveCalls();
   const [liveUpdates, setLiveUpdates] = React.useState<boolean | null>(null);
@@ -947,11 +956,38 @@ export function LeadsTab({
   const loadedThreadIdsRef = React.useRef<Set<string>>(new Set());
   const selectedLeadRef = React.useRef<Lead | null>(null);
   const fetchThreadRef = React.useRef<((lead: Lead) => Promise<void>) | null>(null);
+  const refreshNeedsReplyRef = React.useRef<((leadId: string) => Promise<void>) | null>(null);
+  const needsReplyTurnRef = React.useRef(0);
   const liveThreadRefreshTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     selectedLeadRef.current = selectedLead;
   }, [selectedLead]);
+
+  const refreshSelectedNeedsReply = React.useCallback(
+    async (leadId: string) => {
+      const turn = ++needsReplyTurnRef.current;
+      try {
+        const token = await getToken();
+        const response = await apiClient.get(`/api/leads/${leadId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const fresh = response.data?.data;
+        if (!fresh?._id || turn !== needsReplyTurnRef.current) return;
+        const since: string | null = fresh.needsReplySince ?? null;
+        _setSelectedLead((current) =>
+          current && current._id === leadId && (current.needsReplySince ?? null) !== since
+            ? { ...current, needsReplySince: since }
+            : current,
+        );
+      } catch {}
+    },
+    [getToken],
+  );
+
+  React.useEffect(() => {
+    refreshNeedsReplyRef.current = refreshSelectedNeedsReply;
+  }, [refreshSelectedNeedsReply]);
 
   const [highlightedLeadIds, setHighlightedLeadIds] = React.useState<
     Set<string>
@@ -1293,6 +1329,7 @@ export function LeadsTab({
           liveThreadRefreshTimerRef.current = null;
           if (selectedLeadRef.current?._id !== current._id) return;
           void fetchThreadRef.current?.(current);
+          void refreshNeedsReplyRef.current?.(current._id);
         }, LIVE_THREAD_REFRESH_DELAY_MS);
       };
 
@@ -1300,6 +1337,7 @@ export function LeadsTab({
         refetch();
         void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
         void queryClient.invalidateQueries({ queryKey: ["leads", "assigned-new"] });
+        void queryClient.invalidateQueries({ queryKey: ["leads", "needs-reply"] });
         scheduleSelectedRefresh(data?.leadId || data?._id);
       });
       listen("lead:assigned", () => {
@@ -1347,6 +1385,7 @@ export function LeadsTab({
           liveThreadRefreshTimerRef.current = null;
           if (selectedLeadRef.current?._id !== current._id) return;
           void fetchThreadRef.current?.(current);
+          void refreshNeedsReplyRef.current?.(current._id);
         }, LIVE_THREAD_REFRESH_DELAY_MS);
       });
 
@@ -1417,6 +1456,7 @@ export function LeadsTab({
       listen("email:ai_paused", handleAiPaused);
       listen("email:message:new", (data?: LiveLeadEvent) => {
         refetch();
+        void queryClient.invalidateQueries({ queryKey: ["leads", "needs-reply"] });
         scheduleSelectedRefresh(data?.leadId || data?.lead?._id);
       });
 
@@ -1980,6 +2020,47 @@ export function LeadsTab({
     void refetch();
   };
 
+  const showLeadAnswered = (leadId: string) => {
+    needsReplyTurnRef.current += 1;
+    void queryClient.cancelQueries({
+      queryKey: ["leads"],
+      predicate: (query) => Array.isArray((query.state.data as { leads?: unknown } | undefined)?.leads),
+    });
+    queryClient.setQueriesData({ queryKey: ["leads"] }, (data: unknown) => {
+      const listed = data as { leads?: Lead[] } | null | undefined;
+      if (!listed || !Array.isArray(listed.leads)) return data;
+      if (!listed.leads.some((lead) => lead._id === leadId && lead.needsReplySince)) return data;
+      return {
+        ...listed,
+        leads: listed.leads.map((lead) => (lead._id === leadId ? { ...lead, needsReplySince: null } : lead)),
+      };
+    });
+    _setSelectedLead((current) =>
+      current && current._id === leadId && current.needsReplySince ? { ...current, needsReplySince: null } : current,
+    );
+    void queryClient.invalidateQueries({ queryKey: ["leads", "needs-reply"] });
+  };
+
+  const handleNoReplyNeeded = async () => {
+    const leadId = selectedLead?._id;
+    if (!leadId || noReplyBusyId === leadId) return;
+    setNoReplyBusyId(leadId);
+    try {
+      const token = await getToken();
+      await apiClient.patch(`/api/leads/${leadId}/no-reply-needed`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      showLeadAnswered(leadId);
+      await refetch();
+      addToast("success", "Marked as no reply needed");
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      addToast("error", message || "This could not be saved. Please try again.");
+    } finally {
+      setNoReplyBusyId((current) => (current === leadId ? null : current));
+    }
+  };
+
   const handleSend = async (
     attachments: File[] = [],
   ) => {
@@ -2047,6 +2128,7 @@ export function LeadsTab({
 
         setLeadDraft(sendingDraftKey, "");
         addToast("success", "Chat message sent");
+        showLeadAnswered(sendingLeadId);
 
         await updateLeadStatus({
           id: selectedLead._id,
@@ -2113,6 +2195,7 @@ export function LeadsTab({
           "success",
           smsResponse.data?.data?.duplicate ? "This text was already sent" : "Text message sent",
         );
+        showLeadAnswered(sendingLeadId);
 
         await updateLeadStatus({
           id: selectedLead._id,
@@ -2173,6 +2256,7 @@ export function LeadsTab({
       });
       void loadReplyOptions(sendingLeadId);
       addToast("success", emailResponse.data?.duplicate ? "This email was already sent" : "Reply sent");
+      showLeadAnswered(sendingLeadId);
 
       await updateLeadStatus({
         id: selectedLead._id,
@@ -2590,6 +2674,33 @@ export function LeadsTab({
     setSelectedLead(null);
   };
 
+  const handleCustomerAreaFilter = (area: string | null) => {
+    setCustomerAreaFilter(area);
+    setCurrentPage(1);
+    setSelectedLead(null);
+  };
+
+  const handleNeedsReplyFilter = (value: boolean) => {
+    setNeedsReplyFilter(value);
+    setCurrentPage(1);
+    setSelectedLead(null);
+  };
+
+  const showMyWaitingCustomers = () => {
+    setActiveStatusCategory(null);
+    setStatusFilter(null);
+    handleSourceFilterChange(null);
+    handleClearDateFilter();
+    setLocationFilter(null);
+    setLeadTypeFilter(null);
+    setHandledByFilterId(null);
+    setCustomerAreaFilter(null);
+    setSearchQuery("");
+    setAssignmentFilter("mine");
+    setAssigneeFilterId(null);
+    handleNeedsReplyFilter(true);
+  };
+
   const dateFilterActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
   const assigneeFilterName = assigneeFilterId
     ? teamMembers.find((member: { _id: string; name: string }) => member._id === assigneeFilterId)?.name || "Team member"
@@ -2624,6 +2735,8 @@ export function LeadsTab({
         : []),
     ...(assigneeFilterName ? [{ key: "assignee", label: `Assigned: ${assigneeFilterName}`, onRemove: () => handleAssigneeFilter(null) }] : []),
     ...(handledByFilterName ? [{ key: "handled-by", label: `Handled by: ${handledByFilterName}`, onRemove: () => handleHandledByFilter(null) }] : []),
+    ...(customerAreaFilter ? [{ key: "customer-area", label: `Area: ${customerAreaFilterLabel(customerAreaFilter)}`, onRemove: () => handleCustomerAreaFilter(null) }] : []),
+    ...(needsReplyFilter ? [{ key: "needs-reply", label: "Needs reply", onRemove: () => handleNeedsReplyFilter(false) }] : []),
     ...(leadTypeFilter
       ? [{
           key: "lead-type",
@@ -2666,12 +2779,12 @@ export function LeadsTab({
           },
         }]
       : []),
-    ...(isMobile && sortBy !== "latest_activity"
+    ...(isMobile && sortBy !== DEFAULT_LEAD_SORT
       ? [{
           key: "sort",
           label: `Sort: ${LEAD_SORT_OPTIONS.find((option) => option.value === sortBy)?.label || sortBy}`,
           onRemove: () => {
-            setSortBy("latest_activity");
+            setSortBy(DEFAULT_LEAD_SORT);
             setCurrentPage(1);
           },
         }]
@@ -2687,7 +2800,9 @@ export function LeadsTab({
     setLeadTypeFilter(null);
     setAssigneeFilterId(null);
     setHandledByFilterId(null);
-    if (isMobile) setSortBy("latest_activity");
+    setCustomerAreaFilter(null);
+    setNeedsReplyFilter(false);
+    if (isMobile) setSortBy(DEFAULT_LEAD_SORT);
     setCurrentPage(1);
     setSelectedLead(null);
   };
@@ -3125,6 +3240,8 @@ export function LeadsTab({
                               members: teamMembers.map((member: { _id: string; name: string }) => ({ _id: member._id, name: member.name })),
                               onChange: handleHandledByFilter,
                             }}
+                            customerArea={{ value: customerAreaFilter, onChange: handleCustomerAreaFilter }}
+                            needsReply={{ value: needsReplyFilter, onChange: handleNeedsReplyFilter }}
                             location={{
                               value: locationFilter,
                               options: locationFilterTabs,
@@ -3146,7 +3263,7 @@ export function LeadsTab({
                             }}
                             sort={{
                               value: sortBy,
-                              defaultValue: "latest_activity",
+                              defaultValue: DEFAULT_LEAD_SORT,
                               options: LEAD_SORT_OPTIONS,
                               onChange: (value) => {
                                 setSortBy(value as LeadSortOption);
@@ -3188,6 +3305,19 @@ export function LeadsTab({
                       </div>
 
                       <LeadsActiveFilters chips={activeFilterChips} onClearAll={clearAllFilters} />
+
+                      {needsReplyCount > 0 && !(needsReplyFilter && assignmentFilter === "mine") ? (
+                        <button
+                          type="button"
+                          onClick={showMyWaitingCustomers}
+                          className="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-left text-[12px] font-semibold text-red-700 dark:text-red-300"
+                          data-testid="needs-reply-cue"
+                        >
+                          <MessageSquareDot className="h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1 leading-snug">{needsReplyCountLabel(needsReplyCount)}</span>
+                          <span className="shrink-0 underline underline-offset-2">Show</span>
+                        </button>
+                      ) : null}
                     </div>
 
                     {isPlaceholderData && !isLoading ? (
@@ -3269,6 +3399,8 @@ export function LeadsTab({
                       refetch();
                       void fetchThread(selectedLead);
                     }}
+                    onNoReplyNeeded={() => void handleNoReplyNeeded()}
+                    noReplyBusy={noReplyBusyId === selectedLead._id}
                   />
 
                   {conversationMeta[selectedLead._id]?.composer?.blocked &&

@@ -14,6 +14,7 @@ import type { Lead } from "@/hooks/useLeads";
 import { resolveCustomerEmail } from "../customer-email";
 import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { AssigneePicker } from "@/components/leads/atomic/AssigneePicker";
+import { customerAreaDetailRow } from "./customer-area-row";
 import type {
   WorkspaceActivityItem,
   WorkspaceContact,
@@ -90,6 +91,7 @@ export function leadDetailSections(
         { id: "phone", label: "Phone", value: lead.phone ? formatSmsRecipient(lead.phone) : "Not provided", icon: <Phone size={15} />, copyText: lead.phone || "" },
         { id: "email", label: "Email", value: customerEmail || "Not provided", icon: <Mail size={15} />, copyText: customerEmail },
         { id: "address", label: "Address", value: address, icon: <MapPin size={15} />, copyText: lead.address || "" },
+        customerAreaDetailRow(lead.customerArea),
         { id: "tags", label: "Tags", value: tags, icon: <Tag size={15} />, copyText: tags === "Not provided" ? "" : tags },
       ],
     },
