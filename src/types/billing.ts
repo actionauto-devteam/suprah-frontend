@@ -65,6 +65,10 @@ export interface Payment {
   paidAt?: string;
   dueDate?: string;
 
+  /** Total refunded so far. A partly refunded payment stays "succeeded". */
+  refundedAmount?: number;
+  refundedAt?: string;
+
   createdBy?:
     | string
     | {

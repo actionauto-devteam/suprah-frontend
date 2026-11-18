@@ -1,5 +1,6 @@
 import { Payment } from "@/types/billing";
 import { DriverPayout } from "@/types/driver-payout";
+import { notRefunded, refundedSoFar } from "@/lib/payment-refunds";
 
 export interface BillingSummary {
   revenueCollected: number;
@@ -42,8 +43,9 @@ export function getBillingSummary(
     (payment) => normalizeStatus(payment.status) === "succeeded",
   );
 
+  // Partly refunded payments stay "succeeded"; count only the part kept.
   const revenueCollected = succeededPayments.reduce(
-    (sum, payment) => sum + Number(payment.amount || 0),
+    (sum, payment) => sum + notRefunded({ ...payment, status: "succeeded" }),
     0,
   );
 
@@ -68,15 +70,12 @@ export function getBillingSummary(
     0,
   );
 
-  const refundedAmount = payments
-    .filter(
-      (payment) =>
-        normalizeStatus(payment.status) === "refunded",
-    )
-    .reduce(
-      (sum, payment) => sum + Number(payment.amount || 0),
-      0,
-    );
+  // Full refunds plus the refunded part of partly refunded payments.
+  const refundedAmount = payments.reduce(
+    (sum, payment) =>
+      sum + refundedSoFar({ ...payment, status: normalizeStatus(payment.status) }),
+    0,
+  );
 
   const paidDriverCosts = payouts
     .filter(
