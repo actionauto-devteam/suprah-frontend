@@ -210,6 +210,16 @@ export function ActivityTimeline({
                     <ActivityDescription text={item.description} />
                   ) : null}
 
+                  {item.actorLabel ? (
+                    <p
+                      className="mt-1.5 min-w-0 break-words text-[11px] font-medium leading-snug [overflow-wrap:anywhere]"
+                      style={{ color: "var(--text-secondary)" }}
+                      data-testid="activity-actor"
+                    >
+                      {item.actorLabel}
+                    </p>
+                  ) : null}
+
                   <time
                     className="mt-1.5 block text-[10px] leading-none"
                     style={{ color: "var(--text-tertiary)" }}

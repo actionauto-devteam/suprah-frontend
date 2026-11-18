@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CheckCircle2, Loader2, MessageCircle, Send, X } from "lucide-react"
+import { ArrowLeft, CheckCircle2, ChevronRight, Loader2, MessageCircle, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -23,6 +23,9 @@ const MAX_LENGTH = 1000
 const TEXT_US_MESSAGE_LENGTH = 900
 const DEFAULT_ERROR = "Something went wrong. Please try again."
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const TEXT_US_INK = "text-[oklch(0.15_0.02_269.18)]"
+const TEXT_US_GREETING = "Enter your information, and our team will get back to you shortly."
+const TEXT_US_NO_MESSAGE = "Sent the Text Us form without a message."
 
 function locationKey(value?: string) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
@@ -59,11 +62,31 @@ interface WebChatWidgetProps {
   }
   textUs?: boolean
   defaultLocation?: string
+  pageLauncher?: boolean
+}
+
+function postToParent(message: Record<string, unknown>) {
+  if (typeof window === "undefined" || window.parent === window) return
+  window.parent.postMessage(message, "*")
 }
 
 function postEmbedState(open: boolean) {
-  if (typeof window === "undefined" || window.parent === window) return
-  window.parent.postMessage({ type: "suprah-webchat:resize", open }, "*")
+  postToParent({ type: "suprah-webchat:resize", open })
+}
+
+function TextUsField({ id, label, ...props }: { id: string; label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="group">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground transition-colors group-focus-within:text-foreground">
+        {label}
+      </label>
+      <input
+        id={id}
+        {...props}
+        className="mt-1 block w-full rounded-none border-0 border-b border-input bg-transparent px-0 py-1 text-base text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:shadow-[0_1px_0_0_var(--color-primary)]"
+      />
+    </div>
+  )
 }
 
 function readSession(key: string): StoredSession | null {
@@ -118,7 +141,7 @@ function PoweredBySuprah({ className = "" }: { className?: string }) {
   )
 }
 
-export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, prefill, title, launcher, textUs, defaultLocation }: WebChatWidgetProps) {
+export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, prefill, title, launcher, textUs, defaultLocation, pageLauncher }: WebChatWidgetProps) {
   const storageKey = `${STORAGE_PREFIX}${orgKey ? `org:${orgKey}` : `vehicle:${vehicleId}`}`
 
   const [open, setOpen] = React.useState(false)
@@ -135,16 +158,15 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   const [config, setConfig] = React.useState<WebChatConfig | null>(null)
   const [staffTyping, setStaffTyping] = React.useState(false)
   const [notice, setNotice] = React.useState("")
-  const [firstName, setFirstName] = React.useState("")
-  const [lastName, setLastName] = React.useState("")
   const [email, setEmail] = React.useState("")
-  const [vehicleInterest, setVehicleInterest] = React.useState("")
   const [location, setLocation] = React.useState("")
   const textMode = Boolean(config?.textMode) && !knownVisitor
   const textUsForm = Boolean(textUs) && !knownVisitor
   const locationOptions = React.useMemo(() => (textUsForm ? config?.locations ?? [] : []), [textUsForm, config])
   const panelTitle = title ?? (textUs ? "Text Us" : "Chat with us")
-  const visitorFirstName = textUsForm ? firstName.trim() : name.trim().split(/\s+/)[0]
+  const visitorFirstName = name.trim().split(/\s+/)[0]
+  const showLocationStep = textUsForm && !session && locationOptions.length > 1 && !location
+  const canChangeLocation = textUsForm && !session && locationOptions.length > 1 && Boolean(location)
 
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const openRef = React.useRef(open)
@@ -161,6 +183,23 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     openRef.current = open
     if (embedMode) postEmbedState(open)
   }, [open, embedMode])
+
+  React.useEffect(() => {
+    if (!pageLauncher) return
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window.parent) return
+      if ((event.data as { type?: string } | null)?.type !== "suprah-webchat:open") return
+      setOpen(true)
+      setUnread(0)
+    }
+    window.addEventListener("message", onMessage)
+    postToParent({ type: "suprah-webchat:ready" })
+    return () => window.removeEventListener("message", onMessage)
+  }, [pageLauncher])
+
+  React.useEffect(() => {
+    if (pageLauncher) postToParent({ type: "suprah-webchat:unread", count: unread })
+  }, [unread, pageLauncher])
 
   React.useEffect(() => {
     messagesRef.current = messages
@@ -279,17 +318,17 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     event.preventDefault()
     if (busy) return
 
-    const trimmedName = textUsForm ? `${firstName.trim()} ${lastName.trim()}`.trim() : name.trim()
+    const trimmedName = name.trim().replace(/\s+/g, " ")
     const trimmedContact = contact.trim()
     const text = draft.trim()
     const trimmedEmail = email.trim()
 
     if (textUsForm) {
-      if (!firstName.trim() || !lastName.trim() || !trimmedContact || !text) {
-        setError("Please add your first name, last name, mobile number, and a message.")
+      if (!trimmedName) {
+        setError("Please add your name.")
         return
       }
-      if (trimmedContact.replace(/\D/g, "").length < 10) {
+      if (trimmedContact && trimmedContact.replace(/\D/g, "").length < 10) {
         setError("Please enter your mobile number with the area code.")
         return
       }
@@ -297,8 +336,12 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
         setError("Please enter a valid email address.")
         return
       }
+      if (!trimmedContact && !trimmedEmail && !text) {
+        setError("Please add your mobile number, your email, or a message.")
+        return
+      }
       if (locationOptions.length > 0 && !location) {
-        setError("Please choose a dealership.")
+        setError("Please choose a location.")
         return
       }
     } else if (!trimmedName || !trimmedContact || !text) {
@@ -322,17 +365,17 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
 
     try {
       const isEmail = !textUsForm && !textMode && trimmedContact.includes("@")
+      const [givenName, ...otherNames] = trimmedName.split(" ")
       const result = await startWebChat({
         vehicleId,
         orgKey,
         name: trimmedName,
         ...(textUsForm
           ? {
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
-              phone: trimmedContact,
+              firstName: givenName,
+              lastName: otherNames.join(" "),
+              phone: trimmedContact || undefined,
               email: trimmedEmail || undefined,
-              vehicleInterest: vehicleId ? undefined : vehicleInterest.trim() || undefined,
               location: location || undefined,
             }
           : {
@@ -398,6 +441,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   if (config?.enabled === false) return null
 
   if (!open) {
+    if (pageLauncher) return null
     const bubble = (
       <button
         type="button"
@@ -440,23 +484,56 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
       aria-label={panelTitle}
       className={cn(
         "flex flex-col bg-background",
+        textUs && "overflow-hidden text-foreground",
         embedMode
-          ? "fixed inset-0 sm:rounded-2xl sm:border sm:shadow-2xl"
-          : "fixed inset-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[34rem] sm:max-h-[calc(100dvh-3rem)] sm:w-96 sm:rounded-2xl sm:border sm:shadow-2xl",
+          ? pageLauncher
+            ? "fixed inset-0 sm:rounded-2xl"
+            : "fixed inset-0 sm:rounded-2xl sm:border sm:shadow-2xl"
+          : cn(
+              "fixed inset-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 sm:max-h-[calc(100dvh-3rem)] sm:w-96 sm:rounded-2xl sm:border sm:shadow-2xl",
+              textUs ? "sm:h-[37rem]" : "sm:h-[34rem]",
+            ),
       )}
     >
-      <div className="flex items-center justify-between gap-3 bg-primary px-4 py-3 text-primary-foreground sm:rounded-t-2xl">
-        <div className="min-w-0">
+      <div
+        className={cn(
+          "flex items-center justify-between bg-primary py-3 sm:rounded-t-2xl",
+          textUs ? cn("gap-2 px-3", TEXT_US_INK) : "gap-3 px-4 text-primary-foreground",
+        )}
+      >
+        {canChangeLocation && (
+          <button
+            type="button"
+            onClick={() => {
+              setLocation("")
+              setError("")
+            }}
+            aria-label="Choose a different location"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:bg-black/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-current"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        )}
+        <div className={cn("min-w-0", textUs && "flex-1", textUs && !canChangeLocation && "pl-1")}>
           <p className="text-sm font-semibold leading-tight">{panelTitle}</p>
-          <p className="truncate text-xs opacity-80">
-            {contextLabel ? `About the ${contextLabel}` : textUs ? "We'll text you back" : "Ask us anything"}
+          <p className={cn("truncate text-xs", textUs ? "opacity-75" : "opacity-80")}>
+            {contextLabel
+              ? `About the ${contextLabel}`
+              : textUs
+                ? showLocationStep
+                  ? "Choose a location"
+                  : location || config?.dealershipName || "We'll text you back"
+                : "Ask us anything"}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Close chat"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition focus:outline-none focus-visible:ring-2",
+            textUs ? "hover:bg-black/10 focus-visible:ring-current" : "hover:bg-white/15 focus-visible:ring-white",
+          )}
         >
           <X className="h-5 w-5" />
         </button>
@@ -509,7 +586,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
                 {notice}
               </p>
             )}
-            {messages.map((message) => (
+            {messages.filter((message) => !(message.fromVisitor && message.body === TEXT_US_NO_MESSAGE)).map((message) => (
               <div
                 key={message._id}
                 className={cn("flex", message.fromVisitor ? "justify-end" : "justify-start")}
@@ -591,6 +668,118 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             <PoweredBySuprah className="mt-2" />
           </div>
         </>
+      ) : showLocationStep ? (
+        <div
+          className="flex flex-1 flex-col overflow-y-auto bg-muted/30 p-4"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          data-testid="webchat-location-step"
+        >
+          <p className="mb-3 text-sm text-muted-foreground">Which location would you like to text?</p>
+          <div className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
+            {locationOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  setLocation(option)
+                  setError("")
+                }}
+                className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left text-sm font-semibold transition hover:bg-muted/50 focus:outline-none focus-visible:bg-muted/60"
+              >
+                <span className="min-w-0 truncate">{option}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+          <PoweredBySuprah className="mt-auto pt-4" />
+        </div>
+      ) : textUsForm ? (
+        <form
+          onSubmit={handleStart}
+          noValidate
+          className="flex flex-1 flex-col gap-3 overflow-y-auto bg-muted/30 p-4"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          data-testid="webchat-text-us-form"
+        >
+          <p className="max-w-[88%] rounded-2xl rounded-tl-md bg-muted px-4 py-2.5 text-sm leading-snug">
+            {config?.greeting || TEXT_US_GREETING}
+          </p>
+
+          <div className="space-y-3 rounded-2xl border bg-card p-4 shadow-sm">
+            <TextUsField
+              id="webchat-name"
+              label="Name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              autoComplete="name"
+              maxLength={80}
+            />
+            <TextUsField
+              id="webchat-mobile"
+              label="Mobile phone"
+              value={contact}
+              onChange={(event) => setContact(event.target.value)}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              maxLength={30}
+            />
+            <TextUsField
+              id="webchat-email"
+              label="Email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              maxLength={120}
+            />
+            <div className="group">
+              <label
+                htmlFor="webchat-message"
+                className="text-xs font-medium text-muted-foreground transition-colors group-focus-within:text-foreground"
+              >
+                Message
+              </label>
+              <textarea
+                id="webchat-message"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                rows={2}
+                maxLength={TEXT_US_MESSAGE_LENGTH}
+                placeholder={contextLabel ? `Is the ${contextLabel} still available?` : "How can we help?"}
+                className="mt-1 block w-full resize-none rounded-none border-0 border-b border-input bg-transparent px-0 py-1 text-base text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:shadow-[0_1px_0_0_var(--color-primary)]"
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-600" role="alert">
+                {error}
+              </p>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={busy}
+                className={cn(
+                  "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold shadow-sm transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60",
+                  TEXT_US_INK,
+                )}
+              >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Send
+              </button>
+            </div>
+          </div>
+
+          {textMode && (
+            <p className="px-1 text-[11px] leading-snug text-muted-foreground" data-testid="webchat-text-consent">
+              By sending, you agree to get text messages from {config?.dealershipName || "us"} at this number. Message and data rates may apply. Reply STOP to opt out.
+            </p>
+          )}
+          <PoweredBySuprah className="mt-auto" />
+        </form>
       ) : (
         <form
           onSubmit={handleStart}
@@ -611,110 +800,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             </p>
           )}
 
-          {textUsForm && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0 space-y-1.5">
-                  <label htmlFor="webchat-first-name" className="text-xs font-medium">
-                    First name
-                  </label>
-                  <Input
-                    id="webchat-first-name"
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    autoComplete="given-name"
-                    maxLength={40}
-                    required
-                  />
-                </div>
-                <div className="min-w-0 space-y-1.5">
-                  <label htmlFor="webchat-last-name" className="text-xs font-medium">
-                    Last name
-                  </label>
-                  <Input
-                    id="webchat-last-name"
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                    autoComplete="family-name"
-                    maxLength={40}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="webchat-mobile" className="text-xs font-medium">
-                  Mobile number
-                </label>
-                <Input
-                  id="webchat-mobile"
-                  value={contact}
-                  onChange={(event) => setContact(event.target.value)}
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  maxLength={30}
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="webchat-email" className="text-xs font-medium">
-                  Email <span className="font-normal text-muted-foreground">(optional)</span>
-                </label>
-                <Input
-                  id="webchat-email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  maxLength={120}
-                />
-              </div>
-
-              {!vehicleId && (
-                <div className="space-y-1.5">
-                  <label htmlFor="webchat-vehicle" className="text-xs font-medium">
-                    Vehicle you&apos;re interested in <span className="font-normal text-muted-foreground">(optional)</span>
-                  </label>
-                  <Input
-                    id="webchat-vehicle"
-                    value={vehicleInterest}
-                    onChange={(event) => setVehicleInterest(event.target.value)}
-                    placeholder="e.g. 2021 Toyota Tacoma"
-                    maxLength={80}
-                  />
-                </div>
-              )}
-
-              {locationOptions.length > 0 && (
-                <div className="space-y-1.5">
-                  <label htmlFor="webchat-location" className="text-xs font-medium">
-                    Dealership
-                  </label>
-                  <select
-                    id="webchat-location"
-                    value={location}
-                    onChange={(event) => setLocation(event.target.value)}
-                    required
-                    className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
-                  >
-                    <option value="" disabled className="bg-background text-muted-foreground">
-                      Choose a dealership
-                    </option>
-                    {locationOptions.map((option) => (
-                      <option key={option} value={option} className="bg-background text-foreground">
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
-          )}
-
-          {!knownVisitor && !textUsForm && (
+          {!knownVisitor && (
           <>
           <div className="space-y-1.5">
             <label htmlFor="webchat-name" className="text-xs font-medium">
@@ -752,8 +838,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
               id="webchat-message"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              rows={textUsForm ? 3 : 4}
-              maxLength={textUsForm ? TEXT_US_MESSAGE_LENGTH : MAX_LENGTH}
+              rows={4}
+              maxLength={MAX_LENGTH}
               placeholder={contextLabel ? `Is the ${contextLabel} still available?` : "How can we help?"}
               className="resize-none"
             />
@@ -767,7 +853,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
 
           <Button type="submit" disabled={busy} className="mt-auto w-full">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {textUsForm ? "Send" : textMode ? "Text me" : "Start chat"}
+            {textMode ? "Text me" : "Start chat"}
           </Button>
           {textMode && (
             <p className="text-[11px] leading-snug text-muted-foreground" data-testid="webchat-text-consent">

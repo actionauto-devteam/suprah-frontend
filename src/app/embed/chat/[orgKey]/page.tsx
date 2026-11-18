@@ -8,6 +8,7 @@ export default function EmbedChatPage() {
   const searchParams = useSearchParams()
   const vehicleId = searchParams.get("vehicleId") || undefined
   const contextLabel = searchParams.get("label") || undefined
+  const pageLauncher = searchParams.get("launcher") === "page"
 
   return (
     <div className="h-full w-full bg-transparent">
@@ -17,6 +18,7 @@ export default function EmbedChatPage() {
         contextLabel={contextLabel}
         embedMode
         textUs
+        pageLauncher={pageLauncher}
       />
     </div>
   )

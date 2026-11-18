@@ -14,11 +14,21 @@ export function AppMain({ children }: { children: React.ReactNode }) {
     const body = document.body
     const prevHtml = html.style.backgroundColor
     const prevBody = body.style.backgroundColor
+    const prevScheme = html.style.colorScheme
+    const wasDark = html.classList.contains("dark")
     html.style.backgroundColor = "transparent"
     body.style.backgroundColor = "transparent"
+    html.classList.remove("dark")
+    html.classList.add("light")
+    html.style.colorScheme = "light"
     return () => {
       html.style.backgroundColor = prevHtml
       body.style.backgroundColor = prevBody
+      html.style.colorScheme = prevScheme
+      if (wasDark) {
+        html.classList.remove("light")
+        html.classList.add("dark")
+      }
     }
   }, [isEmbed])
 

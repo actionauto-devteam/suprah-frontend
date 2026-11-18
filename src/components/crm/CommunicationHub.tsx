@@ -68,7 +68,6 @@ import { ConversationHeader } from "@/components/conversation-workspace/Conversa
 import { ContactDetailsPanel } from "@/components/conversation-workspace/ContactDetailsPanel";
 import { injectConversationWorkspaceStyles } from "@/components/conversation-workspace/workspace-styles";
 import {
-  communicationActivities,
   communicationDetailSections,
   communicationLeadToContact,
   communicationQuickActions,
@@ -76,6 +75,14 @@ import {
 import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
 import type { WorkspaceContact } from "@/components/conversation-workspace/workspace-types";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
+import { useCustomerTimeline } from "@/hooks/useCustomerTimeline";
+import { toWorkspaceActivities } from "@/components/leads/LeadDetailsPanel";
+import { LeadInquiryDetails } from "@/components/leads/ConversationView";
+import { AiAgentTasksSection } from "@/components/leads/AiAgentTasksSection";
+import { VehicleOfInterestCard } from "@/components/leads/VehicleOfInterestCard";
+import { CustomerRecordLink } from "@/components/leads/CustomerRecordLink";
+import { LeadHandlersCard } from "@/components/leads/LeadHandlersCard";
+import { LeadShippingCard } from "@/components/transportation/LeadShippingCard";
 
 type CommChannel = "sms" | "email" | "call";
 type CommDirection = "inbound" | "outbound";
@@ -962,9 +969,11 @@ export function CommunicationHub() {
     [leads],
   );
 
+  const { items: timelineItems, refetch: refetchTimeline } = useCustomerTimeline(selectedLead?._id);
+
   const workspaceActivities = React.useMemo(
-    () => (selectedLead ? communicationActivities(selectedLead, logs) : []),
-    [logs, selectedLead],
+    () => (selectedLead ? toWorkspaceActivities(timelineItems) : []),
+    [selectedLead, timelineItems],
   );
 
   const workspaceDetailSections = React.useMemo(
@@ -1320,6 +1329,10 @@ export function CommunicationHub() {
                     : "Live messaging",
                 ]}
               />
+            ) : null}
+
+            {selectedLead && !isChatHovered ? (
+              <LeadInquiryDetails key={`inquiry-${selectedLead._id}`} lead={selectedLead} />
             ) : null}
 
             <section
@@ -1787,6 +1800,19 @@ export function CommunicationHub() {
             <ContactDetailsPanel
               contact={communicationLeadToContact(selectedLead)}
               contactTypeLabel="Contact type: Lead"
+              belowSummary={<AiAgentTasksSection leadId={selectedLead._id} />}
+              detailsTop={
+                <div className="space-y-2">
+                  <CustomerRecordLink lead={selectedLead} />
+                  <LeadHandlersCard
+                    key={`handlers-${selectedLead._id}`}
+                    leadId={String(selectedLead._id)}
+                    refreshKey={`${timelineItems[0]?.id || ""}|${selectedLead.assignedTo || ""}|${selectedLead.status || ""}`}
+                  />
+                  <VehicleOfInterestCard key={selectedLead._id} lead={selectedLead} />
+                  <LeadShippingCard key={`shipping-${selectedLead._id}`} lead={selectedLead} />
+                </div>
+              }
               summary={
                 selectedLead.aiSummary ||
                 `Unified communication history for ${fullName(selectedLead)}. Review SMS, email, calls, internal notes, and status activity in one workspace.`
@@ -1816,6 +1842,7 @@ export function CommunicationHub() {
                           : current,
                     );
                     toast.success(`Marked as ${status}`);
+                    void refetchTimeline();
                   } catch (error) {
                     toast.error(errorMessage(error, "Lead status could not be updated"));
                   }
@@ -1829,6 +1856,7 @@ export function CommunicationHub() {
                   if (updatedLead?._id) setSelectedLead(updatedLead);
                   else await fetchSelectedLead(selectedLead._id, selectedLead);
                   setDetailsTab("activity");
+                  void refetchTimeline();
                   toast.success("Internal note added");
                 } catch (error) {
                   toast.error(errorMessage(error, "Internal note could not be added"));

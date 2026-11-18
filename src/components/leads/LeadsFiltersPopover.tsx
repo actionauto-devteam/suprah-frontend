@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeftRight, ArrowUpDown, CalendarDays, Check, ChevronDown, MapPin, SlidersHorizontal, Tag, UserRound } from "lucide-react";
+import { ArrowLeftRight, ArrowUpDown, CalendarDays, Check, ChevronDown, Headset, MapPin, SlidersHorizontal, Tag, UserRound } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -78,12 +78,13 @@ interface LeadsFiltersPopoverProps {
   onCustomDateChange: (range: { from: string; to: string }) => void;
   onClearDate: () => void;
   assignee?: LeadAssigneeFilterControl;
+  handledBy?: LeadAssigneeFilterControl;
   location?: LeadLocationFilterControl;
   leadType?: LeadTypeFilterControl;
   sort?: LeadSortFilterControl;
 }
 
-type FilterType = "sort" | "status" | "assignee" | "leadType" | "source" | "location" | "date";
+type FilterType = "sort" | "status" | "assignee" | "handledBy" | "leadType" | "source" | "location" | "date";
 
 const optionClass =
   "flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-medium transition";
@@ -162,6 +163,7 @@ export function LeadsFiltersPopover({
   onCustomDateChange,
   onClearDate,
   assignee,
+  handledBy,
   location,
   leadType,
   sort,
@@ -174,6 +176,7 @@ export function LeadsFiltersPopover({
   const statusActive = Boolean(statusFilter || activeCategory);
   const dateActive = dateFilter.preset !== "all" || Boolean(dateFilter.from) || Boolean(dateFilter.to);
   const assigneeActive = Boolean(assignee?.value) && assignee?.value !== assignee?.currentUserId;
+  const handledByActive = Boolean(handledBy?.value);
   const locationActive = Boolean(location?.value);
   const leadTypeActive = Boolean(leadType?.value);
   const campaignDates = isCampaignLeadType(leadType?.value);
@@ -184,6 +187,7 @@ export function LeadsFiltersPopover({
     (sourceFilter ? 1 : 0) +
     (dateActive ? 1 : 0) +
     (assigneeActive ? 1 : 0) +
+    (handledByActive ? 1 : 0) +
     (isMobile && locationActive ? 1 : 0) +
     (sortActive ? 1 : 0);
   const selectedLabel =
@@ -203,6 +207,11 @@ export function LeadsFiltersPopover({
       ? "Me"
       : assignee.members.find((member) => member._id === assignee.value)?.name || "Team member"
     : null;
+  const handledByName = handledBy?.value
+    ? handledBy.value === handledBy.currentUserId
+      ? "Me"
+      : handledBy.members.find((member) => member._id === handledBy.value)?.name || "Team member"
+    : null;
   const locationLabel = location?.value ? location.options.find((option) => option.key === location.value)?.label || location.value : null;
   const showLocation = Boolean(location) && isMobile;
   const showSort = Boolean(sort) && isMobile;
@@ -211,6 +220,7 @@ export function LeadsFiltersPopover({
     ...(showSort ? [{ key: "sort" as const, label: "Sort", icon: <ArrowUpDown className="h-3.5 w-3.5" />, active: sortActive }] : []),
     { key: "status", label: "Status", icon: <SlidersHorizontal className="h-3.5 w-3.5" />, active: statusActive },
     ...(assignee ? [{ key: "assignee" as const, label: "Assigned to", icon: <UserRound className="h-3.5 w-3.5" />, active: assigneeActive }] : []),
+    ...(handledBy ? [{ key: "handledBy" as const, label: "Handled by", icon: <Headset className="h-3.5 w-3.5" />, active: handledByActive }] : []),
     ...(leadType ? [{ key: "leadType" as const, label: "Lead type", icon: <ArrowLeftRight className="h-3.5 w-3.5" />, active: leadTypeActive }] : []),
     { key: "source", label: "Source", icon: <Tag className="h-3.5 w-3.5" />, active: Boolean(sourceFilter) },
     ...(showLocation ? [{ key: "location" as const, label: "Location", icon: <MapPin className="h-3.5 w-3.5" />, active: locationActive }] : []),
@@ -224,6 +234,7 @@ export function LeadsFiltersPopover({
     onClearDate();
     if (leadTypeActive) leadType?.onChange(null);
     if (assigneeActive) assignee?.onChange(null);
+    if (handledByActive) handledBy?.onChange(null);
     if (showLocation && location?.value) location.onChange(null);
     if (sortActive && sort) sort.onChange(sort.defaultValue);
   };
@@ -231,6 +242,7 @@ export function LeadsFiltersPopover({
   const summary = [
     `Status: ${selectedLabel}`,
     assigneeName ? `Assigned: ${assigneeName}` : "",
+    handledByName ? `Handled by: ${handledByName}` : "",
     leadTypeActive ? `Type: ${leadTypeLabel(leadType?.value)}` : "",
     sourceFilter ? `Source: ${sourceFilter}` : "",
     showLocation && locationLabel ? `Location: ${locationLabel}` : "",
@@ -239,6 +251,9 @@ export function LeadsFiltersPopover({
   ].filter(Boolean).join(" · ");
 
   const filteredMembers = (assignee?.members || []).filter((member) =>
+    member.name.toLowerCase().includes(memberQuery.trim().toLowerCase()),
+  );
+  const handledByMembers = (handledBy?.members || []).filter((member) =>
     member.name.toLowerCase().includes(memberQuery.trim().toLowerCase()),
   );
 
@@ -332,6 +347,43 @@ export function LeadsFiltersPopover({
                 </OptionButton>
               ))}
             {filteredMembers.length === 0 && memberQuery && (
+              <p className="px-2.5 py-2 text-[12px]" style={{ color: "var(--text-tertiary)" }}>No team members match.</p>
+            )}
+          </div>
+        </>
+      )}
+
+      {currentType === "handledBy" && handledBy && (
+        <>
+          <SectionHeader title="Handled by" onClear={handledByActive ? () => handledBy.onChange(null) : null} />
+          <p className="mb-2 px-1 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            Leads this person worked on: texts, calls, emails, chats, notes, status changes, taking over from the AI, or being assigned.
+          </p>
+          {handledBy.members.length > 8 && (
+            <input
+              value={memberQuery}
+              onChange={(event) => setMemberQuery(event.target.value)}
+              placeholder="Search team members"
+              aria-label="Search team members"
+              className="mb-2 h-9 w-full rounded-lg px-3 text-[13px] outline-none max-sm:h-11"
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+            />
+          )}
+          <div className="space-y-1">
+            <OptionButton selected={!handledBy.value} onClick={() => handledBy.onChange(null)}>Anyone</OptionButton>
+            {handledBy.currentUserId && (
+              <OptionButton selected={handledBy.value === handledBy.currentUserId} onClick={() => handledBy.onChange(handledBy.currentUserId)}>
+                Me
+              </OptionButton>
+            )}
+            {handledByMembers
+              .filter((member) => member._id !== handledBy.currentUserId)
+              .map((member) => (
+                <OptionButton key={member._id} selected={handledBy.value === member._id} onClick={() => handledBy.onChange(member._id)}>
+                  {member.name}
+                </OptionButton>
+              ))}
+            {handledByMembers.length === 0 && memberQuery && (
               <p className="px-2.5 py-2 text-[12px]" style={{ color: "var(--text-tertiary)" }}>No team members match.</p>
             )}
           </div>
