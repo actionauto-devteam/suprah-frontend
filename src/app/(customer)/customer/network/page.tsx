@@ -4,9 +4,10 @@ import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, List, Map as MapIcon } from "lucide-react"
+import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, List, Map as MapIcon, X } from "lucide-react"
 import mapboxgl from "mapbox-gl"
 import { geolocation } from "@/lib/geolocation";
+import { validCoordinates } from "@/lib/driver-tracking-view"
 
 import { useAuth } from "@/providers/AuthProvider"
 import { useOrg } from "@/hooks/useOrg"
@@ -117,6 +118,40 @@ function getDistanceFromLatLonInMiles(lat1: number, lon1: number, lat2: number, 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/**
+ * A location's map pin as [lng, lat], or null when it can't be shown: missing,
+ * not two numbers, or outside the US. That includes 0,0, which the April
+ * import saved when it found no match and which put the pin off the coast of
+ * Africa (2026-11-18). The partner network is in the US (Alaska and Hawaii
+ * included).
+ */
+function usablePin(loc: { location?: { coordinates?: unknown } } | null | undefined): [number, number] | null {
+  const coordinates = loc?.location?.coordinates
+  if (!Array.isArray(coordinates) || coordinates.length !== 2) return null
+  const [lng, lat] = coordinates
+  if (!validCoordinates({ lat, lng })) return null
+  if (lat < 18 || lat > 72 || lng > -65) return null
+  return [lng, lat]
+}
+
+/** A location's name, with its city when the name doesn't already say it. */
+function locationTitle(loc: { name?: string; city?: string }): string {
+  const name = String(loc.name ?? '').trim()
+  const city = String(loc.city ?? '').trim()
+  if (!name) return city
+  return city && !name.toLowerCase().includes(city.toLowerCase()) ? `${name} – ${city}` : name
+}
+
+/** The map label: the title without the "Jiffy Lube - " every location shares. */
+function markerLabel(loc: { name?: string; city?: string }): string {
+  const title = locationTitle(loc)
+  return title.replace(/^jiffy lube\s*[-–]\s*/i, '') || title
+}
+
+const MAP_UNAVAILABLE = "The map isn't available right now. Use the list and Open in Maps for directions."
+const MAP_TROUBLE = "Part of the map didn't load. Check your connection, or use the list and Open in Maps for directions."
+const NOT_ON_MAP = "This location isn't on the map yet. Use Open in Maps for directions."
+
 // Geocode a single address using the US Census Geocoder (client-side, free, no key)
 async function geocodeAddress(address: string, city: string, state: string, zip: string): Promise<[number, number] | null> {
   const q = encodeURIComponent(`${address}, ${city}, ${state} ${zip}`);
@@ -145,6 +180,7 @@ export default function ServiceNetworkPage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isGeocoding, setIsGeocoding] = React.useState(false)
   const [geocodedCount, setGeocodedCount] = React.useState(0)
+  const [geocodeTotal, setGeocodeTotal] = React.useState(0)
   const [mapNotice, setMapNotice] = React.useState<string | null>(null)
   const [isLocating, setIsLocating] = React.useState(false)
   const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(null)
@@ -190,19 +226,21 @@ export default function ServiceNetworkPage() {
   // 2. Geocode static entries that have no coordinates yet (background)
   // -------------------------------------------------------------------------
   React.useEffect(() => {
-    const needsGeocode = locations.filter(
-      loc => loc._id?.toString().startsWith('s') && !loc.location?.coordinates
-    )
+    // Every location without a usable pin, including saved ones at 0,0, is
+    // placed from its address (2026-11-18).
+    const needsGeocode = locations.filter(loc => !usablePin(loc) && loc.address && loc.city)
     if (needsGeocode.length === 0) return
 
     let cancelled = false
     setIsGeocoding(true)
+    setGeocodeTotal(needsGeocode.length)
+    setGeocodedCount(0)
 
       ; (async () => {
         for (const loc of needsGeocode) {
           if (cancelled) break
           const coords = await geocodeAddress(loc.address, loc.city, loc.state, loc.zipCode)
-          if (coords && !cancelled) {
+          if (coords && !cancelled && usablePin({ location: { coordinates: coords } })) {
             setLocations(prev =>
               prev.map(l =>
                 l._id === loc._id
@@ -210,14 +248,14 @@ export default function ServiceNetworkPage() {
                   : l
               )
             )
-            setGeocodedCount(n => n + 1)
           }
+          if (!cancelled) setGeocodedCount(n => n + 1)
           await new Promise(r => setTimeout(r, 150)) // gentle throttle
         }
         if (!cancelled) setIsGeocoding(false)
       })()
 
-    return () => { cancelled = true }
+    return () => { cancelled = true; setIsGeocoding(false) }
   }, [locations.length]) // only re-run if list itself changes
 
   // -------------------------------------------------------------------------
@@ -226,7 +264,7 @@ export default function ServiceNetworkPage() {
   React.useEffect(() => {
     const token = mapboxToken?.trim()
     if (!token || !mapRef.current || mapInstanceRef.current) return
-    if (!token.startsWith('pk.')) { setMapNotice("Invalid Mapbox token."); return }
+    if (!token.startsWith('pk.')) { setMapNotice(MAP_UNAVAILABLE); return }
 
     mapboxgl.accessToken = token
     mapThemeRef.current = theme
@@ -239,7 +277,7 @@ export default function ServiceNetworkPage() {
     })
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
     map.on('load', () => map.resize())
-    map.on('error', () => setMapNotice("Map failed to load. Check Mapbox token."))
+    map.on('error', () => setMapNotice(MAP_TROUBLE))
 
     const ro = new ResizeObserver(() => mapInstanceRef.current?.resize())
     ro.observe(mapRef.current)
@@ -268,15 +306,15 @@ export default function ServiceNetworkPage() {
     )
 
     const parsed = filtered.map(loc => {
+      // Only a usable pin gives a distance (2026-11-18).
+      const pin = usablePin(loc)
       let distNum = Infinity
-      if (userCoords && loc.location?.coordinates) {
-        distNum = getDistanceFromLatLonInMiles(
-          userCoords.lat, userCoords.lng,
-          loc.location.coordinates[1], loc.location.coordinates[0]
-        )
+      if (userCoords && pin) {
+        distNum = getDistanceFromLatLonInMiles(userCoords.lat, userCoords.lng, pin[1], pin[0])
       }
       return {
         ...loc,
+        pin,
         distanceNum: distNum,
         distance: distNum === Infinity ? "" : `${distNum.toFixed(1)} mi`,
         time: distNum === Infinity ? "" : `${Math.round((distNum / 35) * 60)} min`,
@@ -287,7 +325,11 @@ export default function ServiceNetworkPage() {
       userCoords ? a.distanceNum - b.distanceNum : a.city.localeCompare(b.city)
     )
 
-    setSortedLocations(parsed)
+    // "Closest" only for a location with a known distance.
+    setSortedLocations(parsed.map((loc, index) => ({
+      ...loc,
+      isClosest: Boolean(userCoords) && index === 0 && Number.isFinite(loc.distanceNum),
+    })))
   }, [locations, searchQuery, userCoords])
 
   // -------------------------------------------------------------------------
@@ -300,34 +342,42 @@ export default function ServiceNetworkPage() {
     markersRef.current.forEach(m => m.remove())
     markersRef.current = []
 
-    sortedLocations.forEach((loc, index) => {
-      if (!loc.location?.coordinates) return
-      const [lng, lat] = loc.location.coordinates
-      const isClosest = userCoords && index === 0
+    sortedLocations.forEach((loc) => {
+      // Only usable pins go on the map (2026-11-18).
+      const pin: [number, number] | null = loc.pin ?? usablePin(loc)
+      if (!pin) return
+      const [lng, lat] = pin
+      const isClosest = Boolean(loc.isClosest)
       const pinColor = isClosest ? "#16a34a" : "#3b82f6"
 
-      const popup = new mapboxgl.Popup({ offset: 36, closeButton: false }).setHTML(
-        `<div style="color:#18181b;padding:4px;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:2px;">${loc.name}${loc.city && loc.city !== loc.name ? ' – ' + loc.city : ''}</div>
-          <div style="font-size:12px;color:#52525b;">${loc.address}, ${loc.city}, ${loc.state} ${loc.zipCode}</div>
-          <div style="font-size:12px;color:#52525b;margin-top:2px;">${loc.phone}</div>
-          ${loc.distance ? `<div style="font-size:12px;font-weight:600;color:#16a34a;margin-top:4px;">${loc.distance} away</div>` : ''}
-        </div>`
-      )
+      // Built from text, not HTML, so a name or address can never add markup.
+      const popupBody = document.createElement('div')
+      popupBody.style.cssText = 'color:#18181b;padding:4px;max-width:240px;overflow-wrap:anywhere;'
+      const addLine = (text: string, style: string) => {
+        const line = document.createElement('div')
+        line.style.cssText = style
+        line.textContent = text
+        popupBody.appendChild(line)
+      }
+      addLine(locationTitle(loc), 'font-weight:600;font-size:14px;margin-bottom:2px;')
+      addLine(`${loc.address}, ${loc.city}, ${loc.state} ${loc.zipCode}`, 'font-size:12px;color:#52525b;')
+      if (loc.phone) addLine(loc.phone, 'font-size:12px;color:#52525b;margin-top:2px;')
+      if (loc.distance) addLine(`${loc.distance} away`, 'font-size:12px;font-weight:600;color:#15803d;margin-top:4px;')
+      const popup = new mapboxgl.Popup({ offset: 36, closeButton: false }).setDOMContent(popupBody)
 
       // Custom element: persistent label above + pin below
       const el = document.createElement('div')
       el.className = 'sn-marker-wrap'
-
-      const labelText = loc.city && loc.city !== loc.name
-        ? `${loc.name} – ${loc.city}`
-        : loc.name
-
-      el.innerHTML = `
-        <div class="sn-marker-label${isClosest ? ' sn-marker-label--closest' : ''}">${labelText}</div>
-        <div class="sn-marker-pin" style="background:${pinColor};"></div>
-        <div class="sn-marker-stem" style="background:${pinColor};"></div>
-      `
+      const label = document.createElement('div')
+      label.className = isClosest ? 'sn-marker-label sn-marker-label--closest' : 'sn-marker-label'
+      label.textContent = markerLabel(loc)
+      const dot = document.createElement('div')
+      dot.className = 'sn-marker-pin'
+      dot.style.background = pinColor
+      const stem = document.createElement('div')
+      stem.className = 'sn-marker-stem'
+      stem.style.background = pinColor
+      el.append(label, dot, stem)
 
       const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
@@ -336,7 +386,7 @@ export default function ServiceNetworkPage() {
 
       markersRef.current.push(marker)
     })
-  }, [sortedLocations, userCoords])
+  }, [sortedLocations])
 
   // -------------------------------------------------------------------------
   // 6. Handlers
@@ -395,10 +445,15 @@ export default function ServiceNetworkPage() {
 
   const flyToLocation = (loc: any) => {
     setSelectedLocationId(loc._id)
+    const pin: [number, number] | null = loc.pin ?? usablePin(loc)
+    if (!pin) {
+      // Nothing to show on the map: stay on the list (2026-11-18).
+      setMapNotice(NOT_ON_MAP)
+      return
+    }
+    setMapNotice(current => (current === NOT_ON_MAP ? null : current))
     setMobileTab('map')
-    if (!mapInstanceRef.current || !loc.location?.coordinates) return
-    const [lng, lat] = loc.location.coordinates
-    mapInstanceRef.current.flyTo({ center: [lng, lat], zoom: 14, duration: 1500 })
+    mapInstanceRef.current?.flyTo({ center: pin, zoom: 14, duration: 1500 })
   }
 
   // Resize map when mobile tab switches to map (Mapbox needs explicit resize after display:none → block)
@@ -445,12 +500,30 @@ export default function ServiceNetworkPage() {
         </div>
       </div>
 
-      {/* Geocoding progress banner */}
+      {/* Notices (your location, the map, a location without a pin): above both
+          the list and the map, so phones see them on either tab (2026-11-18). */}
+      {mapNotice && (
+        <div role="status" aria-live="polite" className="mb-3 shrink-0 flex items-start gap-2 rounded-lg border border-border bg-zinc-100 px-3 py-2 text-sm text-foreground dark:bg-zinc-800">
+          <Crosshair className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground ${isLocating ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <span className="min-w-0 flex-1 break-words">{mapNotice}</span>
+          {!isLocating && (
+            <button
+              type="button"
+              onClick={() => setMapNotice(null)}
+              className="-m-1 shrink-0 rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Dismiss notice"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Map pins being placed from addresses */}
       {isGeocoding && (
-        <div className="mb-3 shrink-0 flex items-center gap-2 text-xs text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-lg">
-          <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-          <span className="hidden xs:inline">Geocoding locations… ({geocodedCount}/{STATIC_UTAH_LOCATIONS.length} done)</span>
-          <span className="xs:hidden">Loading map pins…</span>
+        <div role="status" className="mb-3 shrink-0 flex items-center gap-2 text-xs text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-lg">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden="true" />
+          <span>Finding map pins… {Math.min(geocodedCount, geocodeTotal)} of {geocodeTotal}</span>
         </div>
       )}
 
@@ -506,25 +579,25 @@ export default function ServiceNetworkPage() {
               <div className="p-8 text-center text-muted-foreground border border-dashed rounded-lg">
                 <p className="text-sm">No partner locations found matching your search.</p>
               </div>
-            ) : sortedLocations.slice(0, 30).map((loc, i) => (
+            ) : sortedLocations.slice(0, 30).map((loc) => (
               <Card
                 key={loc._id}
                 onClick={() => flyToLocation(loc)}
-                className={`p-4 transition-all cursor-pointer touch-manipulation ${userCoords && i === 0
+                className={`p-4 transition-all cursor-pointer touch-manipulation ${loc.isClosest
                   ? 'bg-primary/5 dark:bg-primary/10 border-primary/30 relative overflow-hidden'
                   : selectedLocationId === loc._id
                     ? 'bg-primary/5 border-primary/30 dark:bg-primary/10 dark:border-primary/30'
                     : 'bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
                   }`}
               >
-                {userCoords && i === 0 && (
+                {loc.isClosest && (
                   <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[11px] px-1.5 py-0.5 font-bold uppercase tracking-wider rounded-bl-lg">
                     Closest
                   </div>
                 )}
 
                 <div className="flex justify-between items-start mb-1 pr-12">
-                  <h4 className={`font-semibold text-sm ${userCoords && i === 0 ? 'text-primary' : 'text-foreground'}`}>
+                  <h4 className={`font-semibold text-sm ${loc.isClosest ? 'text-primary' : 'text-foreground'}`}>
                     {loc.name}
                   </h4>
                   {loc.distance && (
@@ -540,6 +613,11 @@ export default function ServiceNetworkPage() {
                 </p>
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {!loc.pin && geocodeTotal > 0 && !isGeocoding && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" aria-hidden="true" /> Not on the map yet
+                    </span>
+                  )}
                   {loc.time && (
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" /> ~{loc.time} drive
@@ -553,7 +631,7 @@ export default function ServiceNetworkPage() {
 
                 <div className="mt-3 flex gap-2">
                   <Button
-                    variant={userCoords && i === 0 ? 'default' : 'outline'}
+                    variant={loc.isClosest ? 'default' : 'outline'}
                     size="sm"
                     className="flex-1 h-9 text-xs touch-manipulation"
                     onClick={e => {
@@ -583,8 +661,8 @@ export default function ServiceNetworkPage() {
           <Card className="flex-1 w-full h-full bg-zinc-100 dark:bg-zinc-900 border-border/50 shadow-inner overflow-hidden relative">
             {!mapboxgl.supported() ? (
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-10">
-                <p className="text-sm text-muted-foreground bg-black/80 px-4 py-2 rounded-full">
-                  Mapbox requires a WebGL-compatible browser.
+                <p className="text-sm text-white bg-black/80 px-4 py-2 rounded-2xl">
+                  The map can&apos;t show in this browser. Use the list and Open in Maps for directions.
                 </p>
               </div>
             ) : mapboxToken ? (
@@ -593,19 +671,12 @@ export default function ServiceNetworkPage() {
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
                 <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-3xl shadow-xl border border-white/20 dark:border-zinc-800 max-w-sm">
                   <Navigation className="w-12 h-12 text-zinc-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold mb-2">Mapbox Token Missing</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Set <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to enable the interactive map.
-                  </p>
+                  <h3 className="text-xl font-bold mb-2">Map unavailable</h3>
+                  <p className="text-sm text-muted-foreground">{MAP_UNAVAILABLE}</p>
                 </div>
               </div>
             )}
 
-            {mapNotice && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/80 text-white backdrop-blur px-4 py-2 rounded-full text-sm font-medium shadow-2xl flex items-center gap-2 z-50">
-                <Crosshair className="w-4 h-4 animate-spin-slow" /> {mapNotice}
-              </div>
-            )}
           </Card>
         </div>
       </div>
@@ -628,15 +699,16 @@ export default function ServiceNetworkPage() {
         .sn-marker-label {
           background: rgba(15, 15, 20, 0.82);
           color: #f4f4f5;
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 600;
           line-height: 1.3;
           padding: 3px 7px;
           border-radius: 5px;
-          white-space: nowrap;
-          max-width: 140px;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          /* Long names wrap instead of ending in "…" (2026-11-18). */
+          white-space: normal;
+          overflow-wrap: anywhere;
+          width: max-content;
+          max-width: 160px;
           margin-bottom: 3px;
           box-shadow: 0 1px 6px rgba(0,0,0,0.55);
           letter-spacing: 0.01em;
