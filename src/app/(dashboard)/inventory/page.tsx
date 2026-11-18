@@ -491,7 +491,6 @@ function InventoryContent() {
     handleVehicleClick,
     handleCheckAvailability,
     handleApplyNow,
-    handleCallUs,
     handleVideo,
     handleGetQuote,
   } = useInventoryActions();
@@ -1477,7 +1476,6 @@ function InventoryContent() {
                         onVehicleClick={handleVehicleClick}
                         onCheckAvailability={handleCheckAvailability}
                         onApplyNow={handleApplyNow}
-                        onCallUs={handleCallUs}
                         onVideo={handleVideo}
                         onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
                         showInventoryMeta
@@ -1499,7 +1497,6 @@ function InventoryContent() {
                         onVehicleClick={handleVehicleClick}
                         onCheckAvailability={handleCheckAvailability}
                         onApplyNow={handleApplyNow}
-                        onCallUs={handleCallUs}
                         onVideo={handleVideo}
                         onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
                         showInventoryMeta
@@ -1524,7 +1521,6 @@ function InventoryContent() {
                     onVehicleClick={handleVehicleClick}
                     onCheckAvailability={handleCheckAvailability}
                     onApplyNow={handleApplyNow}
-                    onCallUs={handleCallUs}
                     onVideo={handleVideo}
                     showInventoryMeta
                     mobileOptimized

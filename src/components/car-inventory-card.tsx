@@ -27,7 +27,6 @@ import {
   Clock3,
   DollarSign,
   MoreHorizontal,
-  Phone,
   Play,
 } from "lucide-react";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -157,7 +156,6 @@ interface CarInventoryCardProps {
   onVehicleClick?: (vehicle: Vehicle) => void;
   onCheckAvailability?: (vehicle: Vehicle) => void;
   onApplyNow?: (vehicle: Vehicle) => void;
-  onCallUs?: (vehicle: Vehicle) => void;
   onVideo?: (vehicle: Vehicle) => void;
   onCreateLoad?: (vehicle: Vehicle) => void;
   isSaved?: boolean;
@@ -474,7 +472,6 @@ export function CarInventoryCard({
   onVehicleClick,
   onCheckAvailability,
   onApplyNow,
-  onCallUs,
   onVideo,
   onCreateLoad,
   isSaved,
@@ -970,12 +967,6 @@ export function CarInventoryCard({
                 <DropdownMenuItem onSelect={() => onApplyNow(vehicle)}>
                   <DollarSign className="h-4 w-4" />
                   Apply now
-                </DropdownMenuItem>
-              )}
-              {onCallUs && (
-                <DropdownMenuItem onSelect={() => onCallUs(vehicle)}>
-                  <Phone className="h-4 w-4" />
-                  Call us
                 </DropdownMenuItem>
               )}
               {onVideo && (

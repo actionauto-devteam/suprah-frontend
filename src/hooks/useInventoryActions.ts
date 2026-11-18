@@ -71,10 +71,6 @@ export function useInventoryActions() {
     [pathname, router],
   );
 
-  const handleCallUs = React.useCallback(() => {
-    window.open("tel:8017666137", "_self");
-  }, []);
-
   const handleVideo = React.useCallback(
     (vehicle: Vehicle) => {
       toggleModal("video", true, vehicle);
@@ -132,7 +128,6 @@ export function useInventoryActions() {
       handleVehicleClick,
       handleCheckAvailability,
       handleApplyNow,
-      handleCallUs,
       handleVideo,
       handleGetQuote,
     }),
@@ -147,7 +142,6 @@ export function useInventoryActions() {
       handleVehicleClick,
       handleCheckAvailability,
       handleApplyNow,
-      handleCallUs,
       handleVideo,
       handleGetQuote,
     ],
