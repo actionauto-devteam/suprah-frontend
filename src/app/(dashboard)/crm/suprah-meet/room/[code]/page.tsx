@@ -24,6 +24,7 @@ import { orderMeetPeople, pickMeetStage, splitMeetPeople } from "@/lib/meet-layo
 import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/MeetCaptions';
 import { MeetPreJoin, type MeetJoinChoices } from "@/components/suprah-meet/MeetPreJoin";
 import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
+import { MeetSharedScreen } from "@/components/suprah-meet/MeetSharedScreen";
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
 
@@ -649,18 +650,14 @@ function SuprahMeetRoom({ code }: { code: string }) {
         )}
         <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden p-2 md:gap-3 md:p-3">
           {contentTile ? (
-            <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
-              <TileVideo tile={contentTile} bind={meet.bindVideoTile} contain
-                className="min-h-0 border-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.1)]" />
-              <div className="flex gap-2 overflow-x-auto md:flex-col md:gap-3 md:overflow-y-auto">
-                {stagePeople.map((p) => (
-                  <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
-                    bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
-                    isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
-                    className="h-24 w-40 shrink-0 md:h-auto md:w-full md:shrink" />
-                ))}
-              </div>
-            </div>
+            <MeetSharedScreen tileId={contentTile.tileId} bind={meet.bindVideoTile}>
+              {stagePeople.map((p) => (
+                <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
+                  bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
+                  isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                  className="h-24 w-40 shrink-0 md:h-auto md:w-full md:shrink" />
+              ))}
+            </MeetSharedScreen>
           ) : stageMode === "spotlight" && heroPerson ? (
             <div className="relative min-h-0 flex-1">
               <PersonTile person={heroPerson} tile={tilesByAttendee.get(heroPerson.attendeeId)}
@@ -1106,18 +1103,6 @@ function ProfileBubble({ name, avatar, size = "sm" }: {
     <span className={cn("grid place-items-center rounded-full bg-emerald-400/10 font-semibold text-emerald-300", cls)}>
       {initials(name)}
     </span>
-  );
-}
-
-function TileVideo({ tile, bind, className, contain }: {
-  tile: TileInfo; bind: (tileId: number, el: HTMLVideoElement | null) => void;
-  className?: string; contain?: boolean;
-}) {
-  return (
-    <div className={cn("overflow-hidden rounded-2xl border border-emerald-400/15 bg-[#0f1f19]", className)}>
-      <video ref={(el) => bind(tile.tileId, el)} autoPlay playsInline
-        className={cn("h-full w-full", contain ? "object-contain" : "object-cover")} />
-    </div>
   );
 }
 

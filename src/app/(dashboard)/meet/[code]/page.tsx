@@ -26,6 +26,7 @@ import { useSuprahMeet, type RosterEntry, type TileInfo } from "@/hooks/useSupra
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { MeetPreJoin, type MeetJoinChoices } from "@/components/suprah-meet/MeetPreJoin";
 import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
+import { MeetSharedScreen } from "@/components/suprah-meet/MeetSharedScreen";
 import { orderMeetPeople } from "@/lib/meet-layout";
 
 type Gate = "form" | "checking" | "waiting" | "notlive" | "ready" | "denied" | "over" | "in";
@@ -328,17 +329,14 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
 
       <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:p-3">
         {contentTile ? (
-          <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_200px] md:grid-rows-1">
-            <GuestVideo tile={contentTile} bind={meet.bindVideoTile} contain />
-            <div className="flex gap-2 overflow-x-auto md:flex-col md:overflow-y-auto">
-              {people.map((p) => (
-                <GuestTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
-                  bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
-                  isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
-                  className="h-24 w-40 shrink-0 md:h-auto md:w-full md:shrink" />
-              ))}
-            </div>
-          </div>
+          <MeetSharedScreen tileId={contentTile.tileId} bind={meet.bindVideoTile}>
+            {people.map((p) => (
+              <GuestTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
+                bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
+                isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                className="h-24 w-40 shrink-0 md:h-auto md:w-full md:shrink" />
+            ))}
+          </MeetSharedScreen>
         ) : (
           <div className={cn("grid min-h-0 flex-1 auto-rows-fr gap-2 overflow-y-auto", gridCls(people.length))}>
             {people.map((p) => (
@@ -476,17 +474,6 @@ function GuestBubble({ name, avatar, size = "sm" }: { name: string; avatar?: str
     <span className={cn("grid place-items-center rounded-full bg-emerald-400/10 font-semibold text-emerald-300", cls)}>
       {guestInitials(name)}
     </span>
-  );
-}
-
-function GuestVideo({ tile, bind, contain }: {
-  tile: TileInfo; bind: (tileId: number, el: HTMLVideoElement | null) => void; contain?: boolean;
-}) {
-  return (
-    <div className="min-h-0 overflow-hidden rounded-2xl border border-emerald-400/25 bg-[#0f1f19]">
-      <video ref={(el) => bind(tile.tileId, el)} autoPlay playsInline
-        className={cn("h-full w-full", contain ? "object-contain" : "object-cover")} />
-    </div>
   );
 }
 
