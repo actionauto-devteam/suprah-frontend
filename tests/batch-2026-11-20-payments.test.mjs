@@ -87,3 +87,36 @@ test('the Link Wise files use proper types instead of any', () => {
     assert.doesNotMatch(read(rel), /: any\b|as any\b/, rel);
   }
 });
+
+// ── Phone and readability pass on the remaining Suprah Pay screens ──────────
+test('the remaining Suprah Pay screens never cut text off or scroll sideways', () => {
+  for (const rel of [
+    'app/(dashboard)/billing/page.tsx',
+    'components/billing/BalanceCard.tsx',
+    'components/billing/LinkedAccountIntegration.tsx',
+    'app/(dashboard)/billing/my-payments/page.tsx',
+    'app/(admin)/admin/payouts/page.tsx',
+    'app/(dashboard)/billing/driver-payouts/page.tsx',
+  ]) {
+    const src = read(rel);
+    assert.doesNotMatch(src, /textOverflow|\btruncate\b|text-ellipsis/, `${rel}: cut-off text`);
+    assert.doesNotMatch(src, /overflowX|overflow-x-auto|minWidth: \d{3}/, `${rel}: sideways scrolling`);
+    assert.doesNotMatch(src, /text-\[(7|8|9|10)px\]|fontSize: (7|8|9|10)(\.\d)?[,} ]/, `${rel}: text under 11px`);
+  }
+});
+
+test('My payments stacks on phones; Admin Payouts shows a card per request on phones', () => {
+  const mine = read('app/(dashboard)/billing/my-payments/page.tsx');
+  assert.match(mine, /const ROW_GRID =\n\s+"grid grid-cols-\[minmax\(0,1fr\)_auto\]/);
+  assert.match(mine, /className="hidden md:grid"/);
+  for (const cell of ['invoice', 'customer', 'amount', 'status', 'date', 'action']) {
+    assert.match(mine, new RegExp(`className=\{CELL\.${cell}\}`), cell);
+  }
+  const admin = read('app/(admin)/admin/payouts/page.tsx');
+  assert.match(admin, /<ul className="divide-y divide-border md:hidden">/);
+  assert.match(admin, /<div className="hidden md:block">\n\s+<Table>/);
+  assert.match(admin, /aria-label=\{`Reject \$\{w\.user\.name\}'s withdrawal`\}/);
+  const card = read('components/billing/BalanceCard.tsx');
+  assert.match(card, /flexWrap: "wrap", gap: 10, marginBottom: 16/);
+  assert.match(card, /repeat\(auto-fit, minmax\(104px, 1fr\)\)/);
+});

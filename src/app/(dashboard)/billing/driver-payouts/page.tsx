@@ -322,7 +322,7 @@ export default function DriverPayoutsPage() {
             ))}
           </div>
 
-          <div className="mb-4 flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-muted/40 p-1">
+          <div className="mb-4 flex w-full flex-wrap gap-1 rounded-xl border border-border bg-muted/40 p-1">
             {([
               ["pending-proofs", "Pending Proofs", FileCheck, pendingProofs.length],
               ["deliverable", "Ready to Pay", Truck, deliverableLoads.length],
@@ -334,7 +334,7 @@ export default function DriverPayoutsPage() {
                 onClick={() => setTab(key)}
                 aria-pressed={tab === key}
                 className={cn(
-                  "flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[13px] font-semibold transition-colors",
+                  "flex min-h-11 flex-auto items-center justify-center gap-1.5 rounded-lg px-3.5 text-center text-[13px] font-semibold transition-colors",
                   tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >

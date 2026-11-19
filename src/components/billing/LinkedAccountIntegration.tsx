@@ -502,7 +502,7 @@ function ConnectedCard() {
 
         {/* Currency tabs */}
         {primary.balances.length > 1 && (
-          <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", borderBottom: `1px solid ${C.border}`, overflowX: "auto" }}>
+          <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
             {primary.balances.map((b) => (
               <button key={b.currency} onClick={() => setActiveCurrency(b.currency)} style={{
                 padding: "6px 14px 10px", border: "none", background: "transparent",
@@ -583,7 +583,7 @@ function ConnectedCard() {
                   }}>{tx.type === "credit" ? "↓" : "↑"}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.description}</p>
+                      overflowWrap: "anywhere" }}>{tx.description}</p>
                     <p style={{ fontSize: 11, color: C.textMute, margin: "2px 0 0" }}>
                       {new Date(tx.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" })}
                       {tx.recipient ? ` · ${tx.recipient}` : ""}

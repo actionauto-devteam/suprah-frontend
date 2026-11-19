@@ -50,6 +50,21 @@ const T = {
   redBg: "var(--color-background-danger, rgba(220,38,38,0.12))",
 };
 
+/**
+ * Rows stack on phones and line up as a table on computers (2026-11-20):
+ * the list used to need sideways scrolling on phones.
+ */
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 md:grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.8fr_0.8fr] md:items-center md:gap-3";
+const CELL = {
+  invoice: "col-start-1 row-start-1 min-w-0 md:col-start-auto md:row-start-auto",
+  customer: "col-span-2 row-start-2 min-w-0 md:col-span-1 md:row-start-auto",
+  amount: "col-start-2 row-start-1 text-right md:col-start-auto md:row-start-auto md:text-left",
+  status: "col-start-1 row-start-3 md:col-start-auto md:row-start-auto",
+  date: "col-start-2 row-start-3 self-center text-right md:col-start-auto md:row-start-auto md:text-left",
+  action: "col-span-2 row-start-4 md:col-span-1 md:row-start-auto",
+};
+
 function StatusBadge({ status }: { status: Payment["status"] }) {
   const map: Record<string, { c: string; bg: string }> = {
     succeeded: { c: "#16A34A", bg: "rgba(34,197,94,0.18)" },
@@ -783,7 +798,7 @@ export default function MyPaymentsPage() {
                 gap: 8,
                 padding: 10,
                 borderBottom: `0.5px solid ${T.border}`,
-                overflowX: "auto",
+                flexWrap: "wrap",
               }}
             >
               {(
@@ -822,12 +837,11 @@ export default function MyPaymentsPage() {
               })}
             </div>
 
-            <div style={{ overflowX: "auto" }}>
+            <div>
             <div
+              className="hidden md:grid"
               style={{
-                display: "grid",
                 gridTemplateColumns: "1.4fr 0.9fr 0.8fr 0.8fr 0.8fr 0.8fr",
-                minWidth: 600,
                 gap: 12,
                 padding: "10px 16px",
                 borderBottom: `0.5px solid ${T.border}`,
@@ -855,11 +869,8 @@ export default function MyPaymentsPage() {
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <div
                     key={`skeleton-row-${idx}`}
+                    className={ROW_GRID}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.4fr 0.9fr 0.8fr 0.8fr 0.8fr 0.8fr",
-                      minWidth: 600,
-                      gap: 12,
                       padding: "13px 0",
                       borderBottom: idx === 5 ? "none" : `0.5px solid ${T.border}`,
                       alignItems: "center",
@@ -896,26 +907,20 @@ export default function MyPaymentsPage() {
                 return (
                   <div
                     key={payment._id}
+                    className={ROW_GRID}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.4fr 0.9fr 0.8fr 0.8fr 0.8fr 0.8fr",
-                      minWidth: 600,
-                      alignItems: "center",
-                      gap: 12,
                       padding: "12px 16px",
                       borderBottom: `0.5px solid ${T.border}`,
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
+                    <div className={CELL.invoice}>
                       <p
                         style={{
                           fontSize: 13,
                           fontWeight: 600,
                           color: T.text,
                           margin: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          overflowWrap: "anywhere",
                         }}
                       >
                         {payment.description}
@@ -925,24 +930,20 @@ export default function MyPaymentsPage() {
                           fontSize: 11,
                           color: T.textMute,
                           margin: "3px 0 0",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          overflowWrap: "anywhere",
                         }}
                       >
                         {payment.invoiceNumber ? `#${payment.invoiceNumber}` : "No invoice #"}
                       </p>
                     </div>
 
-                    <div style={{ minWidth: 0 }}>
+                    <div className={CELL.customer}>
                       <p
                         style={{
                           fontSize: 12,
                           color: T.textSub,
                           margin: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          overflowWrap: "anywhere",
                           fontWeight: 500,
                         }}
                       >
@@ -953,9 +954,7 @@ export default function MyPaymentsPage() {
                           fontSize: 11,
                           color: T.textMute,
                           margin: "3px 0 0",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          overflowWrap: "anywhere",
                         }}
                       >
                         {payment.customerEmail}
@@ -963,6 +962,7 @@ export default function MyPaymentsPage() {
                     </div>
 
                     <p
+                      className={CELL.amount}
                       style={{
                         fontSize: 13,
                         fontWeight: 700,
@@ -974,12 +974,15 @@ export default function MyPaymentsPage() {
                       {formatCurrency(payment.amount)}
                     </p>
 
-                    <StatusBadge status={payment.status} />
+                    <div className={CELL.status}>
+                      <StatusBadge status={payment.status} />
+                    </div>
 
-                    <p style={{ fontSize: 12, color: T.textSub, margin: 0, whiteSpace: "nowrap" }}>
+                    <p className={CELL.date} style={{ fontSize: 12, color: T.textSub, margin: 0, whiteSpace: "nowrap" }}>
                       {new Date(payment.createdAt || "").toLocaleDateString()}
                     </p>
 
+                    <div className={CELL.action}>
                     {canPay ? (
                       <button
                         type="button"
@@ -1030,6 +1033,7 @@ export default function MyPaymentsPage() {
                     ) : (
                       <span style={{ fontSize: 12, color: T.textMute }}>-</span>
                     )}
+                    </div>
                   </div>
                 );
               })

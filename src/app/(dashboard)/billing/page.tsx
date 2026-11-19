@@ -46,9 +46,8 @@ function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
       </div>
       <div style={{ minWidth: 0 }}>
         <p style={{ fontSize: 13.5, fontWeight: 600, color: T.text, margin: 0,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{payment.customerName}</p>
-        <p style={{ fontSize: 12, color: T.textMute, margin: "2px 0 0",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          overflowWrap: "anywhere" }}>{payment.customerName}</p>
+        <p style={{ fontSize: 12, color: T.textMute, margin: "2px 0 0", overflowWrap: "anywhere" }}>
           {payment.invoiceNumber ? `#${payment.invoiceNumber}` : payment.description}
         </p>
       </div>

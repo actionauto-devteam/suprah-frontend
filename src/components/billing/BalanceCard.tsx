@@ -51,7 +51,7 @@ function Action({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        flex: 1,
+        flex: "1 1 136px",
         minWidth: 0,
         display: "flex",
         alignItems: "center",
@@ -263,7 +263,7 @@ export function BalanceCard({
         )}
 
         {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 10, marginBottom: 18 }}>
           {statItems.map(({ label, value, Icon }) => (
             <div
               key={label}
@@ -287,9 +287,7 @@ export function BalanceCard({
                     fontWeight: 700,
                     color: T.text,
                     display: "block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    overflowWrap: "anywhere",
                     ...numeric,
                   }}
                 >
@@ -301,7 +299,7 @@ export function BalanceCard({
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
           <Action icon={ArrowDownLeft} label="Receive" sub="In development" onClick={onReceive} />
           <Action icon={Link2} label="Link Wise" sub={wiseInDevelopment ? "In development" : "Connect account"} onClick={onLinkWise} />
           <Action icon={ArrowUpRight} label="Send" sub={wiseInDevelopment ? "In development" : "Transfer"} variant="brand" onClick={onSend} />
@@ -313,6 +311,8 @@ export function BalanceCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "4px 12px",
             paddingTop: 14,
             borderTop: `1px solid ${T.border}`,
           }}
@@ -321,15 +321,13 @@ export function BalanceCard({
             style={{
               fontSize: 12,
               color: T.textMute,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: "55%",
+              minWidth: 0,
+              overflowWrap: "anywhere",
             }}
           >
             {userName}
           </span>
-          <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, ...numeric }}>
+          <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, overflowWrap: "anywhere", ...numeric }}>
             {userId}
           </span>
         </div>
