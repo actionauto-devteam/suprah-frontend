@@ -33,6 +33,8 @@ export interface DashboardMetrics {
     livePayments: Array<{
         customerName: string;
         amount: number;
+        /** Refunded so far; a partly refunded payment stays "succeeded". */
+        refundedAmount?: number;
         status: string;
         description: string;
         createdAt: string;

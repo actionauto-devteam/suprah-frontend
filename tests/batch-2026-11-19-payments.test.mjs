@@ -157,3 +157,70 @@ test('Payments Due opens Suprah Pay scrolled to the "To pay" list', () => {
   assert.match(page, /window\.location\.hash !== "#to-pay"/);
   assert.match(page, /prefers-reduced-motion: reduce/);
 });
+
+// ── CRM dashboard: refunded payments ───────────────────────────────────────
+const revenueCards = read('app/(dashboard)/components/RevenueIntelligence.tsx');
+
+test('the live payments list labels every status, including partly refunded', () => {
+  assert.match(revenueCards, /if \(isPartlyRefunded\(payment\)\) return \{ label: "Partly refunded"/);
+  for (const label of ['Paid', 'Processing', 'Pending', 'Failed', 'Refunded', 'Cancelled']) {
+    assert.match(revenueCards, new RegExp(`label: "${label}"`), label);
+  }
+  // Pending, refunded and cancelled payments no longer fall through to "Failed".
+  assert.doesNotMatch(revenueCards, /: "Failed"\}/);
+});
+
+test('the revenue cards wrap long text and have nothing under 11px', () => {
+  assert.doesNotMatch(revenueCards, /\btruncate\b/);
+  assert.doesNotMatch(revenueCards, /text-\[(7|8|9|10)px\]/);
+  assert.doesNotMatch(revenueCards, /fontSize: (7|8|9|10),/);
+});
+
+// ── Staff Payments page: phones, wrapping, Revenue Trend ───────────────────
+test('Revenue Trend shows the last 6 months from the server totals, 0 for missing months', () => {
+  const now = new Date('2026-02-15T10:00:00Z');
+  const trend = refunds.revenueTrend(
+    [{ year: 2025, month: 12, revenue: 1200.5 }, { year: 2026, month: 2, revenue: 74.5 }],
+    now,
+  );
+  assert.deepEqual(trend.map((m) => m.label), ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb']);
+  assert.deepEqual(trend.map((m) => m.value), [0, 0, 0, 1200.5, 0, 74.5]);
+  // An older server without the totals still draws an empty chart.
+  assert.deepEqual(refunds.revenueTrend(undefined, now).map((m) => m.value), [0, 0, 0, 0, 0, 0]);
+  // The chart no longer adds up the payments on screen.
+  assert.match(staffPayments, /revenueTrend\(stats\?\.monthlyRevenue, new Date\(\)\)/);
+  assert.doesNotMatch(staffPayments, /months\[idx\]\.value \+= payment\.amount/);
+});
+
+test('the Payments page fits phones: cards, wrapping text, no sideways scrolling', () => {
+  assert.doesNotMatch(staffPayments, /textOverflow: "ellipsis"/);
+  assert.doesNotMatch(staffPayments, /overflowX: "auto"/);
+  assert.doesNotMatch(staffPayments, /minWidth: 520/);
+  assert.doesNotMatch(staffPayments, /fontSize: (7|8|9|10),/);
+  // Phones: one card per payment; computers: the table with column titles.
+  assert.match(staffPayments, /const ROW_SHAPE = "rounded-xl border border-border sm:rounded-none sm:border-0 sm:border-b"/);
+  assert.match(staffPayments, /\$\{ROW_GRID\} hidden px-4 py-2\.5 sm:grid/);
+  // Status filters wrap; rows and icon buttons can be used with a keyboard or screen reader.
+  assert.match(staffPayments, /aria-label="Filter by status"[\s\S]{0,80}flexWrap: "wrap"/);
+  assert.match(staffPayments, /<button\n\s+type="button"\n\s+onClick=\{onSelect\}/);
+  for (const label of ['Refresh payments', 'Close payment details', 'Close filters', 'Dismiss', 'Search payments']) {
+    assert.match(staffPayments, new RegExp(`aria-label="${label}"`), label);
+  }
+  // Toasts stay inside the screen on narrow phones.
+  assert.match(staffPayments, /maxWidth: "min\(340px, 100%\)"/);
+});
+
+// ── Suprah Pay screens: no loose `any` types ───────────────────────────────
+test('the Suprah Pay screens have no `any` types', () => {
+  for (const rel of [
+    'app/(customer)/customer/payments/page.tsx',
+    'components/customer/garage/OverviewTab.tsx',
+    'app/(dashboard)/billing/page.tsx',
+    'app/(dashboard)/billing/payments/page.tsx',
+    'app/(dashboard)/billing/driver-payouts/page.tsx',
+    'app/(driver)/driver/settings/page.tsx',
+    'app/(admin)/admin/payouts/page.tsx',
+  ]) {
+    assert.doesNotMatch(read(rel), /:\s*any\b|\bas any\b|<any>|any\[\]/, rel);
+  }
+});

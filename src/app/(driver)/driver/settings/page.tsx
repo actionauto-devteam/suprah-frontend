@@ -1,21 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useAuth, useUser } from "@/providers/AuthProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Bell, MapPin, Moon, Wallet, CheckCircle2, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
+import { Bell, MapPin, Moon, Wallet, CheckCircle2, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { StripeConnectStatus, payoutAccountReady } from "@/types/driver-payout";
 import { userErrorMessage } from "@/lib/user-error";
 import { DriverPhoneTrackingCard } from "@/components/driver/DriverPhoneTrackingCard";
 
 export default function DriverSettingsPage() {
-  const { user } = useUser();
   const { getToken } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -55,7 +54,7 @@ export default function DriverSettingsPage() {
       );
       const url = res.data.data?.url;
       if (url) window.location.href = url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg =
         userErrorMessage(err, "connect your payout account");
       setOnboardError(msg);

@@ -16,6 +16,26 @@ import { formatCurrency } from "@/utils/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { DashboardMetrics } from "@/hooks/useDashboardStats";
+import { isPartlyRefunded } from "@/lib/payment-refunds";
+
+type LivePayment = DashboardMetrics["livePayments"][number];
+
+const MUTED_STATUS = "bg-slate-500/10 text-slate-600 dark:text-slate-300";
+const LIVE_STATUS: Record<string, { label: string; cls: string }> = {
+  succeeded: { label: "Paid", cls: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
+  processing: { label: "Processing", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
+  pending: { label: "Pending", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
+  failed: { label: "Failed", cls: "bg-rose-500/10 text-rose-700 dark:text-rose-400" },
+  refunded: { label: "Refunded", cls: MUTED_STATUS },
+  cancelled: { label: "Cancelled", cls: MUTED_STATUS },
+};
+
+// Each status gets its own label (2026-11-19): pending, refunded and
+// cancelled payments used to show as "Failed".
+function livePaymentStatus(payment: LivePayment) {
+  if (isPartlyRefunded(payment)) return { label: "Partly refunded", cls: MUTED_STATUS };
+  return LIVE_STATUS[payment.status] ?? { label: payment.status || "Unknown", cls: MUTED_STATUS };
+}
 
 interface RevenueIntelligenceProps {
   trajectory: DashboardMetrics["revenueTrajectory"];
@@ -100,7 +120,7 @@ export function RevenueIntelligence({
                 </div>
                 Revenue Trajectory
               </CardTitle>
-              <CardDescription className="hidden sm:block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+              <CardDescription className="hidden sm:block text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
                 Monthly Revenue
               </CardDescription>
             </div>
@@ -111,7 +131,7 @@ export function RevenueIntelligence({
                   <button
                     key={p}
                     onClick={() => onPeriodChange(p)}
-                    className={`px-3 py-1.5 sm:px-2.5 sm:py-1 text-[9px] font-black uppercase tracking-widest rounded-md transition-all ${period === p
+                    className={`px-3 py-1.5 sm:px-2.5 sm:py-1 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${period === p
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
                       }`}
@@ -124,7 +144,7 @@ export function RevenueIntelligence({
                 <p className="text-base sm:text-xl font-black text-primary tracking-tight leading-none tabular-nums">
                   {isLoading ? "..." : formatCurrency(totalPeriodRevenue)}
                 </p>
-                <p className="hidden sm:block text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mt-1">
+                <p className="hidden sm:block text-[11px] font-bold text-muted-foreground/40 uppercase tracking-widest mt-1">
                   Total Period
                 </p>
               </div>
@@ -162,11 +182,11 @@ export function RevenueIntelligence({
                   axisLine={false}
                   interval={0}
                   tickMargin={period === "1Y" ? 4 : 8}
-                  height={period === "1Y" ? 52 : 36}
+                  height={period === "1Y" ? 58 : 36}
                   padding={{ left: 4, right: 4 }}
                   tickFormatter={formatXAxisLabel}
                   tick={{
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: 700,
                     fill: "var(--muted-foreground)",
                     ...(period === "1Y" ? { angle: -45, textAnchor: "end", dy: 2 } : {}),
@@ -177,7 +197,7 @@ export function RevenueIntelligence({
                     if (active && payload && payload.length) {
                       return (
                         <div className="bg-background/90 backdrop-blur-xl p-3 shadow-2xl border border-border/40 rounded-2xl">
-                          <p className="text-[10px] font-bold text-foreground/70 mb-1 uppercase tracking-widest leading-none">
+                          <p className="text-[11px] font-bold text-foreground/70 mb-1 uppercase tracking-widest leading-none">
                             {payload[0].payload.name}
                           </p>
                           <span className="text-lg font-black text-primary tracking-tight italic">
@@ -214,11 +234,11 @@ export function RevenueIntelligence({
               </div>
               Live Payments
             </CardTitle>
-            <CardDescription className="hidden sm:block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+            <CardDescription className="hidden sm:block text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
               Recent Transactions
             </CardDescription>
           </div>
-          <Link href="/billing/payments" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1 group">
+          <Link href="/billing/payments" className="text-[11px] font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1 group">
             All <ChevronRight className="h-3 w-3 group-hover:translate-x-1" />
           </Link>
         </CardHeader>
@@ -250,14 +270,15 @@ export function RevenueIntelligence({
                 {livePayments.map((payment, i) => (
                   <TableRow
                     key={`${payment.createdAt}-${i}`}
-                    className="group h-11 border-border/30 transition-colors hover:bg-muted/30 sm:h-14"
+                    className="group border-border/30 transition-colors hover:bg-muted/30"
                   >
-                    <TableCell className="w-[55%] max-w-0 pl-3 sm:pl-5">
+                    {/* Names and descriptions wrap instead of ending in "…" (2026-11-19). */}
+                    <TableCell className="py-2.5 pl-3 align-middle whitespace-normal sm:pl-5">
                       <div className="flex min-w-0 flex-col">
-                        <span className="truncate text-xs font-bold leading-none text-foreground sm:text-sm">
+                        <span className="break-words text-xs font-bold leading-snug text-foreground [overflow-wrap:anywhere] sm:text-sm">
                           {payment.customerName}
                         </span>
-                        <span className="mt-1 block truncate text-[9px] font-medium uppercase tracking-tighter text-muted-foreground/60">
+                        <span className="mt-0.5 block break-words text-[11px] font-medium uppercase leading-snug tracking-tight text-muted-foreground [overflow-wrap:anywhere]">
                           {payment.description}
                         </span>
                       </div>
@@ -265,22 +286,12 @@ export function RevenueIntelligence({
                     <TableCell className="w-20 whitespace-nowrap text-right text-xs font-black tabular-nums sm:w-28 sm:text-sm">
                       {formatCurrency(payment.amount)}
                     </TableCell>
-                    <TableCell className="w-16 whitespace-nowrap pr-3 text-right sm:w-24 sm:pr-5">
+                    <TableCell className="w-24 pr-3 text-right whitespace-normal sm:w-28 sm:pr-5">
                       <Badge
                         variant="secondary"
-                        className={`border-none px-1.5 py-0.5 text-[8px] font-black uppercase sm:px-2 ${
-                          payment.status === "succeeded"
-                            ? "bg-emerald-500/10 text-emerald-500"
-                            : payment.status === "processing"
-                              ? "bg-amber-500/10 text-amber-500"
-                              : "bg-rose-500/10 text-rose-500"
-                        }`}
+                        className={`whitespace-normal border-none px-1.5 py-0.5 text-center text-[11px] font-black uppercase leading-tight sm:px-2 ${livePaymentStatus(payment).cls}`}
                       >
-                        {payment.status === "succeeded"
-                          ? "Paid"
-                          : payment.status === "processing"
-                            ? "Pending"
-                            : "Failed"}
+                        {livePaymentStatus(payment).label}
                       </Badge>
                     </TableCell>
                   </TableRow>

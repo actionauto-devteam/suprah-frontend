@@ -19,6 +19,7 @@ import {
   Package,
   Clock,
   Star,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,29 @@ import { useNotifications } from "@/context/NotificationContext";
 import { useProfileContext } from "@/context/ProfileContext";
 import { getNotificationRoute } from "@/components/notifications/notification-utils";
 import { openNotificationDrawer } from "@/lib/notification-open";
+
+// What the overview reads from the marketplace and appointments lists.
+type SpotlightVehicle = {
+  _id?: string;
+  id?: string;
+  year?: number | string;
+  make?: string;
+  model?: string;
+  trim?: string;
+  price?: number;
+  image?: string;
+  images?: string[];
+};
+type UpcomingAppointment = { _id?: string; id?: string; title?: string; type?: string; startTime?: string };
+type QuickAction = {
+  label: string;
+  sub: string;
+  icon: LucideIcon;
+  href: string;
+  className: string;
+  iconCls: string;
+  badge?: string;
+};
 
 export function OverviewTab() {
   const { user } = useUser();
@@ -62,8 +86,8 @@ export function OverviewTab() {
       try {
         const res = await apiClient.get("/api/appointments", { params: { status: "scheduled", limit: 3 } });
         const d = res.data?.data || res.data;
-        return d?.appointments || d || [];
-      } catch { return []; }
+        return (d?.appointments || d || []) as UpcomingAppointment[];
+      } catch { return [] as UpcomingAppointment[]; }
     },
   });
 
@@ -88,8 +112,8 @@ export function OverviewTab() {
           params: { limit: 50, sortBy: "demand", sortOrder: "desc" },
         });
         const d = res.data?.data || res.data;
-        return d?.vehicles || d || [];
-      } catch { return []; }
+        return (d?.vehicles || d || []) as SpotlightVehicle[];
+      } catch { return [] as SpotlightVehicle[]; }
     },
   });
 
@@ -103,7 +127,7 @@ export function OverviewTab() {
 
   const goShopSlide = React.useCallback((dir: 1 | -1) => {
     setShopActiveIndex((prev) => {
-      const len = (inventorySpotlight as any[]).length;
+      const len = inventorySpotlight.length;
       if (len === 0) return prev;
       return Math.min(Math.max(prev + dir, 0), len - 1);
     });
@@ -155,7 +179,7 @@ export function OverviewTab() {
     : "";
   const userInitial = user?.firstName?.charAt(0)?.toUpperCase() || "M";
 
-  const QUICK_ACTIONS = [
+  const QUICK_ACTIONS: QuickAction[] = [
     {
       label: "Refer & Earn",
       sub: "Invite & get rewarded",
@@ -226,7 +250,7 @@ export function OverviewTab() {
             <span className="text-border/80 text-xs">·</span>
             <Link href="/customer/saved" className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-primary transition-colors">
               <Heart className="h-3.5 w-3.5 text-rose-400" />
-              {(savedVehicles as any[]).length} <span className="text-muted-foreground font-normal">saved</span>
+              {savedVehicles.length} <span className="text-muted-foreground font-normal">saved</span>
             </Link>
             {unreadCount > 0 && (
               <>
@@ -281,7 +305,7 @@ export function OverviewTab() {
                 ref={shopCoverflowRef}
                 className="relative h-80 sm:h-112 lg:h-128 flex items-center justify-center touch-pan-y select-none"
               >
-                {(inventorySpotlight as any[]).map((v: any, i: number) => {
+                {inventorySpotlight.map((v, i) => {
                   const offset = i - shopActiveIndex;
                   const abs = Math.abs(offset);
                   if (abs > 2) return null;
@@ -301,6 +325,7 @@ export function OverviewTab() {
                           : "border-border/40 shadow-xl",
                       )}
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- car photos come from many feed hosts */}
                       <img
                         src={resolveImageUrl(v.image || v.images?.[0]) || "/vehicle-placeholder.jpg"}
                         alt={`${v.year} ${v.make} ${v.model}`}
@@ -377,7 +402,7 @@ export function OverviewTab() {
                 <button
                   type="button"
                   onClick={() => goShopSlide(1)}
-                  disabled={shopActiveIndex === (inventorySpotlight as any[]).length - 1}
+                  disabled={shopActiveIndex === inventorySpotlight.length - 1}
                   aria-label="Next vehicle"
                   className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full border border-border/50 bg-background/80 backdrop-blur-sm hover:bg-background hover:scale-105 text-foreground shadow-md transition-all disabled:opacity-0 disabled:pointer-events-none"
                 >
@@ -388,7 +413,7 @@ export function OverviewTab() {
 
             {/* Active vehicle info */}
             {(() => {
-              const active = (inventorySpotlight as any[])[shopActiveIndex];
+              const active = inventorySpotlight[shopActiveIndex];
               if (!active) return null;
               return (
                 <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-border/30 min-h-14">
@@ -414,7 +439,7 @@ export function OverviewTab() {
               <div
                 className="h-full rounded-full bg-primary transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                 style={{
-                  width: `${100 / (inventorySpotlight as any[]).length}%`,
+                  width: `${100 / inventorySpotlight.length}%`,
                   transform: `translateX(${shopActiveIndex * 100}%)`,
                 }}
               />
@@ -438,7 +463,7 @@ export function OverviewTab() {
           {
             icon: Heart,
             label: "Wishlist",
-            value: (savedVehicles as any[]).length,
+            value: savedVehicles.length,
             href: "/customer/saved",
             ring: "ring-rose-400/20",
             iconBg: "bg-rose-500/10",
@@ -523,9 +548,9 @@ export function OverviewTab() {
                   <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", item.iconCls)}>
                     <item.icon className="h-5 w-5" />
                   </div>
-                  {(item as any).badge && (
+                  {item.badge && (
                     <Badge variant="secondary" className="text-[11px] font-black uppercase tracking-wider rounded-full px-2">
-                      {(item as any).badge}
+                      {item.badge}
                     </Badge>
                   )}
                 </div>
@@ -555,14 +580,14 @@ export function OverviewTab() {
             </div>
           </div>
 
-          {(upcomingAppointments as any[]).length === 0 ? (
+          {upcomingAppointments.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/40 bg-muted/20 p-5 text-center">
               <Calendar className="h-7 w-7 text-muted-foreground/20 mx-auto mb-2" />
               <p className="text-xs text-muted-foreground">No upcoming appointments</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {(upcomingAppointments as any[]).map((appt: any, idx: number) => (
+              {upcomingAppointments.map((appt, idx) => (
                 <div
                   key={appt._id || appt.id || idx}
                   className="flex items-center gap-3 rounded-xl border border-border/30 bg-muted/30 p-3 hover:border-primary/20 transition-colors dark:bg-zinc-800/40"

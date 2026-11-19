@@ -15,6 +15,7 @@ import {
   Package,
   FileCheck,
   Eye,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -244,7 +245,7 @@ function PayoutModal({
 export default function DriverPayoutsPage() {
   const { getToken } = useAuth();
   const [deliverableLoads, setDeliverableLoads] = React.useState<DeliverableLoad[]>([]);
-  const [pendingProofs, setPendingProofs] = React.useState<any[]>([]);
+  const [pendingProofs, setPendingProofs] = React.useState<DeliverableLoad[]>([]);
   const [payouts, setPayouts] = React.useState<DriverPayout[]>([]);
   const [payoutStats, setPayoutStats] = React.useState<DriverPayoutStats | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -326,7 +327,7 @@ export default function DriverPayoutsPage() {
               ["pending-proofs", "Pending Proofs", FileCheck, pendingProofs.length],
               ["deliverable", "Ready to Pay", Truck, deliverableLoads.length],
               ["history", "Payout History", DollarSign, 0],
-            ] as ["pending-proofs" | "deliverable" | "history", string, any, number][]).map(([key, label, Icon, count]) => (
+            ] as ["pending-proofs" | "deliverable" | "history", string, LucideIcon, number][]).map(([key, label, Icon, count]) => (
               <button
                 key={key}
                 type="button"
@@ -370,7 +371,7 @@ export default function DriverPayoutsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3">
-                {pendingProofs.map((item: any) => (
+                {pendingProofs.map((item) => (
                   <div key={item._id} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-[18px]">
                     <div className="flex items-start justify-between">
                       <div>

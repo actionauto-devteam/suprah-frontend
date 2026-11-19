@@ -6,7 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { Payment, PaymentStats } from "@/types/billing";
 import { formatCurrency } from "@/utils/format";
-import { isPartlyRefunded, notRefunded, refundedSoFar } from "@/lib/payment-refunds";
+import { isPartlyRefunded, notRefunded, refundedSoFar, revenueTrend } from "@/lib/payment-refunds";
 import {
   ChartConfig,
   ChartContainer,
@@ -66,15 +66,19 @@ function ToastContainer({
 }) {
   if (!toasts.length) return null;
   return (
+    // Fits narrow phones: toasts stay inside the screen edges.
     <div
       style={{
         position: "fixed",
-        bottom: 24,
-        right: 24,
+        bottom: "calc(24px + env(safe-area-inset-bottom, 0px))",
+        right: 16,
+        left: 16,
         zIndex: 2000,
         display: "flex",
         flexDirection: "column",
+        alignItems: "flex-end",
         gap: 8,
+        pointerEvents: "none",
       }}
     >
       {toasts.map((t) => (
@@ -95,7 +99,8 @@ function ToastContainer({
             borderRadius: "var(--border-radius-lg)",
             boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
             animation: "slideIn 0.2s ease both",
-            maxWidth: 340,
+            maxWidth: "min(340px, 100%)",
+            pointerEvents: "auto",
           }}
         >
           {t.type === "success" && (
@@ -108,10 +113,12 @@ function ToastContainer({
               style={{ width: 14, height: 14, color: T.red, flexShrink: 0 }}
             />
           )}
-          <p style={{ fontSize: 13, color: T.text, margin: 0, flex: 1 }}>
+          <p style={{ fontSize: 13, color: T.text, margin: 0, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
             {t.msg}
           </p>
           <button
+            type="button"
+            aria-label="Dismiss"
             onClick={() => onDismiss(t.id)}
             style={{
               background: "none",
@@ -391,6 +398,7 @@ function DetailDrawer({
           </h3>
           <button
             type="button"
+            aria-label="Close payment details"
             onClick={onClose}
             onMouseEnter={() => setCloseHovered(true)}
             onMouseLeave={() => setCloseHovered(false)}
@@ -398,8 +406,9 @@ function DetailDrawer({
               background: closeHovered ? T.bg : T.surface,
               border: `0.5px solid ${T.border}`,
               borderRadius: 10,
-              width: 30,
-              height: 30,
+              width: 40,
+              height: 40,
+              flexShrink: 0,
               cursor: "pointer",
               color: T.textSub,
               display: "inline-flex",
@@ -769,6 +778,21 @@ function DetailDrawer({
   );
 }
 
+// The payments list (2026-11-19). Phones: one card per payment (customer and
+// amount, invoice and status, then the date). Computers: one table row. Long
+// names, emails and descriptions wrap instead of ending in "…".
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 " +
+  "sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,0.8fr)] sm:items-center sm:gap-3";
+const ROW_SHAPE = "rounded-xl border border-border sm:rounded-none sm:border-0 sm:border-b";
+const CELL = {
+  customer: "col-start-1 row-start-1 min-w-0 sm:col-start-auto sm:row-start-auto",
+  invoice: "col-start-1 row-start-2 min-w-0 sm:col-start-auto sm:row-start-auto",
+  amount: "col-start-2 row-start-1 text-right sm:col-start-auto sm:row-start-auto sm:text-left",
+  status: "col-start-2 row-start-2 justify-self-end sm:col-start-auto sm:row-start-auto sm:justify-self-start",
+  date: "col-start-1 row-start-3 sm:col-start-auto sm:row-start-auto",
+};
+
 function PaymentRow({
   payment,
   onSelect,
@@ -779,91 +803,85 @@ function PaymentRow({
   const [hov, setHov] = React.useState(false);
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onSelect}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
+      aria-label={`Open payment details for ${payment.customerName}, ${formatCurrency(payment.amount)}`}
+      className={`${ROW_GRID} ${ROW_SHAPE} w-full px-4 py-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
       style={{
-        display: "grid",
-        gridTemplateColumns: "1.4fr 1fr 0.8fr 0.9fr 0.8fr",
-        alignItems: "center",
-        gap: 12,
-        padding: "14px 16px",
         background: hov ? T.surface : "transparent",
-        borderBottom: `0.5px solid ${T.border}`,
         cursor: "pointer",
         transition: "background 0.1s",
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <p
+      <span className={CELL.customer}>
+        <span
           style={{
+            display: "block",
             fontSize: 13,
             fontWeight: 600,
             color: T.text,
-            margin: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            overflowWrap: "anywhere",
           }}
         >
           {payment.customerName}
-        </p>
-        <p
+        </span>
+        <span
           style={{
+            display: "block",
             fontSize: 11,
             color: T.textMute,
-            margin: "3px 0 0",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            marginTop: 3,
+            overflowWrap: "anywhere",
           }}
         >
           {payment.customerEmail}
-        </p>
-      </div>
+        </span>
+      </span>
 
-      <p
+      <span
+        className={CELL.invoice}
         style={{
           fontSize: 12,
           color: T.textSub,
-          margin: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
           fontWeight: 500,
+          overflowWrap: "anywhere",
         }}
       >
         {payment.invoiceNumber
           ? `#${payment.invoiceNumber}`
           : payment.description}
-      </p>
+      </span>
 
-      <p
+      <span
+        className={CELL.amount}
         style={{
           fontSize: 13,
           fontWeight: 700,
           color: T.text,
-          margin: 0,
           whiteSpace: "nowrap",
         }}
       >
         {formatCurrency(payment.amount)}
-      </p>
+      </span>
 
-      <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} />
+      <span className={CELL.status}>
+        <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} />
+      </span>
 
-      <p
+      <span
+        className={CELL.date}
         style={{
           fontSize: 12,
           color: T.textSub,
-          margin: 0,
           whiteSpace: "nowrap",
         }}
       >
         {new Date(payment.createdAt || "").toLocaleDateString()}
-      </p>
-    </div>
+      </span>
+    </button>
   );
 }
 
@@ -957,6 +975,16 @@ export default function PaymentsPage() {
     fetchData();
   }, [fetchData]);
 
+  // Escape closes the filter panel, like the payment details panel.
+  React.useEffect(() => {
+    if (!filterPanelOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFilterPanelOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [filterPanelOpen]);
+
   const statuses = [
     "all",
     "pending",
@@ -973,30 +1001,13 @@ export default function PaymentsPage() {
   const startDisplay = totalRecords === 0 ? 0 : startIdx + 1;
   const endDisplay = totalRecords === 0 ? 0 : Math.min(startIdx + payments.length, totalRecords);
 
-  const trend = React.useMemo(() => {
-    const now = new Date();
-    const months = Array.from({ length: 6 }).map((_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      return {
-        key: `${d.getFullYear()}-${d.getMonth()}`,
-        label: d.toLocaleString("en-US", { month: "short" }),
-        value: 0,
-      };
-    });
-
-    const indexByKey = new Map(months.map((m, idx) => [m.key, idx]));
-
-    payments.forEach((payment) => {
-      const created = new Date(payment.createdAt);
-      const key = `${created.getFullYear()}-${created.getMonth()}`;
-      const idx = indexByKey.get(key);
-      if (idx !== undefined) {
-        months[idx].value += payment.amount;
-      }
-    });
-
-    return months;
-  }, [payments]);
+  // Money kept from paid payments in each of the last 6 months, from the
+  // server (2026-11-19). It used to add up only the payments on this page of
+  // the list, whatever their status.
+  const trend = React.useMemo(
+    () => revenueTrend(stats?.monthlyRevenue, new Date()),
+    [stats?.monthlyRevenue],
+  );
 
   const chartConfig = React.useMemo(
     () =>
@@ -1151,7 +1162,7 @@ export default function PaymentsPage() {
                   </div>
                   <span
                     style={{
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 600,
                       color: "#22C55E",
                       background: "rgba(34,197,94,0.14)",
@@ -1172,11 +1183,12 @@ export default function PaymentsPage() {
                 ) : (
                   <p
                     style={{
-                      fontSize: 34,
+                      fontSize: "clamp(26px, 7vw, 34px)",
                       fontWeight: 700,
                       color: T.text,
                       margin: "2px 0 0",
                       letterSpacing: "-0.03em",
+                      overflowWrap: "anywhere",
                     }}
                   >
                     {val}
@@ -1197,13 +1209,16 @@ export default function PaymentsPage() {
           >
             <p
               style={{
-                margin: "0 0 10px",
+                margin: 0,
                 color: T.text,
                 fontSize: 18,
                 fontWeight: 600,
               }}
             >
               Revenue Trend
+            </p>
+            <p style={{ margin: "2px 0 10px", color: T.textSub, fontSize: 12 }}>
+              Money kept from paid payments in the last 6 months
             </p>
             {isLoading ? (
               <div
@@ -1316,6 +1331,7 @@ export default function PaymentsPage() {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
+                  aria-label="Search payments"
                   placeholder="Search name, email, invoice..."
                   style={{
                     width: "100%",
@@ -1358,8 +1374,14 @@ export default function PaymentsPage() {
                   <Filter style={{ width: 12, height: 12 }} /> More Filters
                 </button>
                 <button
+                  type="button"
+                  aria-label="Refresh payments"
                   onClick={fetchData}
                   style={{
+                    minWidth: 40,
+                    minHeight: 40,
+                    alignItems: "center",
+                    justifyContent: "center",
                     padding: "8px 10px",
                     background: "transparent",
                     border: `0.5px solid ${T.border}`,
@@ -1374,25 +1396,30 @@ export default function PaymentsPage() {
               </div>
             </div>
 
+            {/* Status filters wrap onto more lines instead of scrolling sideways. */}
             <div
+              role="group"
+              aria-label="Filter by status"
               style={{
                 display: "flex",
+                flexWrap: "wrap",
                 gap: 8,
                 padding: 10,
                 borderBottom: `0.5px solid ${T.border}`,
-                overflowX: "auto",
               }}
             >
               {statuses.map((status) => (
                 <button
                   key={status}
                   type="button"
+                  aria-pressed={statusFilter === status}
                   onClick={() => {
                     setStatusFilter(status);
                     setPage(1);
                   }}
                   style={{
                     padding: "6px 12px",
+                    minHeight: 36,
                     borderRadius: 8,
                     border: `0.5px solid ${statusFilter === status ? "#3B82F6" : "transparent"}`,
                     background:
@@ -1412,16 +1439,14 @@ export default function PaymentsPage() {
               ))}
             </div>
 
-            <div style={{ overflowX: "auto" }}>
+            <div>
+            {/* Column titles show on computers; phones show one card per payment. */}
             <div
+              aria-hidden="true"
+              className={`${ROW_GRID} hidden px-4 py-2.5 sm:grid`}
               style={{
-                display: "grid",
-                gridTemplateColumns: "1.4fr 1fr 0.8fr 0.9fr 0.8fr",
-                gap: 12,
-                padding: "10px 16px",
                 borderBottom: `0.5px solid ${T.border}`,
                 background: T.bg,
-                minWidth: 520,
               }}
             >
               {["Customer", "Invoice", "Amount", "Status", "Date"].map(
@@ -1443,25 +1468,17 @@ export default function PaymentsPage() {
             </div>
 
             {isLoading ? (
-              <div style={{ padding: "6px 16px 14px", minWidth: 520 }}>
+              <div className="flex flex-col gap-2 p-3 sm:block sm:p-0">
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <div
                     key={`skeleton-row-${idx}`}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.4fr 1fr 0.8fr 0.9fr 0.8fr",
-                      gap: 12,
-                      padding: "13px 0",
-                      borderBottom:
-                        idx === 5 ? "none" : `0.5px solid ${T.border}`,
-                      alignItems: "center",
-                    }}
+                    className={`${ROW_GRID} ${ROW_SHAPE} px-4 py-3.5`}
                   >
-                    <Skeleton width="80%" height={14} radius={5} />
-                    <Skeleton width="76%" height={14} radius={5} />
-                    <Skeleton width="58%" height={14} radius={5} />
-                    <Skeleton width="64%" height={22} radius={999} />
-                    <Skeleton width="70%" height={14} radius={5} />
+                    <span className={CELL.customer}><Skeleton width="80%" height={14} radius={5} /></span>
+                    <span className={CELL.invoice}><Skeleton width="76%" height={14} radius={5} /></span>
+                    <span className={CELL.amount}><Skeleton width={64} height={14} radius={5} /></span>
+                    <span className={CELL.status}><Skeleton width={72} height={22} radius={999} /></span>
+                    <span className={CELL.date}><Skeleton width={70} height={14} radius={5} /></span>
                   </div>
                 ))}
               </div>
@@ -1481,13 +1498,15 @@ export default function PaymentsPage() {
                 </p>
               </div>
             ) : (
-              payments.map((payment) => (
-                <PaymentRow
-                  key={payment._id}
-                  payment={payment}
-                  onSelect={() => setSelected(payment)}
-                />
-              ))
+              <div className="flex flex-col gap-2 p-3 sm:block sm:p-0">
+                {payments.map((payment) => (
+                  <PaymentRow
+                    key={payment._id}
+                    payment={payment}
+                    onSelect={() => setSelected(payment)}
+                  />
+                ))}
+              </div>
             )}
             </div>
 
@@ -1495,6 +1514,7 @@ export default function PaymentsPage() {
               <div
                 style={{
                   display: "flex",
+                  flexWrap: "wrap",
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 10,
@@ -1513,6 +1533,7 @@ export default function PaymentsPage() {
                     disabled={currentPage <= 1}
                     style={{
                       padding: "6px 12px",
+                      minHeight: 40,
                       borderRadius: 8,
                       border: `0.5px solid ${T.border}`,
                       background: "transparent",
@@ -1533,6 +1554,7 @@ export default function PaymentsPage() {
                     disabled={currentPage >= totalPages}
                     style={{
                       padding: "6px 12px",
+                      minHeight: 40,
                       borderRadius: 8,
                       border: `0.5px solid ${T.border}`,
                       background: "transparent",
@@ -1567,6 +1589,9 @@ export default function PaymentsPage() {
           }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-filters-title"
             onClick={(event) => event.stopPropagation()}
             style={{
               width: "min(460px,100vw)",
@@ -1574,7 +1599,7 @@ export default function PaymentsPage() {
               background: T.hi,
               borderLeft: `0.5px solid ${T.borderHi}`,
               boxShadow: "-8px 0 40px rgba(0,0,0,0.18)",
-              padding: 22,
+              padding: "max(18px, env(safe-area-inset-top, 0px)) 18px max(18px, env(safe-area-inset-bottom, 0px))",
               display: "flex",
               flexDirection: "column",
               gap: 16,
@@ -1586,19 +1611,21 @@ export default function PaymentsPage() {
                 <p style={{ margin: 0, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: T.textMute, fontWeight: 700 }}>
                   Filter payments
                 </p>
-                <h3 style={{ margin: "6px 0 0", fontSize: 18, fontWeight: 700, color: T.text }}>
+                <h3 id="payment-filters-title" style={{ margin: "6px 0 0", fontSize: 18, fontWeight: 700, color: T.text }}>
                   More Filters
                 </h3>
               </div>
               <button
                 type="button"
+                aria-label="Close filters"
                 onClick={() => setFilterPanelOpen(false)}
                 style={{
                   border: `0.5px solid ${T.border}`,
                   background: T.surface,
                   borderRadius: 10,
-                  width: 34,
-                  height: 34,
+                  width: 40,
+                  height: 40,
+                  flexShrink: 0,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -1661,7 +1688,8 @@ export default function PaymentsPage() {
                 />
               </label>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {/* Side by side when there's room; stacked on narrow phones. */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
                 <label style={{ display: "grid", gap: 6 }}>
                   <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600 }}>From date</span>
                   <input

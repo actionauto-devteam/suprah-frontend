@@ -28,24 +28,13 @@ import {
     CreditCard,
     CheckCircle2,
     XCircle,
-    Info,
     Loader2,
-    User,
     History,
-    Calendar,
-    ArrowRight,
-    BadgeCheck,
-    Truck,
-    Receipt,
-    ExternalLink,
-    MapPin,
-    Package
 } from "lucide-react"
 import {
     useAdminPendingWithdrawals,
     useApproveWithdrawal,
     useRejectWithdrawal,
-    useWithdrawalAudit
 } from "@/hooks/api/useAdminReferral"
 import { fmtDateMDT } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
@@ -56,7 +45,7 @@ import { useAlert } from "@/components/AlertDialog"
 
 export default function AdminPayoutsPage() {
     const { data: withdrawals, isLoading } = useAdminPendingWithdrawals();
-    const { mutate: approve, isPending: isApproving } = useApproveWithdrawal();
+    const { mutate: approve } = useApproveWithdrawal();
     const { mutate: reject, isPending: isRejecting } = useRejectWithdrawal();
 
     const [searchTerm, setSearchTerm] = useState("");

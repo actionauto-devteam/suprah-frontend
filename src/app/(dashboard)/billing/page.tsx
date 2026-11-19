@@ -95,23 +95,25 @@ function BillingDashboardInner() {
 
   const userId = authUserId ?? "USR-0000";
 
-  const extractPayments = React.useCallback((payload: any): Payment[] => {
-    const data = payload?.data;
-    if (Array.isArray(data)) return data as Payment[];
-    if (Array.isArray(data?.payments)) return data.payments as Payment[];
-    if (Array.isArray(payload?.payments)) return payload.payments as Payment[];
+  const extractPayments = React.useCallback((payload: unknown): Payment[] => {
     if (Array.isArray(payload)) return payload as Payment[];
+    const body = (payload ?? {}) as { data?: unknown; payments?: unknown };
+    const data = body.data as { payments?: unknown } | unknown[] | undefined;
+    if (Array.isArray(data)) return data as Payment[];
+    if (data && Array.isArray(data.payments)) return data.payments as Payment[];
+    if (Array.isArray(body.payments)) return body.payments as Payment[];
     return [];
   }, []);
 
-  const normalizeStats = React.useCallback((raw: any): PaymentStats | null => {
+  const normalizeStats = React.useCallback((raw: unknown): PaymentStats | null => {
     if (!raw || typeof raw !== "object") return null;
-    if (raw.byStatus && typeof raw.byStatus === "object") {
+    const stats = raw as Partial<Record<keyof PaymentStats, unknown>>;
+    if (stats.byStatus && typeof stats.byStatus === "object") {
       return {
-        byStatus: raw.byStatus,
-        totalCount: Number(raw.totalCount ?? 0),
-        totalRevenue: Number(raw.totalRevenue ?? 0),
-        pendingAmount: Number(raw.pendingAmount ?? 0),
+        byStatus: stats.byStatus as PaymentStats["byStatus"],
+        totalCount: Number(stats.totalCount ?? 0),
+        totalRevenue: Number(stats.totalRevenue ?? 0),
+        pendingAmount: Number(stats.pendingAmount ?? 0),
       };
     }
     return null;
