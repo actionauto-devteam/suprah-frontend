@@ -86,6 +86,8 @@ export interface PaymentStats {
   totalCount: number;
   totalRevenue: number;
   pendingAmount: number;
+  /** Money kept from paid payments in each of the last 6 months (UTC), oldest first. */
+  monthlyRevenue?: Array<{ year: number; month: number; revenue: number }>;
 }
 
 export interface CreatePaymentData {

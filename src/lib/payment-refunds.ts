@@ -26,3 +26,22 @@ export function notRefunded(payment: RefundablePayment): number {
 export function isPartlyRefunded(payment: RefundablePayment): boolean {
   return payment.status === "succeeded" && refundedSoFar(payment) > 0;
 }
+
+/**
+ * The Payments page's Revenue Trend: the last 6 months (UTC, like the
+ * server's totals), oldest first, with the money kept in each. Months the
+ * server didn't send count as 0.
+ */
+export function revenueTrend(
+  monthly: Array<{ year: number; month: number; revenue: number }> | undefined,
+  now: Date,
+): Array<{ label: string; value: number }> {
+  const byKey = new Map((monthly ?? []).map((m) => [`${m.year}-${m.month}`, Number(m.revenue) || 0]));
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1));
+    return {
+      label: d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }),
+      value: byKey.get(`${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`) ?? 0,
+    };
+  });
+}
