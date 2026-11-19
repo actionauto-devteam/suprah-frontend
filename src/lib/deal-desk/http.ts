@@ -1,12 +1,9 @@
 /**
  * Deal Desk HTTP client.
  *
- * ⚠️ INTEGRATION SEAM — the only place that knows how the app talks to the
- * API. It works out of the box with the crm_token cookie (same-site
- * suprah-app.com → api.suprah-app.com). If your app keeps a main-app
- * access token in memory, register it once with setDealDeskTokenGetter()
- * (e.g. in AuthProvider) and it is sent as a Bearer token — crmAuth on the
- * backend accepts either.
+ * The only place that knows how the app authenticates API calls. Sends the
+ * same Bearer token the rest of Suprah uses (localStorage["crm_token"]),
+ * plus cookies. The socket connection uses the same token.
  */
 
 export class DealDeskError extends Error {
@@ -22,11 +19,31 @@ export function setDealDeskTokenGetter(fn: TokenGetter | null) {
   tokenGetter = fn;
 }
 
-export async function getDealDeskToken(): Promise<string | null> {
+/**
+ * Suprah keeps the CRM login in localStorage["crm_token"] and sends it as
+ * "Authorization: Bearer …" — the Deal Desk does the same, so it works with
+ * no extra wiring. A getter registered with setDealDeskTokenGetter() wins.
+ */
+const STORAGE_KEY = 'crm_token';
+
+function storedToken(): string | null {
+  if (typeof window === 'undefined') return null;
   try {
-    return (await tokenGetter?.()) || null;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    // tolerate a JSON-quoted value ("eyJ…") as well as the raw token
+    const t = raw.startsWith('"') ? JSON.parse(raw) : raw;
+    return typeof t === 'string' && t.trim() ? t.trim() : null;
   } catch {
     return null;
+  }
+}
+
+export async function getDealDeskToken(): Promise<string | null> {
+  try {
+    return (await tokenGetter?.()) || storedToken();
+  } catch {
+    return storedToken();
   }
 }
 
