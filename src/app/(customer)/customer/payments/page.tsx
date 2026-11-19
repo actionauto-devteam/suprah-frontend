@@ -73,7 +73,7 @@ const STATUS_META: Record<
 > = {
   pending: { label: "Due", icon: Clock, cls: "bg-chart-2/15 text-chart-2" },
   failed: { label: "Failed", icon: XCircle, cls: "bg-destructive/15 text-destructive" },
-  processing: { label: "Processing", icon: Loader2, cls: "bg-muted text-muted-foreground" },
+  processing: { label: "Payment started", icon: Loader2, cls: "bg-muted text-muted-foreground" },
   succeeded: { label: "Paid", icon: CheckCircle2, cls: "bg-primary/15 text-primary" },
   refunded: { label: "Refunded", icon: RefreshCw, cls: "bg-muted text-muted-foreground" },
   cancelled: { label: "Cancelled", icon: XCircle, cls: "bg-muted text-muted-foreground" },
@@ -96,7 +96,9 @@ function InvoiceCard({
 }) {
   const meta = STATUS_META[inv.status];
   const Icon = meta.icon;
-  const payable = inv.status === "pending" || inv.status === "failed";
+  // "processing" = a Stripe payment page was opened. Pay stays available: the
+  // server checks that page with Stripe first, so nobody pays twice.
+  const payable = inv.status === "pending" || inv.status === "failed" || inv.status === "processing";
   const cancellable = inv.status === "pending" || inv.status === "failed" || inv.status === "processing";
 
   return (
@@ -238,9 +240,11 @@ function PaymentsView() {
       } catch (e: unknown) {
         setBanner({ kind: "error", text: userErrorMessage(e, "start this payment") });
         setPayingId(null);
+        // e.g. the earlier payment page turned out to be paid: show the real status.
+        refetch();
       }
     },
-    []
+    [refetch]
   );
 
   const doCancelInvoice = React.useCallback(
@@ -291,8 +295,18 @@ function PaymentsView() {
         router.replace("/customer/payments");
       })();
     } else if (status === "cancelled") {
-      setBanner({ kind: "info", text: "Payment cancelled. Your invoice is still here when you're ready." });
-      router.replace("/customer/payments");
+      // Left Stripe's page without paying: close it and put the invoice back under "To pay".
+      const invoiceId = params.get("invoice");
+      (async () => {
+        if (invoiceId) {
+          try {
+            await apiClient.post(`/api/payments/${encodeURIComponent(invoiceId)}/left-checkout`);
+          } catch { /* Stripe's page expires on its own, and Pay checks it again */ }
+        }
+        setBanner({ kind: "info", text: "Payment cancelled. Your invoice is back under To pay whenever you're ready." });
+        refetch();
+        router.replace("/customer/payments");
+      })();
     } else if (pay) {
       // Buy Now created an invoice and sent us here — launch Checkout for it.
       payInvoice(pay);
