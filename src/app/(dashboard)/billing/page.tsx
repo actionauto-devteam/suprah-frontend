@@ -20,6 +20,7 @@ import {
   TrendingUp, Clock, Receipt, Banknote,
 } from "lucide-react";
 import { formatCurrency } from "@/utils/format";
+import { toast } from "sonner";
 import { CashInModal } from "@/components/CashInModal";
 import { ReceiveModal } from "@/components/billing/ReceiveModal";
 import { SendModal } from "@/components/billing/SendModal";
@@ -226,7 +227,12 @@ function BillingDashboardInner() {
               stats={stats}
               onReceive={() => setActiveModal("receive")}
               onSend={() => setActiveModal("send")}
-              onLinkWise={() => linked.connect("wise")}
+              onLinkWise={async () => {
+                // The Link Wise button sits at the top of the page, far from the
+                // Wise panel's own error line, so say it right here as well.
+                const problem = await linked.connect("wise");
+                if (problem) toast.error("Wise can't be linked yet", { description: problem });
+              }}
             />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {metrics.map((m) => (
