@@ -45,10 +45,17 @@ export interface LinkedTransaction {
 const unwrap = (res: any) => res?.data?.data ?? res?.data;
 
 export const linkedAccountApi = {
-  /** Get the provider authorize URL, then redirect the browser to it. */
-  async startConnect(provider: LinkedProvider): Promise<string> {
+  /**
+   * Get the provider authorize URL to send the browser to. When the provider
+   * isn't set up on this site, authUrl is null and message says so.
+   */
+  async startConnect(provider: LinkedProvider): Promise<{ authUrl: string | null; message?: string }> {
     const res = await apiClient.get(`/api/linked-accounts/${provider}/connect`);
-    return unwrap(res)?.authUrl as string;
+    const data = unwrap(res);
+    return {
+      authUrl: typeof data?.authUrl === "string" && data.authUrl ? data.authUrl : null,
+      message: typeof data?.message === "string" ? data.message : undefined,
+    };
   },
 
   async getStatus(): Promise<LinkedStatus> {

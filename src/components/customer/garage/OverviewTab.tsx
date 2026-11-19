@@ -459,7 +459,8 @@ export function OverviewTab() {
             icon: CreditCard,
             label: "Payments Due",
             value: pendingPayments ?? 0,
-            href: "/customer/payments",
+            // Opens Suprah Pay at its "To pay" list.
+            href: "/customer/payments#to-pay",
             ring: "ring-emerald-400/20",
             iconBg: "bg-emerald-500/10",
             iconCl: "text-emerald-500",

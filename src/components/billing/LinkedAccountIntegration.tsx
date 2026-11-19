@@ -119,7 +119,8 @@ interface LinkedCtx {
   connected: boolean;
   refresh: () => Promise<void>;
   sync: () => Promise<void>;
-  connect: (p: LinkedProvider) => Promise<void>;
+  /** Sends the browser to the provider; resolves with a message when it can't. */
+  connect: (p: LinkedProvider) => Promise<string | null>;
   disconnect: (p?: LinkedProvider) => Promise<void>;
 }
 
@@ -173,15 +174,23 @@ export function LinkedAccountProvider({
     }
   }, [refresh]);
 
-  const connect = React.useCallback(async (p: LinkedProvider) => {
+  const connect = React.useCallback(async (p: LinkedProvider): Promise<string | null> => {
     setError(null);
+    let problem: string;
     try {
-      const url = await linkedAccountApi.startConnect(p);
-      if (!url) throw new Error("No authorize URL returned");
-      window.location.href = url; // real OAuth redirect
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Could not start connection");
+      const { authUrl, message } = await linkedAccountApi.startConnect(p);
+      if (authUrl) {
+        window.location.href = authUrl; // real OAuth redirect
+        return null;
+      }
+      // e.g. Wise isn't set up on this site: say so instead of opening a Wise error page.
+      problem = message || "This account can't be linked right now. Please try again later.";
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      problem = err?.response?.data?.message || err?.message || "Could not start connection";
     }
+    setError(problem);
+    return problem;
   }, []);
 
   const disconnect = React.useCallback(async (p?: LinkedProvider) => {
@@ -358,7 +367,7 @@ function ProviderPicker() {
         </div>
 
         {error && (
-          <p style={{ marginTop: 14, fontSize: 13, color: C.danger, background: C.dangerBg,
+          <p role="alert" style={{ marginTop: 14, fontSize: 13, color: C.danger, background: C.dangerBg,
             border: "1px solid rgba(248,113,113,0.28)", borderRadius: 10, padding: "10px 12px" }}>
             {error}
           </p>

@@ -20,9 +20,12 @@ import {
   TrendingUp, Clock, Receipt, Banknote,
 } from "lucide-react";
 import { formatCurrency } from "@/utils/format";
+import { toast } from "sonner";
 import { CashInModal } from "@/components/CashInModal";
-import { ReceiveModal } from "@/components/billing/ReceiveModal";
 import { SendModal } from "@/components/billing/SendModal";
+
+const RECEIVE_IN_DEVELOPMENT_MESSAGE =
+  "Payment links and QR codes aren't ready yet. To collect a payment now, use Request Payment on a lead.";
 
 function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
   const credit = payment.status === "succeeded";
@@ -88,7 +91,7 @@ function BillingDashboardInner() {
   const [pendingCount, setPendingCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [hidden] = React.useState(false);
-  const [activeModal, setActiveModal] = React.useState<"receive" | "send" | "cashin" | null>(null);
+  const [activeModal, setActiveModal] = React.useState<"send" | "cashin" | null>(null);
 
   const userId = authUserId ?? "USR-0000";
 
@@ -224,9 +227,20 @@ function BillingDashboardInner() {
               userName={linked.status?.primary?.profile.fullName ?? "SuprahPay Account"}
               isLoading={balanceLoading}
               stats={stats}
-              onReceive={() => setActiveModal("receive")}
+              onReceive={() =>
+                // There is no payment page or real QR code behind Receive yet,
+                // so it explains that instead of handing out a link that 404s.
+                toast.info("Receive is still in development", {
+                  description: RECEIVE_IN_DEVELOPMENT_MESSAGE,
+                })
+              }
               onSend={() => setActiveModal("send")}
-              onLinkWise={() => linked.connect("wise")}
+              onLinkWise={async () => {
+                // The Link Wise button sits at the top of the page, far from the
+                // Wise panel's own error line, so say it right here as well.
+                const problem = await linked.connect("wise");
+                if (problem) toast.error("Wise can't be linked yet", { description: problem });
+              }}
             />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {metrics.map((m) => (
@@ -304,9 +318,6 @@ function BillingDashboardInner() {
       <style>{`@media (max-width: 820px){.spy-hero-grid{grid-template-columns:1fr !important;}}`}</style>
 
       <CashInModal open={activeModal === "cashin"} onClose={() => setActiveModal(null)} />
-      <ReceiveModal open={activeModal === "receive"} userId={userId}
-        userName={linked.status?.primary?.profile.fullName ?? "SuprahPay Account"}
-        onClose={() => setActiveModal(null)} />
       <SendModal
         open={activeModal === "send"}
         onClose={() => setActiveModal(null)}

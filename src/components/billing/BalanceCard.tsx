@@ -292,7 +292,7 @@ export function BalanceCard({
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <Action icon={ArrowDownLeft} label="Receive" sub="Generate QR" onClick={onReceive} />
+          <Action icon={ArrowDownLeft} label="Receive" sub="In development" onClick={onReceive} />
           <Action icon={Link2} label="Link Wise" sub="Connect account" onClick={onLinkWise} />
           <Action icon={ArrowUpRight} label="Send" sub="Transfer" variant="brand" onClick={onSend} />
         </div>

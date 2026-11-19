@@ -15,6 +15,6 @@ test('every notifications shortcut on Home opens the drawer', () => {
 });
 
 test('the other tiles still open their pages', () => {
-  for (const href of ['/customer/saved', '/customer/payments']) assert.match(home, new RegExp(`href: "${href}"`));
+  for (const href of ['/customer/saved', '/customer/payments']) assert.match(home, new RegExp(`href: "${href}(#[a-z-]+)?"`));
   assert.match(home, /<Link key=\{stat\.label\} href=\{stat\.href\}>/);
 });

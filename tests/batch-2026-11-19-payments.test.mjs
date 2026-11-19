@@ -121,3 +121,39 @@ test('staff payout history fits phones and says why a payout failed', () => {
   assert.match(staffPayouts, /Why it failed: \{p\.failureReason\}/);
   assert.match(staffPayouts, /sm:contents/);
 });
+
+// ── Link Wise says so when Wise isn't set up ────────────────────────────────
+test('Link Wise shows a message instead of opening a Wise error page', () => {
+  const api = read('lib/linkedAccountApi.ts');
+  assert.match(api, /Promise<\{ authUrl: string \| null; message\?: string \}>/);
+  const linked = read('components/billing/LinkedAccountIntegration.tsx');
+  assert.match(linked, /connect: \(p: LinkedProvider\) => Promise<string \| null>/);
+  assert.match(linked, /if \(authUrl\) \{\n\s+window\.location\.href = authUrl;/);
+  assert.match(linked, /<p role="alert"/);
+  const wallet = read('app/(dashboard)/billing/page.tsx');
+  assert.match(wallet, /const problem = await linked\.connect\("wise"\);\n\s+if \(problem\) toast\.error\("Wise can't be linked yet", \{ description: problem \}\);/);
+});
+
+test("the website no longer carries a Wise client pointing at Wise's retired test site", () => {
+  assert.equal(fs.existsSync(fileURLToPath(new URL('../src/lib/wise-client.ts', import.meta.url))), false);
+});
+
+// ── Receive is "still in development" until the real payment page exists ────
+test('Receive explains it is in development instead of showing a link that 404s', () => {
+  const wallet = read('app/(dashboard)/billing/page.tsx');
+  assert.match(wallet, /toast\.info\("Receive is still in development", \{\n\s+description: RECEIVE_IN_DEVELOPMENT_MESSAGE,/);
+  assert.match(wallet, /use Request Payment on a lead\./);
+  assert.doesNotMatch(wallet, /ReceiveModal|"receive"/);
+  assert.equal(fs.existsSync(fileURLToPath(new URL('../src/components/billing/ReceiveModal.tsx', import.meta.url))), false);
+  assert.match(read('components/billing/BalanceCard.tsx'), /label="Receive" sub="In development"/);
+});
+
+// ── Payments Due opens Suprah Pay at "To pay" ───────────────────────────────
+test('Payments Due opens Suprah Pay scrolled to the "To pay" list', () => {
+  assert.match(read('components/customer/garage/OverviewTab.tsx'), /href: "\/customer\/payments#to-pay"/);
+  const page = read('app/(customer)/customer/payments/page.tsx');
+  assert.match(page, /<section id="to-pay" ref=\{toPayRef\} aria-labelledby="to-pay-heading"/);
+  assert.match(page, /<p id="to-pay-heading" tabIndex=\{-1\}/);
+  assert.match(page, /window\.location\.hash !== "#to-pay"/);
+  assert.match(page, /prefers-reduced-motion: reduce/);
+});
