@@ -7,6 +7,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import type { Socket } from 'socket.io-client';
 import { initializeSocket, onSocketChange } from '@/lib/socket.client';
 import { dismissDeviceNotifications } from '@/lib/web-push-subscription';
+import { createNotificationRefreshController, rememberNotificationId } from '@/lib/notification-refresh';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -51,12 +52,14 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
     const [totalCount, setTotalCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const seenIdsRef = useRef(new Set<string>());
+    const fetchSeqRef = useRef(0);
     const backoffRef = useRef(POLL_INTERVAL);
     const fetchRef = useRef<((options?: FetchNotificationsOptions) => Promise<void>) | undefined>(undefined);
     const activeFetchOptionsRef = useRef<FetchNotificationsOptions>(DEFAULT_FETCH_OPTIONS);
     const crmToken = useCrmToken();
-    const { getToken, isLoaded, isSignedIn } = useAuth();
+    const { getToken, isLoaded, isSignedIn, userId, orgId } = useAuth();
+    const accountRef = useRef({ userId, orgId });
 
     const fetchNotifications = useCallback(async (options?: FetchNotificationsOptions) => {
         const nextOptions: FetchNotificationsOptions = { ...activeFetchOptionsRef.current };
@@ -66,6 +69,7 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
         if (options?.isRead !== undefined) nextOptions.isRead = options.isRead;
 
         activeFetchOptionsRef.current = nextOptions;
+        const seq = ++fetchSeqRef.current;
 
         if (!crmToken) {
             setIsLoading(false);
@@ -89,10 +93,13 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
                 },
             });
 
+            if (seq !== fetchSeqRef.current) return;
             if (res.ok) {
                 const data = await res.json();
+                if (seq !== fetchSeqRef.current) return;
                 const payload = data?.data ?? {};
                 const nextNotifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+                nextNotifications.slice(0, 1000).forEach((notice: Notification) => rememberNotificationId(seenIdsRef.current, notice._id));
                 const nextUnreadCount = typeof payload.unreadCount === 'number'
                     ? payload.unreadCount
                     : nextNotifications.filter((n: Notification) => !n.isRead).length;
@@ -116,10 +123,11 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
                 throw new Error(`HTTP ${res.status}`);
             }
         } catch {
+            if (seq !== fetchSeqRef.current) return;
             setError('Failed to load CRM notifications');
             backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF);
         } finally {
-            setIsLoading(false);
+            if (seq === fetchSeqRef.current) setIsLoading(false);
         }
     }, [crmToken]);
 
@@ -220,7 +228,18 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
     }, [notifications, unreadCount, totalCount, crmToken]);
 
     useEffect(() => {
-        if (!crmToken) {
+        const invalidateFetch = () => { ++fetchSeqRef.current; };
+        invalidateFetch();
+        seenIdsRef.current.clear();
+        if (accountRef.current.userId !== userId || accountRef.current.orgId !== orgId) {
+            accountRef.current = { userId, orgId };
+            setNotifications([]);
+            setUnreadCount(0);
+            setTotalCount(0);
+            setError(null);
+            backoffRef.current = POLL_INTERVAL;
+        }
+        if (!crmToken || !isLoaded || !isSignedIn) {
             setNotifications([]);
             setUnreadCount(0);
             setTotalCount(0);
@@ -229,30 +248,22 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
             return;
         }
 
-        void fetchNotifications(DEFAULT_FETCH_OPTIONS);
-
-        const startPolling = () => {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = setInterval(() => fetchRef.current?.(), backoffRef.current);
-        };
-
-        const stopPolling = () => {
-            if (pollRef.current) {
-                clearInterval(pollRef.current);
-                pollRef.current = null;
-            }
-        };
+        activeFetchOptionsRef.current = DEFAULT_FETCH_OPTIONS;
+        const refreshController = createNotificationRefreshController({
+            refresh: async () => { await fetchRef.current?.(); },
+            getDelay: () => backoffRef.current,
+            isVisible: () => !document.hidden,
+        });
 
         const onVisibilityChange = () => {
             if (document.hidden) {
-                stopPolling();
+                refreshController.pause();
             } else {
-                fetchRef.current?.();
-                startPolling();
+                refreshController.resume();
             }
         };
 
-        startPolling();
+        refreshController.resume();
         document.addEventListener('visibilitychange', onVisibilityChange);
 
         const cleanups: Array<() => void> = [];
@@ -266,10 +277,12 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
             const socket = initializeSocket(token);
 
             const reconcile = () => {
-                fetchRef.current?.();
+                ++fetchSeqRef.current;
+                refreshController.request();
             };
 
             const onNew = (notification: Notification) => {
+                if (!rememberNotificationId(seenIdsRef.current, notification._id)) return;
                 setNotifications(prev => {
                     if (prev.some(n => n._id === notification._id)) return prev;
                     return [notification, ...prev];
@@ -360,11 +373,12 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
 
         return () => {
             cancelled = true;
-            stopPolling();
+            invalidateFetch();
+            refreshController.dispose();
             document.removeEventListener('visibilitychange', onVisibilityChange);
             cleanups.forEach(fn => fn());
         };
-    }, [crmToken, fetchNotifications, getToken, isLoaded, isSignedIn]);
+    }, [crmToken, fetchNotifications, getToken, isLoaded, isSignedIn, userId, orgId]);
 
     return (
         <CrmNotificationContext.Provider

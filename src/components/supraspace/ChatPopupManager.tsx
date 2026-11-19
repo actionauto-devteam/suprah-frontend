@@ -1150,7 +1150,14 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string, mention
 
 }
 
-function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly string[] = []): React.ReactNode {
+const PopupMessageContent = React.memo(function PopupMessageContent({ content, type, isOwn, mentionAliases }: Pick<SSMessage, 'content' | 'type'> & {
+  isOwn: boolean;
+  mentionAliases: readonly string[];
+}) {
+  return renderContent({ content, type }, isOwn, mentionAliases);
+});
+
+function renderContent(msg: Pick<SSMessage, 'content' | 'type'>, isOwn: boolean, mentionAliases: readonly string[] = []): React.ReactNode {
   const label = msg.type === 'voice' || msg.type === 'poll' || msg.type === 'event' ? MEDIA_LABELS[msg.type] : undefined;
   if (label) return label;
 
@@ -5842,6 +5849,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   // ── Seen avatars — supplement stale conv.members with fresh sender data from messages ──
+  const visibleMessages = React.useMemo(() => messages.filter(message => !message.isDeleted), [messages]);
   const msgSeenByMembers = React.useMemo(() => {
     const freshAvatar: Record<string, string | undefined> = {};
     const freshName: Record<string, string | undefined> = {};
@@ -7121,8 +7129,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   )}
                 </div>
               ) : (
-                messages.map((msg, idx) => {
-                  if (msg.isDeleted) return null;
+                visibleMessages.map((msg, idx) => {
                   if (msg.type === 'system') {
                     const isPinActivity = msg.metadata?.activityType === 'message_pinned' || msg.metadata?.activityType === 'message_unpinned';
                     return (
@@ -7145,8 +7152,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     );
                   }
                   const isOwn = msg.sender?._id === crmUserId;
-                  const prevVisible = messages.slice(0, idx).findLast(m => !m.isDeleted);
-                  const nextVisible = messages.slice(idx + 1).find(m => !m.isDeleted) || null;
+                  const prevVisible = visibleMessages[idx - 1] || null;
+                  const nextVisible = visibleMessages[idx + 1] || null;
                   const showName = !isOwn && (!prevVisible || prevVisible.sender?._id !== msg.sender?._id);
                   const hideTime = !!(nextVisible
                     && nextVisible.sender?._id === msg.sender?._id
@@ -7712,7 +7719,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <PopupEventCard event={msg.event} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onRsvp={(r) => handleRsvpEvent(msg._id, r)} />
                             ) : emojiOnly
                               ? <span className="block text-[32px] leading-none">{msg.content}</span>
-                              : msg.content ? renderContent(msg, isOwn, mentionAliases) : null}
+                              : msg.content ? <PopupMessageContent content={msg.content} type={msg.type} isOwn={isOwn} mentionAliases={mentionAliases} /> : null}
                             {videoAttachments.length > 0 && (
                               <div className="flex flex-col gap-1.5 mt-1">
                                 {videoAttachments.map((a: SSAttachment, i: number) => (
