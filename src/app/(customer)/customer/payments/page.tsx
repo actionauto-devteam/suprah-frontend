@@ -21,6 +21,7 @@ import { apiClient } from "@/lib/api-client";
 import { fmtDateMDT } from "@/lib/timezone";
 import { useAlert } from "@/components/AlertDialog";
 import { userErrorMessage } from "@/lib/user-error";
+import { isPartlyRefunded, refundedSoFar } from "@/lib/payment-refunds";
 
 // --- Types --------------------------------------------------------------------
 
@@ -46,6 +47,8 @@ interface PaymentInvoice {
   dueDate?: string;
   paidAt?: string;
   receiptUrl?: string;
+  /** Refunded so far; a partly refunded invoice stays "succeeded". */
+  refundedAmount?: number;
   createdAt: string;
   aftermarketProductId?: { name?: string; media?: { url?: string } } | string;
 }
@@ -145,6 +148,9 @@ function InvoiceCard({
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground/60 font-mono">Total</p>
           <p className="text-lg font-bold tabular-nums font-mono">{money(inv.amount)}</p>
+          {isPartlyRefunded(inv) && (
+            <p className="text-xs text-muted-foreground">{money(refundedSoFar(inv))} refunded to you</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {inv.receiptUrl && inv.status === "succeeded" && (

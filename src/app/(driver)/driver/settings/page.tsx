@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Settings, Bell, MapPin, Moon, Wallet, CheckCircle2, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
-import { StripeConnectStatus } from "@/types/driver-payout";
+import { StripeConnectStatus, payoutAccountReady } from "@/types/driver-payout";
 import { userErrorMessage } from "@/lib/user-error";
 import { DriverPhoneTrackingCard } from "@/components/driver/DriverPhoneTrackingCard";
 
@@ -82,6 +82,11 @@ export default function DriverSettingsPage() {
       window.history.replaceState({}, "", "/driver/settings");
     }
   }, [getToken]);
+
+  const payoutReady = payoutAccountReady(connectStatus);
+  // Details sent and nothing missing: Stripe is still checking them.
+  const stripeChecking =
+    !payoutReady && connectStatus?.detailsSubmitted === true && connectStatus.needsMoreInfo === false;
 
   return (
     <div className="driver-page p-4 sm:p-6 space-y-6 max-w-2xl">
@@ -164,7 +169,7 @@ export default function DriverSettingsPage() {
               <Wallet className="size-4" />
               Stripe Payout Account
             </CardTitle>
-            {!connectLoading && connectStatus?.connected && connectStatus.chargesEnabled && (
+            {!connectLoading && payoutReady && (
               <Badge className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800" variant="outline">
                 <CheckCircle2 className="size-3 mr-1" />
                 Connected
@@ -183,7 +188,7 @@ export default function DriverSettingsPage() {
             </div>
           ) : connectStatus?.connected ? (
             <div className="space-y-3">
-              {connectStatus.chargesEnabled && connectStatus.payoutsEnabled ? (
+              {payoutReady ? (
                 <div className="flex items-start gap-3 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950">
                   <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                   <div>
@@ -197,9 +202,13 @@ export default function DriverSettingsPage() {
                 <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950">
                   <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Account setup incomplete</p>
-                    <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-0.5">
-                      Your Stripe account needs more information before payouts can be received.
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      {stripeChecking ? "Stripe is checking your details" : "Account setup incomplete"}
+                    </p>
+                    <p className="text-xs text-amber-700/90 dark:text-amber-300/90 mt-0.5">
+                      {stripeChecking
+                        ? "This usually takes a day or two. You can receive payouts as soon as Stripe finishes."
+                        : "Stripe needs more information before you can receive payouts. Tap Complete Setup to finish."}
                     </p>
                   </div>
                 </div>
@@ -216,7 +225,7 @@ export default function DriverSettingsPage() {
                 ) : (
                   <ExternalLink className="size-4 mr-2" />
                 )}
-                {connectStatus.detailsSubmitted ? "Manage Stripe Account" : "Complete Setup"}
+                {payoutReady || stripeChecking ? "Manage Stripe Account" : "Complete Setup"}
               </Button>
               {onboardError && <StripeErrorBox message={onboardError} />}
             </div>

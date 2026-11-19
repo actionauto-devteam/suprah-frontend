@@ -70,4 +70,21 @@ export interface StripeConnectStatus {
   detailsSubmitted?: boolean;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
+  /** Stripe can send transfers to this account. */
+  transfersActive?: boolean;
+  /** Ready to receive payouts (driver accounts never charge cards). */
+  ready?: boolean;
+  /** Stripe is waiting on the driver for more information. */
+  needsMoreInfo?: boolean;
+}
+
+/**
+ * Whether a payout account can receive payouts (2026-11-19). Uses the
+ * server's answer, and on an older server falls back to bank payouts being
+ * on: card charges stay off for driver accounts, so they must not count.
+ */
+export function payoutAccountReady(status: StripeConnectStatus | null | undefined): boolean {
+  if (!status?.connected) return false;
+  if (typeof status.ready === "boolean") return status.ready;
+  return status.detailsSubmitted === true && status.payoutsEnabled === true;
 }

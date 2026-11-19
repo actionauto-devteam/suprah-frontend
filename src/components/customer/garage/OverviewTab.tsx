@@ -67,13 +67,15 @@ export function OverviewTab() {
     },
   });
 
+  // Only this customer's own unpaid invoices (2026-11-19). It used to read the
+  // dealership's staff payment list, which counted every customer's invoices.
   const { data: pendingPayments } = useQuery({
-    queryKey: ["payments", "pending-count"],
+    queryKey: ["payments", "mine", "pending-count"],
     queryFn: async () => {
       try {
-        const res = await apiClient.get("/api/payments", { params: { status: "pending", limit: 1 } });
+        const res = await apiClient.get("/api/payments/my-payments");
         const d = res.data?.data || res.data;
-        return d?.pagination?.total ?? (Array.isArray(d?.invoices) ? d.invoices.length : 0);
+        return Number(d?.stats?.pendingCount) || 0;
       } catch { return 0; }
     },
   });

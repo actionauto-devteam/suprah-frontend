@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { Payment, PaymentStats } from "@/types/billing";
 import { formatCurrency } from "@/utils/format";
+import { isPartlyRefunded, notRefunded, refundedSoFar } from "@/lib/payment-refunds";
 import {
   ChartConfig,
   ChartContainer,
@@ -149,7 +150,7 @@ function useToast() {
   return { toasts, push, dismiss };
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, partlyRefunded = false }: { status: string; partlyRefunded?: boolean }) {
   const map: Record<string, { c: string; bg: string }> = {
     succeeded: { c: "#16A34A", bg: "rgba(34,197,94,0.18)" },
     pending: { c: "#CA8A04", bg: "rgba(250,204,21,0.24)" },
@@ -159,7 +160,9 @@ function StatusBadge({ status }: { status: string }) {
     refunded: { c: "#64748B", bg: "rgba(148,163,184,0.2)" },
   };
 
-  const cfg = map[status] ?? map.cancelled;
+  // A partly refunded payment is still paid; it says how it differs.
+  const cfg = partlyRefunded ? map.refunded : (map[status] ?? map.cancelled);
+  const label = partlyRefunded ? "Partly refunded" : status.charAt(0).toUpperCase() + status.slice(1);
 
   return (
     <span
@@ -176,7 +179,7 @@ function StatusBadge({ status }: { status: string }) {
         lineHeight: 1,
       }}
     >
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {label}
     </span>
   );
 }
@@ -223,6 +226,10 @@ function DetailDrawer({
     null,
   );
   const [closeHovered, setCloseHovered] = React.useState(false);
+  // Refunds ask first (2026-11-19): one click used to refund the whole payment.
+  const [confirmRefund, setConfirmRefund] = React.useState(false);
+  const refunded = refundedSoFar(payment);
+  const refundable = notRefunded(payment);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -314,6 +321,14 @@ function DetailDrawer({
       : []),
     ...(payment.paidAt
       ? [{ label: "Paid at", val: new Date(payment.paidAt).toLocaleString() }]
+      : []),
+    ...(refunded > 0
+      ? [{
+          label: "Refunded",
+          val: `${formatCurrency(refunded)} of ${formatCurrency(payment.amount)}${
+            payment.refundedAt ? ` on ${new Date(payment.refundedAt).toLocaleDateString()}` : ""
+          }`,
+        }]
       : []),
     ...(payment.paymentMethod ? [{ label: "Method", val: payment.paymentMethod }] : []),
     ...(payment.failureReason ? [{ label: "Failure reason", val: payment.failureReason }] : []),
@@ -440,7 +455,7 @@ function DetailDrawer({
             >
               {formatCurrency(payment.amount)}
             </p>
-            <StatusBadge status={payment.status} />
+            <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} />
           </div>
         </div>
 
@@ -590,18 +605,92 @@ function DetailDrawer({
             </button>
           )}
 
-          {payment.status === "succeeded" && (
+          {refundable > 0 && confirmRefund && (
+            <div
+              role="alertdialog"
+              aria-labelledby="refund-confirm-title"
+              aria-describedby="refund-confirm-text"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                padding: 12,
+                background: T.redBg,
+                border: `0.5px solid ${T.red}`,
+                borderRadius: 10,
+              }}
+            >
+              <p
+                id="refund-confirm-title"
+                style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.text, overflowWrap: "anywhere" }}
+              >
+                Refund {formatCurrency(refundable)} to {payment.customerName}?
+              </p>
+              <p id="refund-confirm-text" style={{ margin: 0, fontSize: 12, color: T.textSub, lineHeight: 1.45 }}>
+                The money goes back to the customer the way they paid. This can&apos;t be undone.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    action("Refund", async () => {
+                      const headers = await authHeaders();
+                      await apiClient.post(`/api/payments/${payment._id}/refund`, {}, { headers });
+                    })
+                  }
+                  disabled={!!loading}
+                  style={{
+                    flex: "1 1 auto",
+                    minHeight: 44,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 7,
+                    padding: "10px 14px",
+                    background: "#DC2626",
+                    border: "none",
+                    borderRadius: 10,
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading === "Refund" ? 0.62 : 1,
+                  }}
+                >
+                  {loading === "Refund" ? (
+                    <Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <RotateCcw style={{ width: 13, height: 13 }} />
+                  )}
+                  Refund {formatCurrency(refundable)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRefund(false)}
+                  disabled={loading === "Refund"}
+                  style={{
+                    flex: "1 1 auto",
+                    minHeight: 44,
+                    padding: "10px 14px",
+                    background: T.surface,
+                    border: `0.5px solid ${T.borderHi}`,
+                    borderRadius: 10,
+                    color: T.text,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: loading === "Refund" ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Keep payment
+                </button>
+              </div>
+            </div>
+          )}
+
+          {refundable > 0 && !confirmRefund && (
             <button
-              onClick={() =>
-                action("Refund", async () => {
-                  const headers = await authHeaders();
-                  await apiClient.post(
-                    `/api/payments/${payment._id}/refund`,
-                    {},
-                    { headers },
-                  );
-                })
-              }
+              type="button"
+              onClick={() => setConfirmRefund(true)}
               disabled={!!loading}
               onMouseEnter={() => setHoveredAction("refund")}
               onMouseLeave={() => setHoveredAction(null)}
@@ -622,18 +711,8 @@ function DetailDrawer({
                 transition: "background 120ms ease, color 120ms ease",
               }}
             >
-              {loading === "Refund" ? (
-                <Loader2
-                  style={{
-                    width: 13,
-                    height: 13,
-                    animation: "spin 1s linear infinite",
-                  }}
-                />
-              ) : (
-                <RotateCcw style={{ width: 13, height: 13 }} />
-              )}
-              Refund payment
+              <RotateCcw style={{ width: 13, height: 13 }} />
+              {refunded > 0 ? `Refund the rest (${formatCurrency(refundable)})` : "Refund payment"}
             </button>
           )}
 
@@ -772,7 +851,7 @@ function PaymentRow({
         {formatCurrency(payment.amount)}
       </p>
 
-      <StatusBadge status={payment.status} />
+      <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} />
 
       <p
         style={{
@@ -1701,6 +1780,7 @@ export default function PaymentsPage() {
 
       {selected && (
         <DetailDrawer
+          key={selected._id}
           payment={selected}
           onClose={() => setSelected(null)}
           onRefresh={fetchData}
