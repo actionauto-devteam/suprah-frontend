@@ -307,6 +307,20 @@ function PaymentsView() {
   const outstanding = payments.filter((p) => p.status === "pending" || p.status === "failed" || p.status === "processing");
   const history = payments.filter((p) => !(p.status === "pending" || p.status === "failed" || p.status === "processing"));
 
+  // Coming from My Garage's "Payments Due" (#to-pay): once the invoices have
+  // loaded, bring the "To pay" list into view and move focus to its heading.
+  const toPayRef = React.useRef<HTMLElement>(null);
+  const jumpedToPay = React.useRef(false);
+  React.useEffect(() => {
+    if (jumpedToPay.current || isLoading || window.location.hash !== "#to-pay") return;
+    const section = toPayRef.current;
+    if (!section) return;
+    jumpedToPay.current = true;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    section.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    section.querySelector<HTMLElement>("#to-pay-heading")?.focus({ preventScroll: true });
+  }, [isLoading, outstanding.length]);
+
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-5">
@@ -357,8 +371,8 @@ function PaymentsView() {
       ) : (
         <div className="space-y-6">
           {outstanding.length > 0 && (
-            <section className="space-y-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
+            <section id="to-pay" ref={toPayRef} aria-labelledby="to-pay-heading" className="space-y-3 scroll-mt-4">
+              <p id="to-pay-heading" tabIndex={-1} className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">
                 To pay · {outstanding.length}
               </p>
               {outstanding.map((inv) => (

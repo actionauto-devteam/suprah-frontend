@@ -147,3 +147,13 @@ test('Receive explains it is in development instead of showing a link that 404s'
   assert.equal(fs.existsSync(fileURLToPath(new URL('../src/components/billing/ReceiveModal.tsx', import.meta.url))), false);
   assert.match(read('components/billing/BalanceCard.tsx'), /label="Receive" sub="In development"/);
 });
+
+// ── Payments Due opens Suprah Pay at "To pay" ───────────────────────────────
+test('Payments Due opens Suprah Pay scrolled to the "To pay" list', () => {
+  assert.match(read('components/customer/garage/OverviewTab.tsx'), /href: "\/customer\/payments#to-pay"/);
+  const page = read('app/(customer)/customer/payments/page.tsx');
+  assert.match(page, /<section id="to-pay" ref=\{toPayRef\} aria-labelledby="to-pay-heading"/);
+  assert.match(page, /<p id="to-pay-heading" tabIndex=\{-1\}/);
+  assert.match(page, /window\.location\.hash !== "#to-pay"/);
+  assert.match(page, /prefers-reduced-motion: reduce/);
+});
