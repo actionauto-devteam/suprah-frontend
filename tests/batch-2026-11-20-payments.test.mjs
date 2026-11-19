@@ -58,3 +58,25 @@ test('Payments, the CRM dashboard and billing reports show and count disputes', 
   const reports = read('components/reports/finance/shared/billing-report-utils.ts');
   assert.match(reports, /sum \+ keptAmount\(\{ \.\.\.payment, status: "succeeded" \}\)/);
 });
+
+// ── SuprahPay wallet: says where its numbers come from; Wise in development ──
+test('the wallet card says where each number comes from', () => {
+  const card = read('components/billing/BalanceCard.tsx');
+  assert.match(card, /label: "Card payments received"/);
+  assert.match(card, /label: "Pending invoices", value: String\(/);
+  assert.match(card, /\{balanceNote && \(/);
+  assert.match(card, /label="Link Wise" sub=\{wiseInDevelopment \? "In development" : "Connect account"\}/);
+  assert.match(card, /label="Send" sub=\{wiseInDevelopment \? "In development" : "Transfer"\}/);
+});
+
+test('Link Wise and Send say they are in development while the wallet moves to Stripe', () => {
+  const wallet = read('app/(dashboard)/billing/page.tsx');
+  assert.match(wallet, /const WALLET_WISE_ENABLED = false;/);
+  assert.match(wallet, /toast\.info\("Send is still in development"/);
+  assert.match(wallet, /toast\.info\("Link Wise is still in development"/);
+  assert.match(wallet, /linked\.connected \? "From your linked Wise account" : "The wallet balance is still in development"/);
+  assert.match(wallet, /<LinkedAccountPanel style=\{\{ marginBottom: 0 \}\} inDevelopment=\{!WALLET_WISE_ENABLED\} \/>/);
+  const panel = read('components/billing/LinkedAccountIntegration.tsx');
+  assert.match(panel, /disabled=\{busy \|\| inDevelopment\}/);
+  assert.match(panel, /Linking Wise is still in development/);
+});

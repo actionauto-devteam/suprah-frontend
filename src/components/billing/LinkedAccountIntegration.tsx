@@ -301,7 +301,7 @@ function Banner({ type, text, onClose }: { type: "success" | "error"; text: stri
 }
 
 /* ── Connect Wise (disconnected state) ────────────────────────────────────── */
-function ProviderPicker() {
+function ProviderPicker({ inDevelopment = false }: { inDevelopment?: boolean }) {
   const { connect, error, banner, clearBanner } = useLinkedAccount();
   const [busy, setBusy] = React.useState(false);
 
@@ -360,11 +360,17 @@ function ProviderPicker() {
             </div>
           </div>
           <div className="la-connect-cta" style={{ flex: "0 0 auto" }}>
-            <GreenButton onClick={handle} disabled={busy}>
+            <GreenButton onClick={handle} disabled={busy || inDevelopment}>
               {busy ? (<><Spinner size={15} color="#06130C" /> Redirecting…</>) : (<>Connect Wise</>)}
             </GreenButton>
           </div>
         </div>
+
+        {inDevelopment && (
+          <p style={{ marginTop: 14, fontSize: 13, color: C.textSub, lineHeight: 1.5 }}>
+            Linking Wise is still in development: the SuprahPay wallet is moving to Stripe.
+          </p>
+        )}
 
         {error && (
           <p role="alert" style={{ marginTop: 14, fontSize: 13, color: C.danger, background: C.dangerBg,
@@ -607,7 +613,14 @@ function ConnectedCard() {
 }
 
 /* ── Public panel ─────────────────────────────────────────────────────────── */
-export function LinkedAccountPanel({ style }: { style?: React.CSSProperties }) {
+export function LinkedAccountPanel({
+  style,
+  inDevelopment = false,
+}: {
+  style?: React.CSSProperties;
+  /** Linking Wise is switched off (2026-11-20: the wallet uses Stripe). */
+  inDevelopment?: boolean;
+}) {
   const { loading, connected, status } = useLinkedAccount();
 
   if (loading && !status) {
@@ -622,7 +635,7 @@ export function LinkedAccountPanel({ style }: { style?: React.CSSProperties }) {
 
   return (
     <div style={style}>
-      {connected ? <ConnectedCard /> : <ProviderPicker />}
+      {connected ? <ConnectedCard /> : <ProviderPicker inDevelopment={inDevelopment} />}
     </div>
   );
 }
