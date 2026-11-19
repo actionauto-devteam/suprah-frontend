@@ -157,3 +157,21 @@ test('Payments Due opens Suprah Pay scrolled to the "To pay" list', () => {
   assert.match(page, /window\.location\.hash !== "#to-pay"/);
   assert.match(page, /prefers-reduced-motion: reduce/);
 });
+
+// ── CRM dashboard: refunded payments ───────────────────────────────────────
+const revenueCards = read('app/(dashboard)/components/RevenueIntelligence.tsx');
+
+test('the live payments list labels every status, including partly refunded', () => {
+  assert.match(revenueCards, /if \(isPartlyRefunded\(payment\)\) return \{ label: "Partly refunded"/);
+  for (const label of ['Paid', 'Processing', 'Pending', 'Failed', 'Refunded', 'Cancelled']) {
+    assert.match(revenueCards, new RegExp(`label: "${label}"`), label);
+  }
+  // Pending, refunded and cancelled payments no longer fall through to "Failed".
+  assert.doesNotMatch(revenueCards, /: "Failed"\}/);
+});
+
+test('the revenue cards wrap long text and have nothing under 11px', () => {
+  assert.doesNotMatch(revenueCards, /\btruncate\b/);
+  assert.doesNotMatch(revenueCards, /text-\[(7|8|9|10)px\]/);
+  assert.doesNotMatch(revenueCards, /fontSize: (7|8|9|10),/);
+});
