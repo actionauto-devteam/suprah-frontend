@@ -6,7 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { Payment, PaymentStats } from "@/types/billing";
 import { formatCurrency } from "@/utils/format";
-import { isPartlyRefunded, notRefunded, refundedSoFar, revenueTrend } from "@/lib/payment-refunds";
+import { disputeLabel, isPartlyRefunded, notRefunded, refundedSoFar, revenueTrend } from "@/lib/payment-refunds";
 import {
   ChartConfig,
   ChartContainer,
@@ -157,7 +157,26 @@ function useToast() {
   return { toasts, push, dismiss };
 }
 
-function StatusBadge({ status, partlyRefunded = false }: { status: string; partlyRefunded?: boolean }) {
+/** What the payment details say about a card dispute (2026-11-20). */
+function disputeText(payment: Payment): string {
+  const amount = formatCurrency(payment.disputedAmount ?? payment.amount);
+  const opened = payment.disputedAt ? ` on ${new Date(payment.disputedAt).toLocaleDateString()}` : "";
+  if (payment.disputeStatus === "lost") {
+    return `Lost: ${amount} went back to the customer and no longer counts in revenue.`;
+  }
+  if (payment.disputeStatus === "won") return `Won: the bank decided in your favour, so the ${amount} stays.`;
+  return `The customer disputed ${amount} with their bank${opened}. It still counts in revenue while the bank reviews it.`;
+}
+
+function StatusBadge({
+  status,
+  partlyRefunded = false,
+  dispute = null,
+}: {
+  status: string;
+  partlyRefunded?: boolean;
+  dispute?: "Disputed" | "Dispute lost" | null;
+}) {
   const map: Record<string, { c: string; bg: string }> = {
     succeeded: { c: "#16A34A", bg: "rgba(34,197,94,0.18)" },
     pending: { c: "#CA8A04", bg: "rgba(250,204,21,0.24)" },
@@ -167,9 +186,16 @@ function StatusBadge({ status, partlyRefunded = false }: { status: string; partl
     refunded: { c: "#64748B", bg: "rgba(148,163,184,0.2)" },
   };
 
-  // A partly refunded payment is still paid; it says how it differs.
-  const cfg = partlyRefunded ? map.refunded : (map[status] ?? map.cancelled);
-  const label = partlyRefunded ? "Partly refunded" : status.charAt(0).toUpperCase() + status.slice(1);
+  // A disputed or partly refunded payment is still paid; it says how it differs.
+  let cfg = map[status] ?? map.cancelled;
+  let label = status.charAt(0).toUpperCase() + status.slice(1);
+  if (dispute) {
+    cfg = dispute === "Disputed" ? map.pending : map.failed;
+    label = dispute;
+  } else if (partlyRefunded) {
+    cfg = map.refunded;
+    label = "Partly refunded";
+  }
 
   return (
     <span
@@ -236,7 +262,8 @@ function DetailDrawer({
   // Refunds ask first (2026-11-19): one click used to refund the whole payment.
   const [confirmRefund, setConfirmRefund] = React.useState(false);
   const refunded = refundedSoFar(payment);
-  const refundable = notRefunded(payment);
+  // A disputed payment can't be refunded here: the bank's decision settles it.
+  const refundable = disputeLabel(payment) ? 0 : notRefunded(payment);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -337,6 +364,7 @@ function DetailDrawer({
           }`,
         }]
       : []),
+    ...(payment.disputeStatus ? [{ label: "Dispute", val: disputeText(payment) }] : []),
     ...(payment.paymentMethod ? [{ label: "Method", val: payment.paymentMethod }] : []),
     ...(payment.failureReason ? [{ label: "Failure reason", val: payment.failureReason }] : []),
     ...(payment.notes ? [{ label: "Notes", val: payment.notes }] : []),
@@ -464,7 +492,7 @@ function DetailDrawer({
             >
               {formatCurrency(payment.amount)}
             </p>
-            <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} />
+            <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} dispute={disputeLabel(payment)} />
           </div>
         </div>
 
@@ -868,7 +896,7 @@ function PaymentRow({
       </span>
 
       <span className={CELL.status}>
-        <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} />
+        <StatusBadge status={payment.status} partlyRefunded={isPartlyRefunded(payment)} dispute={disputeLabel(payment)} />
       </span>
 
       <span

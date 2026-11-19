@@ -76,11 +76,13 @@ test('the Refund button only opens a confirmation; the refund is sent from it', 
 });
 
 test('partly refunded payments are labelled and counted as such', () => {
-  assert.match(staffPayments, /partlyRefunded \? "Partly refunded"/);
+  // Since 2026-11-20 a dispute label comes first, then "Partly refunded".
+  assert.match(staffPayments, /else if \(partlyRefunded\) \{\n\s+cfg = map\.refunded;\n\s+label = "Partly refunded";/);
   assert.equal((staffPayments.match(/partlyRefunded=\{isPartlyRefunded\(payment\)\}/g) || []).length, 2);
   assert.match(staffPayments, /label: "Refunded",/);
   assert.match(customerPayments, /refunded to you/);
-  assert.match(billingReport, /notRefunded\(\{ \.\.\.payment, status: "succeeded" \}\)/);
+  // Since 2026-11-20 revenue is the money kept (a lost dispute is left out too).
+  assert.match(billingReport, /keptAmount\(\{ \.\.\.payment, status: "succeeded" \}\)/);
   assert.match(billingReport, /refundedSoFar\(\{ \.\.\.payment, status: normalizeStatus\(payment\.status\) \}\)/);
 });
 

@@ -28,6 +28,33 @@ export function isPartlyRefunded(payment: RefundablePayment): boolean {
 }
 
 /**
+ * Card disputes (chargebacks), 2026-11-20: a disputed payment keeps counting
+ * while the bank reviews it; a dispute the dealership lost is left out like a
+ * refund. Matches the server's revenue totals.
+ */
+type DisputablePayment = RefundablePayment & {
+  disputeStatus?: "open" | "won" | "lost" | string | null;
+  disputedAmount?: number | null;
+};
+
+/** Money lost to a dispute the dealership lost (0 while open or if won). */
+export function lostToDispute(payment: DisputablePayment): number {
+  return payment.disputeStatus === "lost" ? cents(Number(payment.disputedAmount) || 0) : 0;
+}
+
+/** Money a paid payment kept: not refunded and not lost to a dispute. */
+export function keptAmount(payment: DisputablePayment): number {
+  return Math.max(0, cents(notRefunded(payment) - lostToDispute(payment)));
+}
+
+/** A short label for a dispute that matters on screen, or null. */
+export function disputeLabel(payment: DisputablePayment): "Disputed" | "Dispute lost" | null {
+  if (payment.disputeStatus === "open") return "Disputed";
+  if (payment.disputeStatus === "lost") return "Dispute lost";
+  return null;
+}
+
+/**
  * The Payments page's Revenue Trend: the last 6 months (UTC, like the
  * server's totals), oldest first, with the money kept in each. Months the
  * server didn't send count as 0.

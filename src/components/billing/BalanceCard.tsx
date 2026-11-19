@@ -23,6 +23,10 @@ interface BalanceCardProps {
   onReceive: () => void;
   onSend: () => void;
   onLinkWise: () => void;
+  /** One line under the balance saying where it comes from. */
+  balanceNote?: string;
+  /** Link Wise and Send are still in development (2026-11-20: the wallet uses Stripe). */
+  wiseInDevelopment?: boolean;
 }
 
 function Action({
@@ -47,7 +51,7 @@ function Action({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        flex: 1,
+        flex: "1 1 136px",
         minWidth: 0,
         display: "flex",
         alignItems: "center",
@@ -116,6 +120,8 @@ export function BalanceCard({
   onReceive,
   onSend,
   onLinkWise,
+  balanceNote,
+  wiseInDevelopment = false,
 }: BalanceCardProps) {
   const [visible, setVisible] = React.useState<boolean>(() => {
     if (typeof window === "undefined") return true;
@@ -131,9 +137,10 @@ export function BalanceCard({
   const fmt = (n: number) =>
     n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // These come from the dealership's card payments (Stripe), not the balance above.
   const statItems = [
-    { label: "Received", value: money(stats?.totalRevenue ?? 0), Icon: TrendingUp },
-    { label: "Pending", value: `${stats?.byStatus?.pending?.count ?? 0} invoices`, Icon: Clock },
+    { label: "Card payments received", value: money(stats?.totalRevenue ?? 0), Icon: TrendingUp },
+    { label: "Pending invoices", value: String(stats?.byStatus?.pending?.count ?? 0), Icon: Clock },
     { label: "Transactions", value: String(stats?.totalCount ?? 0), Icon: Receipt },
   ];
 
@@ -216,7 +223,7 @@ export function BalanceCard({
           letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: MONO }}>
           Available balance
         </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: balanceNote ? 8 : 22 }}>
           {isLoading ? (
             <div style={{ height: 44, width: 210, borderRadius: 10, background: T.surfaceAlt }} />
           ) : (
@@ -251,9 +258,12 @@ export function BalanceCard({
             )}
           </button>
         </div>
+        {balanceNote && (
+          <p style={{ fontSize: 12, color: T.textSub, margin: "0 0 18px", lineHeight: 1.45 }}>{balanceNote}</p>
+        )}
 
         {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 10, marginBottom: 18 }}>
           {statItems.map(({ label, value, Icon }) => (
             <div
               key={label}
@@ -277,9 +287,7 @@ export function BalanceCard({
                     fontWeight: 700,
                     color: T.text,
                     display: "block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    overflowWrap: "anywhere",
                     ...numeric,
                   }}
                 >
@@ -291,10 +299,10 @@ export function BalanceCard({
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
           <Action icon={ArrowDownLeft} label="Receive" sub="In development" onClick={onReceive} />
-          <Action icon={Link2} label="Link Wise" sub="Connect account" onClick={onLinkWise} />
-          <Action icon={ArrowUpRight} label="Send" sub="Transfer" variant="brand" onClick={onSend} />
+          <Action icon={Link2} label="Link Wise" sub={wiseInDevelopment ? "In development" : "Connect account"} onClick={onLinkWise} />
+          <Action icon={ArrowUpRight} label="Send" sub={wiseInDevelopment ? "In development" : "Transfer"} variant="brand" onClick={onSend} />
         </div>
 
         {/* Footer */}
@@ -303,6 +311,8 @@ export function BalanceCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "4px 12px",
             paddingTop: 14,
             borderTop: `1px solid ${T.border}`,
           }}
@@ -311,15 +321,13 @@ export function BalanceCard({
             style={{
               fontSize: 12,
               color: T.textMute,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: "55%",
+              minWidth: 0,
+              overflowWrap: "anywhere",
             }}
           >
             {userName}
           </span>
-          <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, ...numeric }}>
+          <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, overflowWrap: "anywhere", ...numeric }}>
             {userId}
           </span>
         </div>

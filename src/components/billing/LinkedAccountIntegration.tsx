@@ -74,7 +74,7 @@ function fmtMoney(amount: number, currency: string) {
 
 // Wise-only. Kept as a function (taking an optional provider) so call sites
 // don't need to change if another provider is added back later.
-function providerMeta(_p?: LinkedProvider) {
+function providerMeta() {
   return { label: "Wise", color: GREEN, soft: GREEN_SOFT, border: GREEN_BORDER };
 }
 
@@ -105,6 +105,12 @@ function Spinner({ size = 16, color = C.textSub }: { size?: number; color?: stri
         strokeDasharray="31.4 31.4" strokeLinecap="round" />
     </svg>
   );
+}
+
+/** The server's message for a failed request, or the fallback. */
+function errorText(e: unknown, fallback: string): string {
+  const err = e as { response?: { data?: { message?: string } }; message?: string } | undefined;
+  return err?.response?.data?.message || err?.message || fallback;
 }
 
 /* ── Context ──────────────────────────────────────────────────────────────── */
@@ -157,8 +163,8 @@ export function LinkedAccountProvider({
       const s = await linkedAccountApi.getStatus();
       setStatus(s);
       onWalletChange?.(primaryWallet(s).amount);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to load account");
+    } catch (e: unknown) {
+      setError(errorText(e, "Failed to load account"));
     } finally {
       setLoading(false);
     }
@@ -169,8 +175,8 @@ export function LinkedAccountProvider({
     try {
       await linkedAccountApi.sync();
       await refresh();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Sync failed");
+    } catch (e: unknown) {
+      setError(errorText(e, "Sync failed"));
     }
   }, [refresh]);
 
@@ -186,8 +192,7 @@ export function LinkedAccountProvider({
       // e.g. Wise isn't set up on this site: say so instead of opening a Wise error page.
       problem = message || "This account can't be linked right now. Please try again later.";
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      problem = err?.response?.data?.message || err?.message || "Could not start connection";
+      problem = errorText(e, "Could not start connection");
     }
     setError(problem);
     return problem;
@@ -199,8 +204,8 @@ export function LinkedAccountProvider({
       await linkedAccountApi.disconnect(p);
       await refresh();
       setBanner({ type: "success", text: "Account disconnected." });
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Disconnect failed");
+    } catch (e: unknown) {
+      setError(errorText(e, "Disconnect failed"));
     }
   }, [refresh]);
 
@@ -212,7 +217,7 @@ export function LinkedAccountProvider({
     const connected = params.get("connected");
     const err = params.get("error");
     if (connected) {
-      setBanner({ type: "success", text: `${providerMeta(connected as LinkedProvider).label} connected successfully.` });
+      setBanner({ type: "success", text: `${providerMeta().label} connected successfully.` });
     } else if (err) {
       setBanner({ type: "error", text: `Connection failed (${err.replace(/_/g, " ")}).` });
     }
@@ -301,11 +306,11 @@ function Banner({ type, text, onClose }: { type: "success" | "error"; text: stri
 }
 
 /* ── Connect Wise (disconnected state) ────────────────────────────────────── */
-function ProviderPicker() {
+function ProviderPicker({ inDevelopment = false }: { inDevelopment?: boolean }) {
   const { connect, error, banner, clearBanner } = useLinkedAccount();
   const [busy, setBusy] = React.useState(false);
 
-  const m = providerMeta("wise");
+  const m = providerMeta();
 
   const handle = async () => {
     setBusy(true);
@@ -360,11 +365,17 @@ function ProviderPicker() {
             </div>
           </div>
           <div className="la-connect-cta" style={{ flex: "0 0 auto" }}>
-            <GreenButton onClick={handle} disabled={busy}>
+            <GreenButton onClick={handle} disabled={busy || inDevelopment}>
               {busy ? (<><Spinner size={15} color="#06130C" /> Redirecting…</>) : (<>Connect Wise</>)}
             </GreenButton>
           </div>
         </div>
+
+        {inDevelopment && (
+          <p style={{ marginTop: 14, fontSize: 13, color: C.textSub, lineHeight: 1.5 }}>
+            Linking Wise is still in development: the SuprahPay wallet is moving to Stripe.
+          </p>
+        )}
 
         {error && (
           <p role="alert" style={{ marginTop: 14, fontSize: 13, color: C.danger, background: C.dangerBg,
@@ -381,7 +392,7 @@ function ProviderPicker() {
 function ConnectedCard() {
   const { status, sync, disconnect, banner, clearBanner } = useLinkedAccount();
   const primary = status!.primary!;
-  const m = providerMeta(primary.provider);
+  const m = providerMeta();
 
   const [activeCurrency, setActiveCurrency] = React.useState(
     primary.balances?.[0]?.currency ?? "USD"
@@ -411,8 +422,8 @@ function ConnectedCard() {
       setTxError(null);
       try {
         setTxs(await linkedAccountApi.getTransactions(activeCurrency));
-      } catch (e: any) {
-        setTxError(e?.response?.data?.message || e?.message || "Could not load transactions");
+      } catch (e: unknown) {
+        setTxError(errorText(e, "Could not load transactions"));
       } finally {
         setTxLoading(false);
       }
@@ -491,7 +502,7 @@ function ConnectedCard() {
 
         {/* Currency tabs */}
         {primary.balances.length > 1 && (
-          <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", borderBottom: `1px solid ${C.border}`, overflowX: "auto" }}>
+          <div style={{ display: "flex", gap: 4, padding: "10px 20px 0", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" }}>
             {primary.balances.map((b) => (
               <button key={b.currency} onClick={() => setActiveCurrency(b.currency)} style={{
                 padding: "6px 14px 10px", border: "none", background: "transparent",
@@ -572,7 +583,7 @@ function ConnectedCard() {
                   }}>{tx.type === "credit" ? "↓" : "↑"}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.description}</p>
+                      overflowWrap: "anywhere" }}>{tx.description}</p>
                     <p style={{ fontSize: 11, color: C.textMute, margin: "2px 0 0" }}>
                       {new Date(tx.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" })}
                       {tx.recipient ? ` · ${tx.recipient}` : ""}
@@ -607,7 +618,14 @@ function ConnectedCard() {
 }
 
 /* ── Public panel ─────────────────────────────────────────────────────────── */
-export function LinkedAccountPanel({ style }: { style?: React.CSSProperties }) {
+export function LinkedAccountPanel({
+  style,
+  inDevelopment = false,
+}: {
+  style?: React.CSSProperties;
+  /** Linking Wise is switched off (2026-11-20: the wallet uses Stripe). */
+  inDevelopment?: boolean;
+}) {
   const { loading, connected, status } = useLinkedAccount();
 
   if (loading && !status) {
@@ -622,7 +640,7 @@ export function LinkedAccountPanel({ style }: { style?: React.CSSProperties }) {
 
   return (
     <div style={style}>
-      {connected ? <ConnectedCard /> : <ProviderPicker />}
+      {connected ? <ConnectedCard /> : <ProviderPicker inDevelopment={inDevelopment} />}
     </div>
   );
 }

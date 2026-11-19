@@ -129,7 +129,59 @@ export default function AdminPayoutsPage() {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Phones: one card per request (the table needed sideways scrolling). */}
+                <ul className="divide-y divide-border md:hidden">
+                    {filteredWithdrawals.length === 0 ? (
+                        <li className="px-4 py-10 text-center text-sm text-muted-foreground">No pending requests found.</li>
+                    ) : (
+                        filteredWithdrawals.map((w) => (
+                            <li key={w._id} className="space-y-3 px-4 py-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-foreground [overflow-wrap:anywhere]">{w.user.name}</p>
+                                        <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{w.user.email}</p>
+                                    </div>
+                                    <span className="shrink-0 font-mono font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                                        ${w.amount.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="space-y-1 text-sm">
+                                    <Badge variant="secondary" className="w-fit capitalize">{w.withdrawalMethod?.type.replace('_', ' ')}</Badge>
+                                    <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{w.withdrawalMethod?.details}</p>
+                                    <p className="text-xs text-muted-foreground">{fmtDateMDT(w.createdAt)}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button variant="outline" size="sm" asChild className="h-10 gap-1.5">
+                                        <Link href={`/admin/payouts/${w._id}/audit`}>
+                                            <History className="w-3.5 h-3.5" /> Audit
+                                        </Link>
+                                    </Button>
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleApprove(w._id)}
+                                        className="h-10 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
+                                    >
+                                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSelectedWithdrawalId(w._id);
+                                            setIsRejectModalOpen(true);
+                                        }}
+                                        className="h-10 gap-1.5 text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+                                    >
+                                        <XCircle className="w-3.5 h-3.5" /> Reject
+                                    </Button>
+                                </div>
+                            </li>
+                        ))
+                    )}
+                </ul>
+
+                <div className="hidden md:block">
                     <Table>
                         <TableHeader className="bg-muted/60">
                             <TableRow className="hover:bg-transparent">
@@ -197,6 +249,7 @@ export default function AdminPayoutsPage() {
                                                         setSelectedWithdrawalId(w._id);
                                                         setIsRejectModalOpen(true);
                                                     }}
+                                                    aria-label={`Reject ${w.user.name}'s withdrawal`}
                                                     className="h-8 text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
                                                 >
                                                     <XCircle className="w-3.5 h-3.5" />

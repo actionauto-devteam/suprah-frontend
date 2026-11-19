@@ -42,7 +42,11 @@ export interface LinkedTransaction {
   recipient?: string;
 }
 
-const unwrap = (res: any) => res?.data?.data ?? res?.data;
+/** The API's `data` (or the whole body when it has none). Callers say what shape they expect. */
+const unwrap = (res: { data?: unknown }): unknown => {
+  const body = res?.data as { data?: unknown } | undefined;
+  return body?.data ?? body;
+};
 
 export const linkedAccountApi = {
   /**
@@ -51,7 +55,7 @@ export const linkedAccountApi = {
    */
   async startConnect(provider: LinkedProvider): Promise<{ authUrl: string | null; message?: string }> {
     const res = await apiClient.get(`/api/linked-accounts/${provider}/connect`);
-    const data = unwrap(res);
+    const data = unwrap(res) as { authUrl?: unknown; message?: unknown } | undefined;
     return {
       authUrl: typeof data?.authUrl === "string" && data.authUrl ? data.authUrl : null,
       message: typeof data?.message === "string" ? data.message : undefined,
@@ -65,14 +69,14 @@ export const linkedAccountApi = {
 
   async sync(): Promise<LinkedBalance[]> {
     const res = await apiClient.post(`/api/linked-accounts/sync`);
-    return (unwrap(res)?.balances ?? []) as LinkedBalance[];
+    return ((unwrap(res) as { balances?: LinkedBalance[] } | undefined)?.balances ?? []);
   },
 
   async getTransactions(currency = "USD"): Promise<LinkedTransaction[]> {
     const res = await apiClient.get(`/api/linked-accounts/transactions`, {
       params: { currency },
     });
-    return (unwrap(res)?.transactions ?? []) as LinkedTransaction[];
+    return ((unwrap(res) as { transactions?: LinkedTransaction[] } | undefined)?.transactions ?? []);
   },
 
   async transfer(payload: {

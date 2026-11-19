@@ -27,6 +27,13 @@ import { SendModal } from "@/components/billing/SendModal";
 const RECEIVE_IN_DEVELOPMENT_MESSAGE =
   "Payment links and QR codes aren't ready yet. To collect a payment now, use Request Payment on a lead.";
 
+// 2026-11-20: the business chose Stripe for the SuprahPay wallet, not Wise.
+// Link Wise and Send stay in the code but say "still in development" until
+// Wise is wanted again; set this to true to turn them back on.
+const WALLET_WISE_ENABLED = false;
+const WISE_IN_DEVELOPMENT_MESSAGE =
+  "The SuprahPay wallet is moving to Stripe, so linking Wise and sending money from the wallet aren't available yet.";
+
 function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
   const credit = payment.status === "succeeded";
   return (
@@ -39,9 +46,8 @@ function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
       </div>
       <div style={{ minWidth: 0 }}>
         <p style={{ fontSize: 13.5, fontWeight: 600, color: T.text, margin: 0,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{payment.customerName}</p>
-        <p style={{ fontSize: 12, color: T.textMute, margin: "2px 0 0",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          overflowWrap: "anywhere" }}>{payment.customerName}</p>
+        <p style={{ fontSize: 12, color: T.textMute, margin: "2px 0 0", overflowWrap: "anywhere" }}>
           {payment.invoiceNumber ? `#${payment.invoiceNumber}` : payment.description}
         </p>
       </div>
@@ -236,13 +242,27 @@ function BillingDashboardInner() {
                   description: RECEIVE_IN_DEVELOPMENT_MESSAGE,
                 })
               }
-              onSend={() => setActiveModal("send")}
+              onSend={() => {
+                if (!WALLET_WISE_ENABLED) {
+                  toast.info("Send is still in development", { description: WISE_IN_DEVELOPMENT_MESSAGE });
+                  return;
+                }
+                setActiveModal("send");
+              }}
               onLinkWise={async () => {
+                if (!WALLET_WISE_ENABLED) {
+                  toast.info("Link Wise is still in development", { description: WISE_IN_DEVELOPMENT_MESSAGE });
+                  return;
+                }
                 // The Link Wise button sits at the top of the page, far from the
                 // Wise panel's own error line, so say it right here as well.
                 const problem = await linked.connect("wise");
                 if (problem) toast.error("Wise can't be linked yet", { description: problem });
               }}
+              wiseInDevelopment={!WALLET_WISE_ENABLED}
+              balanceNote={
+                linked.connected ? "From your linked Wise account" : "The wallet balance is still in development"
+              }
             />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {metrics.map((m) => (
@@ -291,7 +311,7 @@ function BillingDashboardInner() {
           {/* Linked account (Wise) */}
           <section style={{ marginBottom: 24, animation: "spy-fade-up 0.35s ease 0.10s both" }}>
             <SectionLabel>Linked bank account</SectionLabel>
-            <LinkedAccountPanel style={{ marginBottom: 0 }} />
+            <LinkedAccountPanel style={{ marginBottom: 0 }} inDevelopment={!WALLET_WISE_ENABLED} />
           </section>
 
           {/* Quick access (unchanged) */}
