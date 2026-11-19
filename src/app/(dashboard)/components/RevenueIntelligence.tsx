@@ -16,7 +16,7 @@ import { formatCurrency } from "@/utils/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { DashboardMetrics } from "@/hooks/useDashboardStats";
-import { isPartlyRefunded } from "@/lib/payment-refunds";
+import { disputeLabel, isPartlyRefunded } from "@/lib/payment-refunds";
 
 type LivePayment = DashboardMetrics["livePayments"][number];
 
@@ -33,6 +33,10 @@ const LIVE_STATUS: Record<string, { label: string; cls: string }> = {
 // Each status gets its own label (2026-11-19): pending, refunded and
 // cancelled payments used to show as "Failed".
 function livePaymentStatus(payment: LivePayment) {
+  // A card dispute says so first (2026-11-20).
+  const dispute = disputeLabel(payment);
+  if (dispute === "Disputed") return { label: dispute, cls: LIVE_STATUS.pending.cls };
+  if (dispute === "Dispute lost") return { label: dispute, cls: LIVE_STATUS.failed.cls };
   if (isPartlyRefunded(payment)) return { label: "Partly refunded", cls: MUTED_STATUS };
   return LIVE_STATUS[payment.status] ?? { label: payment.status || "Unknown", cls: MUTED_STATUS };
 }

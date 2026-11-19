@@ -35,6 +35,9 @@ export interface DashboardMetrics {
         amount: number;
         /** Refunded so far; a partly refunded payment stays "succeeded". */
         refundedAmount?: number;
+        /** A card dispute: "Disputed" while the bank reviews it, then won or lost. */
+        disputeStatus?: "open" | "won" | "lost";
+        disputedAmount?: number;
         status: string;
         description: string;
         createdAt: string;

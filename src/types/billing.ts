@@ -69,6 +69,13 @@ export interface Payment {
   refundedAmount?: number;
   refundedAt?: string;
 
+  /** A card dispute (chargeback): counts in revenue until the bank decides. */
+  disputeStatus?: "open" | "won" | "lost";
+  disputedAmount?: number;
+  disputeReason?: string;
+  disputedAt?: string;
+  disputeClosedAt?: string;
+
   createdBy?:
     | string
     | {
