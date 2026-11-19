@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useLeadTypeCounts, useAssignedNewCount, useNeedsReplyCount, Lead } from "@/hooks/useLeads"
+import { useLeads, useLeadStatusCounts, useLeadLocationCounts, useLeadTypeCounts, useAssignedNewCount, useNeedsReplyCount, useLeadMentionCount, useCompleteLeadMentions, Lead, type LeadMentionItem, type LeadMentionStatus } from "@/hooks/useLeads"
 import { isCampaignLeadType, leadTypeLabel } from "@/lib/leadType"
 import { customerAreaFilterLabel } from "@/lib/customerArea"
 import { needsReplyCountLabel } from "@/lib/needsReply"
@@ -76,6 +76,7 @@ import {
 import { StatusReasonModal } from "./leads/StatusReasonModal";
 import { fmtTimeMDT, todayStrMDT } from "@/lib/timezone";
 import { LeadsList } from "./leads/LeadsList";
+import { MentionsList } from "./leads/MentionsList";
 import {
   LEAD_DATE_PRESET_OPTIONS,
   LeadsFiltersPopover,
@@ -402,6 +403,15 @@ export function LeadsTab({
   }, [viewportMode]);
 
   const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
+  const [inboxView, setInboxView] = React.useState<"leads" | "mentioned">("leads");
+  const [highlight, setHighlight] = React.useState<{ leadId: string; noteId: string; seq: number } | null>(null);
+  const highlightSeqRef = React.useRef(0);
+  const [selectedMention, setSelectedMention] = React.useState<{ id: string; leadId: string } | null>(null);
+  const [mentionStatus, setMentionStatus] = React.useState<LeadMentionStatus>("new");
+  const [mentionPage, setMentionPage] = React.useState(1);
+  const [mentionSearch, setMentionSearch] = React.useState("");
+  const pendingMentionCompleteRef = React.useRef<{ leadId: string; mentionId?: string; noteId?: string } | null>(null);
+  const stayOnLeadIdRef = React.useRef<string | null>(null);
   const [assigneeFilterId, setAssigneeFilterId] = React.useState<string | null>(null);
   const [handledByFilterId, setHandledByFilterId] = React.useState<string | null>(null);
   const [customerAreaFilter, setCustomerAreaFilter] = React.useState<string | null>(null);
@@ -463,6 +473,12 @@ export function LeadsTab({
   const { counts: leadTypeCounts } = useLeadTypeCounts(LEADS_LIVE_REFRESH_MS);
   const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
   const needsReplyCount = useNeedsReplyCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
+  const mentionCount = useLeadMentionCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
+  const completeMentions = useCompleteLeadMentions();
+  const completeMentionsRef = React.useRef(completeMentions);
+  React.useEffect(() => {
+    completeMentionsRef.current = completeMentions;
+  }, [completeMentions]);
   const queryClient = useQueryClient();
   const activeCalls = useActiveCalls();
   const [liveUpdates, setLiveUpdates] = React.useState<boolean | null>(null);
@@ -534,12 +550,14 @@ export function LeadsTab({
     const leadId = params.get("leadId");
     const leadSearch = params.get("leadSearch");
     const urlLeadId = params.get("lead");
+    const noteId = params.get("note");
 
     if (leadId || leadSearch) {
       const url = new URL(window.location.href);
       url.searchParams.delete("leadId");
       url.searchParams.delete("leadSearch");
       url.searchParams.delete("tab");
+      url.searchParams.delete("note");
       const newSearch = url.searchParams.toString();
       window.history.replaceState(
         {},
@@ -550,6 +568,12 @@ export function LeadsTab({
 
     if (leadId) {
       setPendingLeadId(leadId);
+      if (noteId) {
+        highlightSeqRef.current += 1;
+        setHighlight({ leadId, noteId, seq: highlightSeqRef.current });
+        pendingMentionCompleteRef.current = { leadId, noteId };
+        stayOnLeadIdRef.current = leadId;
+      }
     } else if (leadSearch) {
       setSearchQuery(decodeURIComponent(leadSearch));
       setAutoSelectOnSingleResult(true);
@@ -582,6 +606,30 @@ export function LeadsTab({
   // -- Local UI State --
   const [selectedLead, _setSelectedLead] = React.useState<Lead | null>(null);
   const [showLeadDetails, setShowLeadDetails] = React.useState(true);
+
+  React.useEffect(() => {
+    const pending = pendingMentionCompleteRef.current;
+    if (!pending || !selectedLead || selectedLead._id !== pending.leadId) return;
+    pendingMentionCompleteRef.current = null;
+    void completeMentionsRef.current(pending.mentionId ? { mentionId: pending.mentionId } : { noteId: pending.noteId }).catch(() => undefined);
+  }, [selectedLead]);
+
+  const openLeadId = selectedLead?._id;
+  React.useEffect(() => {
+    if (!openLeadId) return;
+    setHighlight((current) => (current && current.leadId !== openLeadId ? null : current));
+  }, [openLeadId]);
+
+  const scheduleFirstName = selectedLead?.firstName || "";
+  const scheduleLastName = selectedLead?.lastName || "";
+  const scheduleEmail = selectedLead?.email || "";
+  const schedulePhone = selectedLead?.phone || "";
+  const scheduleCustomer = React.useMemo(
+    () => (openLeadId
+      ? { firstName: scheduleFirstName, lastName: scheduleLastName, email: scheduleEmail, phone: schedulePhone }
+      : undefined),
+    [openLeadId, scheduleFirstName, scheduleLastName, scheduleEmail, schedulePhone],
+  );
 
   /*
    * Match Suprah Space panel priority:
@@ -707,15 +755,24 @@ export function LeadsTab({
     const params = new URLSearchParams(search);
     const linkedId = params.get("leadId");
     const linkedSearch = params.get("leadSearch");
+    const linkedNote = params.get("note");
     if (linkedId || linkedSearch) {
       const url = new URL(window.location.href);
       url.searchParams.delete("leadId");
       url.searchParams.delete("leadSearch");
       url.searchParams.delete("tab");
+      url.searchParams.delete("note");
       const rest = url.searchParams.toString();
       window.history.replaceState(null, "", url.pathname + (rest ? `?${rest}` : ""));
       if (linkedId) {
-        if (linkedId !== selectedLeadIdRef.current) setPendingLeadId(linkedId);
+        if (linkedNote) {
+          highlightSeqRef.current += 1;
+          setHighlight({ leadId: linkedId, noteId: linkedNote, seq: highlightSeqRef.current });
+          pendingMentionCompleteRef.current = { leadId: linkedId, noteId: linkedNote };
+          stayOnLeadIdRef.current = linkedId;
+          setStatusFilter((current) => (current === "Inbound Calls" ? null : current));
+        }
+        if (linkedNote || linkedId !== selectedLeadIdRef.current) setPendingLeadId(linkedId);
       } else if (linkedSearch) {
         setSearchQuery(linkedSearch);
         setAutoSelectOnSingleResult(true);
@@ -1209,6 +1266,9 @@ export function LeadsTab({
     let cancelled = false;
     const failed = (title: string, description: string) => {
       combinedHopsRef.current = 0;
+      if (pendingMentionCompleteRef.current?.leadId === pendingLeadId) pendingMentionCompleteRef.current = null;
+      if (stayOnLeadIdRef.current === pendingLeadId) stayOnLeadIdRef.current = null;
+      setHighlight((current) => (current && current.leadId === pendingLeadId ? null : current));
       setPendingLeadId(null);
       const url = new URL(window.location.href);
       if (url.searchParams.get("lead") === pendingLeadId) {
@@ -1237,7 +1297,9 @@ export function LeadsTab({
         if (cancelled) return;
         const lead: Lead = res.data?.data;
         const survivor = lead?.combinedInto?.leadId ? String(lead.combinedInto.leadId) : "";
-        if (survivor && survivor !== pendingLeadId && combinedHopsRef.current < 3) {
+        const stayOnLead = stayOnLeadIdRef.current === pendingLeadId;
+        stayOnLeadIdRef.current = null;
+        if (survivor && survivor !== pendingLeadId && !stayOnLead && combinedHopsRef.current < 3) {
           combinedHopsRef.current += 1;
           toast.info("This lead was combined into another lead", {
             description: "Opening the lead it was combined into.",
@@ -1247,6 +1309,12 @@ export function LeadsTab({
         }
         combinedHopsRef.current = 0;
         if (lead?._id) {
+          const fetchedNotes = Array.isArray(lead.notes) ? lead.notes : [];
+          if (stayOnLead && fetchedNotes.length) {
+            const kept = savedNotesRef.current.get(lead._id) || [];
+            const keptIds = new Set(kept.map((item) => String(item?._id)));
+            savedNotesRef.current.set(lead._id, [...kept, ...fetchedNotes.filter((item) => item?._id && !keptIds.has(String(item._id)))]);
+          }
           setPendingLeadId(null);
           setSelectedLead(lead); // eslint-disable-line react-hooks/exhaustive-deps
         } else {
@@ -1338,6 +1406,8 @@ export function LeadsTab({
         void queryClient.invalidateQueries({ queryKey: ACTIVE_CALLS_KEY });
         void queryClient.invalidateQueries({ queryKey: ["leads", "assigned-new"] });
         void queryClient.invalidateQueries({ queryKey: ["leads", "needs-reply"] });
+        void queryClient.invalidateQueries({ queryKey: ["leads", "mentions"] });
+        void queryClient.invalidateQueries({ queryKey: ["leads", "mentions-count"] });
         scheduleSelectedRefresh(data?.leadId || data?._id);
       });
       listen("lead:assigned", () => {
@@ -2807,6 +2877,107 @@ export function LeadsTab({
     setSelectedLead(null);
   };
 
+  const selectedMentionId = selectedMention && selectedLead?._id === selectedMention.leadId ? selectedMention.id : null;
+
+  const openMention = (mention: LeadMentionItem) => {
+    setSelectedMention({ id: mention.id, leadId: mention.leadId });
+    highlightSeqRef.current += 1;
+    setHighlight({ leadId: mention.leadId, noteId: mention.noteId, seq: highlightSeqRef.current });
+    pendingMentionCompleteRef.current = mention.completedAt ? null : { leadId: mention.leadId, mentionId: mention.id };
+    stayOnLeadIdRef.current = mention.leadId;
+    setPendingLeadId(mention.leadId);
+  };
+
+  const dropPendingOpen = () => {
+    pendingMentionCompleteRef.current = null;
+    stayOnLeadIdRef.current = null;
+    combinedHopsRef.current = 0;
+    setPendingLeadId(null);
+    setHighlight(null);
+    setSelectedMention(null);
+  };
+
+  const selectLeadFromList = (lead: Lead | null) => {
+    dropPendingOpen();
+    setSelectedLead(lead);
+  };
+
+  const inboxTabList = currentUserId ? (
+    <div
+      role="tablist"
+      aria-label="Assignment filter"
+      className="col-span-2 grid min-w-0 grid-cols-3 gap-1 rounded-lg p-1"
+      style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
+    >
+      {(["mine", "all", "mentioned"] as const).map((key) => {
+        const selected =
+          key === "mentioned"
+            ? inboxView === "mentioned"
+            : inboxView === "leads" && assignmentFilter === key && !(key === "all" && assigneeFilterId);
+        return (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => {
+              dropPendingOpen();
+              setSelectedLead(null);
+              window.requestAnimationFrame(() => {
+                document.querySelector<HTMLElement>(`[data-testid="inbox-tab-${key}"]`)?.focus();
+              });
+              if (key === "mentioned") {
+                setInboxView("mentioned");
+                return;
+              }
+              setInboxView("leads");
+              setAssignmentFilter(key);
+              setAssigneeFilterId(null);
+              setCurrentPage(1);
+            }}
+            className="min-h-8 min-w-0 truncate rounded-md px-1.5 py-1 text-[12px] font-semibold transition-colors md:min-h-0 md:px-2 md:text-[11px]"
+            style={
+              selected
+                ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
+                : { color: "var(--text-tertiary)" }
+            }
+            data-testid={`inbox-tab-${key}`}
+          >
+            {key === "mine" ? (
+              <span className="inline-flex max-w-full items-center justify-center gap-1.5">
+                <span className="truncate">My Leads</span>
+                {assignedNewCount > 0 && (
+                  <span
+                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white"
+                    aria-label={`${assignedNewCount} new lead${assignedNewCount === 1 ? "" : "s"} assigned to you`}
+                    data-testid="my-leads-new-count"
+                  >
+                    {assignedNewCount > 99 ? "99+" : assignedNewCount}
+                  </span>
+                )}
+              </span>
+            ) : key === "all" ? (
+              "All Leads"
+            ) : (
+              <span className="inline-flex max-w-full items-center justify-center gap-1.5">
+                <span className="truncate">Mentioned</span>
+                {mentionCount > 0 && (
+                  <span
+                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold leading-none text-white"
+                    aria-label={`${mentionCount} new mention${mentionCount === 1 ? "" : "s"}`}
+                    data-testid="mentioned-new-count"
+                  >
+                    {mentionCount > 99 ? "99+" : mentionCount}
+                  </span>
+                )}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
+
   const showConversationPanel =
     Boolean(selectedLead) || viewportMode === "wide";
 
@@ -3073,6 +3244,22 @@ export function LeadsTab({
                 borderColor: "var(--border-1)",
               }}
             >
+              {inboxView === "mentioned" && currentUserId ? (
+                <MentionsList
+                  enabled
+                  newCount={mentionCount}
+                  tabs={inboxTabList}
+                  selectedMentionId={selectedMentionId}
+                  status={mentionStatus}
+                  onStatusChange={setMentionStatus}
+                  page={mentionPage}
+                  onPageChange={setMentionPage}
+                  search={mentionSearch}
+                  onSearchChange={setMentionSearch}
+                  onOpen={openMention}
+                  onCompleteAll={(asOf) => completeMentions({ all: true, ...(asOf ? { before: asOf } : {}) })}
+                />
+              ) : (
               <LeadsList
                 activeCalls={activeCalls}
                 timeMode={sortBy === "latest_activity" ? "all" : "customer"}
@@ -3094,7 +3281,7 @@ export function LeadsTab({
                   setCurrentPage(1);
                 }}
                 onPageChange={setCurrentPage}
-                onLeadSelect={setSelectedLead}
+                onLeadSelect={selectLeadFromList}
                 focusLeadId={selectedLead ? null : lastViewedLeadId}
                 highlightedLeadIds={highlightedLeadIds}
                 itemsPerPage={LEADS_PER_PAGE}
@@ -3132,55 +3319,7 @@ export function LeadsTab({
                           currentUserId ? "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-2" : "grid-cols-1 md:grid-cols-2",
                         )}
                       >
-                        {currentUserId ? (
-                          <div
-                            role="tablist"
-                            aria-label="Assignment filter"
-                            className="grid min-w-0 grid-cols-2 gap-1 rounded-lg p-1 md:col-span-2"
-                            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
-                          >
-                            {(["mine", "all"] as const).map((key) => {
-                              const selected = assignmentFilter === key && !(key === "all" && assigneeFilterId);
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  role="tab"
-                                  aria-selected={selected}
-                                  onClick={() => {
-                                    setAssignmentFilter(key);
-                                    setAssigneeFilterId(null);
-                                    setCurrentPage(1);
-                                    setSelectedLead(null);
-                                  }}
-                                  className="min-h-8 truncate rounded-md px-2 py-1 text-[12px] font-semibold transition-colors md:min-h-0 md:text-[11px]"
-                                  style={
-                                    selected
-                                      ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
-                                      : { color: "var(--text-tertiary)" }
-                                  }
-                                >
-                                  {key === "mine" ? (
-                                    <span className="inline-flex max-w-full items-center justify-center gap-1.5">
-                                      <span className="truncate">My Leads</span>
-                                      {assignedNewCount > 0 && (
-                                        <span
-                                          className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white"
-                                          aria-label={`${assignedNewCount} new lead${assignedNewCount === 1 ? "" : "s"} assigned to you`}
-                                          data-testid="my-leads-new-count"
-                                        >
-                                          {assignedNewCount > 99 ? "99+" : assignedNewCount}
-                                        </span>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    "All Leads"
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : null}
+                        {inboxTabList}
 
                           <LeadsFiltersPopover
                             activeCategory={activeStatusCategory}
@@ -3352,6 +3491,7 @@ export function LeadsTab({
                   </>
                 }
               />
+              )}
             </aside>
           )}
 
@@ -3369,6 +3509,12 @@ export function LeadsTab({
                 <>
                   <ConversationView
                     lead={selectedLead}
+                    highlightNoteId={highlight && highlight.leadId === selectedLead._id ? highlight.noteId : null}
+                    highlightRequest={highlight && highlight.leadId === selectedLead._id ? highlight.seq : 0}
+                    onHighlightShown={() => {
+                      const shown = highlight;
+                      window.setTimeout(() => setHighlight((current) => (current === shown ? null : current)), 8000);
+                    }}
                     threads={threads[selectedLead._id] || []}
                     hideConversationChrome={viewportMode === "wide" && isChatHovered}
                     onClose={() => setSelectedLead(null)}
@@ -3752,16 +3898,7 @@ export function LeadsTab({
         onOpenChange={setApptOpen}
         onCreateAppointment={handleAppt}
         conversations={[]}
-        initialCustomerBooking={
-          selectedLead
-            ? {
-              firstName: selectedLead.firstName || "",
-              lastName: selectedLead.lastName || "",
-              email: selectedLead.email || "",
-              phone: selectedLead.phone || "",
-            }
-            : undefined
-        }
+        initialCustomerBooking={scheduleCustomer}
         forceCustomerBooking={true}
         initialSalespersonId={selectedLead?.assignedTo || null}
         extraPayload={selectedLead ? { leadId: selectedLead._id } : undefined}

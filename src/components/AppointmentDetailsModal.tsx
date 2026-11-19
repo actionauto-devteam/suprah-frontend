@@ -867,8 +867,8 @@ export function AppointmentDetailsModal({
               </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <p className="text-foreground/80"><span className="font-semibold">Name:</span> {(appointment as any).customerBooking.firstName} {(appointment as any).customerBooking.lastName}</p>
-                <p className="text-foreground/80"><span className="font-semibold">Phone:</span> {(appointment as any).customerBooking.phone}</p>
-                <p className="col-span-2 text-foreground/80"><span className="font-semibold">Email:</span> {(appointment as any).customerBooking.email}</p>
+                <p className="text-foreground/80"><span className="font-semibold">Phone:</span> {(appointment as any).customerBooking.phone || "Not given"}</p>
+                <p className="col-span-2 text-foreground/80"><span className="font-semibold">Email:</span> {(appointment as any).customerBooking.email || "Not given"}</p>
               </div>
             </div>
           )}

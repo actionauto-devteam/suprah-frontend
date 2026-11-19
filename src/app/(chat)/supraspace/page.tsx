@@ -13991,19 +13991,23 @@ export default function SupraSpacePage() {
     void fetchConversationMessages(activeId, { force: true, silent: true });
   }, [activeId, fetchConversationMessages]);
 
-  const retryFailedSend = (item: FailedSend) => {
-    if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
-      showUploadNotice('info', 'Send or save your current draft before retrying this message.');
-      return;
-    }
-    item.localPreviewUrls?.forEach(url => {
-      URL.revokeObjectURL(url);
-      localAttachmentPreviewUrlsRef.current.delete(url);
-    });
-    restoredFailedSendRef.current = item;
-    setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
-    void handleSend(item.scheduledAt, item);
-  };
+  const retryFailedSendActionRef = React.useRef<(item: FailedSend) => void>(() => undefined);
+  React.useLayoutEffect(() => {
+    retryFailedSendActionRef.current = (item: FailedSend) => {
+      if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
+        showUploadNotice('info', 'Send or save your current draft before retrying this message.');
+        return;
+      }
+      item.localPreviewUrls?.forEach(url => {
+        URL.revokeObjectURL(url);
+        localAttachmentPreviewUrlsRef.current.delete(url);
+      });
+      restoredFailedSendRef.current = item;
+      setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
+      void handleSend(item.scheduledAt, item);
+    };
+  });
+  const retryFailedSend = React.useCallback((item: FailedSend) => retryFailedSendActionRef.current(item), []);
 
   const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
   const renderUnreadMessagesDivider = React.useCallback(() => <UnreadMessagesDivider />, []);
@@ -14051,7 +14055,7 @@ export default function SupraSpacePage() {
       failedSend={failedSends.find(item => item.optimisticMessageId === message._id)}
       onRetryFailed={retryFailedSend}
     />
-  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, activeMentionAliases, failedSends, handleDelete, handleEdit, requestPinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pendingFiles.length, pendingGif, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, activeMentionAliases, failedSends, handleDelete, handleEdit, requestPinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;

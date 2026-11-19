@@ -157,6 +157,7 @@ export default function SuprahMeetLobbyPage() {
     .filter((notice) => notice.type === 'suprah_meet_invited' || notice.type === 'suprah_meet_reminder' || notice.type === 'suprah_meet_live')
     .map((notice) => notice._id).join(',');
   const [meetings, setMeetings] = React.useState<MeetingRow[]>([]);
+  const loadVersion = React.useRef(0);
   const [selfId, setSelfId] = React.useState("");
   const [joinCode, setJoinCode] = React.useState("");
   const [pasting, setPasting] = React.useState(false);
@@ -204,8 +205,11 @@ export default function SuprahMeetLobbyPage() {
   }, []);
 
   const load = React.useCallback(async () => {
+    const version = ++loadVersion.current;
     try {
       const res = await apiClient.get("/api/crm/meet/meetings");
+      if (version !== loadVersion.current) return;
+      setError(null);
       const rows: MeetingRow[] = res.data?.data?.meetings ?? [];
       setMeetings(rows);
       setRecentMeet((recent) => {
@@ -218,6 +222,7 @@ export default function SuprahMeetLobbyPage() {
       });
       setSelfId(res.data?.data?.selfCrmUserId ?? "");
     } catch (err: unknown) {
+      if (version !== loadVersion.current) return;
       setError(apiErrorMessage(err, "Could not load meetings."));
     }
   }, []);
@@ -617,6 +622,16 @@ export default function SuprahMeetLobbyPage() {
           onClose={() => setShowNew(false)}
           onCreated={(code) => router.push(`/crm/suprah-meet/room/${code}`)}
           onScheduled={(created) => {
+            ++loadVersion.current;
+            const createdIds = new Set(created.map((meeting) => meeting._id));
+            const next = [...meetings.filter((meeting) => !createdIds.has(meeting._id)), ...created]
+              .sort((a, b) => new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime()
+                || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setMeetings(next);
+            const createdIndex = next.filter((meeting) => meeting.status === "scheduled" && isTodaysMeetSchedule(meeting.scheduledAt, nowMs))
+              .findIndex((meeting) => createdIds.has(meeting._id));
+            if (createdIndex >= 0) setUpcomingPage(Math.floor(createdIndex / PER_PAGE) + 1);
+            if (created.some((meeting) => meeting.scheduledAt && meetCalendarDay(meeting.scheduledAt) > today)) setLaterOpen(true);
             setShowNew(false);
             void load();
             if (created.length > 0) setShareTarget({ meetings: created, heading: "Meeting scheduled — send the invite" });
@@ -942,7 +957,7 @@ function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers
 /* ── New meeting modal — instant/scheduled/recurring + audience tagging ───── */
 function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
   initialMode: "now" | "later";
-  onClose: () => void; onCreated: (code: string) => void; onScheduled: (created: ShareableMeeting[]) => void;
+  onClose: () => void; onCreated: (code: string) => void; onScheduled: (created: MeetingRow[]) => void;
 }) {
   const [title, setTitle] = React.useState("");
   const [mode, setMode] = React.useState<"now" | "later">(initialMode);
@@ -1047,11 +1062,8 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
       const data = res.data?.data;
       const code = data?.code;
       if (mode === "now") { onCreated(code); return; }
-      const rows: ShareableMeeting[] = Array.isArray(data?.meetings) ? data.meetings : data ? [data] : [];
-      const list = rows
-        .filter((x) => x?.code)
-        .map((x) => ({ code: x.code, title: x.title, scheduledAt: x.scheduledAt ?? null, status: x.status }));
-      onScheduled(list);
+      const rows: MeetingRow[] = Array.isArray(data?.meetings) ? data.meetings : data ? [data] : [];
+      onScheduled(rows.filter((meeting) => meeting?._id && meeting.code));
     } catch (err: unknown) {
       setError(apiErrorMessage(err, "Could not create the meeting."));
       setBusy(false);

@@ -33,6 +33,7 @@ import {
   Crown,
   Video, // ➕ SUPRAH MEET
   Snowflake,
+  Handshake, // ➕ DEAL DESK
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -82,6 +83,9 @@ import { useYapLineActiveCount } from "@/lib/yapline-store";
 // ➕ MEET BADGE — count of the user's meetings scheduled for today (MDT).
 import { useMeetTodayCount } from "@/hooks/useMeetTodayCount";
 import { useNotifications } from "@/context/NotificationContext";
+// ➕ DEAL DESK — live "needs me" count + the global 5-minute offer popup/toasts.
+import { useDealDeskBadge } from "@/lib/deal-desk/hooks";
+import { DealDeskLive } from "@/components/deal-desk/DealDeskLive";
 // 🎄 Holiday layer — ornaments + holly on the header, sparkles + sleigh in the
 // background, and the on/off toggle in the user menu.
 import {
@@ -126,6 +130,13 @@ const data = {
       title: "CRM",
       url: "/crm",
       icon: Users,
+    },
+    // ➕ DEAL DESK — AI Deal Builder, Supra New Deal channel, Deal Queue, F&I rotation.
+    {
+      title: "Deal Desk",
+      url: "/crm/deal-desk",
+      icon: Handshake,
+      isNew: true,
     },
     {
       title: "Timeproof Clock",
@@ -353,6 +364,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     enabled: dispatchChatEnabled,
   });
 
+  // ➕ DEAL DESK — deals that need this user right now (offers, pickups, needs-info).
+  const dealDeskNeedsMe = useDealDeskBadge(!isCustomer);
+
   const locatorUnread = React.useMemo(
     () => allNotifications.filter((n) => !n.isRead && isLocatorNotification(n)).length,
     [allNotifications],
@@ -470,6 +484,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {/* 🎄 twinkling stars + a sleigh gliding behind the nav every ~30s */}
       <SidebarFestiveAmbient />
 
+      {/* ➕ DEAL DESK — mounted here because the sidebar is on every staff page:
+          the 5-minute F&I offer pops up wherever the Finance Manager is. */}
+      {!isCustomer && <DealDeskLive />}
+
       <SidebarHeader className="relative z-10 flex h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
         {/* soft halo behind the mark */}
         <div
@@ -541,6 +559,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-blue-600 text-white border-none group-data-[collapsible=icon]:hidden"
                       >
                         {locatorUnread > 99 ? "99+" : locatorUnread}
+                      </Badge>
+                    )}
+
+                    {/* ➕ DEAL DESK: deals waiting on this user (an F&I offer,
+                        a deal to pick up, a needs-info request). Live over the
+                        /deal-desk socket. Falls back to "New" while at 0. */}
+                    {item.title === "Deal Desk" && dealDeskNeedsMe > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-orange-500 text-white border-none animate-pulse group-data-[collapsible=icon]:hidden"
+                      >
+                        {dealDeskNeedsMe > 99 ? "99+" : dealDeskNeedsMe}
+                      </Badge>
+                    )}
+                    {item.title === "Deal Desk" && dealDeskNeedsMe === 0 && item.isNew && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                      >
+                        New
                       </Badge>
                     )}
                   </Link>

@@ -8,6 +8,7 @@ import { initializeSocket, onSocketChange } from '@/lib/socket.client';
 import { dismissDeviceNotifications } from '@/lib/web-push-subscription';
 import { playShiftAlertSound, playPingSound } from '@/lib/notification-sound';
 import { resolveNotificationCategory } from '@/components/notifications/notification-utils';
+import { createNotificationRefreshController, rememberNotificationId } from '@/lib/notification-refresh';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -48,11 +49,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const fetchSeqRef = useRef(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const seenIdsRef = useRef(new Set<string>());
     const backoffRef = useRef(POLL_INTERVAL);
     const fetchRef = useRef<((options?: FetchNotificationsOptions) => Promise<void>) | undefined>(undefined);
     const activeFetchOptionsRef = useRef<FetchNotificationsOptions>(DEFAULT_FETCH_OPTIONS);
-    const { getToken, isLoaded, isSignedIn, userId } = useAuth();
+    const { getToken, isLoaded, isSignedIn, userId, orgId } = useAuth();
+    const accountRef = useRef({ userId, orgId });
     const userIdRef = useRef<string | null>(userId);
 
     useEffect(() => {
@@ -112,6 +114,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 if (seq !== fetchSeqRef.current) return;
                 const payload = data?.data ?? {};
                 const nextNotifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+                nextNotifications.slice(0, 1000).forEach((notice: Notification) => rememberNotificationId(seenIdsRef.current, notice._id));
                 const nextUnreadCount = typeof payload.unreadCount === 'number'
                     ? payload.unreadCount
                     : nextNotifications.filter((n: Notification) => !n.isRead).length;
@@ -255,6 +258,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }, [notifications, unreadCount, totalCount, getToken]);
 
     useEffect(() => {
+        const invalidateFetch = () => { ++fetchSeqRef.current; };
+        invalidateFetch();
+        seenIdsRef.current.clear();
+        if (accountRef.current.userId !== userId || accountRef.current.orgId !== orgId) {
+            accountRef.current = { userId, orgId };
+            setNotifications([]);
+            setUnreadCount(0);
+            setUnreadCrmCount(0);
+            setTotalCount(0);
+            setError(null);
+            backoffRef.current = POLL_INTERVAL;
+        }
         if (!isLoaded || !isSignedIn) {
             setNotifications([]);
             setUnreadCount(0);
@@ -265,30 +280,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             return;
         }
 
-        fetchNotifications(DEFAULT_FETCH_OPTIONS);
-
-        const startPolling = () => {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = setInterval(() => fetchRef.current?.(), backoffRef.current);
-        };
-
-        const stopPolling = () => {
-            if (pollRef.current) {
-                clearInterval(pollRef.current);
-                pollRef.current = null;
-            }
-        };
+        activeFetchOptionsRef.current = DEFAULT_FETCH_OPTIONS;
+        const refreshController = createNotificationRefreshController({
+            refresh: async () => { await fetchRef.current?.(); },
+            getDelay: () => backoffRef.current,
+            isVisible: () => !document.hidden,
+        });
 
         const onVisibilityChange = () => {
             if (document.hidden) {
-                stopPolling();
+                refreshController.pause();
             } else {
-                fetchRef.current?.();
-                startPolling();
+                refreshController.resume();
             }
         };
 
-        startPolling();
+        refreshController.resume();
         document.addEventListener('visibilitychange', onVisibilityChange);
 
         const cleanups: Array<() => void> = [];
@@ -307,6 +314,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
             const onNew = (notification: Notification) => {
                 if (isForAnotherAccount(notification)) return;
+                if (!rememberNotificationId(seenIdsRef.current, notification._id)) return;
+                ++fetchSeqRef.current;
                 setNotifications(prev => {
                     if (prev.some(n => n._id === notification._id)) return prev;
                     return [notification, ...prev];
@@ -334,35 +343,48 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 } else if (notification.type === 'ping') {
                     playPingSound();
                 }
-                fetchRef.current?.();
+                refreshController.request();
             };
 
             const onRead = ({ notificationId }: { notificationId: string }) => {
+                ++fetchSeqRef.current;
                 setNotifications(prev =>
                     prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n)
                 );
-                fetchRef.current?.();
+                refreshController.request();
             };
 
             const onReadAll = () => {
+                ++fetchSeqRef.current;
                 setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
                 setUnreadCount(0);
                 setUnreadCrmCount(0);
-                fetchRef.current?.();
+                refreshController.request();
             };
 
             const onUpdated = (notification: Notification) => {
                 if (isForAnotherAccount(notification)) return;
+                ++fetchSeqRef.current;
                 setNotifications(prev => {
                     const exists = prev.some(n => n._id === notification._id);
                     return exists
                         ? prev.map(n => n._id === notification._id ? notification : n)
                         : [notification, ...prev];
                 });
-                fetchRef.current?.();
+                refreshController.request();
             };
 
-            const onConnect = () => { void fetchRef.current?.(); };
+            const onDeleted = ({ notificationId }: { notificationId: string }) => {
+                ++fetchSeqRef.current;
+                setNotifications(prev => prev.filter(notice => notice._id !== notificationId));
+                refreshController.request();
+            };
+            const onDeleteAllRead = () => {
+                ++fetchSeqRef.current;
+                setNotifications(prev => prev.filter(notice => !notice.isRead));
+                refreshController.request();
+            };
+            const onConnect = () => refreshController.request();
             let boundSocket: Socket | null = null;
             const unbind = () => {
                 if (!boundSocket) return;
@@ -370,6 +392,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 boundSocket.off('notification:read', onRead);
                 boundSocket.off('notification:readAll', onReadAll);
                 boundSocket.off('notification:updated', onUpdated);
+                boundSocket.off('notification:deleted', onDeleted);
+                boundSocket.off('notification:deleteAllRead', onDeleteAllRead);
                 boundSocket.off('notification:dismiss', dismissDeviceNotifications);
                 boundSocket.off('connect', onConnect);
                 boundSocket = null;
@@ -381,6 +405,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 next.on('notification:read', onRead);
                 next.on('notification:readAll', onReadAll);
                 next.on('notification:updated', onUpdated);
+                next.on('notification:deleted', onDeleted);
+                next.on('notification:deleteAllRead', onDeleteAllRead);
                 next.on('notification:dismiss', dismissDeviceNotifications);
                 next.on('connect', onConnect);
                 boundSocket = next;
@@ -389,7 +415,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             bind(socket);
             const stopWatching = onSocketChange(next => {
                 bind(next);
-                fetchRef.current?.();
+                refreshController.request();
             });
 
             cleanups.push(stopWatching, unbind);
@@ -399,11 +425,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         return () => {
             cancelled = true;
-            stopPolling();
+            invalidateFetch();
+            refreshController.dispose();
             document.removeEventListener('visibilitychange', onVisibilityChange);
             cleanups.forEach(fn => fn());
         };
-    }, [fetchNotifications, getToken, isLoaded, isSignedIn]);
+    }, [fetchNotifications, getToken, isLoaded, isSignedIn, userId, orgId]);
 
     // Support for App Badge API (PWA)
     useEffect(() => {

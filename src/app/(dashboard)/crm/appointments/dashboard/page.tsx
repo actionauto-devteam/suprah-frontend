@@ -352,7 +352,7 @@ function AppointmentRow({ apt, onOpen }: {
         </div>
       </td>
       <td className="w-[11%] px-3.5 py-3 align-middle">
-        <span className="whitespace-nowrap font-mono text-[12px] tabular-nums text-foreground/80">{apt.customerBooking.phone}</span>
+        <span className="whitespace-nowrap font-mono text-[12px] tabular-nums text-foreground/80">{apt.customerBooking.phone || "—"}</span>
       </td>
       <td className="w-[8%] px-3.5 py-3 align-middle">
         <div className="font-mono text-[13px] font-medium tabular-nums">{start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: MDT_TZ })}</div>

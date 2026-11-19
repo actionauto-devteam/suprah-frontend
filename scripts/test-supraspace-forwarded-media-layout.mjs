@@ -6,7 +6,7 @@ const fullSpaceSource = fs.readFileSync(new URL('../src/app/(chat)/supraspace/pa
 const layoutStart = source.indexOf("const hasCaptionedMedia = Boolean(msg.content?.trim())");
 assert.ok(layoutStart >= 0, 'captioned media is identified separately from media-only messages');
 
-const captionRender = source.indexOf(': msg.content ? renderContent(msg, isOwn, mentionAliases) : null', layoutStart);
+const captionRender = source.indexOf(': msg.content ? <PopupMessageContent ', layoutStart);
 const mediaRender = source.indexOf('{(imageAttachments.length > 0 || hasGif) && (', captionRender);
 assert.ok(captionRender >= 0 && mediaRender > captionRender, 'Mini Suprah renders a caption before its image or GIF');
 assert.ok(source.includes('{!hasStandaloneMedia && messageStatus}'), 'text-only messages retain their existing metadata placement');

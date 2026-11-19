@@ -50,6 +50,9 @@ interface ConversationViewProps {
   onShowDetails?: () => void;
   onNoReplyNeeded?: () => void;
   noReplyBusy?: boolean;
+  highlightNoteId?: string | null;
+  highlightRequest?: number;
+  onHighlightShown?: () => void;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -604,10 +607,52 @@ export function ConversationView({
   onShowDetails,
   onNoReplyNeeded,
   noReplyBusy = false,
+  highlightNoteId = null,
+  highlightRequest = 0,
+  onHighlightShown,
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
+  const highlightShownAtRef = React.useRef(0);
+  const highlightWaitingRef = React.useRef(false);
+  const onHighlightShownRef = React.useRef(onHighlightShown);
   const [expandedFailureKey, setExpandedFailureKey] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    onHighlightShownRef.current = onHighlightShown;
+  }, [onHighlightShown]);
+
+  const findHighlightedNote = React.useCallback(() => {
+    if (!highlightNoteId || !/^[a-f0-9]{24}$/i.test(highlightNoteId)) return null;
+    return messageAreaRef.current?.querySelector<HTMLElement>(`[data-note-id="${highlightNoteId}"]`) || null;
+  }, [highlightNoteId]);
+
+  const showHighlightedNote = React.useCallback((element: HTMLElement) => {
+    highlightWaitingRef.current = false;
+    highlightShownAtRef.current = Date.now();
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    onHighlightShownRef.current?.();
+  }, []);
+
+  React.useEffect(() => {
+    highlightShownAtRef.current = 0;
+    highlightWaitingRef.current = Boolean(highlightNoteId);
+    if (!highlightNoteId) return;
+    let attempts = 0;
+    let timer = 0;
+    const seek = () => {
+      if (!highlightWaitingRef.current) return;
+      const element = findHighlightedNote();
+      if (element) {
+        showHighlightedNote(element);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) timer = window.setTimeout(seek, 300);
+    };
+    timer = window.setTimeout(seek, 150);
+    return () => window.clearTimeout(timer);
+  }, [highlightNoteId, highlightRequest, findHighlightedNote, showHighlightedNote, lead?._id]);
 
   React.useLayoutEffect(() => {
     const element = messageAreaRef.current;
@@ -624,6 +669,7 @@ export function ConversationView({
     const keepConversationAtBottom = () => {
       const element = messageAreaRef.current;
       if (!element) return;
+      if (Date.now() - highlightShownAtRef.current < 8000) return;
       window.requestAnimationFrame(() => {
         element.scrollTop = element.scrollHeight;
       });
@@ -675,6 +721,17 @@ export function ConversationView({
       return { ...entry, showDayChip };
     });
   }, [groupedThreads, leadNotes, leadCreatedAt]);
+
+  const renderCount = renderItems.length;
+  React.useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      const element = findHighlightedNote();
+      if (!element) return;
+      if (highlightWaitingRef.current) showHighlightedNote(element);
+      else if (highlightShownAtRef.current && Date.now() - highlightShownAtRef.current <= 8000) element.scrollIntoView({ block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [renderCount, findHighlightedNote, showHighlightedNote]);
 
   const backButton = onBack && (
     <button
@@ -881,11 +938,19 @@ export function ConversationView({
                 if (item.kind === "note") {
                   const { note, noteIndex, stamp, showDayChip } = item;
                   const noteKey = note?._id || `note-${noteIndex}`;
+                  const highlighted = Boolean(highlightNoteId) && String(note?._id || "") === highlightNoteId;
 
                   return (
                     <React.Fragment key={noteKey}>
                       {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                      <div className="mx-auto flex w-full max-w-2xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+                      <div
+                        data-note-id={note?._id ? String(note._id) : undefined}
+                        data-highlighted={highlighted ? "true" : undefined}
+                        className={cn(
+                          "mx-auto flex w-full max-w-2xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200",
+                          highlighted && "ring-2 ring-amber-500 ring-offset-2 ring-offset-(--bg-base)",
+                        )}
+                      >
                         <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
