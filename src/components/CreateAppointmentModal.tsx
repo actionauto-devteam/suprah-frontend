@@ -152,6 +152,8 @@ type AppointmentErrorPresentation = {
   hint?: string
 }
 
+const CUSTOMER_DETAILS_ERROR = "Please check the customer details below"
+
 function getAppointmentErrorPresentation(error: string): AppointmentErrorPresentation {
   const message = error.trim()
 
@@ -359,12 +361,15 @@ export function CreateAppointmentModal({
     let valid = true
     if (!formData.customerBooking.firstName.trim()) { errors.firstName = "First name is required"; valid = false }
     if (!formData.customerBooking.lastName.trim())  { errors.lastName  = "Last name is required";  valid = false }
-    if (!formData.customerBooking.email.trim()) {
-      errors.email = "Email is required"; valid = false
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerBooking.email)) {
-      errors.email = "Invalid email format"; valid = false
+    const email = formData.customerBooking.email.trim()
+    const phone = formData.customerBooking.phone.trim()
+    const phoneDigits = phone.replace(/\D/g, "")
+    const leadPhone = (initialCustomerBooking?.phone || "").trim()
+    if (!email && !phone) { errors.phone = "Add a phone number, an email, or both."; valid = false }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errors.email = "Enter a full email address."; valid = false }
+    if (phone && phone !== leadPhone && phoneDigits.length !== 10 && !(phoneDigits.length === 11 && phoneDigits.startsWith("1"))) {
+      errors.phone = "Enter a 10-digit phone number."; valid = false
     }
-    if (!formData.customerBooking.phone.trim()) { errors.phone = "Phone number is required"; valid = false }
     setCustomerErrors(errors)
     return valid
   }
@@ -387,7 +392,7 @@ export function CreateAppointmentModal({
 
     try {
       if (formData.isCustomerBooking && !validateCustomerBooking()) {
-        setError("Please fill in all customer information fields correctly")
+        setError(CUSTOMER_DETAILS_ERROR)
         setIsSubmitting(false); return
       }
       if (!formData.startTime || !formData.endTime) {
@@ -579,9 +584,15 @@ export function CreateAppointmentModal({
                     isCustomerBooking={formData.isCustomerBooking}
                     onToggle={handleToggleCustomerBooking}
                     customerData={formData.customerBooking}
-                    onChange={(field, value) =>
+                    onChange={(field, value) => {
                       setFormData({ ...formData, customerBooking: { ...formData.customerBooking, [field]: value } })
-                    }
+                      setCustomerErrors((prev) =>
+                        field === "email" || field === "phone"
+                          ? { ...prev, email: undefined, phone: undefined }
+                          : { ...prev, [field]: undefined },
+                      )
+                      setError((prev) => (prev === CUSTOMER_DETAILS_ERROR ? null : prev))
+                    }}
                     errors={customerErrors}
                   />
                 </FormSection>

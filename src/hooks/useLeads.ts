@@ -643,6 +643,112 @@ export const useAssignedNewCount = (enabled: boolean, liveRefreshMs = 0) => {
   return data || 0;
 };
 
+export type LeadMentionStatus = "new" | "completed" | "all";
+
+export interface LeadMentionItem {
+  id: string;
+  leadId: string;
+  noteId: string;
+  firstName: string;
+  lastName: string;
+  customerName: string;
+  phone: string;
+  email: string;
+  status: string;
+  channel: string;
+  via: "person" | "team";
+  teamName: string;
+  authorName: string;
+  authorType: string;
+  text: string;
+  mentionedAt: string;
+  completedAt: string | null;
+}
+
+export const useLeadMentions = (options: { enabled: boolean; status: LeadMentionStatus; page: number; search: string }) => {
+  const { getToken } = useAuth();
+
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+    queryKey: ["leads", "mentions", options.status, options.page, options.search],
+    enabled: options.enabled,
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const response = await apiClient.get("/api/leads/mentions", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { status: options.status, page: options.page, limit: 20, ...(options.search ? { q: options.search } : {}) },
+        signal,
+      });
+      const resData = response.data?.data || response.data;
+      return {
+        items: (Array.isArray(resData?.items) ? resData.items : []) as LeadMentionItem[],
+        total: Number(resData?.total) || 0,
+        pages: Number(resData?.pages) || 1,
+        asOf: typeof resData?.asOf === "string" ? resData.asOf : null,
+      };
+    },
+
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+    placeholderData: (previous) => previous,
+  });
+
+  return {
+    items: data?.items || [],
+    total: data?.total || 0,
+    pages: data?.pages || 1,
+    asOf: data?.asOf || null,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  };
+};
+
+export const useLeadMentionCount = (enabled: boolean, liveRefreshMs = 0) => {
+  const { getToken } = useAuth();
+
+  const { data } = useQuery({
+    queryKey: ["leads", "mentions-count"],
+    enabled,
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const response = await apiClient.get("/api/leads/mentions/count", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+      const resData = response.data?.data || response.data;
+      return Number(resData?.count) || 0;
+    },
+
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: enabled && liveRefreshMs > 0 ? liveRefreshMs : false,
+  });
+
+  return data || 0;
+};
+
+export const useCompleteLeadMentions = () => {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useCallback(
+    async (body: { all?: boolean; mentionId?: string; noteId?: string; before?: string }) => {
+      const token = await getToken();
+      await apiClient.post("/api/leads/mentions/complete", body, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["leads", "mentions"] }),
+        queryClient.invalidateQueries({ queryKey: ["leads", "mentions-count"] }),
+      ]);
+    },
+    [getToken, queryClient],
+  );
+};
+
 export const useNeedsReplyCount = (enabled: boolean, liveRefreshMs = 0) => {
   const { getToken } = useAuth();
 

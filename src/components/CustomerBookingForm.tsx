@@ -95,7 +95,7 @@ export function CustomerBookingForm({
 
             <div className="space-y-2">
               <Label htmlFor="customerEmail">
-                Email *
+                {customerData.phone.trim() ? "Email (optional)" : "Email *"}
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -106,33 +106,36 @@ export function CustomerBookingForm({
                   value={customerData.email}
                   onChange={(e) => onChange('email', e.target.value)}
                   className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
-                  required
+                  aria-invalid={Boolean(errors.email)}
                 />
               </div>
               {errors.email && (
-                <p className="text-xs text-red-500">{errors.email}</p>
+                <p role="alert" className="text-xs text-red-500">{errors.email}</p>
               )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="customerPhone">
-                Cellphone Number *
+                {customerData.email.trim() ? "Cellphone Number (optional)" : "Cellphone Number *"}
               </Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
                   id="customerPhone"
                   type="tel"
+                  inputMode="tel"
                   placeholder="+1 (555) 123-4567"
                   value={customerData.phone}
                   onChange={(e) => onChange('phone', e.target.value)}
                   className={`pl-10 ${errors.phone ? 'border-red-500' : ''}`}
-                  required
+                  aria-invalid={Boolean(errors.phone)}
                 />
               </div>
-              {errors.phone && (
-                <p className="text-xs text-red-500">{errors.phone}</p>
-              )}
+              {errors.phone ? (
+                <p role="alert" className="text-xs text-red-500">{errors.phone}</p>
+              ) : !customerData.email.trim() && !customerData.phone.trim() ? (
+                <p className="text-xs text-muted-foreground">Add a phone number, an email, or both.</p>
+              ) : null}
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 rounded-md p-3">
