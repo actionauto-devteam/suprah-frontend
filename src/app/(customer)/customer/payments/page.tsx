@@ -14,6 +14,7 @@ import {
   Wallet,
   AlertCircle,
   Package,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -68,7 +69,7 @@ function fmtDate(d?: string) {
 
 const STATUS_META: Record<
   PaymentInvoice["status"],
-  { label: string; icon: any; cls: string }
+  { label: string; icon: LucideIcon; cls: string }
 > = {
   pending: { label: "Due", icon: Clock, cls: "bg-chart-2/15 text-chart-2" },
   failed: { label: "Failed", icon: XCircle, cls: "bg-destructive/15 text-destructive" },
@@ -97,8 +98,6 @@ function InvoiceCard({
   const Icon = meta.icon;
   const payable = inv.status === "pending" || inv.status === "failed";
   const cancellable = inv.status === "pending" || inv.status === "failed" || inv.status === "processing";
-  const productName =
-    typeof inv.aftermarketProductId === "object" ? inv.aftermarketProductId?.name : undefined;
 
   return (
     <div className="rounded-[14px] border border-border bg-card overflow-hidden">
@@ -184,7 +183,7 @@ function InvoiceCard({
   );
 }
 
-function StatCard({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone: string }) {
+function StatCard({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: string; tone: string }) {
   return (
     <div className="rounded-[14px] border border-border bg-card p-4 flex items-center gap-3">
       <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", tone)}>
@@ -236,7 +235,7 @@ function PaymentsView() {
         } else {
           throw new Error("No checkout URL returned");
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         setBanner({ kind: "error", text: userErrorMessage(e, "start this payment") });
         setPayingId(null);
       }
@@ -252,7 +251,7 @@ function PaymentsView() {
         await apiClient.post(`/api/payments/${paymentId}/cancel-mine`);
         setBanner({ kind: "info", text: "Invoice cancelled." });
         refetch();
-      } catch (e: any) {
+      } catch (e: unknown) {
         setBanner({ kind: "error", text: userErrorMessage(e, "cancel this invoice") });
         // If it was already paid, refetch so the UI reflects the real status.
         refetch();

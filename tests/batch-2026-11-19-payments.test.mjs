@@ -209,3 +209,18 @@ test('the Payments page fits phones: cards, wrapping text, no sideways scrolling
   // Toasts stay inside the screen on narrow phones.
   assert.match(staffPayments, /maxWidth: "min\(340px, 100%\)"/);
 });
+
+// ── Suprah Pay screens: no loose `any` types ───────────────────────────────
+test('the Suprah Pay screens have no `any` types', () => {
+  for (const rel of [
+    'app/(customer)/customer/payments/page.tsx',
+    'components/customer/garage/OverviewTab.tsx',
+    'app/(dashboard)/billing/page.tsx',
+    'app/(dashboard)/billing/payments/page.tsx',
+    'app/(dashboard)/billing/driver-payouts/page.tsx',
+    'app/(driver)/driver/settings/page.tsx',
+    'app/(admin)/admin/payouts/page.tsx',
+  ]) {
+    assert.doesNotMatch(read(rel), /:\s*any\b|\bas any\b|<any>|any\[\]/, rel);
+  }
+});
