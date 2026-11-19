@@ -80,3 +80,10 @@ test('Link Wise and Send say they are in development while the wallet moves to S
   assert.match(panel, /disabled=\{busy \|\| inDevelopment\}/);
   assert.match(panel, /Linking Wise is still in development/);
 });
+
+// ── Link Wise code clean-up (no visible change) ─────────────────────────────
+test('the Link Wise files use proper types instead of any', () => {
+  for (const rel of ['components/billing/LinkedAccountIntegration.tsx', 'lib/linkedAccountApi.ts']) {
+    assert.doesNotMatch(read(rel), /: any\b|as any\b/, rel);
+  }
+});
