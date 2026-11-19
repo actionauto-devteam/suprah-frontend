@@ -835,7 +835,9 @@ export function ConversationView({
               <span>
                 {conversationMeta.unavailableSources.includes("email")
                   ? "Email messages couldn't be loaded right now. Everything else is shown."
-                  : "Some messages couldn't be loaded right now. Everything else is shown."}
+                  : conversationMeta.unavailableSources.includes("email_not_in_mailbox") && conversationMeta.unavailableSources.length === 1
+                    ? "This lead's earlier emails are not in the connected email account, so they can't be shown here. New emails will show as usual."
+                    : "Some messages couldn't be loaded right now. Everything else is shown."}
               </span>
             </div>
           ) : null}

@@ -37,6 +37,7 @@ import { useAlert } from "@/components/AlertDialog";
 import { summarizeAiModes } from "@/components/crm/AiOperatingModesPanel";
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes";
 import { canViewAiHub } from "@/lib/aiShadowDrafts";
+import { fmtDateMDT } from "@/lib/timezone";
 
 interface CrmUserData {
   _id: string;
@@ -62,7 +63,13 @@ interface OrgLeadConfig {
   hasWebhookSecret?: boolean;
   webhookUrl?: string;
   lastSyncAt?: string;
+  previousMailbox?: { gmailAddress?: string; readUntil?: string } | null;
 }
+
+const GOOGLE_SIGN_IN_ERRORS = new Map<string, string>([
+  ["email_access", "Google did not give Suprah access to this email account. Please try again and allow everything Google asks for."],
+  ["missing_params", "Google did not finish the sign-in. Please try again."],
+]);
 
 export default function IntegrationsSettingsPage() {
   const router = useRouter();
@@ -185,6 +192,26 @@ export default function IntegrationsSettingsPage() {
     init();
   }, [router]);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get("success");
+    const error = params.get("error");
+    if (success !== "gmail_connected" && !error) return;
+    if (!localStorage.getItem("crm_token")) return;
+    if (error) {
+      toast.error("Google account not connected", {
+        id: "google-account-result",
+        description: GOOGLE_SIGN_IN_ERRORS.get(error) ?? "Google did not finish connecting the account. Please try again.",
+      });
+    } else {
+      toast.success("Google account connected", {
+        id: "google-account-result",
+        description: "Check that the email address shown is the right one.",
+      });
+    }
+    router.replace("/crm/settings/integrations");
+  }, [router]);
+
   const handleConnectGmail = async () => {
     try {
       const res = await apiClient.get("/api/org-lead/auth", {
@@ -252,7 +279,7 @@ export default function IntegrationsSettingsPage() {
         if (!isAdmin) return
         await confirm(
             "Disconnect Google?",
-            "Are you sure you want to disconnect Google? This will stop all automated lead and calendar synchronization for the workspace.",
+            `Are you sure you want to disconnect Google? This will stop all automated lead and calendar synchronization for the workspace.${config?.previousMailbox?.gmailAddress ? ` The previous account, ${config.previousMailbox.gmailAddress}, will no longer be checked either, and its emails will no longer show in the leads.` : ""}`,
             async () => {
                 setIsSaving(true)
                 try {
@@ -613,7 +640,7 @@ export default function IntegrationsSettingsPage() {
                                         <div className="space-y-3">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-emerald-600 truncate">{config.gmailAddress || 'account@gmail.com'} Connected</p>
+                                                    <p className="text-sm font-bold text-emerald-600 break-words">{config.gmailAddress || 'account@gmail.com'} Connected</p>
                                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                         <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${config.calendarConnected ? 'border-emerald-500/30 text-emerald-600' : 'border-amber-500/30 text-amber-600'}`}>
                                                             Calendar {config.calendarConnected ? 'Connected' : 'Not Connected'}
@@ -621,7 +648,7 @@ export default function IntegrationsSettingsPage() {
                                                         <p className="text-[11px] text-emerald-600/70">Last synced: {config.lastSyncAt || 'Just now'}</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2 shrink-0">
+                                                <div className="flex flex-wrap items-center gap-2 shrink-0">
                                                     <Button
                                                         onClick={handleManualSync}
                                                         disabled={isSaving}
@@ -631,6 +658,16 @@ export default function IntegrationsSettingsPage() {
                                                     >
                                                         {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1.5" />}
                                                         Sync Now
+                                                    </Button>
+                                                    <Button
+                                                        onClick={handleConnectGmail}
+                                                        disabled={isSaving || !isAdmin}
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 rounded-lg text-xs font-semibold border-border/50 bg-background hover:bg-muted/50 text-foreground"
+                                                        title="Sign in with another Google account. The current one stays connected until the new one is connected."
+                                                    >
+                                                        Switch account
                                                     </Button>
                                                     <Button
                                                         onClick={handleDisconnectGmail}
@@ -643,6 +680,11 @@ export default function IntegrationsSettingsPage() {
                                                     </Button>
                                                 </div>
                                             </div>
+                                            {config.previousMailbox?.gmailAddress && config.previousMailbox.readUntil && (
+                                                <p className="text-[11px] text-muted-foreground px-1 break-words">
+                                                    Also checking the previous account, {config.previousMailbox.gmailAddress}, for customer replies until {fmtDateMDT(config.previousMailbox.readUntil)}.
+                                                </p>
+                                            )}
                                             {!config.calendarConnected && (
                                                 <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 rounded-lg border border-amber-100 dark:border-amber-500/20 italic">
                                                     Note: Calendar sync requires re-connecting your Google account to grant new permissions.
