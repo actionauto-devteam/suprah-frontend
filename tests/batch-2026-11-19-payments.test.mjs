@@ -137,3 +137,13 @@ test('Link Wise shows a message instead of opening a Wise error page', () => {
 test("the website no longer carries a Wise client pointing at Wise's retired test site", () => {
   assert.equal(fs.existsSync(fileURLToPath(new URL('../src/lib/wise-client.ts', import.meta.url))), false);
 });
+
+// ── Receive is "still in development" until the real payment page exists ────
+test('Receive explains it is in development instead of showing a link that 404s', () => {
+  const wallet = read('app/(dashboard)/billing/page.tsx');
+  assert.match(wallet, /toast\.info\("Receive is still in development", \{\n\s+description: RECEIVE_IN_DEVELOPMENT_MESSAGE,/);
+  assert.match(wallet, /use Request Payment on a lead\./);
+  assert.doesNotMatch(wallet, /ReceiveModal|"receive"/);
+  assert.equal(fs.existsSync(fileURLToPath(new URL('../src/components/billing/ReceiveModal.tsx', import.meta.url))), false);
+  assert.match(read('components/billing/BalanceCard.tsx'), /label="Receive" sub="In development"/);
+});
