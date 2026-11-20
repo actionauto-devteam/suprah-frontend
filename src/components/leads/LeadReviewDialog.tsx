@@ -35,7 +35,7 @@ const REASONS: Record<string, string> = {
 const RESOLUTION_LABELS: Record<string, string> = {
   associated: "Added to a lead",
   created_lead: "New lead created",
-  not_customer_inquiry: "Not a customer inquiry",
+  not_customer_inquiry: "Marked Not a lead",
   kept_separate: "Kept separate",
 };
 
@@ -204,7 +204,7 @@ function ReviewCard({
               className="flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-60 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               {busy === "not_customer_inquiry" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Not a customer inquiry
+              Not a lead
             </button>
           </div>
         </div>

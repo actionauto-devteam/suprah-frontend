@@ -19,6 +19,7 @@ import { formatSmsRecipient } from "@/lib/api/leadComposer";
 import { MDT_TZ, isTodayMDT } from "@/lib/timezone";
 import type { ActiveLeadCall } from "@/hooks/useActiveCalls";
 import { campaignKindLabel } from "@/lib/leadType";
+import { notALeadReason } from "@/lib/leadStatus";
 
 interface LeadsListProps {
   leads: any[];
@@ -48,6 +49,8 @@ interface LeadsListProps {
   timeMode?: "all" | "customer";
   currentUserId?: string | null;
   showCampaign?: boolean;
+  emptyTitle?: string;
+  emptyHint?: string;
 }
 
 const listTime = (value: any) => {
@@ -226,6 +229,8 @@ export const LeadsList = React.memo(
     timeMode = "customer",
     currentUserId = null,
     showCampaign = false,
+    emptyTitle = "No leads found",
+    emptyHint = "Try a different search or clear your filters.",
   }: LeadsListProps) => {
     const rangeStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const rangeEnd = Math.min(currentPage * itemsPerPage, total);
@@ -332,10 +337,10 @@ export const LeadsList = React.memo(
             <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
               <Inbox className="h-7 w-7 text-slate-300 dark:text-slate-600" />
               <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                No leads found
+                {emptyTitle}
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                Try a different search or clear your filters.
+                {emptyHint}
               </p>
             </div>
           ) : (
@@ -445,6 +450,12 @@ export const LeadsList = React.memo(
                         {lead?.subject && (
                           <p className="mt-0.5 truncate text-[12px] text-slate-400 dark:text-slate-500">
                             {lead.subject}
+                          </p>
+                        )}
+
+                        {notALeadReason(lead) && (
+                          <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400" data-testid="lead-not-a-lead-reason">
+                            Why: {notALeadReason(lead)}
                           </p>
                         )}
 

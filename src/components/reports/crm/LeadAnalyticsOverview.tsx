@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 import type { Lead } from "@/types/lead";
-import { LEAD_STATUS_VALUES } from "@/lib/leadStatus";
+import { COUNTED_LEAD_STATUS_VALUES, LEAD_STATUS_VALUES } from "@/lib/leadStatus";
 
 interface LeadAnalyticsOverviewProps {
   leads: Lead[];
@@ -76,7 +76,7 @@ const MONTHS = [
   "December",
 ] as const;
 
-const STATUS_ORDER = [...LEAD_STATUS_VALUES, "Other"];
+const STATUS_ORDER = [...COUNTED_LEAD_STATUS_VALUES, "Other"];
 
 function normalizeCssColor(rawValue: string, fallback: string): string {
   const value = rawValue.trim();

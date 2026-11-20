@@ -14,6 +14,7 @@ interface StatusReasonModalProps {
   confirmLabel: string
   onConfirm: (reason: string) => void
   isSubmitting?: boolean
+  quickReasons?: string[]
 }
 
 export function StatusReasonModal({
@@ -24,6 +25,7 @@ export function StatusReasonModal({
   confirmLabel,
   onConfirm,
   isSubmitting,
+  quickReasons = [],
 }: StatusReasonModalProps) {
   const [reason, setReason] = React.useState("")
 
@@ -52,6 +54,25 @@ export function StatusReasonModal({
 
         <div className="px-4 sm:px-6 py-5 space-y-2">
           <p className="text-sm text-muted-foreground">{description}</p>
+          {quickReasons.length > 0 && (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Common reasons">
+              {quickReasons.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setReason(option)}
+                  aria-pressed={reason.trim() === option}
+                  className={
+                    reason.trim() === option
+                      ? "min-h-8 rounded-full border border-primary bg-primary/10 px-3 text-xs font-medium text-primary"
+                      : "min-h-8 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground transition hover:bg-muted"
+                  }
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}

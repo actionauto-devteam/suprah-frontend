@@ -22,6 +22,7 @@ import {
   CreditCard,
   Wifi,
   XCircle,
+  Archive,
 } from "lucide-react";
 
 /**
@@ -29,7 +30,9 @@ import {
  * suprah-backend/src/constants/leadStatus.ts. Kept in sync manually since
  * the two repos don't share a package — update both together.
  */
-export type LeadStatusCategory = "None" | "Active" | "MissedOpportunity" | "DeadLead" | "Sold" | "ClosedLegacy";
+export type LeadStatusCategory = "None" | "Active" | "MissedOpportunity" | "DeadLead" | "Sold" | "ClosedLegacy" | "NotALead";
+
+export const NOT_A_LEAD_STATUS = "Not a Lead";
 
 export const LEAD_STATUS_CATEGORY_ORDER: LeadStatusCategory[] = [
   "None",
@@ -38,6 +41,7 @@ export const LEAD_STATUS_CATEGORY_ORDER: LeadStatusCategory[] = [
   "DeadLead",
   "Sold",
   "ClosedLegacy",
+  "NotALead",
 ];
 
 export const LEAD_STATUS_CATEGORY_LABEL: Record<LeadStatusCategory, string> = {
@@ -47,6 +51,7 @@ export const LEAD_STATUS_CATEGORY_LABEL: Record<LeadStatusCategory, string> = {
   DeadLead: "Dead Lead",
   Sold: "Sold",
   ClosedLegacy: "Closed",
+  NotALead: "Others",
 };
 
 export const LEAD_STATUS_CATEGORIES: Record<LeadStatusCategory, string[]> = {
@@ -75,11 +80,18 @@ export const LEAD_STATUS_CATEGORIES: Record<LeadStatusCategory, string[]> = {
   DeadLead: ["Bought Elsewhere", "Bad Lead", "Do Not Contact"],
   Sold: ["Sold", "In Finance", "Online Financing"],
   ClosedLegacy: ["Closed"],
+  NotALead: [NOT_A_LEAD_STATUS],
 };
 
 export const LEAD_STATUS_VALUES: string[] = LEAD_STATUS_CATEGORY_ORDER.flatMap(
   (category) => LEAD_STATUS_CATEGORIES[category],
 );
+
+export const NOT_A_LEAD_REASONS: string[] = ["Not a customer", "Test lead", "Spam", "Vendor or partner"];
+
+export const COUNTED_LEAD_STATUS_VALUES: string[] =LEAD_STATUS_VALUES.filter((status) => status !== NOT_A_LEAD_STATUS);
+
+export const LEAD_LIST_CATEGORY_ORDER: LeadStatusCategory[] = LEAD_STATUS_CATEGORY_ORDER.filter((category) => category !== "NotALead");
 
 export type LeadStatus = string;
 
@@ -100,14 +112,27 @@ export const TERMINAL_LEAD_STATUSES: string[] = [
   ...LEAD_STATUS_CATEGORIES.DeadLead,
   ...LEAD_STATUS_CATEGORIES.Sold,
   ...LEAD_STATUS_CATEGORIES.ClosedLegacy,
+  ...LEAD_STATUS_CATEGORIES.NotALead,
 ];
 
 export const REASON_REQUIRED_STATUSES: string[] = [
   ...LEAD_STATUS_CATEGORIES.DeadLead,
   ...LEAD_STATUS_CATEGORIES.ClosedLegacy,
+  ...LEAD_STATUS_CATEGORIES.NotALead,
 ];
 
 export const CONTACT_RESTRICTED_STATUSES: string[] = ["Do Not Contact"];
+
+export function notALeadReason(
+  lead: { status?: string; statusHistory?: Array<{ to?: string; reason?: string } | null> } | null | undefined,
+): string {
+  if (lead?.status !== NOT_A_LEAD_STATUS) return "";
+  const history = Array.isArray(lead.statusHistory) ? lead.statusHistory : [];
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.to === NOT_A_LEAD_STATUS) return String(history[index]?.reason || "").trim();
+  }
+  return "";
+}
 
 export function isContactRestrictedStatus(status: unknown): boolean {
   return typeof status === "string" && CONTACT_RESTRICTED_STATUSES.includes(status.trim());
@@ -212,6 +237,8 @@ export const LEAD_STATUS_CONFIG: Record<string, LeadStatusStyle> = {
   "Online Financing": { label: "Online Financing", category: "Sold", icon: Wifi, ...GREEN },
 
   Closed: { label: "Closed", category: "ClosedLegacy", icon: XCircle, ...SLATE },
+
+  [NOT_A_LEAD_STATUS]: { label: "Not a lead", category: "NotALead", icon: Archive, ...SLATE },
 
   // UI-only synthetic filter bucket used by LeadsTab.tsx — NOT a real Lead.status
   // value, never sent to the backend. Kept here purely for styling reuse.

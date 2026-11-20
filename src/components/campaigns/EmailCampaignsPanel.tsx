@@ -28,7 +28,7 @@ import { apiClient } from "@/lib/api-client"
 import { useAuth, useUser } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
 import { fmtLongDateTimeMDT, parseDatetimeLocalAsMdt } from "@/lib/timezone"
-import { LEAD_STATUS_VALUES } from "@/lib/leadStatus"
+import { COUNTED_LEAD_STATUS_VALUES } from "@/lib/leadStatus"
 import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter"
 import {
   EmailRichTextEditor,
@@ -38,7 +38,7 @@ import {
   describeEmailImageUploadError,
 } from "@/components/campaigns/EmailRichTextEditor"
 
-const STATUS_OPTIONS = LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
+const STATUS_OPTIONS = COUNTED_LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
 const MAX_BODY_TEXT_LENGTH = 5000
 const MAX_MARKETING_CONTACT_RECIPIENTS = 500
 const MAX_RECIPIENTS = 500
