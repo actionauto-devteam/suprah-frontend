@@ -8,6 +8,8 @@ import { Payment, PaymentStats } from "@/types/billing";
 import { formatCurrency } from "@/utils/format";
 import { disputeLabel, isPartlyRefunded, notRefunded, refundedSoFar, revenueTrend } from "@/lib/payment-refunds";
 import { invoiceMoney, isDiscountLine, savedLineDetail } from "@/lib/invoice-lines";
+import { paymentPurposeLabel } from "@/lib/payment-purpose";
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay";
 import {
   ChartConfig,
   ChartContainer,
@@ -265,6 +267,11 @@ function DetailDrawer({
   const refunded = refundedSoFar(payment);
   // A disputed payment can't be refunded here: the bank's decision settles it.
   const refundable = disputeLabel(payment) ? 0 : notRefunded(payment);
+  // Sending, cancelling and refunding need Finance access (2026-11-21); the
+  // server checks it again. Sending also needs SuprahPay on for the dealership.
+  const { data: suprahPay } = useSuprahPaySettings();
+  const canManage = !!suprahPay?.canManagePayments;
+  const canSend = canManage && !!suprahPay?.enabled;
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -349,6 +356,7 @@ function DetailDrawer({
 
   const transactionRows: Array<{ label: string; val: React.ReactNode }> = [
     { label: "Description", val: payment.description },
+    ...(paymentPurposeLabel(payment.purpose) ? [{ label: "For", val: paymentPurposeLabel(payment.purpose) }] : []),
     ...(payment.invoiceNumber ? [{ label: "Invoice #", val: payment.invoiceNumber }] : []),
     { label: "Created", val: new Date(payment.createdAt).toLocaleString() },
     ...(payment.dueDate
@@ -659,7 +667,13 @@ function DetailDrawer({
             gap: 10,
           }}
         >
-          {(payment.status === "pending" || payment.status === "failed") && (
+          {suprahPay && !canManage && (
+            <p style={{ margin: 0, fontSize: 12.5, color: T.textSub, lineHeight: 1.5 }}>
+              You can view this payment. Sending payment requests, cancelling and refunding need Finance access from your dealership&apos;s admin.
+            </p>
+          )}
+
+          {canSend && (payment.status === "pending" || payment.status === "failed") && (
             <button
               onClick={() =>
                 action("Send request", async () => {
@@ -706,7 +720,7 @@ function DetailDrawer({
             </button>
           )}
 
-          {refundable > 0 && confirmRefund && (
+          {canManage && refundable > 0 && confirmRefund && (
             <div
               role="alertdialog"
               aria-labelledby="refund-confirm-title"
@@ -788,7 +802,7 @@ function DetailDrawer({
             </div>
           )}
 
-          {refundable > 0 && !confirmRefund && (
+          {canManage && refundable > 0 && !confirmRefund && (
             <button
               type="button"
               onClick={() => setConfirmRefund(true)}
@@ -817,7 +831,7 @@ function DetailDrawer({
             </button>
           )}
 
-          {(payment.status === "pending" || payment.status === "processing") && (
+          {canManage && (payment.status === "pending" || payment.status === "processing") && (
             <button
               onClick={() =>
                 action("Cancel", async () => {

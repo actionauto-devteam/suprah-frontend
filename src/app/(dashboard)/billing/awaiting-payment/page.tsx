@@ -6,6 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { Payment } from "@/types/billing";
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay";
 import { formatCurrency } from "@/utils/format";
 import {
   AlertCircle,
@@ -165,6 +166,9 @@ export default function AwaitingPaymentPage() {
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<AwaitingStatus>("all");
   const [requestStates, setRequestStates] = React.useState<Record<string, RequestState>>({});
+  // Sending a request needs Finance access and SuprahPay on (2026-11-21); the server checks too.
+  const { data: suprahPay } = useSuprahPaySettings();
+  const canSend = !!suprahPay?.canManagePayments && !!suprahPay?.enabled;
 
   const authHeaders = React.useCallback(async () => {
     const token = await getToken();
@@ -642,6 +646,7 @@ export default function AwaitingPaymentPage() {
                         : "No due date"}
                     </p>
 
+                    {canSend ? (
                     <button
                       type="button"
                       onClick={() => handleRequest(payment)}
@@ -685,6 +690,11 @@ export default function AwaitingPaymentPage() {
                           ? "Retry"
                           : "Request"}
                     </button>
+                    ) : (
+                      <span style={{ justifySelf: "start", fontSize: 12, color: T.textSub }}>
+                        {suprahPay?.enabled === false ? "SuprahPay isn't on yet" : "Needs Finance access"}
+                      </span>
+                    )}
                   </div>
                 );
               })

@@ -65,6 +65,8 @@ export interface Payment {
   notes?: string;
   /** Shown to the customer on their invoice. */
   customerNote?: string;
+  /** What the payment is for (2026-11-21): shipping, car_deposit, aftermarket, service, down_payment or other. */
+  purpose?: string;
   paidAt?: string;
   dueDate?: string;
 

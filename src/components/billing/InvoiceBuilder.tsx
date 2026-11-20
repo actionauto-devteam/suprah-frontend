@@ -9,6 +9,7 @@
 import * as React from "react";
 import { Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay";
 import { GhostButton, PrimaryButton, T, FONT, numeric, TextInput, Wordmark } from "@/components/billing/ui";
 import {
   type DraftInvoiceLine,
@@ -91,6 +92,12 @@ export function InvoiceBuilder({
     },
   ]);
   const [taxRate, setTaxRate] = React.useState("");
+  // Starts with the dealership's default sales tax (2026-11-21) until staff change it.
+  const { data: suprahPay } = useSuprahPaySettings();
+  const taxTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (!taxTouched.current && suprahPay && suprahPay.defaultTaxRate > 0) setTaxRate(String(suprahPay.defaultTaxRate));
+  }, [suprahPay]);
   const [dueDate, setDueDate] = React.useState("");
   const [note, setNote] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -338,7 +345,7 @@ export function InvoiceBuilder({
               <TextInput
                 id="invoice-tax"
                 value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
+                onChange={(e) => { taxTouched.current = true; setTaxRate(e.target.value); }}
                 inputMode="decimal"
                 autoComplete="off"
                 placeholder="0"

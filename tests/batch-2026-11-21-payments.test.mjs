@@ -58,3 +58,42 @@ test('customers see which dealership each invoice is from, what it is for, and h
   assert.match(page, /It can take 5–10 business days to show on your card\./);
   assert.match(page, />SuprahPay</);
 });
+
+// ── Finance access: who can send, cancel and refund ─────────────────────────
+test('dealership admins give or remove Finance access on the Members page, next to Dispatcher access', () => {
+  const members = read('components/settings/org-members-settings.tsx');
+  assert.match(members, /\/members\/\$\{userId\}\/finance-access/);
+  assert.match(members, /hasFinanceAccess: Boolean\(m\.hasFinanceAccess\)/);
+  assert.match(members, /SuprahPay: Finance Access/);
+  assert.match(members, /aria-label=\{`SuprahPay access for \$\{member\.fullName\}`\}/);
+});
+
+test('Send, Cancel and Refund show only for admins and staff with Finance access; others see why', () => {
+  const payments = read('app/(dashboard)/billing/payments/page.tsx');
+  assert.match(payments, /const canManage = !!suprahPay\?\.canManagePayments;/);
+  assert.match(payments, /\{canSend && \(payment\.status === "pending" \|\| payment\.status === "failed"\) && \(/);
+  assert.match(payments, /\{canManage && refundable > 0 && !confirmRefund && \(/);
+  assert.match(payments, /\{canManage && \(payment\.status === "pending" \|\| payment\.status === "processing"\) && \(/);
+  assert.match(payments, /need Finance access from your dealership&apos;s admin/);
+  const awaiting = read('app/(dashboard)/billing/awaiting-payment/page.tsx');
+  assert.match(awaiting, /const canSend = !!suprahPay\?\.canManagePayments && !!suprahPay\?\.enabled;/);
+  assert.match(awaiting, /Needs Finance access/);
+});
+
+test('Leads → Request Payment needs SuprahPay on and Finance access, and asks what the payment is for', () => {
+  const leads = read('components/LeadsTab.tsx');
+  assert.match(leads, /if \(suprahPay && !suprahPay\.enabled\) \{/);
+  assert.match(leads, /if \(suprahPay && !suprahPay\.canManagePayments\) \{/);
+  assert.match(leads, /<PaymentField label="What it's for">/);
+  assert.match(leads, /purpose: paymentForm\.purpose \|\| "other",/);
+  assert.deepEqual(purpose.PAYMENT_PURPOSES.map((p) => p.value), ['shipping', 'car_deposit', 'aftermarket', 'service', 'down_payment', 'other']);
+});
+
+test('Aftermarket invoices: Create invoice follows the same rules and starts with the default sales tax', () => {
+  const tab = read('components/AftermarketInquiriesTab.tsx');
+  assert.match(tab, /Sending invoices needs Finance access/);
+  assert.match(tab, /SuprahPay is coming soon for your dealership/);
+  const form = read('components/billing/InvoiceBuilder.tsx');
+  assert.match(form, /if \(!taxTouched\.current && suprahPay && suprahPay\.defaultTaxRate > 0\) setTaxRate\(String\(suprahPay\.defaultTaxRate\)\);/);
+  assert.match(form, /onChange=\{\(e\) => \{ taxTouched\.current = true; setTaxRate\(e\.target\.value\); \}\}/);
+});

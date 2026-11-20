@@ -30,6 +30,7 @@ import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { fmtTimeMDT, fmtFullDateTimeMDT, MDT_TZ } from "@/lib/timezone";
 import { linkifyText } from "@/lib/chatFormat";
 import { InvoiceBuilder } from "@/components/billing/InvoiceBuilder";
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -484,6 +485,8 @@ function DetailPanel({
 }) {
   const queryClient = useQueryClient();
   const [showBuilder, setShowBuilder] = React.useState(false);
+  // Sending an invoice needs SuprahPay on and Finance access (2026-11-21); the server checks too.
+  const { data: suprahPay } = useSuprahPaySettings();
   const [statusBusy, setStatusBusy] = React.useState(false);
 
   const { data, isLoading, refetch } = useQuery({
@@ -613,9 +616,15 @@ function DetailPanel({
                 </div>
               </div>
             ) : (
-              <Button size="sm" onClick={() => setShowBuilder(true)} className="rounded-xl gap-1.5">
-                <Receipt className="h-3.5 w-3.5" /> Create invoice
-              </Button>
+              suprahPay && !suprahPay.enabled ? (
+                <span className="text-xs text-muted-foreground">SuprahPay is coming soon for your dealership</span>
+              ) : suprahPay && !suprahPay.canManagePayments ? (
+                <span className="text-xs text-muted-foreground">Sending invoices needs Finance access</span>
+              ) : (
+                <Button size="sm" onClick={() => setShowBuilder(true)} className="rounded-xl gap-1.5">
+                  <Receipt className="h-3.5 w-3.5" /> Create invoice
+                </Button>
+              )
             )}
 
             <div className="flex items-center gap-1 ml-auto">

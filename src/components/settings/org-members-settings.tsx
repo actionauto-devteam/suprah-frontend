@@ -88,6 +88,7 @@ export function OrganizationMembersSettings() {
                 role: m.role,
                 organizationRole: m.organizationRole || 'member',
                 isDispatcher: Boolean(m.isDispatcher),
+                hasFinanceAccess: Boolean(m.hasFinanceAccess),
                 email: m.email,
                 fullName: m.name || m.fullName || 'Unknown User', // Map 'name' -> 'fullName'
                 imageUrl: m.avatar || m.imageUrl, // Map 'avatar' -> 'imageUrl'
@@ -203,6 +204,29 @@ export function OrganizationMembersSettings() {
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.message || "Failed to update Dispatcher access")
+        }
+    })
+
+    // SuprahPay Finance access (2026-11-21): this staff member can send
+    // payment requests and invoices, cancel and refund. Nothing else about the
+    // member changes; admins always have it. The server checks this again.
+    const financeAccessMutation = useMutation({
+        mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
+            if (!organizationId) return
+            const token = await getToken()
+            return apiClient.patch(
+                `/api/organizations/${organizationId}/members/${userId}/finance-access`,
+                { enabled },
+                { headers: { Authorization: `Bearer ${token}` } },
+            )
+        },
+        onSuccess: (_data, variables) => {
+            toast.success(variables.enabled ? "Finance access given" : "Finance access removed")
+            queryClient.invalidateQueries({ queryKey: ['org-members', organizationId] })
+        },
+        onError: (error: unknown) => {
+            const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message
+            toast.error(typeof message === "string" && message ? message : "Failed to update Finance access")
         }
     })
 
@@ -455,6 +479,29 @@ export function OrganizationMembersSettings() {
                                                     </Select>
                                                 ) : member.isDispatcher ? (
                                                     <Badge variant="outline" className="w-fit">Dispatcher Access</Badge>
+                                                ) : null
+                                            )}
+
+                                            {member.organizationRole !== 'admin' && member.role === 'employee' && (
+                                                isAdmin && member.userId !== user?.id ? (
+                                                    <Select
+                                                        value={member.hasFinanceAccess ? 'finance' : 'view'}
+                                                        onValueChange={(value) => financeAccessMutation.mutate({
+                                                            userId: member.userId,
+                                                            enabled: value === 'finance',
+                                                        })}
+                                                        disabled={financeAccessMutation.isPending}
+                                                    >
+                                                        <SelectTrigger className="h-8 w-48" aria-label={`SuprahPay access for ${member.fullName}`}>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="view">SuprahPay: View Only</SelectItem>
+                                                            <SelectItem value="finance">SuprahPay: Finance Access</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : member.hasFinanceAccess ? (
+                                                    <Badge variant="outline" className="w-fit">Finance Access</Badge>
                                                 ) : null
                                             )}
 
