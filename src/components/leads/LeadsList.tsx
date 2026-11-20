@@ -200,6 +200,71 @@ function StatusDot({ status }: { status?: string }) {
   );
 }
 
+interface LeadsListHeaderProps {
+  title: string;
+  total: number;
+  subtitle?: string;
+  headerAction?: React.ReactNode;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  searchPlaceholder?: string;
+  searchLabel?: string;
+  children?: React.ReactNode;
+}
+
+export function LeadsListHeader({
+  title,
+  total,
+  subtitle,
+  headerAction,
+  searchQuery,
+  onSearchChange,
+  searchPlaceholder = "Search name, email, vehicle…",
+  searchLabel = "Search leads",
+  children,
+}: LeadsListHeaderProps) {
+  return (
+    <div className="shrink-0 border-b border-slate-200 px-3 pb-2.5 pt-2.5 dark:border-emerald-400/15 md:px-3.5 md:pb-3 md:pt-3.5">
+      <div className="hidden items-center gap-2 md:flex">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-[14px] font-semibold uppercase tracking-[0.08em] text-slate-800 dark:text-slate-100">
+              {title}
+            </h2>
+            <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-px text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
+              {total}
+            </span>
+          </div>
+          {subtitle && (
+            <p className="mt-0.5 truncate text-[12px] text-slate-400 dark:text-slate-500">
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {headerAction}
+      </div>
+
+      <div className="flex items-center gap-2 md:mt-2.5">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            enterKeyHint="search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            aria-label={searchLabel}
+            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-[16px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 md:text-[14px]"
+          />
+        </div>
+        {headerAction ? <div className="shrink-0 md:hidden">{headerAction}</div> : null}
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
 export const LeadsList = React.memo(
   ({
     leads,
@@ -264,46 +329,16 @@ export const LeadsList = React.memo(
 
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-white dark:bg-[#0a1410]">
-        {/* Header */}
-        <div className="shrink-0 border-b border-slate-200 px-3 pb-2.5 pt-2.5 dark:border-emerald-400/15 md:px-3.5 md:pb-3 md:pt-3.5">
-          <div className="hidden items-center gap-2 md:flex">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-[14px] font-semibold uppercase tracking-[0.08em] text-slate-800 dark:text-slate-100">
-                  {title}
-                </h2>
-                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-px text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  {total}
-                </span>
-              </div>
-              {subtitle && (
-                <p className="mt-0.5 truncate text-[12px] text-slate-400 dark:text-slate-500">
-                  {subtitle}
-                </p>
-              )}
-            </div>
-            {headerAction}
-          </div>
-
-          {/* Search */}
-          <div className="flex items-center gap-2 md:mt-2.5">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search"
-                enterKeyHint="search"
-                value={searchQuery}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Search name, email, vehicle…"
-                aria-label="Search leads"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-[16px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 md:text-[14px]"
-              />
-            </div>
-            <div className="shrink-0 md:hidden">{headerAction}</div>
-          </div>
-
+        <LeadsListHeader
+          title={title}
+          total={total}
+          subtitle={subtitle}
+          headerAction={headerAction}
+          searchQuery={searchQuery}
+          onSearchChange={onSearchChange}
+        >
           {topContent}
-        </div>
+        </LeadsListHeader>
 
         {/* Rows */}
         <div ref={rowsRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 max-md:pb-6">

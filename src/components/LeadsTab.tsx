@@ -470,7 +470,7 @@ export function LeadsTab({
     liveRefreshMs: LEADS_LIVE_REFRESH_MS,
   });
 
-  const { counts: leadStatusCounts } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
+  const { counts: leadStatusCounts, isLoading: leadStatusCountsLoading } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadTypeCounts } = useLeadTypeCounts(LEADS_LIVE_REFRESH_MS);
   const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
@@ -504,6 +504,14 @@ export function LeadsTab({
     }
     return tabs;
   }, [leadLocationCounts]);
+
+  const inboxTabTotals = React.useMemo(() => {
+    let all = 0;
+    for (const [status, count] of Object.entries(leadStatusCounts || {})) {
+      if (status !== NOT_A_LEAD_STATUS) all += Number(count) || 0;
+    }
+    return { all, others: Number(leadStatusCounts?.[NOT_A_LEAD_STATUS]) || 0 };
+  }, [leadStatusCounts]);
 
   const categoryTabCounts = React.useMemo(() => {
     const totals: Record<string, number> = {};
@@ -2966,8 +2974,8 @@ export function LeadsTab({
   const inboxTabList = currentUserId ? (
     <div
       role="tablist"
-      aria-label="Assignment filter"
-      className={cn("col-span-2 min-w-0 gap-1 rounded-lg p-1", viewportMode === "narrow" ? "flex" : "grid grid-cols-2")}
+      aria-label="Lead lists"
+      className="col-span-2 grid min-w-0 grid-cols-4 gap-1 rounded-xl p-1"
       style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
     >
       {(["mine", "all", "mentioned", "others"] as const).map((key) => {
@@ -2975,6 +2983,13 @@ export function LeadsTab({
           key === "mentioned" || key === "others"
             ? inboxView === key
             : inboxView === "leads" && assignmentFilter === key && !(key === "all" && assigneeFilterId);
+        const label = key === "mine" ? "My Leads" : key === "all" ? "All Leads" : key === "mentioned" ? "Mentioned" : "Others";
+        const newCount = key === "mine" ? assignedNewCount : key === "mentioned" ? mentionCount : 0;
+        const total = key === "all" ? inboxTabTotals.all : key === "others" ? inboxTabTotals.others : null;
+        const newLabel =
+          key === "mine"
+            ? `${newCount} new lead${newCount === 1 ? "" : "s"} assigned to you`
+            : `${newCount} new mention${newCount === 1 ? "" : "s"}`;
         return (
           <button
             key={key}
@@ -3003,43 +3018,50 @@ export function LeadsTab({
               setAssigneeFilterId(null);
               setCurrentPage(1);
             }}
-            className="min-h-8 min-w-0 flex-auto truncate rounded-md px-1.5 py-1 text-[12px] font-semibold transition-colors md:min-h-0 md:px-1.5 md:text-[11px]"
-            style={
+            title={key === "others" ? "Emails and contacts marked Not a lead" : undefined}
+            className={cn(
+              "flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500/50 md:min-h-10",
               selected
-                ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
-                : { color: "var(--text-tertiary)" }
-            }
+                ? "bg-emerald-600 text-white shadow-sm dark:bg-[#1f6644]"
+                : "hover:bg-slate-900/5 dark:hover:bg-white/5",
+            )}
+            style={selected ? undefined : { color: "var(--text-secondary)" }}
             data-testid={`inbox-tab-${key}`}
           >
-            {key === "mine" ? (
-              <span className="inline-flex max-w-full items-center justify-center gap-1.5">
-                <span className="truncate">My Leads</span>
-                {assignedNewCount > 0 && (
-                  <span
-                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white"
-                    aria-label={`${assignedNewCount} new lead${assignedNewCount === 1 ? "" : "s"} assigned to you`}
-                    data-testid="my-leads-new-count"
-                  >
-                    {assignedNewCount > 99 ? "99+" : assignedNewCount}
-                  </span>
+            <span className={cn("max-w-full truncate text-[12px] leading-tight md:text-[11px]", selected ? "font-bold" : "font-semibold")}>
+              {label}
+            </span>
+            {total !== null ? (
+              leadStatusCountsLoading ? (
+                <span className="h-4" aria-hidden />
+              ) : (
+                <span
+                  className={cn("h-4 text-[11px] font-medium leading-4 tabular-nums", selected ? "text-white/80" : "")}
+                  style={selected ? undefined : { color: "var(--text-tertiary)" }}
+                  aria-label={key === "others" ? `${total} in Others` : `${total} leads`}
+                  data-testid={`inbox-tab-${key}-count`}
+                >
+                  {total >= 10000 ? `${Math.floor(total / 1000)}k` : total.toLocaleString("en-US")}
+                </span>
+              )
+            ) : newCount > 0 ? (
+              <span
+                className={cn(
+                  "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none tabular-nums",
+                  selected ? "bg-white/25 text-white" : key === "mine" ? "bg-emerald-500 text-white" : "bg-blue-500 text-white",
                 )}
+                aria-label={newLabel}
+                data-testid={key === "mine" ? "my-leads-new-count" : "mentioned-new-count"}
+              >
+                {newCount > 99 ? "99+" : newCount}
               </span>
-            ) : key === "all" ? (
-              "All Leads"
-            ) : key === "others" ? (
-              <span className="truncate" title="Emails and contacts marked Not a lead">Others</span>
             ) : (
-              <span className="inline-flex max-w-full items-center justify-center gap-1.5">
-                <span className="truncate">Mentioned</span>
-                {mentionCount > 0 && (
-                  <span
-                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold leading-none text-white"
-                    aria-label={`${mentionCount} new mention${mentionCount === 1 ? "" : "s"}`}
-                    data-testid="mentioned-new-count"
-                  >
-                    {mentionCount > 99 ? "99+" : mentionCount}
-                  </span>
-                )}
+              <span
+                className={cn("h-4 text-[11px] font-medium leading-4 tabular-nums", selected ? "text-white/80" : "")}
+                style={selected ? undefined : { color: "var(--text-tertiary)" }}
+                aria-label={key === "mine" ? "No new leads assigned to you" : "No new mentions"}
+              >
+                0
               </span>
             )}
           </button>
@@ -3377,29 +3399,15 @@ export function LeadsTab({
                   </button>
                 )}
                 topContent={othersView ? (
-                  <div
-                    className="flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
-                    style={{
-                      borderColor: "var(--border-1)",
-                      background: "var(--bg-elevated)",
-                    }}
-                  >
-                    <div className="grid min-w-0 grid-cols-1 gap-1.5 md:gap-2">
-                      {inboxTabList}
-                    </div>
+                  <div className="flex min-w-0 shrink-0 flex-col gap-2 pt-2.5 md:pt-3">
+                    {inboxTabList}
                     <p className="px-0.5 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }} data-testid="others-hint">
                       Marked Not a lead by the team or sorted here automatically. Open one and use Move back to leads if it is a real customer.
                     </p>
                   </div>
                 ) : (
                   <>
-                    <div
-                      className="flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
-                      style={{
-                        borderColor: "var(--border-1)",
-                        background: "var(--bg-elevated)",
-                      }}
-                    >
+                    <div className="flex min-w-0 shrink-0 flex-col gap-2 pt-2.5 md:pt-3">
                       <div
                         className={cn(
                           "grid min-w-0 gap-1.5 md:gap-2",

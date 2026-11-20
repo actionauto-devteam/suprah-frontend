@@ -3,6 +3,8 @@
 import * as React from "react";
 import { CheckCheck, ChevronDown, Loader2 } from "lucide-react";
 import { ConversationListPanel } from "@/components/conversation-workspace/ConversationListPanel";
+import { LeadsListHeader } from "@/components/leads/LeadsList";
+import { cn } from "@/lib/utils";
 import type { WorkspaceContact } from "@/components/conversation-workspace/workspace-types";
 import { useLeadMentions, type LeadMentionItem, type LeadMentionStatus } from "@/hooks/useLeads";
 
@@ -97,45 +99,25 @@ export function MentionsList({
     }
   };
 
+  const canCompleteAll = status === "new" && newCount > 0;
+
   return (
-    <ConversationListPanel
-      title="Mentioned"
-      subtitle="Notes where you or your team were mentioned"
-      contacts={contacts}
-      selectedContactId={selectedMentionId || undefined}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      total={total}
-      searchQuery={search}
-      onSearchChange={(value) => {
-        onSearchChange(value);
-        onPageChange(1);
-      }}
-      onContactSelect={(contact) => {
-        const item = byId.get(contact.id);
-        if (item) onOpen(item);
-      }}
-      emptyLabel={
-        isError
-          ? "Couldn't load your mentions"
-          : debouncedSearch
-            ? "No mentions match your search"
-            : status === "new"
-              ? "You're all caught up. No new mentions."
-              : "No mentions yet"
-      }
-      searchPlaceholder="Search name or note…"
-      currentPage={page}
-      totalPages={pages}
-      itemsPerPage={20}
-      onPageChange={onPageChange}
-      topContent={
-        <div
-          className="flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
-          style={{ borderColor: "var(--border-1)", background: "var(--bg-elevated)" }}
-        >
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-white dark:bg-[#0a1410]">
+      <LeadsListHeader
+        title="Mentioned"
+        total={total}
+        subtitle="Notes where you or your team were mentioned"
+        searchQuery={search}
+        onSearchChange={(value) => {
+          onSearchChange(value);
+          onPageChange(1);
+        }}
+        searchPlaceholder="Search name or note…"
+        searchLabel="Search mentions"
+      >
+        <div className="flex min-w-0 flex-col gap-2 pt-2.5 md:pt-3">
           {tabs}
-          <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className={cn("grid min-w-0 gap-1.5 md:gap-2", canCompleteAll ? "grid-cols-[auto_minmax(0,1fr)]" : "grid-cols-1")}>
             <label className="relative min-w-0">
               <select
                 value={status}
@@ -143,7 +125,7 @@ export function MentionsList({
                   onStatusChange(event.target.value as LeadMentionStatus);
                   onPageChange(1);
                 }}
-                className="h-9 appearance-none rounded-lg pl-3 pr-8 text-[12px] font-medium outline-none sm:text-[13px]"
+                className="h-10 w-full appearance-none truncate rounded-lg pl-3 pr-8 text-[12px] font-semibold outline-none sm:text-[13px]"
                 style={{
                   background: "var(--input-bg)",
                   border: "1px solid var(--input-border)",
@@ -161,17 +143,17 @@ export function MentionsList({
                 style={{ color: "var(--text-tertiary)" }}
               />
             </label>
-            {status === "new" && newCount > 0 ? (
+            {canCompleteAll ? (
               <button
                 type="button"
                 onClick={() => void completeAll()}
                 disabled={busy}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-semibold disabled:opacity-60"
-                style={{ color: "var(--accent-text)", background: "var(--accent-muted)" }}
+                className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[12px] font-semibold disabled:opacity-60 sm:text-[13px] md:gap-1 md:px-2 md:text-[12px]"
+                style={{ color: "var(--accent-text)", background: "var(--accent-muted)", border: "1px solid var(--input-border)" }}
                 data-testid="mentions-complete-all"
               >
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
-                Mark all as completed
+                {busy ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5 shrink-0" />}
+                <span className="truncate">Mark all as completed</span>
               </button>
             ) : null}
           </div>
@@ -191,7 +173,37 @@ export function MentionsList({
             </div>
           ) : null}
         </div>
-      }
-    />
+      </LeadsListHeader>
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ConversationListPanel
+          hideHeader
+          contacts={contacts}
+          selectedContactId={selectedMentionId || undefined}
+          isLoading={isLoading}
+          isFetching={isFetching}
+          total={total}
+          searchQuery={search}
+          onSearchChange={onSearchChange}
+          onContactSelect={(contact) => {
+            const item = byId.get(contact.id);
+            if (item) onOpen(item);
+          }}
+          emptyLabel={
+            isError
+              ? "Couldn't load your mentions"
+              : debouncedSearch
+                ? "No mentions match your search"
+                : status === "new"
+                  ? "You're all caught up. No new mentions."
+                  : "No mentions yet"
+          }
+          currentPage={page}
+          totalPages={pages}
+          itemsPerPage={20}
+          onPageChange={onPageChange}
+        />
+      </div>
+    </div>
   );
 }
