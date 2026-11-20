@@ -97,3 +97,20 @@ test('Aftermarket invoices: Create invoice follows the same rules and starts wit
   assert.match(form, /if \(!taxTouched\.current && suprahPay && suprahPay\.defaultTaxRate > 0\) setTaxRate\(String\(suprahPay\.defaultTaxRate\)\);/);
   assert.match(form, /onChange=\{\(e\) => \{ taxTouched\.current = true; setTaxRate\(e\.target\.value\); \}\}/);
 });
+
+// ── Admin → SuprahPay (super admins) ───────────────────────────────────────
+test('super admins set the fee and limit, switch SuprahPay per dealership, and send each weekly payout after confirming', () => {
+  const page = read('app/(admin)/admin/suprahpay/page.tsx');
+  for (const endpoint of ['/api/admin/suprahpay/settings', '/api/admin/suprahpay/dealerships', '/api/admin/suprahpay/payouts']) {
+    assert.ok(page.includes(endpoint), endpoint);
+  }
+  // The exact amount the super admin saw is what the server must still find.
+  assert.match(page, /\/send`, \{ amount: row\.amount \}\)/);
+  assert.match(page, /`Send \$\{formatCurrency\(row\.amount\)\} to \$\{row\.name\}\?`/);
+  assert.match(page, /Turn SuprahPay off for \$\{row\.name\}\?/);
+  assert.match(page, /aria-label=\{`SuprahPay for \$\{row\.name\}`\}/);
+  assert.match(page, /\/check`\)/);
+  // Lists stack instead of scrolling sideways on phones.
+  assert.doesNotMatch(page, /<Table\b|overflow-x-auto/);
+  assert.match(read('components/admin-sidebar.tsx'), /\{ title: "SuprahPay", url: "\/admin\/suprahpay", icon: Wallet \}/);
+});
