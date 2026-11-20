@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
-// Suprah Pay batch 3 (2026-11-20), one section per fix.
+// SuprahPay batch 3 (2026-11-20), one section per fix.
 const read = (rel) =>
   fs.readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
 
@@ -88,8 +88,8 @@ test('the Link Wise files use proper types instead of any', () => {
   }
 });
 
-// ── Phone and readability pass on the remaining Suprah Pay screens ──────────
-test('the remaining Suprah Pay screens never cut text off or scroll sideways', () => {
+// ── Phone and readability pass on the remaining SuprahPay screens ──────────
+test('the remaining SuprahPay screens never cut text off or scroll sideways', () => {
   for (const rel of [
     'app/(dashboard)/billing/page.tsx',
     'components/billing/BalanceCard.tsx',
@@ -159,7 +159,7 @@ test('a line that is not ready says what to fix', () => {
 test('the Create invoice form uses invoice wording, SuprahPay styling and a note to the customer', () => {
   const form = read('components/billing/InvoiceBuilder.tsx');
   for (const words of ['>Description<', '>Qty<', '>Price<', '>Amount<', 'Total due', 'Bill to', 'Note to customer (optional)',
-    'Shown to the customer on their invoice in Suprah Pay.', '"Add item"', '"Add fee"', '"Add discount"', 'aria-label="Close"']) {
+    'Shown to the customer on their invoice in SuprahPay.', '"Add item"', '"Add fee"', '"Add discount"', 'aria-label="Close"']) {
     assert.ok(form.includes(words), `missing ${words}`);
   }
   assert.match(form, /from "@\/components\/billing\/ui"/);

@@ -33,7 +33,7 @@ test('a section and its sub-pages get the notice, with or without a trailing sla
   assert.equal(inDevelopmentFor('/customer/aftermarket').name, 'Aftermarket');
   assert.equal(inDevelopmentFor('/customer/aftermarket/123').name, 'Aftermarket');
   assert.equal(inDevelopmentFor('/customer/network/').name, 'Service Network');
-  assert.equal(inDevelopmentFor('/customer/payments?tab=paid').name, 'Suprah Pay');
+  assert.equal(inDevelopmentFor('/customer/payments?tab=paid').name, 'SuprahPay');
   // A different page that only starts the same way isn't matched.
   assert.equal(inDevelopmentFor('/customer/supported'), null);
   assert.equal(inDevelopmentFor(null), null);

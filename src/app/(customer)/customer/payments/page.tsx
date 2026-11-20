@@ -355,7 +355,7 @@ function PaymentsView() {
             <Wallet className="h-4 w-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-bold text-lg tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Suprah Pay</h1>
+            <h1 className="font-bold text-lg tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">SuprahPay</h1>
             <p className="text-xs text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Invoices & payment history</p>
           </div>
         </div>

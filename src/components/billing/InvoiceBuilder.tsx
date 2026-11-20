@@ -4,7 +4,7 @@
  * Create invoice (2026-11-20): a standard invoice form in the SuprahPay look.
  * Each item is Qty × Price = Amount, a discount takes its amount off, and the
  * totals read Subtotal, Discount, Tax and Total due. The note is shown to the
- * customer on their invoice in Suprah Pay.
+ * customer on their invoice in SuprahPay.
  */
 import * as React from "react";
 import { Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
@@ -369,7 +369,7 @@ export function InvoiceBuilder({
               }}
             />
             <div className="flex flex-wrap justify-between gap-2">
-              <p style={helpStyle}>Shown to the customer on their invoice in Suprah Pay.</p>
+              <p style={helpStyle}>Shown to the customer on their invoice in SuprahPay.</p>
               <p style={{ ...helpStyle, ...numeric }}>{note.length}/{NOTE_MAX}</p>
             </div>
           </div>

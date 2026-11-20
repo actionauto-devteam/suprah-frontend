@@ -1,7 +1,7 @@
 /**
  * Invoice lines in plain invoice terms (2026-11-20): each item is
  * Qty × Price = Amount, and a discount takes its amount off. Used by the
- * Create invoice form, the customer's Suprah Pay invoice and the staff
+ * Create invoice form, the customer's SuprahPay invoice and the staff
  * Payments details, so all three say the same thing. Matches the server's
  * totals (tax is worked out on the total after discounts).
  */
