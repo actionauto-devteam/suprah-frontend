@@ -9,7 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useTheme } from "@/context/ThemeContext";
 import {
   LEAD_STATUS_CATEGORY_LABEL,
-  LEAD_STATUS_CATEGORY_ORDER,
+  LEAD_LIST_CATEGORY_ORDER,
   LEAD_STATUS_CATEGORIES,
   getLeadStatusStyle,
   type LeadStatusCategory,
@@ -306,7 +306,7 @@ export function LeadsFiltersPopover({
           </div>
           <div className="space-y-3">
             <div className="space-y-1">
-              {LEAD_STATUS_CATEGORY_ORDER.map((category) => (
+              {LEAD_LIST_CATEGORY_ORDER.map((category) => (
                 <OptionButton
                   key={category}
                   selected={activeCategory === category && !statusFilter}

@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, Loader2, Lock, LockOpen, Plus } from "lucide-react";
+import { Archive, ArrowRight, Loader2, Lock, LockOpen, Plus, Undo2 } from "lucide-react";
 import { StatusReasonModal } from "./StatusReasonModal";
+import { NOT_A_LEAD_STATUS } from "@/lib/leadStatus";
+
+const MOVE_BACK_REASONS = ["Real customer", "Marked by mistake"];
 import {
   errorMessage,
   getActiveLeadForClosedLead,
@@ -17,6 +20,7 @@ interface ClosedLeadComposerProps {
   onOpenLead: (leadId: string) => void;
   onReopen: (reason: string) => void;
   onNotice: (type: "success" | "error" | "info", message: string) => void;
+  linkedTo?: { leadId: string; name: string } | null;
 }
 
 function LeadButton({ lead, onOpen }: { lead: ReviewLeadSummary; onOpen: (id: string) => void }) {
@@ -33,16 +37,22 @@ function LeadButton({ lead, onOpen }: { lead: ReviewLeadSummary; onOpen: (id: st
   );
 }
 
-export function ClosedLeadComposer({ leadId, status, onOpenLead, onReopen, onNotice }: ClosedLeadComposerProps) {
+export function ClosedLeadComposer({ leadId, status, onOpenLead, onReopen, onNotice, linkedTo = null }: ClosedLeadComposerProps) {
   const [lookup, setLookup] = React.useState<ActiveLeadLookup | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [starting, setStarting] = React.useState(false);
   const [reopenOpen, setReopenOpen] = React.useState(false);
+  const linkedLeadId = linkedTo?.leadId || "";
+  const notALead = status === NOT_A_LEAD_STATUS;
 
   React.useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setLookup(null);
+    if (linkedLeadId || notALead) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     getActiveLeadForClosedLead(leadId)
       .then((result) => {
         if (!cancelled) setLookup(result);
@@ -56,7 +66,7 @@ export function ClosedLeadComposer({ leadId, status, onOpenLead, onReopen, onNot
     return () => {
       cancelled = true;
     };
-  }, [leadId]);
+  }, [leadId, linkedLeadId, notALead]);
 
   const handleFreshLead = async () => {
     setStarting(true);
@@ -77,6 +87,81 @@ export function ClosedLeadComposer({ leadId, status, onOpenLead, onReopen, onNot
 
   const activeLead = lookup && lookup.leadClosed && lookup.status === "single" ? lookup.lead : null;
   const candidates = lookup && lookup.leadClosed && lookup.status === "multiple" ? lookup.candidates : [];
+
+  if (linkedLeadId) {
+    const target = linkedTo?.name || "the customer's lead";
+    return (
+      <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 dark:border-emerald-400/15 dark:bg-[#0f1f19] sm:px-5">
+        <div className="flex items-start gap-2">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+              This chat was added to {target}, so replies are turned off here.
+            </p>
+            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+              New messages from this customer go to that lead.
+            </p>
+          </div>
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-6">
+          <button
+            type="button"
+            onClick={() => onOpenLead(linkedLeadId)}
+            className="flex h-8 max-w-full items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-500"
+          >
+            <span className="truncate">Open {target}</span>
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (notALead) {
+    return (
+      <>
+        <div
+          className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 dark:border-emerald-400/15 dark:bg-[#0f1f19] sm:px-5"
+          data-testid="not-a-lead-composer"
+        >
+          <div className="flex items-start gap-2">
+            <Archive className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+                This is in Others because it was marked Not a lead, so replies are turned off here.
+              </p>
+              <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                It is not counted as a lead. If this is a real customer, move it back to leads.
+              </p>
+            </div>
+          </div>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-6">
+            <button
+              type="button"
+              onClick={() => setReopenOpen(true)}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-500"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Move back to leads
+            </button>
+          </div>
+        </div>
+
+        <StatusReasonModal
+          open={reopenOpen}
+          onOpenChange={setReopenOpen}
+          title="Move back to leads"
+          description="This puts it back in the leads list as a new lead, and it counts as a lead again. Why is it a real lead?"
+          confirmLabel="Move back"
+          quickReasons={MOVE_BACK_REASONS}
+          onConfirm={(reason) => {
+            setReopenOpen(false);
+            onReopen(reason);
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <>

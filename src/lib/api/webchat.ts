@@ -36,7 +36,7 @@ export interface StartWebChatResult {
 export const startWebChat = async (
   payload: StartWebChatPayload,
 ): Promise<StartWebChatResult> => {
-  const res = await apiClient.post("/api/webchat/public/sessions", payload);
+  const res = await apiClient.post("/api/webchat/public/sessions", payload, { timeout: 45000 });
   return res.data.data;
 };
 

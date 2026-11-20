@@ -11,6 +11,8 @@ import {
   sendWebChatMessage,
   startWebChat,
   syncWebChat,
+  type StartWebChatPayload,
+  type StartWebChatResult,
   type WebChatConfig,
   type WebChatVisitorMessage,
 } from "@/lib/api/webchat"
@@ -122,6 +124,27 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return (
     (error as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
   )
+}
+
+const START_RETRY_DELAYS_MS = [2000, 5000]
+
+function startNotConfirmed(error: unknown): boolean {
+  const status = getStatus(error)
+  if (status === undefined) return true
+  if (status === 502 || status === 503 || status === 504) return !getErrorMessage(error, "")
+  return status === 409 && /already being processed/i.test(getErrorMessage(error, ""))
+}
+
+async function startWithRetry(payload: StartWebChatPayload, onRetry: () => void): Promise<StartWebChatResult> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await startWebChat(payload)
+    } catch (error) {
+      if (attempt >= START_RETRY_DELAYS_MS.length || !startNotConfirmed(error)) throw error
+      onRetry()
+      await new Promise((resolve) => window.setTimeout(resolve, START_RETRY_DELAYS_MS[attempt]))
+    }
+  }
 }
 
 function mergeMessages(current: WebChatVisitorMessage[], incoming: WebChatVisitorMessage[]) {
@@ -366,7 +389,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     try {
       const isEmail = !textUsForm && !textMode && trimmedContact.includes("@")
       const [givenName, ...otherNames] = trimmedName.split(" ")
-      const result = await startWebChat({
+      const result = await startWithRetry({
         vehicleId,
         orgKey,
         name: trimmedName,
@@ -386,7 +409,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
         pageUrl: window.location.href,
         clientRequestId: clientRequestIdRef.current,
         ...(textMode ? { continueByText: true } : {}),
-      })
+      }, () => setNotice("Still sending your message…"))
 
       const stored: StoredSession = {
         sessionId: result.sessionId,
@@ -398,9 +421,16 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
       setMessages(result.messages)
       setSession(stored)
       setDraft("")
-      if (result.textNotice) setNotice(result.textNotice)
+      setNotice(result.textNotice || "")
     } catch (err) {
-      setError(getErrorMessage(err, "We couldn't start the chat. Please try again."))
+      setNotice("")
+      setError(
+        startNotConfirmed(err)
+          ? textMode && trimmedContact
+            ? "We couldn't confirm your message went through. Please check your phone for our text before you send it again."
+            : "We couldn't confirm your message went through. Please wait a moment, then try again."
+          : getErrorMessage(err, "We couldn't start the chat. Please try again."),
+      )
     } finally {
       setBusy(false)
     }
@@ -752,6 +782,9 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
               />
             </div>
 
+            <p className={busy && notice ? "text-xs text-muted-foreground" : "sr-only"} role="status">
+              {busy ? notice : ""}
+            </p>
             {error && (
               <p className="text-xs text-red-600" role="alert">
                 {error}
@@ -845,6 +878,9 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
             />
           </div>
 
+          <p className={busy && notice ? "text-xs text-muted-foreground" : "sr-only"} role="status">
+            {busy ? notice : ""}
+          </p>
           {error && (
             <p className="text-xs text-red-500" role="alert">
               {error}

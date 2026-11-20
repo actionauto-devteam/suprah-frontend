@@ -8,7 +8,7 @@ import type { CustomerArea } from "@/lib/customerArea";
 
 export interface Lead {
   _id: string;
-  combinedInto?: { leadId?: string; at?: string } | null;
+  combinedInto?: { leadId?: string; at?: string; via?: "combine" | "link" } | null;
   customerId?: string;
   customerLink?: LinkedLead['customerLink'];
   // Contact Information

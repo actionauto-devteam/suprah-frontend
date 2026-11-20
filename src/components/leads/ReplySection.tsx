@@ -26,7 +26,7 @@ import {
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
-import { REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
+import { NOT_A_LEAD_REASONS, NOT_A_LEAD_STATUS, REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
 import { StatusReasonModal } from "./StatusReasonModal";
 import { CannedReplyPicker } from "./CannedReplyPicker";
 import { LeadNoteComposer } from "./LeadNoteComposer";
@@ -364,7 +364,15 @@ export const ReplySection = React.memo(
     };
 
     const reasonModalProps =
-      reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status"
+      reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status" && reasonModal.status === NOT_A_LEAD_STATUS
+        ? {
+          title: "Move to Others",
+          description:
+            "This is not a lead, so it won't count in lead numbers or get automatic texts or emails. You can move it back anytime.",
+          confirmLabel: "Move to Others",
+          quickReasons: NOT_A_LEAD_REASONS,
+        }
+        : reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status"
         ? {
           title: `Move to "${reasonModal.status}"`,
           description:

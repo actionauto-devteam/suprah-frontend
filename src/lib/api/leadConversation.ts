@@ -56,7 +56,7 @@ export interface EarlierLeadSummary {
 
 export interface LeadCombineInfo {
   combined?: { count: number; at: string };
-  combinedInto?: { leadId: string; name: string; at: string };
+  combinedInto?: { leadId: string; name: string; at: string; via?: "combine" | "link" };
   canUndo?: boolean;
 }
 

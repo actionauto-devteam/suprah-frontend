@@ -1,4 +1,4 @@
-import { LEAD_STATUS_VALUES, getLeadStatusStyle } from "@/lib/leadStatus";
+import { COUNTED_LEAD_STATUS_VALUES, getLeadStatusStyle } from "@/lib/leadStatus";
 
 export type ReportId =
   | "load-report"
@@ -232,7 +232,7 @@ const QUOTE_STATUS_OPTIONS: ReportFilterOption[] = [
   { label: "Rejected", value: "rejected" },
 ];
 
-const LEAD_STATUS_OPTIONS: ReportFilterOption[] = LEAD_STATUS_VALUES.map((status) => ({
+const LEAD_STATUS_OPTIONS: ReportFilterOption[] = COUNTED_LEAD_STATUS_VALUES.map((status) => ({
   label: getLeadStatusStyle(status).label,
   value: status,
 }));

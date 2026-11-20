@@ -369,7 +369,7 @@ export function LeadDetailsPanel({
       summaryLoading={summaryLoading}
       summaryStale={summaryIsStale(lead, summaryOverride?.generatedAt || lead?.aiSummaryGeneratedAt)}
       onRegenerateSummary={handleRegenerateSummary}
-      belowSummary={<AiAgentTasksSection leadId={lead?._id} />}
+      belowSummary={<AiAgentTasksSection key={`${lead?._id || ""}:${lead?.status || ""}`} leadId={lead?._id} />}
       detailsTop={
         lead?._id ? (
           <div className="space-y-2">
