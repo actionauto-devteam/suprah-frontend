@@ -61,7 +61,10 @@ export interface Payment {
   invoiceNumber?: string;
 
   failureReason?: string;
+  /** For the dealership's team only. */
   notes?: string;
+  /** Shown to the customer on their invoice. */
+  customerNote?: string;
   paidAt?: string;
   dueDate?: string;
 

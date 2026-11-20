@@ -23,6 +23,7 @@ import { fmtDateMDT } from "@/lib/timezone";
 import { useAlert } from "@/components/AlertDialog";
 import { userErrorMessage } from "@/lib/user-error";
 import { isPartlyRefunded, refundedSoFar } from "@/lib/payment-refunds";
+import { invoiceMoney, isDiscountLine, savedLineDetail } from "@/lib/invoice-lines";
 
 // --- Types --------------------------------------------------------------------
 
@@ -52,6 +53,8 @@ interface PaymentInvoice {
   refundedAmount?: number;
   createdAt: string;
   aftermarketProductId?: { name?: string; media?: { url?: string } } | string;
+  /** The dealership's note to the customer, shown on the invoice. */
+  customerNote?: string;
 }
 interface MyPaymentsResponse {
   payments: PaymentInvoice[];
@@ -127,13 +130,16 @@ function InvoiceCard({
       {/* Line items */}
       {inv.lineItems?.length ? (
         <div className="px-5 py-3 mt-2 space-y-1.5">
+          {/* Each line: what it is, Qty × Price, and its amount; a discount reads −$ (2026-11-20). */}
           {inv.lineItems.map((li, i) => (
-            <div key={i} className="flex justify-between text-xs">
-              <span className={cn("text-muted-foreground", li.kind === "discount" && "text-primary")}>
-                {li.label}
-                {li.quantity > 1 ? <span className="text-muted-foreground/60 font-mono"> × {li.quantity}</span> : null}
+            <div key={i} className="flex justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <p className={cn("text-foreground/90 [overflow-wrap:anywhere]", isDiscountLine(li) && "text-primary")}>{li.label}</p>
+                <p className="text-[11px] text-muted-foreground font-mono">{savedLineDetail(li)}</p>
+              </div>
+              <span className={cn("tabular-nums font-mono shrink-0", isDiscountLine(li) ? "text-primary" : "text-foreground/80")}>
+                {invoiceMoney(li.lineTotal)}
               </span>
-              <span className="tabular-nums font-mono text-foreground/80">{money(li.lineTotal)}</span>
             </div>
           ))}
           {!!inv.taxAmount && (
@@ -144,6 +150,13 @@ function InvoiceCard({
           )}
         </div>
       ) : null}
+
+      {inv.customerNote && (
+        <div className="mx-5 mt-1 rounded-lg bg-muted/40 px-3 py-2">
+          <p className="text-[11px] font-semibold text-muted-foreground">Note from the dealership</p>
+          <p className="text-xs text-foreground/90 whitespace-pre-line [overflow-wrap:anywhere]">{inv.customerNote}</p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 px-5 py-4 border-t border-border mt-1 sm:flex-row sm:items-center sm:justify-between">
         <div>

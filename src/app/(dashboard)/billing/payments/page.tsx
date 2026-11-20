@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import { Payment, PaymentStats } from "@/types/billing";
 import { formatCurrency } from "@/utils/format";
 import { disputeLabel, isPartlyRefunded, notRefunded, refundedSoFar, revenueTrend } from "@/lib/payment-refunds";
+import { invoiceMoney, isDiscountLine, savedLineDetail } from "@/lib/invoice-lines";
 import {
   ChartConfig,
   ChartContainer,
@@ -367,7 +368,9 @@ function DetailDrawer({
     ...(payment.disputeStatus ? [{ label: "Dispute", val: disputeText(payment) }] : []),
     ...(payment.paymentMethod ? [{ label: "Method", val: payment.paymentMethod }] : []),
     ...(payment.failureReason ? [{ label: "Failure reason", val: payment.failureReason }] : []),
-    ...(payment.notes ? [{ label: "Notes", val: payment.notes }] : []),
+    ...(payment.customerNote ? [{ label: "Note to customer", val: payment.customerNote }] : []),
+    // Notes are for the dealership's team only; customers never see them.
+    ...(payment.notes ? [{ label: "Internal notes", val: payment.notes }] : []),
   ];
 
   return (
@@ -559,6 +562,67 @@ function DetailDrawer({
             />
           ))}
         </div>
+
+        {/* The invoice's lines, as the customer sees them (2026-11-20). */}
+        {(payment.lineItems?.length ?? 0) > 0 && (
+          <div
+            style={{
+              background: T.surface,
+              border: `0.5px solid ${T.border}`,
+              borderRadius: 12,
+              padding: "12px 14px",
+              marginBottom: 12,
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: 11,
+                color: T.textMute,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                fontWeight: 700,
+                marginBottom: 6,
+              }}
+            >
+              Invoice lines
+            </p>
+            {payment.lineItems?.map((line, idx) => (
+              <div
+                key={`line-${idx}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "8px 0",
+                  borderBottom: `0.5px solid ${T.border}`,
+                }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13, color: isDiscountLine(line) ? T.green : T.text, overflowWrap: "anywhere" }}>
+                    {line.label}
+                  </span>
+                  <span style={{ display: "block", fontSize: 12, color: T.textSub, fontFamily: "var(--font-mono, monospace)" }}>
+                    {savedLineDetail(line)}
+                  </span>
+                </span>
+                <span style={{ flexShrink: 0, fontSize: 13, color: isDiscountLine(line) ? T.green : T.text, fontVariantNumeric: "tabular-nums" }}>
+                  {invoiceMoney(line.lineTotal)}
+                </span>
+              </div>
+            ))}
+            {!!payment.taxAmount && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", fontSize: 13, color: T.textSub }}>
+                <span>Tax{payment.taxRate ? ` (${payment.taxRate}%)` : ""}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>{invoiceMoney(payment.taxAmount)}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0 2px", fontSize: 14, fontWeight: 700, color: T.text }}>
+              <span>Total</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{invoiceMoney(payment.amount)}</span>
+            </div>
+          </div>
+        )}
 
         {payment.receiptUrl && (
           <a
