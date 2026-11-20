@@ -1,143 +1,62 @@
 "use client";
 
 import * as React from "react";
-import {
-  Eye,
-  EyeOff,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Link2,
-  TrendingUp,
-  Clock,
-  Receipt,
-} from "lucide-react";
+import { Eye, EyeOff, TrendingUp, Clock, Receipt } from "lucide-react";
 import { PaymentStats } from "@/types/billing";
 import { T, FONT, MONO, numeric, money } from "@/components/billing/ui";
 
+/**
+ * The SuprahPay wallet card (2026-11-21). Suprah keeps customer card payments
+ * and pays each dealership weekly (decision A4), so the balance is what Suprah
+ * owes the dealership. The business wallet's Wise, Send and Receive parts are
+ * not part of the launch (decision A1) and are no longer shown.
+ */
 interface BalanceCardProps {
+  /** What Suprah owes the dealership now. */
   balance: number;
-  userId: string;
-  userName: string;
   isLoading: boolean;
   stats: PaymentStats | null;
-  onReceive: () => void;
-  onSend: () => void;
-  onLinkWise: () => void;
-  /** One line under the balance saying where it comes from. */
+  /** One line under the balance saying what it is. */
   balanceNote?: string;
-  /** Link Wise and Send are still in development (2026-11-20: the wallet uses Stripe). */
-  wiseInDevelopment?: boolean;
-}
-
-function Action({
-  icon: Icon,
-  label,
-  sub,
-  variant = "ghost",
-  onClick,
-}: {
-  icon: React.ElementType;
-  label: string;
-  sub: string;
-  variant?: "ghost" | "brand";
-  onClick: () => void;
-}) {
-  const [hover, setHover] = React.useState(false);
-  const brand = variant === "brand";
-  return (
-    <button
-      className="spy-wallet-action"
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        flex: "1 1 136px",
-        minWidth: 0,
-        display: "flex",
-        alignItems: "center",
-        gap: 11,
-        padding: "12px 14px",
-        borderRadius: 12,
-        textAlign: "left",
-        cursor: "pointer",
-        fontFamily: FONT,
-        border: brand
-          ? `1px solid ${T.brandBorder}`
-          : `1px solid ${T.border}`,
-        background: brand
-          ? `linear-gradient(180deg, ${T.mint} -30%, ${T.brand} 55%, ${T.brandHover} 130%)`
-          : hover
-            ? T.surfaceAlt
-            : T.surface,
-        boxShadow: brand
-          ? hover
-            ? `0 0 0 1px ${T.mint}55, 0 10px 26px -12px ${T.brand}cc`
-            : `0 8px 20px -14px ${T.brand}aa`
-          : "none",
-        transform: brand && hover ? "translateY(-1px)" : "none",
-        transition: "background 0.15s, box-shadow 0.18s, transform 0.18s",
-      }}
-    >
-      <span
-        className="spy-wallet-action-icon"
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 9,
-          background: brand ? "rgba(3,18,10,0.22)" : T.surfaceAlt,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <Icon style={{ width: 16, height: 16, color: brand ? "#06130C" : T.text }} />
-      </span>
-      <span className="spy-wallet-action-copy" style={{ minWidth: 0 }}>
-        <span className="spy-wallet-action-label" style={{
-          display: "block", fontSize: 14, fontWeight: 700,
-          color: brand ? "#06130C" : T.text, lineHeight: 1.1,
-        }}>
-          {label}
-        </span>
-        <span className="spy-wallet-action-sub" style={{
-          display: "block", fontSize: 11, marginTop: 3,
-          color: brand ? "rgba(3,18,10,0.7)" : T.textSub,
-        }}>
-          {sub}
-        </span>
-      </span>
-    </button>
-  );
+  /** Bottom row: this week's payout and the payout account. */
+  footerLeft?: React.ReactNode;
+  footerRight?: React.ReactNode;
+  /** An optional button, for example to set up the payout account. */
+  action?: React.ReactNode;
 }
 
 export function BalanceCard({
   balance,
-  userId,
-  userName,
   isLoading,
   stats,
-  onReceive,
-  onSend,
-  onLinkWise,
   balanceNote,
-  wiseInDevelopment = false,
+  footerLeft,
+  footerRight,
+  action,
 }: BalanceCardProps) {
   const [visible, setVisible] = React.useState<boolean>(() => {
     if (typeof window === "undefined") return true;
-    return sessionStorage.getItem("billing_bal_vis") !== "false";
+    try {
+      return sessionStorage.getItem("billing_bal_vis") !== "false";
+    } catch {
+      return true;
+    }
   });
 
   const toggle = () => {
     const next = !visible;
     setVisible(next);
-    sessionStorage.setItem("billing_bal_vis", String(next));
+    try {
+      sessionStorage.setItem("billing_bal_vis", String(next));
+    } catch {
+      /* the choice just isn't remembered */
+    }
   };
 
   const fmt = (n: number) =>
     n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // These come from the dealership's card payments (Stripe), not the balance above.
+  // These come from the dealership's card payments, not the balance above.
   const statItems = [
     { label: "Card payments received", value: money(stats?.totalRevenue ?? 0), Icon: TrendingUp },
     { label: "Pending invoices", value: String(stats?.byStatus?.pending?.count ?? 0), Icon: Clock },
@@ -156,99 +75,56 @@ export function BalanceCard({
         background: T.surface,
         backgroundImage:
           "radial-gradient(120% 90% at 88% -12%, rgba(22,163,74,0.14), transparent 55%)",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
         border: `1px solid ${T.border}`,
         boxShadow: "0 12px 30px rgba(0,0,0,0.08)",
       }}
     >
-      {/* ambient glow */}
       <div
         aria-hidden
         style={{
-          position: "absolute",
-          top: -90,
-          right: -70,
-          width: 250,
-          height: 250,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${T.mint} 0%, transparent 68%)`,
-          opacity: 0.18,
-          filter: "blur(26px)",
-          pointerEvents: "none",
+          position: "absolute", top: -90, right: -70, width: 250, height: 250, borderRadius: "50%",
+          background: `radial-gradient(circle, ${T.mint} 0%, transparent 68%)`, opacity: 0.18,
+          filter: "blur(26px)", pointerEvents: "none",
         }}
       />
-      {/* glowing top rail */}
       <div
         aria-hidden
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 2,
+          position: "absolute", top: 0, left: 0, right: 0, height: 2,
           background: `linear-gradient(90deg, ${T.mint}, ${T.brand} 45%, transparent)`,
           boxShadow: `0 0 14px ${T.mint}88`,
         }}
       />
 
       <div style={{ position: "relative", zIndex: 1 }}>
-        {/* Top row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-0.02em", color: T.text }}>
             Suprah<span style={{ color: T.mint }}>Pay</span> Wallet
           </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 700,
-              color: T.mint,
-              background: T.brandSoft,
-              border: `1px solid ${T.brandBorder}`,
-              borderRadius: 999,
-              padding: "4px 11px",
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.mint,
-              animation: "spy-pulse 2.4s ease-in-out infinite" }} />
-            Active
-          </span>
+          {action}
         </div>
 
-        {/* Balance */}
         <p style={{ fontSize: 11, color: T.textMute, margin: "0 0 8px", fontWeight: 700,
           letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: MONO }}>
-          Available balance
+          Owed to your dealership
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: balanceNote ? 8 : 22 }}>
           {isLoading ? (
-            <div style={{ height: 44, width: 210, borderRadius: 10, background: T.surfaceAlt }} />
+            <div style={{ height: 44, width: 210, maxWidth: "70%", borderRadius: 10, background: T.surfaceAlt }} />
           ) : (
-            <p style={{
-              fontSize: 42, fontWeight: 700, margin: 0, lineHeight: 1, color: T.text,
-              textShadow: `0 0 28px ${T.mint}55`, ...numeric,
-            }}>
+            <p style={{ fontSize: 42, fontWeight: 700, margin: 0, lineHeight: 1, color: T.text,
+              overflowWrap: "anywhere", textShadow: `0 0 28px ${T.mint}55`, ...numeric }}>
               <span style={{ fontSize: 22, color: T.textMute, marginRight: 6, fontFamily: MONO }}>$</span>
               {visible ? fmt(balance) : "••••••"}
             </p>
           )}
           <button
+            type="button"
             onClick={toggle}
             aria-label={visible ? "Hide balance" : "Show balance"}
             style={{
-              flexShrink: 0,
-              width: 34,
-              height: 34,
-              borderRadius: 9,
-              background: T.surfaceAlt,
-              border: `1px solid ${T.border}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
+              flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: T.surfaceAlt,
+              border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
             }}
           >
             {visible ? (
@@ -262,35 +138,17 @@ export function BalanceCard({
           <p style={{ fontSize: 12, color: T.textSub, margin: "0 0 18px", lineHeight: 1.45 }}>{balanceNote}</p>
         )}
 
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 10, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 10, marginBottom: 16 }}>
           {statItems.map(({ label, value, Icon }) => (
-            <div
-              key={label}
-              style={{
-                background: T.surfaceAlt,
-                border: `1px solid ${T.border}`,
-                borderRadius: 12,
-                padding: "11px 13px",
-              }}
-            >
+            <div key={label} style={{ background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 12, padding: "11px 13px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <Icon style={{ width: 12, height: 12, color: T.mint }} />
+                <Icon style={{ width: 12, height: 12, color: T.mint, flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: T.textMute }}>{label}</span>
               </div>
               {isLoading ? (
                 <div style={{ height: 15, width: 48, borderRadius: 4, background: T.surfaceAlt }} />
               ) : (
-                <span
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 700,
-                    color: T.text,
-                    display: "block",
-                    overflowWrap: "anywhere",
-                    ...numeric,
-                  }}
-                >
+                <span style={{ fontSize: 15, fontWeight: 700, color: T.text, display: "block", overflowWrap: "anywhere", ...numeric }}>
                   {value}
                 </span>
               )}
@@ -298,67 +156,18 @@ export function BalanceCard({
           ))}
         </div>
 
-        {/* Actions */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-          <Action icon={ArrowDownLeft} label="Receive" sub="In development" onClick={onReceive} />
-          <Action icon={Link2} label="Link Wise" sub={wiseInDevelopment ? "In development" : "Connect account"} onClick={onLinkWise} />
-          <Action icon={ArrowUpRight} label="Send" sub={wiseInDevelopment ? "In development" : "Transfer"} variant="brand" onClick={onSend} />
-        </div>
-
-        {/* Footer */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "4px 12px",
-            paddingTop: 14,
-            borderTop: `1px solid ${T.border}`,
-          }}
-        >
-          <span
+        {(footerLeft || footerRight) && (
+          <div
             style={{
-              fontSize: 12,
-              color: T.textMute,
-              minWidth: 0,
-              overflowWrap: "anywhere",
+              display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap",
+              gap: "4px 12px", paddingTop: 14, borderTop: `1px solid ${T.border}`,
             }}
           >
-            {userName}
-          </span>
-          <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, overflowWrap: "anywhere", ...numeric }}>
-            {userId}
-          </span>
-        </div>
+            <span style={{ fontSize: 12, color: T.textSub, minWidth: 0, overflowWrap: "anywhere" }}>{footerLeft}</span>
+            <span style={{ fontSize: 12, color: T.textSub, fontWeight: 600, overflowWrap: "anywhere" }}>{footerRight}</span>
+          </div>
+        )}
       </div>
-      <style>{`
-        @media (max-width: 560px) {
-          .spy-wallet-action {
-            align-items: flex-start !important;
-            flex-direction: column;
-            gap: 8px !important;
-            padding: 10px !important;
-          }
-
-          .spy-wallet-action-icon {
-            width: 30px !important;
-            height: 30px !important;
-          }
-
-          .spy-wallet-action-copy {
-            align-self: stretch;
-          }
-
-          .spy-wallet-action-label {
-            font-size: 12px !important;
-          }
-
-          .spy-wallet-action-sub {
-            font-size: 10px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

@@ -4,12 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
-import {
-  LinkedAccountProvider,
-  LinkedAccountPanel,
-  useLinkedAccount,
-} from "@/components/billing/LinkedAccountIntegration";
 import { BalanceCard } from "@/components/billing/BalanceCard";
+import { SuprahPaySettingsPanel } from "@/components/billing/SuprahPaySettingsPanel";
+import {
+  useDealershipPayouts,
+  usePayoutAccount,
+  useRefreshSuprahPay,
+  useSuprahPaySettings,
+} from "@/hooks/useSuprahPay";
 import { Payment, PaymentStats } from "@/types/billing";
 import {
   T, FONT, numeric, GlobalStyle, Wordmark, Card, SectionLabel,
@@ -21,18 +23,10 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/utils/format";
 import { toast } from "sonner";
-import { CashInModal } from "@/components/CashInModal";
-import { SendModal } from "@/components/billing/SendModal";
 
-const RECEIVE_IN_DEVELOPMENT_MESSAGE =
-  "Payment links and QR codes aren't ready yet. To collect a payment now, use Request Payment on a lead.";
-
-// 2026-11-20: the business chose Stripe for the SuprahPay wallet, not Wise.
-// Link Wise and Send stay in the code but say "still in development" until
-// Wise is wanted again; set this to true to turn them back on.
-const WALLET_WISE_ENABLED = false;
-const WISE_IN_DEVELOPMENT_MESSAGE =
-  "The SuprahPay wallet is moving to Stripe, so linking Wise and sending money from the wallet aren't available yet.";
+// 2026-11-21: the dealership business wallet (Wise, Send, Receive) is not part
+// of the launch (decision A1); its code stays in components/billing for later.
+// Suprah keeps card payments and pays each dealership weekly (decision A4).
 
 function TxRow({ payment, hidden }: { payment: Payment; hidden: boolean }) {
   const credit = payment.status === "succeeded";
@@ -88,8 +82,13 @@ function NavCard({ href, icon, title, desc, badge, color, bg }: {
 
 /* ── Inner dashboard (lives inside LinkedAccountProvider) ─────────────────── */
 function BillingDashboardInner() {
-  const { getToken, userId: authUserId } = useAuth();
-  const linked = useLinkedAccount(); // connected balance drives the wallet
+  const { getToken } = useAuth();
+  const settingsQuery = useSuprahPaySettings();
+  const settings = settingsQuery.data;
+  const payoutsQuery = useDealershipPayouts();
+  const payouts = payoutsQuery.data;
+  const accountQuery = usePayoutAccount();
+  const refreshSuprahPay = useRefreshSuprahPay();
 
   const [stats, setStats] = React.useState<PaymentStats | null>(null);
   const [recentPayments, setRecentPayments] = React.useState<Payment[]>([]);
@@ -97,9 +96,7 @@ function BillingDashboardInner() {
   const [pendingCount, setPendingCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [hidden] = React.useState(false);
-  const [activeModal, setActiveModal] = React.useState<"send" | "cashin" | null>(null);
 
-  const userId = authUserId ?? "USR-0000";
 
   const extractPayments = React.useCallback((payload: unknown): Payment[] => {
     if (Array.isArray(payload)) return payload as Payment[];
@@ -186,9 +183,26 @@ function BillingDashboardInner() {
 
   React.useEffect(() => { load(); }, [load]);
 
-  // Wallet balance now comes from the connected account (REPLACE model).
-  const displayBalance = linked.connected ? linked.walletBalance : 0;
-  const balanceLoading = isLoading || linked.loading;
+  // Back from Stripe's payout account setup: refresh and say what happened.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const back = params.get("payoutAccount");
+    if (!back) return;
+    refreshSuprahPay();
+    if (back === "done") toast.success("Payout account details sent to Stripe", { description: "Stripe may take a moment to check them." });
+    params.delete("payoutAccount");
+    const rest = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const thisWeek = payouts?.thisWeek;
+  const accountReady = !!accountQuery.data?.ready;
+  const balanceNote = !payouts
+    ? undefined
+    : payouts.payoutAccountConnected
+      ? "Card payments, less Suprah's fee and any refunds. Suprah sends it to your payout account every week once it's approved."
+      : "Card payments, less Suprah's fee and any refunds. Set up your payout account below so Suprah can send it to your bank each week.";
 
   const pending = stats?.byStatus?.pending;
   const failed = stats?.byStatus?.failed;
@@ -225,43 +239,33 @@ function BillingDashboardInner() {
             </Link>
           </header>
 
+          {settings && !settings.enabled && (
+            <Card pad="16px 18px" style={{ marginBottom: 18, borderColor: T.brandBorder, background: T.brandSofter }}>
+              <p role="status" style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: 0 }}>SuprahPay is coming soon for your dealership</p>
+              <p style={{ fontSize: 13, color: T.textSub, margin: "4px 0 0", lineHeight: 1.5 }}>
+                Payment requests and card payments open once Suprah turns SuprahPay on for you. Ask your Suprah contact if you&apos;d like it sooner.
+              </p>
+            </Card>
+          )}
+
           {/* Hero balance + metrics */}
           <div className="spy-hero-grid" style={{ display: "grid",
             gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1fr)", gap: 18, marginBottom: 18,
             alignItems: "stretch", animation: "spy-fade-up 0.35s ease 0.04s both" }}>
             <BalanceCard
-              balance={displayBalance}
-              userId={userId}
-              userName={linked.status?.primary?.profile.fullName ?? "SuprahPay Account"}
-              isLoading={balanceLoading}
+              balance={payouts?.balance.amount ?? 0}
+              isLoading={isLoading || payoutsQuery.isLoading}
               stats={stats}
-              onReceive={() =>
-                // There is no payment page or real QR code behind Receive yet,
-                // so it explains that instead of handing out a link that 404s.
-                toast.info("Receive is still in development", {
-                  description: RECEIVE_IN_DEVELOPMENT_MESSAGE,
-                })
+              balanceNote={payoutsQuery.isError ? "The balance couldn't be loaded. Refresh to try again." : balanceNote}
+              footerLeft={
+                thisWeek
+                  ? `This week's payout: ${formatCurrency(thisWeek.amount)}${thisWeek.heldCount ? ` · ${thisWeek.heldCount} on hold for a card dispute` : ""}`
+                  : null
               }
-              onSend={() => {
-                if (!WALLET_WISE_ENABLED) {
-                  toast.info("Send is still in development", { description: WISE_IN_DEVELOPMENT_MESSAGE });
-                  return;
-                }
-                setActiveModal("send");
-              }}
-              onLinkWise={async () => {
-                if (!WALLET_WISE_ENABLED) {
-                  toast.info("Link Wise is still in development", { description: WISE_IN_DEVELOPMENT_MESSAGE });
-                  return;
-                }
-                // The Link Wise button sits at the top of the page, far from the
-                // Wise panel's own error line, so say it right here as well.
-                const problem = await linked.connect("wise");
-                if (problem) toast.error("Wise can't be linked yet", { description: problem });
-              }}
-              wiseInDevelopment={!WALLET_WISE_ENABLED}
-              balanceNote={
-                linked.connected ? "From your linked Wise account" : "The wallet balance is still in development"
+              footerRight={
+                accountQuery.data
+                  ? accountReady ? "Payout account ready" : accountQuery.data.connected ? "Payout account not finished" : "No payout account yet"
+                  : null
               }
             />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -308,11 +312,41 @@ function BillingDashboardInner() {
             </Card>
           </section>
 
-          {/* Linked account (Wise) */}
-          <section style={{ marginBottom: 24, animation: "spy-fade-up 0.35s ease 0.10s both" }}>
-            <SectionLabel>Linked bank account</SectionLabel>
-            <LinkedAccountPanel style={{ marginBottom: 0 }} inDevelopment={!WALLET_WISE_ENABLED} />
-          </section>
+          {/* SuprahPay settings and payout account */}
+          {settings && (
+            <section style={{ marginBottom: 18, animation: "spy-fade-up 0.35s ease 0.10s both" }}>
+              <SuprahPaySettingsPanel settings={settings} payoutAccount={accountQuery.data} onSaved={refreshSuprahPay} />
+            </section>
+          )}
+
+          {/* Payouts from Suprah */}
+          {payouts && payouts.history.length > 0 && (
+            <section style={{ marginBottom: 24, animation: "spy-fade-up 0.35s ease 0.11s both" }}>
+              <SectionLabel>Payouts from Suprah</SectionLabel>
+              <Card pad="4px 16px">
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {payouts.history.slice(0, 8).map((p) => (
+                    <li key={p._id} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "4px 12px",
+                      padding: "12px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: T.text }}>
+                          {p.status === "sent" ? "Sent" : p.status === "sending" ? "Being sent" : "Not sent"}
+                          {" · "}{new Date(p.sentAt ?? p.createdAt).toLocaleDateString()}
+                        </span>
+                        <span style={{ display: "block", fontSize: 12, color: T.textSub }}>
+                          {p.paymentCount} card payment{p.paymentCount === 1 ? "" : "s"} · Suprah&apos;s fee {formatCurrency(p.suprahFee)}
+                          {p.adjustments ? ` · refunds and disputes ${formatCurrency(p.adjustments)}` : ""}
+                        </span>
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: p.status === "failed" ? T.textMute : T.text, ...numeric }}>
+                        {formatCurrency(p.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </section>
+          )}
 
           {/* Quick access (unchanged) */}
           <section style={{ animation: "spy-fade-up 0.35s ease 0.12s both" }}>
@@ -339,21 +373,10 @@ function BillingDashboardInner() {
 
       <style>{`@media (max-width: 820px){.spy-hero-grid{grid-template-columns:1fr !important;}}`}</style>
 
-      <CashInModal open={activeModal === "cashin"} onClose={() => setActiveModal(null)} />
-      <SendModal
-        open={activeModal === "send"}
-        onClose={() => setActiveModal(null)}
-        onSuccess={() => { load(); linked.sync(); }}
-        getToken={getToken}
-      />
     </>
   );
 }
 
 export default function BillingDashboard() {
-  return (
-    <LinkedAccountProvider>
-      <BillingDashboardInner />
-    </LinkedAccountProvider>
-  );
+  return <BillingDashboardInner />;
 }

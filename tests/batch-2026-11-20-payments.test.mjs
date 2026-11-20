@@ -65,17 +65,11 @@ test('the wallet card says where each number comes from', () => {
   assert.match(card, /label: "Card payments received"/);
   assert.match(card, /label: "Pending invoices", value: String\(/);
   assert.match(card, /\{balanceNote && \(/);
-  assert.match(card, /label="Link Wise" sub=\{wiseInDevelopment \? "In development" : "Connect account"\}/);
-  assert.match(card, /label="Send" sub=\{wiseInDevelopment \? "In development" : "Transfer"\}/);
 });
 
-test('Link Wise and Send say they are in development while the wallet moves to Stripe', () => {
+test('Link Wise and Send are not offered (decision A1); the Wise panel stays switched off if it is used again', () => {
   const wallet = read('app/(dashboard)/billing/page.tsx');
-  assert.match(wallet, /const WALLET_WISE_ENABLED = false;/);
-  assert.match(wallet, /toast\.info\("Send is still in development"/);
-  assert.match(wallet, /toast\.info\("Link Wise is still in development"/);
-  assert.match(wallet, /linked\.connected \? "From your linked Wise account" : "The wallet balance is still in development"/);
-  assert.match(wallet, /<LinkedAccountPanel style=\{\{ marginBottom: 0 \}\} inDevelopment=\{!WALLET_WISE_ENABLED\} \/>/);
+  assert.doesNotMatch(wallet, /LinkedAccountPanel|Link Wise|Send is still in development/);
   const panel = read('components/billing/LinkedAccountIntegration.tsx');
   assert.match(panel, /disabled=\{busy \|\| inDevelopment\}/);
   assert.match(panel, /Linking Wise is still in development/);
@@ -117,7 +111,6 @@ test('My payments stacks on phones; Admin Payouts shows a card per request on ph
   assert.match(admin, /<div className="hidden md:block">\n\s+<Table>/);
   assert.match(admin, /aria-label=\{`Reject \$\{w\.user\.name\}'s withdrawal`\}/);
   const card = read('components/billing/BalanceCard.tsx');
-  assert.match(card, /flexWrap: "wrap", gap: 10, marginBottom: 16/);
   assert.match(card, /repeat\(auto-fit, minmax\(104px, 1fr\)\)/);
 });
 
