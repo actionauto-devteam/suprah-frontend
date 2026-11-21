@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { markLeadOpened } from "@/lib/api/leadHandlers";
 import { LEAD_STATUS_SELECT_OPTIONS } from "@/lib/leadStatus";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/context/ThemeContext";
@@ -338,6 +340,8 @@ export function CommunicationHub() {
   const [viewportMode, setViewportMode] =
     React.useState<ViewportMode>("wide");
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null);
+  const queryClient = useQueryClient();
+  const openedLeadIdsRef = React.useRef<Set<string>>(new Set());
   const selectedLeadId = selectedLead?._id || "";
   const selectedEmail = resolveCustomerEmail(selectedLead);
 
@@ -541,14 +545,30 @@ export function CommunicationHub() {
     [getHeaders],
   );
 
+  const recordLeadOpened = React.useCallback(
+    (lead: Lead | null) => {
+      if (!lead?._id || !Array.isArray(lead.openedBy) || openedLeadIdsRef.current.has(lead._id)) return;
+      const openedId = lead._id;
+      openedLeadIdsRef.current.add(openedId);
+      void markLeadOpened(openedId)
+        .then((recorded) => {
+          if (recorded) void queryClient.invalidateQueries({ queryKey: ["lead-handlers", openedId] });
+        })
+        .catch(() => {
+          openedLeadIdsRef.current.delete(openedId);
+        });
+    },
+    [queryClient],
+  );
+
   const selectLead = React.useCallback(
     (lead: Lead) => {
       setSelectedLead(lead);
       setDetailsTab("details");
       setShowDetails(viewportMode !== "narrow");
-      void fetchSelectedLead(lead._id, lead);
+      void fetchSelectedLead(lead._id, lead).then((fresh) => recordLeadOpened(fresh || lead));
     },
-    [fetchSelectedLead, viewportMode],
+    [fetchSelectedLead, recordLeadOpened, viewportMode],
   );
 
   React.useEffect(() => {
