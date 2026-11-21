@@ -28,8 +28,19 @@ import { MeetPreJoin, type MeetJoinChoices } from "@/components/suprah-meet/Meet
 import { MeetChatPeek } from "@/components/suprah-meet/MeetChatPeek";
 import { MeetSharedScreen } from "@/components/suprah-meet/MeetSharedScreen";
 import { orderMeetPeople } from "@/lib/meet-layout";
+import { takeGuestHandoff } from "@/lib/meet-deal-desk";
 
-type Gate = "form" | "checking" | "waiting" | "notlive" | "ready" | "denied" | "over" | "in";
+/** Name/email inside a guest pass (JWT payload). Display only — the server verifies the pass. */
+function readPassIdentity(token: string): { name: string; email: string } | null {
+  try {
+    const part = token.split(".")[1] ?? "";
+    const binary = atob(part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "="));
+    const json = JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (ch) => ch.charCodeAt(0))));
+    return typeof json?.name === "string" ? { name: json.name, email: typeof json.email === "string" ? json.email : "" } : null;
+  } catch { return null; }
+}
+
+type Gate = "form" | "checking" | "waiting" | "notlive" | "ready" | "denied" | "over" | "in" | "dealdesk";
 
 export default function SuprahMeetGuestPage() {
   const params = useParams<{ code: string }>();
@@ -59,6 +70,8 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
   const [endedReason, setEndedReason] = React.useState<string | null>(null);
 
   const tokenKey = `meet-guest-${code}`;
+  const [dealDeskUrl, setDealDeskUrl] = React.useState<string | null>(null);
+  const [fromDealDesk, setFromDealDesk] = React.useState(false);
 
   // Ask (or re-ask) the backend for access; keeps polling while waiting or
   // while the meeting hasn't started. Refresh-safe: the guest pass is kept in
@@ -87,12 +100,42 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
       // Admitted but not started yet, or still in the waiting room → keep polling.
       setGate(d.admitted ? "notlive" : "waiting");
     } catch (error: unknown) {
-      const err = error as { response?: { status?: number; data?: { message?: string } } };
+      const err = error as { response?: { status?: number; data?: { message?: string; data?: { passwordRequired?: boolean; dealDeskUrl?: string | null } } } };
+      // Deal Desk room without a verified pass: the password is entered on the Deal Desk page.
+      if (err.response?.status === 403 && err.response.data?.data?.passwordRequired) {
+        sessionStorage.removeItem(tokenKey);
+        setDealDeskUrl(err.response.data.data.dealDeskUrl ?? null);
+        setGate("dealdesk");
+        return;
+      }
       setFormError(err?.response?.data?.message || "Could not reach the meeting. Check the link and try again.");
       // A transient failure must not throw a waiting guest back to the name form.
       if ([400, 401, 403, 404, 409].includes(err.response?.status ?? 0)) setGate("form");
     } finally { requestPendingRef.current = false; }
   }, [code, tokenKey]);
+
+  // Coming from the Deal Desk page (password entered, admitted by the rep):
+  // adopt its guest pass and go straight on — no second name form.
+  React.useEffect(() => {
+    const handoff = takeGuestHandoff(code);
+    if (!handoff) return;
+    sessionStorage.setItem(tokenKey, handoff);
+    const who = readPassIdentity(handoff);
+    const n = who?.name?.trim() || "Guest";
+    const e = who?.email?.trim() || "";
+    setName(n); setEmail(e);
+    setFromDealDesk(true);
+    setGate("checking");
+    void request(n, e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Send people who open the plain link of a Deal Desk room to the Deal Desk page.
+  React.useEffect(() => {
+    if (gate !== "dealdesk" || !dealDeskUrl) return;
+    const t = setTimeout(() => window.location.assign(dealDeskUrl), 1500);
+    return () => clearTimeout(t);
+  }, [gate, dealDeskUrl]);
 
   React.useEffect(() => {
     if (!["waiting", "notlive", "ready", "checking"].includes(gate) || joinedRef.current) return;
@@ -179,6 +222,33 @@ function SuprahMeetGuestRoom({ code }: { code: string }) {
     : "grid-cols-3 md:grid-cols-4";
 
   /* ── Pre-meeting screens ────────────────────────────────────────────── */
+  if (gate === "dealdesk") {
+    return (
+      <Shell>
+        <SuprahMeetLogo className="size-14" />
+        <h1 className="text-xl font-semibold">This room is password-protected</h1>
+        <p className="max-w-sm text-sm text-emerald-200/60">
+          {code} is a Deal Desk room. Enter its password on the Deal Desk page to join the line —
+          {dealDeskUrl ? " taking you there now…" : " ask your representative for the Deal Desk link."}
+        </p>
+        {dealDeskUrl && (
+          <Button className="bg-emerald-600 hover:bg-emerald-500" onClick={() => window.location.assign(dealDeskUrl)}>
+            Go to the Deal Desk page
+          </Button>
+        )}
+      </Shell>
+    );
+  }
+
+  if (gate === "checking" && fromDealDesk && !formError) {
+    return (
+      <Shell>
+        <SuprahMeetLogo className="size-14 animate-pulse" />
+        <p className="text-sm text-emerald-200/60">Connecting you to {title ?? code}…</p>
+      </Shell>
+    );
+  }
+
   if (gate === "form" || gate === "checking") {
     return (
       <Shell>
