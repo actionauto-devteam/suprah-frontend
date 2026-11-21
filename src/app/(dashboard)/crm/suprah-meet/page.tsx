@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardPaste, Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, Share2, Trash2,
+  ClipboardPaste, Clock, Copy, Globe, Handshake, Lock, Pencil, Plus, Repeat, Search, Share2, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,11 +24,14 @@ import { MeetScheduleCleanup } from '@/components/suprah-meet/MeetScheduleCleanu
 import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
 import { extractMeetCode, formatMeetDateTime, isTodaysMeetSchedule, meetCalendarDay } from "@/lib/meet-schedule";
 import { forgetRecentMeet, readRecentMeet } from "@/lib/meet-recent";
+import { DealDeskRoomForm, type DealDeskRoomValues } from "@/components/suprah-meet/DealDeskRoomForm";
 
 interface MeetingRow {
   _id: string; code: string; title: string;
   status: "scheduled" | "live" | "ended";
   visibility?: "public" | "private";
+  roomType?: "standard" | "dealdesk";
+  dealDesk?: { isOpen: boolean; description?: string | null } | null;
   scheduledAt: string | null;
   seriesId: string | null;
   calendarSourceId?: string | null;
@@ -167,7 +170,7 @@ export default function SuprahMeetLobbyPage() {
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [laterOpen, setLaterOpen] = React.useState(false);
   const [historyTab, setHistoryTab] = React.useState<"scheduled" | "ended">("scheduled");
-  const [showNew, setShowNew] = React.useState<false | "now" | "later">(false);
+  const [showNew, setShowNew] = React.useState<false | "now" | "later" | "dealdesk">(false);
   const [confirmDelete, setConfirmDelete] = React.useState<MeetingRow | null>(null);
   const [editTarget, setEditTarget] = React.useState<MeetingRow | null>(null);
   // Lightweight toast (the lobby had none before the guest-link action).
@@ -278,11 +281,14 @@ export default function SuprahMeetLobbyPage() {
 
   const canDelete = (m: MeetingRow) => m.hostCrmUserId === selfId && !m.calendarSourceId;
 
-  const live = meetings.filter((m) => m.status === "live" && m.timer?.running);
-  const openRooms = meetings.filter((m) => m.status === "live" && !m.timer?.running);
+  // Standing Deal Desk rooms are managed on their own page; ended ones stay in history.
+  const dealDeskRooms = meetings.filter((m) => m.roomType === "dealdesk" && m.status !== "ended");
+  const lobbyMeetings = meetings.filter((m) => !(m.roomType === "dealdesk" && m.status !== "ended"));
+  const live = lobbyMeetings.filter((m) => m.status === "live" && m.timer?.running);
+  const openRooms = lobbyMeetings.filter((m) => m.status === "live" && !m.timer?.running);
   // Scheduled meetings are classified by ABSOLUTE time (UTC epoch), never the
   // viewer's local timezone: still upcoming vs. missed (time passed unjoined).
-  const scheduled = meetings.filter((m) => m.status === "scheduled");
+  const scheduled = lobbyMeetings.filter((m) => m.status === "scheduled");
   const today = meetCalendarDay(nowMs);
   const upcoming = scheduled.filter((m) => isTodaysMeetSchedule(m.scheduledAt, nowMs));
   const later = scheduled.filter((m) => m.scheduledAt && meetCalendarDay(m.scheduledAt) > today);
@@ -416,6 +422,26 @@ export default function SuprahMeetLobbyPage() {
                   <CalendarClock className="size-4" /> Create a schedule
                 </Button>
                 <MeetScheduleCleanup onRemoved={() => void load()} />
+              </div>
+            </section>
+            <section className="rounded-2xl border border-emerald-500/25 bg-card/80 p-4 shadow-sm backdrop-blur">
+              <div className="flex items-start gap-3">
+                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-500"><Handshake className="size-4" /></div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm font-semibold">Deal Desk</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Password-protected rooms customers find on your public Deal Desk page.
+                    {dealDeskRooms.length > 0 && <> You have <span className="font-medium text-foreground">{dealDeskRooms.length}</span> open.</>}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <Button variant="outline" className="justify-start gap-2 border-emerald-500/30" onClick={() => router.push("/crm/suprah-meet/deal-desk")}>
+                  <Users className="size-4" /> Manage rooms &amp; queue
+                </Button>
+                <Button variant="ghost" className="justify-start gap-2" onClick={() => setShowNew("dealdesk")}>
+                  <Plus className="size-4" /> New Deal Desk room
+                </Button>
               </div>
             </section>
             <MeetDeviceAlerts />
@@ -619,7 +645,9 @@ export default function SuprahMeetLobbyPage() {
       {showNew && (
         <NewMeetingModal
           initialMode={showNew === "later" ? "later" : "now"}
+          initialType={showNew === "dealdesk" ? "dealdesk" : "public"}
           onClose={() => setShowNew(false)}
+          onDealDeskCreated={(code) => router.push(`/crm/suprah-meet/deal-desk?created=${encodeURIComponent(code)}`)}
           onCreated={(code) => router.push(`/crm/suprah-meet/room/${code}`)}
           onScheduled={(created) => {
             ++loadVersion.current;
@@ -746,6 +774,11 @@ function MeetingCard({ m, sub, action, plain, emphasis }: { m: MeetingRow; sub?:
           {m.seriesId && (
             <span title="Part of a recurring series">
               <Repeat className="size-3 shrink-0 text-emerald-500" />
+            </span>
+          )}
+          {m.roomType === "dealdesk" && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              <Handshake className="size-3" /> Deal Desk
             </span>
           )}
         </p>
@@ -955,10 +988,23 @@ function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers
 }
 
 /* ── New meeting modal — instant/scheduled/recurring + audience tagging ───── */
-function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
+type RoomTypeChoice = "public" | "private" | "dealdesk";
+
+const ROOM_TYPES: readonly (readonly [RoomTypeChoice, string, React.ReactNode, string])[] = [
+  ["public", "Public", <Globe key="g" className="size-4" />, "Anyone in your org with the code joins right away."],
+  ["private", "Private", <Lock key="l" className="size-4" />, "People you didn't tag wait for the host to admit them."],
+  ["dealdesk", "Deal Desk", <Handshake key="h" className="size-4" />, "Customer room on your public Deal Desk page, with its own password and queue."],
+];
+
+function NewMeetingModal({ initialMode, initialType = "public", onClose, onCreated, onScheduled, onDealDeskCreated }: {
   initialMode: "now" | "later";
+  initialType?: RoomTypeChoice;
   onClose: () => void; onCreated: (code: string) => void; onScheduled: (created: MeetingRow[]) => void;
+  onDealDeskCreated: (code: string) => void;
 }) {
+  const [roomType, setRoomType] = React.useState<RoomTypeChoice>(initialType);
+  const [ddBusy, setDdBusy] = React.useState(false);
+  const [ddError, setDdError] = React.useState<string | null>(null);
   const [title, setTitle] = React.useState("");
   const [mode, setMode] = React.useState<"now" | "later">(initialMode);
   const [date, setDate] = React.useState("");
@@ -967,11 +1013,24 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
   const [customDays, setCustomDays] = React.useState<Set<number>>(new Set());
   const [until, setUntil] = React.useState("");
   const [audience, setAudience] = React.useState<"people" | "departments" | "all">("people");
-  const [visibility, setVisibility] = React.useState<"public" | "private">("public");
+  const visibility: "public" | "private" = roomType === "private" ? "private" : "public";
   const [selectedUsers, setSelectedUsers] = React.useState<Map<string, string>>(new Map());
   const [selectedDepts, setSelectedDepts] = React.useState<Set<string>>(new Set());
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const createDealDesk = async (v: DealDeskRoomValues) => {
+    setDdBusy(true); setDdError(null);
+    try {
+      const res = await apiClient.post("/api/crm/meet/deal-desk/rooms", v);
+      const code = res.data?.data?.room?.code;
+      if (!code) throw new Error("The room was created but no code came back. Open Deal Desk to find it.");
+      onDealDeskCreated(code);
+    } catch (err: unknown) {
+      setDdError(apiErrorMessage(err, "Could not create the Deal Desk room."));
+      setDdBusy(false);
+    }
+  };
 
   // "Today"/"Tomorrow" chips and the date-picker minimum follow Mountain time,
   // not the viewer's local day (PH is a day ahead of Utah in the evening).
@@ -1085,6 +1144,24 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
           </button>
         </div>
 
+        {/* Room type — Public, Private, or Deal Desk */}
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Meeting room type</label>
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Meeting room type">
+          {ROOM_TYPES.map(([v, label, icon, desc]) => (
+            <button key={v} type="button" role="radio" aria-checked={roomType === v} onClick={() => setRoomType(v)}
+              className={cn("flex flex-col gap-1 rounded-xl border p-3 text-left transition-colors",
+                roomType === v ? "border-emerald-500/60 bg-emerald-500/10" : "border-border hover:border-emerald-500/30")}>
+              <span className={cn("flex items-center gap-2 text-sm font-medium",
+                roomType === v && "text-emerald-600 dark:text-emerald-400")}>{icon}{label}</span>
+              <span className="text-[11px] leading-snug text-muted-foreground">{desc}</span>
+            </button>
+          ))}
+        </div>
+
+        {roomType === "dealdesk" ? (
+          <DealDeskRoomForm mode="create" busy={ddBusy} error={ddError} initial={{ title }}
+            onSubmit={(v) => void createDealDesk(v)} />
+        ) : (<>
         <Input placeholder="Meeting title" value={title} onChange={(e) => setTitle(e.target.value)} className="mb-4 h-10" />
 
         {/* When */}
@@ -1192,23 +1269,6 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
           selectedUsers={selectedUsers} setSelectedUsers={setSelectedUsers}
           selectedDepts={selectedDepts} setSelectedDepts={setSelectedDepts} />
 
-        {/* Privacy */}
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {([["public", "Public", <Globe key="g" className="size-4" />, "Anyone in your org with the code joins right away."],
-             ["private", "Private", <Lock key="l" className="size-4" />, "People you didn't tag wait for the host to admit them."]] as const)
-            .map(([v, label, icon, desc]) => (
-            <button key={v} onClick={() => setVisibility(v)}
-              className={cn("flex flex-col gap-1 rounded-xl border p-3 text-left transition-colors",
-                visibility === v
-                  ? "border-emerald-500/60 bg-emerald-500/10"
-                  : "border-border hover:border-emerald-500/30")}>
-              <span className={cn("flex items-center gap-2 text-sm font-medium",
-                visibility === v && "text-emerald-600 dark:text-emerald-400")}>{icon}{label}</span>
-              <span className="text-[11px] leading-snug text-muted-foreground">{desc}</span>
-            </button>
-          ))}
-        </div>
-
         <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
           Tagged attendees receive an invitation, see every session in Upcoming, and get a reminder 10 minutes before each one starts.
           {visibility === "public"
@@ -1224,6 +1284,7 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
           {mode === "now" ? "Create and join"
             : sessionDates.length > 1 ? `Schedule ${sessionDates.length} sessions` : "Schedule meeting"}
         </Button>
+        </>)}
       </div>
     </div>
   );
