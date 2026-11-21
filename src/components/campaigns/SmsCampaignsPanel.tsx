@@ -25,10 +25,10 @@ import { apiClient } from "@/lib/api-client"
 import { useAuth, useUser } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
 import { fmtLongDateTimeMDT, parseDatetimeLocalAsMdt } from "@/lib/timezone"
-import { LEAD_STATUS_VALUES } from "@/lib/leadStatus"
+import { COUNTED_LEAD_STATUS_VALUES } from "@/lib/leadStatus"
 import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter"
 
-const STATUS_OPTIONS = LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
+const STATUS_OPTIONS = COUNTED_LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
 const OPT_OUT_LINE = "Reply STOP to opt out."
 const MAX_MESSAGE_LENGTH = 1000
 const MAX_RECIPIENTS = 500

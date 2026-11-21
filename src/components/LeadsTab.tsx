@@ -69,6 +69,7 @@ import {
   LEAD_STATUS_CATEGORY_LABEL,
   LEAD_STATUS_CATEGORY_ORDER,
   LEAD_STATUS_CATEGORIES,
+  NOT_A_LEAD_STATUS,
   getLeadStatusStyle,
   isContactRestrictedStatus,
   type LeadStatusCategory,
@@ -403,7 +404,8 @@ export function LeadsTab({
   }, [viewportMode]);
 
   const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
-  const [inboxView, setInboxView] = React.useState<"leads" | "mentioned">("leads");
+  const [inboxView, setInboxView] = React.useState<"leads" | "mentioned" | "others">("leads");
+  const othersView = inboxView === "others";
   const [highlight, setHighlight] = React.useState<{ leadId: string; noteId: string; seq: number } | null>(null);
   const highlightSeqRef = React.useRef(0);
   const [selectedMention, setSelectedMention] = React.useState<{ id: string; leadId: string } | null>(null);
@@ -453,22 +455,22 @@ export function LeadsTab({
     page: currentPage,
     limit: LEADS_PER_PAGE,
     search: searchQuery,
-    status: statusFilter,
-    statusGroup: statusFilter ? null : activeStatusCategory,
-    sortBy,
-    assignedTo: assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
-    handledBy: handledByFilterId,
-    customerArea: customerAreaFilter,
-    needsReply: needsReplyFilter,
-    location: locationFilter,
-    source: sourceFilter,
-    leadType: leadTypeFilter,
-    dateFrom: resolvedDateFilter.from,
-    dateTo: resolvedDateFilter.to,
+    status: othersView ? NOT_A_LEAD_STATUS : statusFilter,
+    statusGroup: othersView || statusFilter ? null : activeStatusCategory,
+    sortBy: othersView ? DEFAULT_LEAD_SORT : sortBy,
+    assignedTo: othersView ? null : assignmentFilter === "mine" ? currentUserId : assigneeFilterId,
+    handledBy: othersView ? null : handledByFilterId,
+    customerArea: othersView ? null : customerAreaFilter,
+    needsReply: othersView ? false : needsReplyFilter,
+    location: othersView ? null : locationFilter,
+    source: othersView ? null : sourceFilter,
+    leadType: othersView ? null : leadTypeFilter,
+    dateFrom: othersView ? null : resolvedDateFilter.from,
+    dateTo: othersView ? null : resolvedDateFilter.to,
     liveRefreshMs: LEADS_LIVE_REFRESH_MS,
   });
 
-  const { counts: leadStatusCounts } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
+  const { counts: leadStatusCounts, isLoading: leadStatusCountsLoading } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadTypeCounts } = useLeadTypeCounts(LEADS_LIVE_REFRESH_MS);
   const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
@@ -502,6 +504,14 @@ export function LeadsTab({
     }
     return tabs;
   }, [leadLocationCounts]);
+
+  const inboxTabTotals = React.useMemo(() => {
+    let all = 0;
+    for (const [status, count] of Object.entries(leadStatusCounts || {})) {
+      if (status !== NOT_A_LEAD_STATUS) all += Number(count) || 0;
+    }
+    return { all, others: Number(leadStatusCounts?.[NOT_A_LEAD_STATUS]) || 0 };
+  }, [leadStatusCounts]);
 
   const categoryTabCounts = React.useMemo(() => {
     const totals: Record<string, number> = {};
@@ -977,6 +987,12 @@ export function LeadsTab({
     [selectedWebchatPolicy, selectedWebchatMessages, policyClock],
   );
   const replyUnavailableReason = replyState.reason || webchatWindow.reason;
+  const selectedCombineTarget = selectedLead ? conversationMeta[selectedLead._id]?.combine?.combinedInto : undefined;
+  const linkedChatTarget = selectedCombineTarget?.via === "link" && selectedCombineTarget.leadId
+    ? { leadId: String(selectedCombineTarget.leadId), name: selectedCombineTarget.name || "" }
+    : selectedLead?.combinedInto?.via === "link" && selectedLead.combinedInto.leadId
+      ? { leadId: String(selectedLead.combinedInto.leadId), name: "" }
+      : null;
   const [aiAgentStatus, setAiAgentStatus] = React.useState<
     Record<string, { paused: boolean; pausedBy?: string; autoPausedUntil?: string } | undefined>
   >({});
@@ -1017,9 +1033,17 @@ export function LeadsTab({
   const needsReplyTurnRef = React.useRef(0);
   const liveThreadRefreshTimerRef = React.useRef<number | null>(null);
 
+  const leadsRef = React.useRef<Lead[]>([]);
+  const listedSelectedIdRef = React.useRef<string | null>(null);
+  const threadFetchSeqRef = React.useRef<Map<string, number>>(new Map());
+
   React.useEffect(() => {
     selectedLeadRef.current = selectedLead;
   }, [selectedLead]);
+
+  React.useEffect(() => {
+    leadsRef.current = leads;
+  }, [leads]);
 
   const refreshSelectedNeedsReply = React.useCallback(
     async (leadId: string) => {
@@ -1237,7 +1261,14 @@ export function LeadsTab({
   React.useEffect(() => {
     if (!selectedLead) return;
     const listed = leads.find((l) => l._id === selectedLead._id);
-    if (!listed) return;
+    if (!listed) {
+      if (listedSelectedIdRef.current === selectedLead._id) {
+        listedSelectedIdRef.current = null;
+        void fetchThreadRef.current?.(selectedLead);
+      }
+      return;
+    }
+    listedSelectedIdRef.current = listed._id;
     const listedNotes = Array.isArray(listed.notes) ? listed.notes : [];
     const pendingNotes = (savedNotesRef.current.get(listed._id) || []).filter(
       (note) => !listedNotes.some((item) => String(item?._id) === String(note?._id)),
@@ -1301,9 +1332,13 @@ export function LeadsTab({
         stayOnLeadIdRef.current = null;
         if (survivor && survivor !== pendingLeadId && !stayOnLead && combinedHopsRef.current < 3) {
           combinedHopsRef.current += 1;
-          toast.info("This lead was combined into another lead", {
-            description: "Opening the lead it was combined into.",
-          });
+          if (lead?.combinedInto?.via === "link") {
+            toast.info("This chat was added to the customer's lead", { description: "Opening that lead." });
+          } else {
+            toast.info("This lead was combined into another lead", {
+              description: "Opening the lead it was combined into.",
+            });
+          }
           setPendingLeadId(survivor);
           return;
         }
@@ -1665,6 +1700,8 @@ export function LeadsTab({
 
   const fetchThread = React.useCallback(
     async (lead: Lead) => {
+      const fetchSeq = (threadFetchSeqRef.current.get(lead._id) || 0) + 1;
+      threadFetchSeqRef.current.set(lead._id, fetchSeq);
       const fallbackMessages =
         buildLeadFallbackMessage(lead);
 
@@ -1710,6 +1747,30 @@ export function LeadsTab({
               status: data.lead?.status,
             },
           }));
+          const fresh = data.lead;
+          if (
+            fresh?.status &&
+            threadFetchSeqRef.current.get(lead._id) === fetchSeq &&
+            !leadsRef.current.some((item) => item._id === lead._id)
+          ) {
+            const freshLink = data.combine?.combinedInto?.leadId
+              ? { leadId: data.combine.combinedInto.leadId, at: data.combine.combinedInto.at, via: data.combine.combinedInto.via }
+              : null;
+            _setSelectedLead((current) => {
+              if (!current || current._id !== lead._id) return current;
+              const sameStatus = current.status === fresh.status;
+              const sameIdentity = (current.intakeIdentity === "unverified") === Boolean(fresh.unverified);
+              const sameLink = String(current.combinedInto?.leadId || "") === String(freshLink?.leadId || "");
+              if (sameStatus && sameIdentity && sameLink) return current;
+              return {
+                ...current,
+                status: fresh.status as Lead["status"],
+                intakeIdentity: fresh.unverified ? "unverified" : undefined,
+                combinedInto: freshLink,
+              };
+            });
+            if (selectedLeadRef.current?._id === lead._id) setIsClosed(fresh.status === "Closed");
+          }
           const channelState = data.channelState;
           if (channelState) {
             setSmsOptOutByLead((previous) =>
@@ -2016,6 +2077,7 @@ export function LeadsTab({
       addToast("error", message || "The status could not be changed");
       return;
     }
+    threadFetchSeqRef.current.set(leadToUpdate._id, (threadFetchSeqRef.current.get(leadToUpdate._id) || 0) + 1);
     _setSelectedLead((p) =>
       p && p._id === leadToUpdate._id ? { ...p, status: status as any } : p,
     );
@@ -2023,7 +2085,14 @@ export function LeadsTab({
       if (status === "Closed") setIsClosed(true);
       else setIsClosed(false);
     }
-    addToast("success", `Marked as ${status}`);
+    addToast(
+      "success",
+      status === NOT_A_LEAD_STATUS
+        ? "Moved to Others"
+        : leadToUpdate.status === NOT_A_LEAD_STATUS
+          ? "Moved back to leads"
+          : `Marked as ${status}`,
+    );
   };
 
   const setSelectedLead = (lead: Lead | null) => {
@@ -2905,15 +2974,22 @@ export function LeadsTab({
   const inboxTabList = currentUserId ? (
     <div
       role="tablist"
-      aria-label="Assignment filter"
-      className="col-span-2 grid min-w-0 grid-cols-3 gap-1 rounded-lg p-1"
+      aria-label="Lead lists"
+      className="col-span-2 grid min-w-0 grid-cols-4 gap-1 rounded-xl p-1"
       style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
     >
-      {(["mine", "all", "mentioned"] as const).map((key) => {
+      {(["mine", "all", "mentioned", "others"] as const).map((key) => {
         const selected =
-          key === "mentioned"
-            ? inboxView === "mentioned"
+          key === "mentioned" || key === "others"
+            ? inboxView === key
             : inboxView === "leads" && assignmentFilter === key && !(key === "all" && assigneeFilterId);
+        const label = key === "mine" ? "My Leads" : key === "all" ? "All Leads" : key === "mentioned" ? "Mentioned" : "Others";
+        const newCount = key === "mine" ? assignedNewCount : key === "mentioned" ? mentionCount : 0;
+        const total = key === "all" ? inboxTabTotals.all : key === "others" ? inboxTabTotals.others : null;
+        const newLabel =
+          key === "mine"
+            ? `${newCount} new lead${newCount === 1 ? "" : "s"} assigned to you`
+            : `${newCount} new mention${newCount === 1 ? "" : "s"}`;
         return (
           <button
             key={key}
@@ -2930,46 +3006,62 @@ export function LeadsTab({
                 setInboxView("mentioned");
                 return;
               }
+              if (key === "others") {
+                setInboxView("others");
+                setSelectMode(false);
+                setSelectedLeadIds(new Set());
+                setCurrentPage(1);
+                return;
+              }
               setInboxView("leads");
               setAssignmentFilter(key);
               setAssigneeFilterId(null);
               setCurrentPage(1);
             }}
-            className="min-h-8 min-w-0 truncate rounded-md px-1.5 py-1 text-[12px] font-semibold transition-colors md:min-h-0 md:px-2 md:text-[11px]"
-            style={
+            title={key === "others" ? "Emails and contacts marked Not a lead" : undefined}
+            className={cn(
+              "flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500/50 md:min-h-10",
               selected
-                ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
-                : { color: "var(--text-tertiary)" }
-            }
+                ? "bg-emerald-600 text-white shadow-sm dark:bg-[#1f6644]"
+                : "hover:bg-slate-900/5 dark:hover:bg-white/5",
+            )}
+            style={selected ? undefined : { color: "var(--text-secondary)" }}
             data-testid={`inbox-tab-${key}`}
           >
-            {key === "mine" ? (
-              <span className="inline-flex max-w-full items-center justify-center gap-1.5">
-                <span className="truncate">My Leads</span>
-                {assignedNewCount > 0 && (
-                  <span
-                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white"
-                    aria-label={`${assignedNewCount} new lead${assignedNewCount === 1 ? "" : "s"} assigned to you`}
-                    data-testid="my-leads-new-count"
-                  >
-                    {assignedNewCount > 99 ? "99+" : assignedNewCount}
-                  </span>
+            <span className={cn("max-w-full truncate text-[12px] leading-tight md:text-[11px]", selected ? "font-bold" : "font-semibold")}>
+              {label}
+            </span>
+            {total !== null ? (
+              leadStatusCountsLoading ? (
+                <span className="h-4" aria-hidden />
+              ) : (
+                <span
+                  className={cn("h-4 text-[11px] font-medium leading-4 tabular-nums", selected ? "text-white/80" : "")}
+                  style={selected ? undefined : { color: "var(--text-tertiary)" }}
+                  aria-label={key === "others" ? `${total} in Others` : `${total} leads`}
+                  data-testid={`inbox-tab-${key}-count`}
+                >
+                  {total >= 10000 ? `${Math.floor(total / 1000)}k` : total.toLocaleString("en-US")}
+                </span>
+              )
+            ) : newCount > 0 ? (
+              <span
+                className={cn(
+                  "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none tabular-nums",
+                  selected ? "bg-white/25 text-white" : key === "mine" ? "bg-emerald-500 text-white" : "bg-blue-500 text-white",
                 )}
+                aria-label={newLabel}
+                data-testid={key === "mine" ? "my-leads-new-count" : "mentioned-new-count"}
+              >
+                {newCount > 99 ? "99+" : newCount}
               </span>
-            ) : key === "all" ? (
-              "All Leads"
             ) : (
-              <span className="inline-flex max-w-full items-center justify-center gap-1.5">
-                <span className="truncate">Mentioned</span>
-                {mentionCount > 0 && (
-                  <span
-                    className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold leading-none text-white"
-                    aria-label={`${mentionCount} new mention${mentionCount === 1 ? "" : "s"}`}
-                    data-testid="mentioned-new-count"
-                  >
-                    {mentionCount > 99 ? "99+" : mentionCount}
-                  </span>
-                )}
+              <span
+                className={cn("h-4 text-[11px] font-medium leading-4 tabular-nums", selected ? "text-white/80" : "")}
+                style={selected ? undefined : { color: "var(--text-tertiary)" }}
+                aria-label={key === "mine" ? "No new leads assigned to you" : "No new mentions"}
+              >
+                0
               </span>
             )}
           </button>
@@ -3262,11 +3354,13 @@ export function LeadsTab({
               ) : (
               <LeadsList
                 activeCalls={activeCalls}
-                timeMode={sortBy === "latest_activity" ? "all" : "customer"}
+                timeMode={!othersView && sortBy === "latest_activity" ? "all" : "customer"}
                 currentUserId={currentUserId}
-                showCampaign={isCampaignLeadType(leadTypeFilter)}
-                title="Inquiries & Leads"
-                subtitle="Lead Inbox"
+                showCampaign={!othersView && isCampaignLeadType(leadTypeFilter)}
+                title={othersView ? "Others" : "Inquiries & Leads"}
+                subtitle={othersView ? "Not a lead" : "Lead Inbox"}
+                emptyTitle={othersView ? "Nothing in Others" : undefined}
+                emptyHint={othersView ? "Emails and contacts marked Not a lead show up here. They don't count as leads." : undefined}
                 leads={leads}
                 isLoading={isLoading}
                 loadFailed={leadsLoadFailed && leads.length === 0}
@@ -3289,7 +3383,7 @@ export function LeadsTab({
                 selectMode={selectMode}
                 selectedIds={selectedLeadIds}
                 onToggleSelect={toggleLeadSelected}
-                headerAction={
+                headerAction={othersView ? undefined : (
                   <button
                     type="button"
                     onClick={toggleSelectMode}
@@ -3303,16 +3397,17 @@ export function LeadsTab({
                       <CheckSquare className="h-4 w-4" />
                     )}
                   </button>
-                }
-                topContent={
+                )}
+                topContent={othersView ? (
+                  <div className="flex min-w-0 shrink-0 flex-col gap-2 pt-2.5 md:pt-3">
+                    {inboxTabList}
+                    <p className="px-0.5 text-[12px] leading-snug" style={{ color: "var(--text-tertiary)" }} data-testid="others-hint">
+                      Marked Not a lead by the team or sorted here automatically. Open one and use Move back to leads if it is a real customer.
+                    </p>
+                  </div>
+                ) : (
                   <>
-                    <div
-                      className="flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
-                      style={{
-                        borderColor: "var(--border-1)",
-                        background: "var(--bg-elevated)",
-                      }}
-                    >
+                    <div className="flex min-w-0 shrink-0 flex-col gap-2 pt-2.5 md:pt-3">
                       <div
                         className={cn(
                           "grid min-w-0 gap-1.5 md:gap-2",
@@ -3489,7 +3584,7 @@ export function LeadsTab({
                       </div>
                     ) : null}
                   </>
-                }
+                )}
               />
               )}
             </aside>
@@ -3549,14 +3644,17 @@ export function LeadsTab({
                     noReplyBusy={noReplyBusyId === selectedLead._id}
                   />
 
-                  {conversationMeta[selectedLead._id]?.composer?.blocked &&
-                  conversationMeta[selectedLead._id]?.status === selectedLead.status ? (
+                  {linkedChatTarget ||
+                  selectedLead.status === NOT_A_LEAD_STATUS ||
+                  (conversationMeta[selectedLead._id]?.composer?.blocked &&
+                  conversationMeta[selectedLead._id]?.status === selectedLead.status) ? (
                     <ClosedLeadComposer
                       leadId={selectedLead._id}
                       status={selectedLead.status}
                       onOpenLead={openLeadById}
-                      onReopen={(reason) => handleStatus("Pending", reason)}
+                      onReopen={(reason) => handleStatus(selectedLead.status === NOT_A_LEAD_STATUS ? "New" : "Pending", reason)}
                       onNotice={addToast}
+                      linkedTo={linkedChatTarget}
                     />
                   ) : (
                   <ReplySection
@@ -3697,7 +3795,7 @@ export function LeadsTab({
                     <div className="grid gap-3 sm:grid-cols-3">
                       <button
                         type="button"
-                        onClick={() => { setStatusFilter("New"); setCurrentPage(1); }}
+                        onClick={() => { setInboxView("leads"); setStatusFilter("New"); setCurrentPage(1); }}
                         className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
                         style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
                       >
@@ -3707,7 +3805,7 @@ export function LeadsTab({
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setStatusFilter(null); setSearchQuery(''); setCurrentPage(1); }}
+                        onClick={() => { setInboxView("leads"); setStatusFilter(null); setSearchQuery(''); setCurrentPage(1); }}
                         className="rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
                         style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
                       >

@@ -93,7 +93,9 @@ export function CombineNotice({
   const when = formatDate(combine.combined?.at || combine.combinedInto?.at);
   const text = combine.combined
     ? `${combine.combined.count} duplicate ${combine.combined.count === 1 ? "lead" : "leads"} for this customer ${combine.combined.count === 1 ? "was" : "were"} combined into this lead${when ? ` on ${when}` : ""}. Their messages are under Earlier conversations.`
-    : `This lead was combined into ${combine.combinedInto?.name || "the customer's newest lead"}${when ? ` on ${when}` : ""}. New messages go there.`;
+    : combine.combinedInto?.via === "link"
+      ? `This chat was added to ${combine.combinedInto.name || "the customer's lead"}${when ? ` on ${when}` : ""}. Its messages and new messages are there.`
+      : `This lead was combined into ${combine.combinedInto?.name || "the customer's newest lead"}${when ? ` on ${when}` : ""}. New messages go there.`;
 
   const undo = async () => {
     setWorking(true);

@@ -151,8 +151,8 @@ export function AddLeadModal({ isOpen, onOpenChange, startWithScan = false, mode
   const hasContact = Boolean(trimmedEmail || trimmedPhone)
   const isValid = Boolean(firstName.trim()) && hasContact && phoneOk && emailOk
 
-  const phoneKey = messaging && trimmedPhone && phoneOk ? last10(trimmedPhone) : ""
-  const emailKey = messaging && trimmedEmail && emailOk ? trimmedEmail.toLowerCase() : ""
+  const phoneKey = trimmedPhone && phoneOk ? last10(trimmedPhone) : ""
+  const emailKey = trimmedEmail && emailOk ? trimmedEmail.toLowerCase() : ""
   const contactKey = `${phoneKey}|${emailKey}`
   const contactMatches = contactResult?.key === contactKey ? contactResult.leads : []
 

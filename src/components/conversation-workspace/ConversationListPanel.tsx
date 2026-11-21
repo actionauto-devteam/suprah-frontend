@@ -39,6 +39,7 @@ export interface ConversationListPanelProps {
   onToggleSelect?: (contact: WorkspaceContact) => void;
   renderTrailing?: (contact: WorkspaceContact) => React.ReactNode;
   renderBadge?: (contact: WorkspaceContact) => React.ReactNode;
+  hideHeader?: boolean;
 }
 
 export function ConversationListPanel({
@@ -67,6 +68,7 @@ export function ConversationListPanel({
   onToggleSelect,
   renderTrailing,
   renderBadge,
+  hideHeader = false,
 }: ConversationListPanelProps) {
   const listRef = React.useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = React.useRef<HTMLInputElement>(null);
@@ -96,97 +98,99 @@ export function ConversationListPanel({
   };
 
   return (
-    <div className="cw-list-shell ss4-sidebar flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden">
-      <div
-        className="cw-list-header shrink-0 border-b px-3 py-2 sm:px-4 sm:pb-3 sm:pt-4"
-        style={{
-          borderColor: "var(--border-1)",
-          background: "var(--sidebar-bg)",
-        }}
-      >
-        <div className="flex min-h-9 items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="ss4-section-label truncate">{title}</span>
-              {!isLoading && total > 0 ? (
-                <span className="ss4-badge inline-flex shrink-0 items-center tabular-nums">
-                  {total}
-                </span>
+    <div className={cn("cw-list-shell flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden", !hideHeader && "ss4-sidebar")}>
+      {hideHeader ? null : (
+        <div
+          className="cw-list-header shrink-0 border-b px-3 py-2 sm:px-4 sm:pb-3 sm:pt-4"
+          style={{
+            borderColor: "var(--border-1)",
+            background: "var(--sidebar-bg)",
+          }}
+        >
+          <div className="flex min-h-9 items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="ss4-section-label truncate">{title}</span>
+                {!isLoading && total > 0 ? (
+                  <span className="ss4-badge inline-flex shrink-0 items-center tabular-nums">
+                    {total}
+                  </span>
+                ) : null}
+              </div>
+              {subtitle ? (
+                <p
+                  className="mt-1 hidden truncate text-[10px] sm:block"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {subtitle}
+                </p>
               ) : null}
             </div>
-            {subtitle ? (
-              <p
-                className="mt-1 hidden truncate text-[10px] sm:block"
-                style={{ color: "var(--text-tertiary)" }}
+
+            <div className="flex shrink-0 items-center gap-1">
+              {headerAction}
+              <button
+                type="button"
+                onClick={() => setIsMobileSearchOpen((value) => !value)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border sm:hidden"
+                style={{
+                  borderColor: isMobileSearchOpen ? "var(--accent)" : "var(--border-2)",
+                  background: isMobileSearchOpen ? "var(--accent-muted)" : "var(--bg-hover)",
+                  color: isMobileSearchOpen ? "var(--accent-text)" : "var(--text-secondary)",
+                }}
+                aria-label={isMobileSearchOpen ? "Close search" : "Search conversations"}
               >
-                {subtitle}
-              </p>
-            ) : null}
+                {isMobileSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
-            {headerAction}
-            <button
-              type="button"
-              onClick={() => setIsMobileSearchOpen((value) => !value)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border sm:hidden"
-              style={{
-                borderColor: isMobileSearchOpen ? "var(--accent)" : "var(--border-2)",
-                background: isMobileSearchOpen ? "var(--accent-muted)" : "var(--bg-hover)",
-                color: isMobileSearchOpen ? "var(--accent-text)" : "var(--text-secondary)",
-              }}
-              aria-label={isMobileSearchOpen ? "Close search" : "Search conversations"}
-            >
-              {isMobileSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
+          {isMobileSearchOpen ? (
+            <div className="relative mt-2 sm:hidden">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: "var(--text-tertiary)" }} />
+              <input
+                ref={mobileSearchInputRef}
+                type="search"
+                value={searchQuery}
+                onChange={(event) => onSearchChange(event.target.value)}
+                placeholder={searchPlaceholder}
+                className="ss4-search-input h-9 w-full min-w-0 pl-9 pr-10 text-[12px]"
+              />
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md"
+                style={{ color: "var(--text-tertiary)" }}
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : null}
 
-        {isMobileSearchOpen ? (
-          <div className="relative mt-2 sm:hidden">
+          <div className="relative mt-3 hidden sm:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: "var(--text-tertiary)" }} />
             <input
-              ref={mobileSearchInputRef}
               type="search"
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder={searchPlaceholder}
-              className="ss4-search-input h-9 w-full min-w-0 pl-9 pr-10 text-[12px]"
+              className="ss4-search-input h-8 w-full min-w-0 pl-9 pr-9 text-[13px]"
             />
-            <button
-              type="button"
-              onClick={clearSearch}
-              className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md"
-              style={{ color: "var(--text-tertiary)" }}
-              aria-label="Clear search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md"
+                style={{ color: "var(--text-tertiary)" }}
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
           </div>
-        ) : null}
-
-        <div className="relative mt-3 hidden sm:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: "var(--text-tertiary)" }} />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder={searchPlaceholder}
-            className="ss4-search-input h-8 w-full min-w-0 pl-9 pr-9 text-[13px]"
-          />
-          {searchQuery ? (
-            <button
-              type="button"
-              onClick={() => onSearchChange("")}
-              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md"
-              style={{ color: "var(--text-tertiary)" }}
-              aria-label="Clear search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
         </div>
-      </div>
+      )}
 
       {topContent}
       {isFetching && !isLoading ? (
