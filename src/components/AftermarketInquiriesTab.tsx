@@ -9,8 +9,6 @@ import {
   RefreshCw,
   ChevronRight,
   FileText,
-  Plus,
-  Trash2,
   X,
   Receipt,
   Phone,
@@ -31,6 +29,7 @@ import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { fmtTimeMDT, fmtFullDateTimeMDT, MDT_TZ } from "@/lib/timezone";
 import { linkifyText } from "@/lib/chatFormat";
+import { InvoiceBuilder } from "@/components/billing/InvoiceBuilder";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -239,225 +238,7 @@ function InquiryRow({
   );
 }
 
-// ─── Invoice builder modal ──────────────────────────────────────────────────────
-
-type DraftLine = { label: string; kind: "product" | "fee" | "charge" | "discount"; quantity: number; unitPrice: number };
-
-function InvoiceBuilder({
-  detail,
-  onClose,
-  onCreated,
-}: {
-  detail: InquiryDetail;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const seedPrice = detail.product?.price ?? detail.inquiry.productPrice ?? 0;
-
-  const [lines, setLines] = React.useState<DraftLine[]>([
-    { label: detail.inquiry.productName, kind: "product", quantity: 1, unitPrice: Number(seedPrice) || 0 },
-  ]);
-  const [taxRate, setTaxRate] = React.useState<number>(0);
-  const [dueDate, setDueDate] = React.useState<string>("");
-  const [notes, setNotes] = React.useState<string>("");
-  const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const subtotal = lines.reduce((s, l) => {
-    const raw = (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0);
-    return s + (l.kind === "discount" ? -Math.abs(raw) : raw);
-  }, 0);
-  const taxAmount = Math.max(0, subtotal) * ((Number(taxRate) || 0) / 100);
-  const total = subtotal + taxAmount;
-
-  const updateLine = (i: number, patch: Partial<DraftLine>) =>
-    setLines((p) => p.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  const addLine = (kind: DraftLine["kind"]) =>
-    setLines((p) => [...p, { label: kind === "fee" ? "Service fee" : kind === "discount" ? "Discount" : "Item", kind, quantity: 1, unitPrice: 0 }]);
-  const removeLine = (i: number) => setLines((p) => p.filter((_, idx) => idx !== i));
-
-  const submit = async () => {
-    setError(null);
-    if (lines.length === 0) return setError("Add at least one line item.");
-    if (total <= 0) return setError("Invoice total must be greater than zero.");
-    setSubmitting(true);
-    try {
-      await apiClient.post(
-        `/api/crm/aftermarket/inquiries/${detail.inquiry._id}/invoice`,
-        {
-          lineItems: lines.map((l) => ({
-            label: l.label.trim() || "Item",
-            kind: l.kind,
-            quantity: Number(l.quantity) || 0,
-            unitPrice: Number(l.unitPrice) || 0,
-          })),
-          taxRate: Number(taxRate) || 0,
-          dueDate: dueDate || undefined,
-          notes: notes.trim() || undefined,
-        }
-      );
-      onCreated();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Failed to create invoice. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-xl max-h-[90dvh] overflow-hidden rounded-[14px] border border-border bg-background shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
-              <Receipt className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="font-bold text-sm tracking-tight">Create invoice</p>
-              <p className="text-[11px] text-muted-foreground">
-                {detail.inquiry.customerName} · {detail.inquiry.productName}
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ scrollbarWidth: "thin" }}>
-          {/* Line items */}
-          <div className="space-y-2">
-            <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_28px] gap-2 px-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">Item</span>
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono text-center">Qty</span>
-              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono text-right">Unit</span>
-              <span />
-            </div>
-
-            {lines.map((l, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded-lg border border-border/40 p-2 sm:border-0 sm:p-0 sm:grid sm:grid-cols-[2fr_1fr_1fr_28px] sm:items-center sm:gap-2">
-                <div className="flex flex-col gap-1">
-                  <Input
-                    value={l.label}
-                    onChange={(e) => updateLine(i, { label: e.target.value })}
-                    placeholder="Description"
-                    className="h-9 text-xs rounded-lg"
-                  />
-                  <div className="flex gap-1">
-                    {(["product", "fee", "charge", "discount"] as const).map((k) => (
-                      <button
-                        key={k}
-                        onClick={() => updateLine(i, { kind: k })}
-                        className={cn(
-                          "text-[9px] font-bold uppercase tracking-wide font-mono px-1.5 py-1 rounded transition-colors",
-                          l.kind === k ? "bg-primary/15 text-primary" : "text-muted-foreground/50 hover:text-foreground"
-                        )}
-                      >
-                        {k}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 sm:contents">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={l.quantity}
-                    onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })}
-                    className="h-9 text-xs rounded-lg text-center flex-1 sm:w-auto"
-                    placeholder="Qty"
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={l.unitPrice}
-                    onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) })}
-                    className="h-9 text-xs rounded-lg text-right flex-1 sm:flex-none sm:w-auto"
-                    placeholder="Unit price"
-                  />
-                  <button
-                    onClick={() => removeLine(i)}
-                    disabled={lines.length === 1}
-                    className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => addLine("product")} className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
-                <Plus className="h-3 w-3" /> Item
-              </button>
-              <button onClick={() => addLine("fee")} className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground">
-                <Plus className="h-3 w-3" /> Fee
-              </button>
-              <button onClick={() => addLine("discount")} className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground">
-                <Plus className="h-3 w-3" /> Discount
-              </button>
-            </div>
-          </div>
-
-          {/* Tax + due date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">Tax rate (%)</label>
-              <Input type="number" min={0} step="0.01" value={taxRate} onChange={(e) => setTaxRate(Number(e.target.value))} className="h-8 text-xs rounded-lg mt-1" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">Due date</label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-8 text-xs rounded-lg mt-1" />
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 font-mono">Notes (optional)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Anything the customer should know…"
-              className="w-full mt-1 resize-none rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/50"
-            />
-          </div>
-
-          {/* Totals */}
-          <div className="rounded-[10px] border border-border bg-muted/30 px-4 py-3 space-y-1.5">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Subtotal</span>
-              <span className="tabular-nums font-mono">{money(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Tax ({taxRate || 0}%)</span>
-              <span className="tabular-nums font-mono">{money(taxAmount)}</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-border">
-              <span>Total</span>
-              <span className="tabular-nums font-mono text-primary">{money(total)}</span>
-            </div>
-          </div>
-
-          {error && <p className="text-[11px] text-destructive px-1">{error}</p>}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border shrink-0">
-          <Button variant="outline" size="sm" onClick={onClose} className="rounded-xl">Cancel</Button>
-          <Button size="sm" onClick={submit} disabled={submitting} className="rounded-xl gap-1.5">
-            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
-            Send invoice · {money(total)}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// The Create invoice form lives in components/billing/InvoiceBuilder (2026-11-20).
 
 // ─── Embedded reply thread (stays inside the Aftermarket tab — never the
 // general Concerns inbox — reuses the same concern messaging endpoints) ──────
@@ -892,7 +673,11 @@ function DetailPanel({
 
       {showBuilder && (
         <InvoiceBuilder
-          detail={data}
+          inquiryId={data.inquiry._id}
+          customerName={data.inquiry.customerName}
+          customerEmail={data.inquiry.customerEmail}
+          productName={data.inquiry.productName}
+          startingPrice={data.product?.price ?? data.inquiry.productPrice ?? null}
           onClose={() => setShowBuilder(false)}
           onCreated={() => {
             setShowBuilder(false);

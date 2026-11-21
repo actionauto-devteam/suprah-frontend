@@ -120,3 +120,64 @@ test('My payments stacks on phones; Admin Payouts shows a card per request on ph
   assert.match(card, /flexWrap: "wrap", gap: 10, marginBottom: 16/);
   assert.match(card, /repeat\(auto-fit, minmax\(104px, 1fr\)\)/);
 });
+
+// ── Clearer invoices: Qty × Price = Amount, discounts, note to customer ─────
+const invoice = loadLib('invoice-lines');
+
+test('invoice lines read Qty × Price = Amount, and a discount reads −$', () => {
+  assert.equal(invoice.invoiceMoney(1234.5), '$1,234.50');
+  assert.equal(invoice.invoiceMoney(-5), '−$5.00');
+  assert.equal(invoice.savedLineDetail({ kind: 'product', quantity: 2, unitPrice: 20, lineTotal: 40 }), '2 × $20.00');
+  assert.equal(invoice.savedLineDetail({ kind: 'fee', quantity: 1.5, unitPrice: 10, lineTotal: 15 }), '1.5 × $10.00');
+  assert.equal(invoice.savedLineDetail({ kind: 'discount', quantity: 1, unitPrice: 5, lineTotal: -5 }), 'Discount');
+});
+
+test('the form works out Subtotal, Discount, Tax and Total due the way the server does', () => {
+  const lines = [
+    { label: 'Carwash package', kind: 'product', quantity: '2', price: '20' },
+    { label: 'Service fee', kind: 'fee', quantity: '1', price: '$5.00' },
+    { label: 'Loyalty discount', kind: 'discount', quantity: '1', price: '5' },
+  ];
+  const amounts = lines.map(invoice.draftLineAmount);
+  assert.deepEqual(amounts, [40, 5, -5]);
+  // Tax is on the total after the discount: 10% of $40.00.
+  assert.deepEqual(invoice.invoiceTotals(amounts, 10), { itemsTotal: 45, discountTotal: 5, tax: 4, total: 44 });
+  // A discount is sent as 1 × its amount; the server takes it off.
+  assert.deepEqual(invoice.draftLineToSend(lines[2]), { label: 'Loyalty discount', kind: 'discount', quantity: 1, unitPrice: 5 });
+});
+
+test('a line that is not ready says what to fix', () => {
+  const ok = { label: 'Wash', kind: 'product', quantity: '1', price: '0' };
+  assert.equal(invoice.draftLineProblem(ok, 0), null);
+  assert.equal(invoice.draftLineProblem({ ...ok, label: ' ' }, 0), 'Line 1: add a description.');
+  assert.equal(invoice.draftLineProblem({ ...ok, quantity: '0' }, 1), 'Line 2: enter a quantity of 1 or more.');
+  assert.equal(invoice.draftLineProblem({ ...ok, price: 'abc' }, 0), 'Line 1: enter the price for one.');
+  assert.equal(invoice.draftLineProblem({ ...ok, kind: 'discount', price: '' }, 2), 'Line 3: enter the discount amount.');
+  assert.ok(Number.isNaN(invoice.typedNumber('-5')));
+});
+
+test('the Create invoice form uses invoice wording, SuprahPay styling and a note to the customer', () => {
+  const form = read('components/billing/InvoiceBuilder.tsx');
+  for (const words of ['>Description<', '>Qty<', '>Price<', '>Amount<', 'Total due', 'Bill to', 'Note to customer (optional)',
+    'Shown to the customer on their invoice in Suprah Pay.', '"Add item"', '"Add fee"', '"Add discount"', 'aria-label="Close"']) {
+    assert.ok(form.includes(words), `missing ${words}`);
+  }
+  assert.match(form, /from "@\/components\/billing\/ui"/);
+  assert.match(form, /customerNote: note\.trim\(\) \|\| undefined/);
+  assert.doesNotMatch(form, /"charge"/); // no separate Charge type to pick
+  const tab = read('components/AftermarketInquiriesTab.tsx');
+  assert.match(tab, /import \{ InvoiceBuilder \} from "@\/components\/billing\/InvoiceBuilder";/);
+  assert.doesNotMatch(tab, /\["product", "fee", "charge", "discount"\] as const\)\.map/);
+});
+
+test('customers and staff read the same lines; the note to the customer is shown, internal notes stay internal', () => {
+  const customer = read('app/(customer)/customer/payments/page.tsx');
+  assert.match(customer, /savedLineDetail\(li\)/);
+  assert.match(customer, /invoiceMoney\(li\.lineTotal\)/);
+  assert.match(customer, /Note from the dealership/);
+  assert.doesNotMatch(customer, /\.notes\b/);
+  const staff = read('app/(dashboard)/billing/payments/page.tsx');
+  assert.match(staff, /Invoice lines/);
+  assert.match(staff, /label: "Note to customer", val: payment\.customerNote/);
+  assert.match(staff, /label: "Internal notes", val: payment\.notes/);
+});
