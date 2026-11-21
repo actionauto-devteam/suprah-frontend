@@ -132,8 +132,8 @@ test('Link Wise shows a message instead of opening a Wise error page', () => {
   assert.match(linked, /connect: \(p: LinkedProvider\) => Promise<string \| null>/);
   assert.match(linked, /if \(authUrl\) \{\n\s+window\.location\.href = authUrl;/);
   assert.match(linked, /<p role="alert"/);
-  const wallet = read('app/(dashboard)/billing/page.tsx');
-  assert.match(wallet, /const problem = await linked\.connect\("wise"\);\n\s+if \(problem\) toast\.error\("Wise can't be linked yet", \{ description: problem \}\);/);
+  // Since 2026-11-21 (decision A1) the wallet no longer offers Link Wise at all.
+  assert.doesNotMatch(read('app/(dashboard)/billing/page.tsx'), /linked\.connect\("wise"\)/);
 });
 
 test("the website no longer carries a Wise client pointing at Wise's retired test site", () => {
@@ -141,13 +141,11 @@ test("the website no longer carries a Wise client pointing at Wise's retired tes
 });
 
 // ── Receive is "still in development" until the real payment page exists ────
-test('Receive explains it is in development instead of showing a link that 404s', () => {
+test('Receive never hands out a payment link that 404s (since 2026-11-21 it is not offered at all)', () => {
   const wallet = read('app/(dashboard)/billing/page.tsx');
-  assert.match(wallet, /toast\.info\("Receive is still in development", \{\n\s+description: RECEIVE_IN_DEVELOPMENT_MESSAGE,/);
-  assert.match(wallet, /use Request Payment on a lead\./);
-  assert.doesNotMatch(wallet, /ReceiveModal|"receive"/);
+  assert.doesNotMatch(wallet, /ReceiveModal|"receive"|Receive is still in development/);
   assert.equal(fs.existsSync(fileURLToPath(new URL('../src/components/billing/ReceiveModal.tsx', import.meta.url))), false);
-  assert.match(read('components/billing/BalanceCard.tsx'), /label="Receive" sub="In development"/);
+  assert.doesNotMatch(read('components/billing/BalanceCard.tsx'), /label="Receive"/);
 });
 
 // ── Payments Due opens Suprah Pay at "To pay" ───────────────────────────────

@@ -24,6 +24,7 @@ import { useAlert } from "@/components/AlertDialog";
 import { userErrorMessage } from "@/lib/user-error";
 import { isPartlyRefunded, refundedSoFar } from "@/lib/payment-refunds";
 import { invoiceMoney, isDiscountLine, savedLineDetail } from "@/lib/invoice-lines";
+import { paymentPurposeLabel } from "@/lib/payment-purpose";
 
 // --- Types --------------------------------------------------------------------
 
@@ -55,6 +56,9 @@ interface PaymentInvoice {
   aftermarketProductId?: { name?: string; media?: { url?: string } } | string;
   /** The dealership's note to the customer, shown on the invoice. */
   customerNote?: string;
+  /** Which dealership sent it, and what it's for (2026-11-21). */
+  dealershipName?: string;
+  purpose?: string;
 }
 interface MyPaymentsResponse {
   payments: PaymentInvoice[];
@@ -120,6 +124,11 @@ function InvoiceCard({
             {inv.invoiceNumber || inv._id.slice(-8).toUpperCase()} · {fmtDate(inv.createdAt)}
             {inv.dueDate && inv.status === "pending" ? ` · due ${fmtDate(inv.dueDate)}` : ""}
           </p>
+          {(inv.dealershipName || paymentPurposeLabel(inv.purpose)) && (
+            <p className="text-xs text-muted-foreground mt-0.5 [overflow-wrap:anywhere]">
+              {[inv.dealershipName && `From ${inv.dealershipName}`, paymentPurposeLabel(inv.purpose)].filter(Boolean).join(" · ")}
+            </p>
+          )}
         </div>
         <span className={cn("inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full shrink-0", meta.cls)}>
           <Icon className={cn("h-3 w-3", inv.status === "processing" && "animate-spin")} />
@@ -162,8 +171,10 @@ function InvoiceCard({
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground/60 font-mono">Total</p>
           <p className="text-lg font-bold tabular-nums font-mono">{money(inv.amount)}</p>
-          {isPartlyRefunded(inv) && (
-            <p className="text-xs text-muted-foreground">{money(refundedSoFar(inv))} refunded to you</p>
+          {(isPartlyRefunded(inv) || inv.status === "refunded") && (
+            <p className="text-xs text-muted-foreground">
+              {money(refundedSoFar(inv))} refunded to you. It can take 5–10 business days to show on your card.
+            </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -355,7 +366,7 @@ function PaymentsView() {
             <Wallet className="h-4 w-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="font-bold text-lg tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Suprah Pay</h1>
+            <h1 className="font-bold text-lg tracking-tight min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">SuprahPay</h1>
             <p className="text-xs text-muted-foreground min-w-0 break-words [overflow-wrap:anywhere] whitespace-normal">Invoices & payment history</p>
           </div>
         </div>

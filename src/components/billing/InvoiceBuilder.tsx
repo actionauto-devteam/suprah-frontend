@@ -4,11 +4,12 @@
  * Create invoice (2026-11-20): a standard invoice form in the SuprahPay look.
  * Each item is Qty × Price = Amount, a discount takes its amount off, and the
  * totals read Subtotal, Discount, Tax and Total due. The note is shown to the
- * customer on their invoice in Suprah Pay.
+ * customer on their invoice in SuprahPay.
  */
 import * as React from "react";
 import { Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay";
 import { GhostButton, PrimaryButton, T, FONT, numeric, TextInput, Wordmark } from "@/components/billing/ui";
 import {
   type DraftInvoiceLine,
@@ -91,6 +92,12 @@ export function InvoiceBuilder({
     },
   ]);
   const [taxRate, setTaxRate] = React.useState("");
+  // Starts with the dealership's default sales tax (2026-11-21) until staff change it.
+  const { data: suprahPay } = useSuprahPaySettings();
+  const taxTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (!taxTouched.current && suprahPay && suprahPay.defaultTaxRate > 0) setTaxRate(String(suprahPay.defaultTaxRate));
+  }, [suprahPay]);
   const [dueDate, setDueDate] = React.useState("");
   const [note, setNote] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -338,7 +345,7 @@ export function InvoiceBuilder({
               <TextInput
                 id="invoice-tax"
                 value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
+                onChange={(e) => { taxTouched.current = true; setTaxRate(e.target.value); }}
                 inputMode="decimal"
                 autoComplete="off"
                 placeholder="0"
@@ -369,7 +376,7 @@ export function InvoiceBuilder({
               }}
             />
             <div className="flex flex-wrap justify-between gap-2">
-              <p style={helpStyle}>Shown to the customer on their invoice in Suprah Pay.</p>
+              <p style={helpStyle}>Shown to the customer on their invoice in SuprahPay.</p>
               <p style={{ ...helpStyle, ...numeric }}>{note.length}/{NOTE_MAX}</p>
             </div>
           </div>

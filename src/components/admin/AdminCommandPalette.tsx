@@ -9,7 +9,7 @@ import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
 } from '@/components/ui/command';
 import {
-  LayoutDashboard, Building2, Users, Truck, CreditCard, ClipboardList, Bell, Search, Moon, Sun, CalendarClock,
+  LayoutDashboard, Building2, Users, Truck, CreditCard, Wallet, ClipboardList, Bell, Search, Moon, Sun, CalendarClock,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -21,6 +21,7 @@ const PAGES = [
   { label: 'Dealerships', href: '/admin/organizations', icon: Building2 },
   { label: 'Users', href: '/admin/users', icon: Users },
   { label: 'Payouts', href: '/admin/payouts', icon: CreditCard },
+  { label: 'SuprahPay', href: '/admin/suprahpay', icon: Wallet },
   { label: 'Notifications', href: '/admin/notifications', icon: Bell },
 ];
 

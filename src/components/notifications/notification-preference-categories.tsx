@@ -82,7 +82,7 @@ export const notificationPreferenceCategories: NotificationPreferenceCategory[] 
   { key: 'projectManagement', label: 'Project Management', description: 'Task assignments, comments, and deadlines', icon: ClipboardList, color: 'from-violet-500 to-purple-600' },
   { key: 'calendar', label: 'Supra Calendar', description: "Today's events and reminders", icon: CalendarDays, color: 'from-teal-500 to-emerald-500' },
   { key: 'driverTracker', label: 'Driver Tracker', description: 'Geofence, offline, and location alerts', icon: Radar, color: 'from-cyan-500 to-blue-500', typeGroups: TRACKER_TYPE_GROUPS },
-  { key: 'wallet', label: 'Suprah Pay', description: 'Payments, payouts, and withdrawals', icon: Wallet, color: 'from-green-500 to-emerald-600' },
+  { key: 'wallet', label: 'SuprahPay', description: 'Payments, payouts, and withdrawals', icon: Wallet, color: 'from-green-500 to-emerald-600' },
   { key: 'team', label: 'Team', description: 'Invites, role changes, pings, and team board posts', icon: UserPlus, color: 'from-indigo-500 to-blue-500' },
   { key: 'account', label: 'Account & Security', description: 'Profile, email, and login activity', icon: Shield, color: 'from-rose-500 to-red-500' },
   { key: 'referrals', label: 'Referrals & Rewards', description: 'Signups and reward payouts from your referral link', icon: Award, color: 'from-emerald-500 to-teal-600' },

@@ -33,6 +33,8 @@ import { DialPadDialog } from "@/components/communications/DialPadDialog"
 import { useQueryClient } from "@tanstack/react-query"
 import { initializeSocket, onSocketChange } from "@/lib/socket.client"
 import { toast } from "sonner"
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay"
+import { PAYMENT_PURPOSES } from "@/lib/payment-purpose"
 import { playMessageSound } from "@/lib/notification-sound"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
 import { useAiAgentIdentity } from "@/hooks/useAiAgentIdentity"
@@ -263,7 +265,7 @@ const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
 ];
 type LeadsViewportMode = "narrow" | "compact" | "wide";
 
-type LeadPaymentForm = CreatePaymentData & { customerPhone?: string };
+type LeadPaymentForm = CreatePaymentData & { customerPhone?: string; purpose?: string };
 
 const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
   customerName: "",
@@ -273,6 +275,7 @@ const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
   description: "",
   dueDate: "",
   notes: "",
+  purpose: "other",
 };
 
 const resolveLeadDateFilterRange = (
@@ -1081,6 +1084,7 @@ export function LeadsTab({
   const [paymentError, setPaymentError] = React.useState<string | null>(null);
   const [paymentForm, setPaymentForm] =
     React.useState<LeadPaymentForm>(EMPTY_PAYMENT_FORM);
+  const { data: suprahPay } = useSuprahPaySettings();
 
   // The shipping modal expects inventory-style Vehicle objects with an `id`.
   // A CRM lead usually stores only a partial vehicle snapshot, so normalize it
@@ -2535,6 +2539,19 @@ export function LeadsTab({
       addToast("error", "Please select a lead first");
       return;
     }
+    // SuprahPay must be on, and sending needs Finance access (2026-11-21).
+    if (suprahPay && !suprahPay.enabled) {
+      toast.info("SuprahPay is coming soon for your dealership", {
+        description: "Payment requests open once Suprah turns SuprahPay on for you.",
+      });
+      return;
+    }
+    if (suprahPay && !suprahPay.canManagePayments) {
+      toast.info("Payment requests need Finance access", {
+        description: "Ask your dealership's admin to give you Finance access on the Members page.",
+      });
+      return;
+    }
 
     const customerName =
       [selectedLead.firstName, selectedLead.lastName]
@@ -2571,6 +2588,7 @@ export function LeadsTab({
       notes: selectedLead._id
         ? `Created from CRM lead ${selectedLead._id}`
         : "Created from CRM Leads",
+      purpose: "other",
     });
     setPaymentError(null);
     setPaymentOpen(true);
@@ -2607,6 +2625,7 @@ export function LeadsTab({
           description,
           dueDate: paymentForm.dueDate || undefined,
           notes: paymentForm.notes?.trim() || undefined,
+          purpose: paymentForm.purpose || "other",
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -4196,6 +4215,19 @@ function LeadPaymentDialog({
                 />
               </PaymentField>
             </div>
+
+            <PaymentField label="What it's for">
+              <select
+                value={form.purpose || "other"}
+                onChange={(event) => onFormChange({ ...form, purpose: event.target.value })}
+                className={fieldClass}
+                disabled={isCreating}
+              >
+                {PAYMENT_PURPOSES.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </PaymentField>
 
             <PaymentField label="Description" required>
               <input

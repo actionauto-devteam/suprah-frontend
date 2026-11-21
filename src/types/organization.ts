@@ -32,6 +32,7 @@ export interface OrganizationMember {
     role: string; // Global system role
     organizationRole: 'admin' | 'member'; // Context-specific role
     isDispatcher?: boolean; // Transportation / Driver Review capability for this organization only
+    hasFinanceAccess?: boolean; // SuprahPay: can send payment requests and invoices, cancel and refund (admins always can)
     email: string;
     fullName: string;
     imageUrl?: string;

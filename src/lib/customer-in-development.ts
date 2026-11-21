@@ -28,9 +28,9 @@ export const IN_DEVELOPMENT_SECTIONS: Record<string, InDevelopmentNotice> = {
     notReady: "There are only a few ways to earn points so far, and more perks are on the way.",
   },
   "/customer/payments": {
-    name: "Suprah Pay",
+    name: "SuprahPay",
     worksNow: "Pay the payment requests your dealership sends you.",
-    notReady: "Suprah Pay is new and still being finished, so some screens and options may change.",
+    notReady: "SuprahPay is new and still being finished, so some screens and options may change.",
   },
   "/customer/network": {
     name: "Service Network",
