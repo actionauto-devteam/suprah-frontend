@@ -114,3 +114,21 @@ test('super admins set the fee and limit, switch SuprahPay per dealership, and s
   assert.doesNotMatch(page, /<Table\b|overflow-x-auto/);
   assert.match(read('components/admin-sidebar.tsx'), /\{ title: "SuprahPay", url: "\/admin\/suprahpay", icon: Wallet \}/);
 });
+
+// ─── Review fixes (2026-11-23) ─────────────────────────────────────────────
+test('SuprahPay screen data is kept per person and dealership, so switching never shows the last one', () => {
+  const hooks = read('hooks/useSuprahPay.ts');
+  assert.match(hooks, /const \{ userId, orgId \} = useAuth\(\);/);
+  assert.match(hooks, /const \{ impersonatedOrgId \} = adminStore\.useStore\(\);/);
+  for (const key of ['settings', 'payouts', 'payout-account']) {
+    assert.ok(hooks.includes(`queryKey: ["suprahpay", scope, "${key}"]`), key);
+  }
+  // A refresh after a change still reaches every SuprahPay query.
+  assert.match(hooks, /invalidateQueries\(\{ queryKey: \["suprahpay"\] \}\)/);
+});
+
+test('an archived dealership that is still owed money is labelled on the payouts list', () => {
+  const page = read('app/(admin)/admin/suprahpay/page.tsx');
+  assert.match(page, /archived\?: boolean/);
+  assert.match(page, /\{row\.archived && <Badge variant="secondary">Archived<\/Badge>\}/);
+});

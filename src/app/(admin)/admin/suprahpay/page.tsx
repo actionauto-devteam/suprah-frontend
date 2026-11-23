@@ -39,6 +39,8 @@ interface DealershipRow {
 interface PayoutRow {
     _id: string
     name: string
+    /** Archived, but still owed money (or a payment is on hold), so it stays on the list. */
+    archived?: boolean
     suprahPayOn: boolean
     payoutAccountConnected: boolean
     sending: boolean
@@ -239,7 +241,10 @@ export default function AdminSuprahPayPage() {
                             return (
                                 <li key={row._id} className="flex flex-wrap items-start justify-between gap-3 py-3">
                                     <div className="min-w-0 flex-1 basis-56">
-                                        <p className="font-medium [overflow-wrap:anywhere]">{row.name}</p>
+                                        <p className="flex flex-wrap items-center gap-2 font-medium [overflow-wrap:anywhere]">
+                                            {row.name}
+                                            {row.archived && <Badge variant="secondary">Archived</Badge>}
+                                        </p>
                                         <p className="text-xs text-muted-foreground">
                                             {row.paymentCount} payment{row.paymentCount === 1 ? "" : "s"} · Suprah&apos;s fee {formatCurrency(row.suprahFee)}
                                             {row.adjustments ? ` · refunds and disputes ${formatCurrency(row.adjustments)}` : ""}
