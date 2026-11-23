@@ -28,6 +28,8 @@ const ROLE_TONE: Record<LeadHandlerRole, string> = {
   was_assigned: "border-slate-400/40 bg-slate-500/10 text-slate-600 dark:text-slate-300",
 };
 
+const OPENERS_SHOWN = 5;
+
 const COUNT_WORDS: Array<[keyof LeadHandlerCounts, string, string]> = [
   ["texts", "text", "texts"],
   ["chats", "chat message", "chat messages"],
@@ -168,6 +170,38 @@ export function LeadHandlersCard({ leadId, refreshKey }: { leadId: string; refre
             );
           })}
         </ol>
+      )}
+
+      {data?.opened && data.opened.people.length > 0 && (
+        <div className="mt-3 border-t pt-2" style={{ borderColor: "var(--border-1)" }} data-testid="lead-opened-by">
+          <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-tertiary)" }}>
+            Opened by
+          </h4>
+          <ol className="mt-1.5 space-y-1.5">
+            {data.opened.people.slice(0, OPENERS_SHOWN).map((opener, index) => (
+              <li key={`${opener.at}-${index}`} className="flex min-w-0 items-center justify-between gap-2" data-testid="lead-opened-by-person">
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="min-w-0 truncate text-[11px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {opener.name}
+                  </span>
+                  {index === 0 && (
+                    <span className={cn("shrink-0 rounded-full border px-1.5 py-px text-[10px] font-semibold", ROLE_TONE.first_reply)}>
+                      First
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-[10px] tabular-nums" style={{ color: "var(--text-tertiary)" }}>
+                  {fmtShortDateTimeMDT(opener.at)}
+                </span>
+              </li>
+            ))}
+          </ol>
+          {data.opened.total > OPENERS_SHOWN && (
+            <p className="mt-1 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+              +{data.opened.total - OPENERS_SHOWN} more
+            </p>
+          )}
+        </div>
       )}
 
       {data && data.assignments.length > 0 && (

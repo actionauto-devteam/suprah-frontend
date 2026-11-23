@@ -110,6 +110,7 @@ import {
   mergeThreadStatuses,
   type LeadConversationMeta,
 } from "@/lib/api/leadConversation";
+import { markLeadOpened } from "@/lib/api/leadHandlers";
 import { getLeadReviewCount, type IntakeMode } from "@/lib/api/leadIntake";
 import {
   RECIPIENT_CHANGED_CODE,
@@ -1039,6 +1040,7 @@ export function LeadsTab({
   const leadsRef = React.useRef<Lead[]>([]);
   const listedSelectedIdRef = React.useRef<string | null>(null);
   const threadFetchSeqRef = React.useRef<Map<string, number>>(new Map());
+  const openedLeadIdsRef = React.useRef<Set<string>>(new Set());
 
   React.useEffect(() => {
     selectedLeadRef.current = selectedLead;
@@ -2134,6 +2136,19 @@ export function LeadsTab({
         })
         .catch((error) => {
           console.error("Failed to mark lead as read:", error);
+        });
+    }
+
+    const openedAlready = openedLeadIdsRef.current.has(lead._id) || Boolean(currentUserId && lead.openedBy?.some((entry) => entry?.userId === currentUserId));
+    if (Array.isArray(lead.openedBy) && !openedAlready) {
+      const openedId = lead._id;
+      openedLeadIdsRef.current.add(openedId);
+      void markLeadOpened(openedId)
+        .then((recorded) => {
+          if (recorded) void queryClient.invalidateQueries({ queryKey: ["lead-handlers", openedId] });
+        })
+        .catch(() => {
+          openedLeadIdsRef.current.delete(openedId);
         });
     }
   };

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, UserRound, X } from "lucide-react";
+import { Check, Search, UserRound, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTeamMembers } from "@/hooks/useTeamPulse";
 import { useAuth } from "@/providers/AuthProvider";
@@ -22,6 +22,7 @@ export function AssigneePicker({
 }: AssigneePickerProps) {
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [query, setQuery] = React.useState("");
   const { data: members = [] } = useTeamMembers();
   const { userId: currentUserId } = useAuth();
 
@@ -30,22 +31,38 @@ export function AssigneePicker({
     [members, currentAssignedTo]
   );
 
+  const needle = query.trim().replace(/\s+/g, " ").toLowerCase();
+  const shownMembers = React.useMemo(
+    () =>
+      needle
+        ? members.filter((member) =>
+            `${member.name || ""} ${member.email || ""}`.replace(/\s+/g, " ").toLowerCase().includes(needle)
+          )
+        : members,
+    [members, needle]
+  );
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+  };
+
   const handlePick = async (userId: string | null) => {
     if ((userId || null) === (currentAssignedTo || null)) {
-      setOpen(false);
+      handleOpenChange(false);
       return;
     }
     setSaving(true);
     try {
       await onAssign(userId);
-      setOpen(false);
+      handleOpenChange(false);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -60,8 +77,21 @@ export function AssigneePicker({
         </button>
       </PopoverTrigger>
       <PopoverContent className="z-200 w-64 p-1.5" align="start">
+        <div className="relative mb-1.5">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search team…"
+            aria-label="Search team members"
+            autoComplete="off"
+            className="h-8 w-full rounded-md border border-border bg-transparent pl-7 pr-2 text-[16px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary md:text-xs"
+            data-testid="assignee-search"
+          />
+        </div>
         <div className="max-h-64 overflow-y-auto">
-          {currentUserId ? (
+          {!needle && currentUserId ? (
             <button
               type="button"
               onClick={() => void handlePick(currentUserId)}
@@ -76,7 +106,7 @@ export function AssigneePicker({
             </button>
           ) : null}
 
-          {currentAssignedTo ? (
+          {!needle && currentAssignedTo ? (
             <button
               type="button"
               onClick={() => void handlePick(null)}
@@ -88,9 +118,9 @@ export function AssigneePicker({
             </button>
           ) : null}
 
-          <div className="my-1 border-t border-border" />
+          {!needle ? <div className="my-1 border-t border-border" /> : null}
 
-          {members.map((member) => (
+          {shownMembers.map((member) => (
             <button
               key={member._id}
               type="button"
@@ -108,6 +138,10 @@ export function AssigneePicker({
 
           {members.length === 0 ? (
             <p className="px-2 py-2 text-xs text-muted-foreground">No team members found</p>
+          ) : shownMembers.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-muted-foreground" data-testid="assignee-search-empty">
+              No one matches &quot;{query.trim()}&quot;
+            </p>
           ) : null}
         </div>
       </PopoverContent>

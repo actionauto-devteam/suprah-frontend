@@ -71,6 +71,7 @@ export interface Lead {
   assignedTo?: string | null;
   assignedAt?: string | null;
   assignmentUnseenBy?: string | null;
+  openedBy?: Array<{ userId: string; name?: string; at: string }> | null;
   firstContactBy?: "customer" | "team" | null;
   firstContactVia?: "team_text" | "team_call" | "added_by_team" | null;
   campaign?: {

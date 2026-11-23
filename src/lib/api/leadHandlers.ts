@@ -32,13 +32,24 @@ export interface LeadHandlerAssignment {
   at: string;
 }
 
+export interface LeadOpener {
+  name: string;
+  at: string;
+}
+
 export interface LeadHandlers {
   people: LeadHandlerPerson[];
   assignedTo: { name: string; at: string | null } | null;
   assignments: LeadHandlerAssignment[];
+  opened?: { people: LeadOpener[]; total: number } | null;
 }
 
 export async function fetchLeadHandlers(leadId: string): Promise<LeadHandlers> {
   const res = await apiClient.get(`/api/leads/${leadId}/handlers`);
   return res.data?.data as LeadHandlers;
+}
+
+export async function markLeadOpened(leadId: string): Promise<boolean> {
+  const res = await apiClient.patch(`/api/leads/${leadId}/opened`);
+  return Boolean(res.data?.recorded);
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  ArrowDown,
   ArrowLeft,
   Mail,
   MessageSquare,
@@ -613,6 +614,11 @@ export function ConversationView({
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
+  const messageContentRef = React.useRef<HTMLDivElement | null>(null);
+  const pinnedRef = React.useRef(true);
+  const autoTopRef = React.useRef(0);
+  const newestSeenRef = React.useRef<{ leadId: string | null; at: number }>({ leadId: null, at: 0 });
+  const [newMessageFor, setNewMessageFor] = React.useState<string | null>(null);
   const highlightShownAtRef = React.useRef(0);
   const highlightWaitingRef = React.useRef(false);
   const onHighlightShownRef = React.useRef(onHighlightShown);
@@ -634,10 +640,23 @@ export function ConversationView({
     onHighlightShownRef.current?.();
   }, []);
 
+  const stickToBottom = React.useCallback((element: HTMLElement) => {
+    element.scrollTop = element.scrollHeight;
+    autoTopRef.current = element.scrollTop;
+  }, []);
+
+  const scrollToLatest = React.useCallback(() => {
+    const element = messageAreaRef.current;
+    pinnedRef.current = true;
+    setNewMessageFor(null);
+    if (element) stickToBottom(element);
+  }, [stickToBottom]);
+
   React.useEffect(() => {
     highlightShownAtRef.current = 0;
     highlightWaitingRef.current = Boolean(highlightNoteId);
     if (!highlightNoteId) return;
+    pinnedRef.current = false;
     let attempts = 0;
     let timer = 0;
     const seek = () => {
@@ -649,29 +668,44 @@ export function ConversationView({
       }
       attempts += 1;
       if (attempts < 12) timer = window.setTimeout(seek, 300);
+      else {
+        highlightWaitingRef.current = false;
+        scrollToLatest();
+        onHighlightShownRef.current?.();
+      }
     };
     timer = window.setTimeout(seek, 150);
     return () => window.clearTimeout(timer);
-  }, [highlightNoteId, highlightRequest, findHighlightedNote, showHighlightedNote, lead?._id]);
+  }, [highlightNoteId, highlightRequest, findHighlightedNote, showHighlightedNote, scrollToLatest, lead?._id]);
 
   React.useLayoutEffect(() => {
+    pinnedRef.current = true;
     const element = messageAreaRef.current;
-    if (!element) return;
-    const frameId = window.requestAnimationFrame(() => {
-      element.scrollTop = element.scrollHeight;
+    if (element) stickToBottom(element);
+  }, [lead?._id, stickToBottom]);
+
+  React.useEffect(() => {
+    const element = messageAreaRef.current;
+    const content = messageContentRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!pinnedRef.current || highlightWaitingRef.current) return;
+      if (Date.now() - highlightShownAtRef.current < 8000) return;
+      stickToBottom(element);
     });
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [lead?._id]);
+    observer.observe(element);
+    if (content) observer.observe(content);
+    return () => observer.disconnect();
+  }, [stickToBottom]);
 
   React.useEffect(() => {
     const keepConversationAtBottom = () => {
       const element = messageAreaRef.current;
-      if (!element) return;
+      if (!element || highlightWaitingRef.current) return;
       if (Date.now() - highlightShownAtRef.current < 8000) return;
+      pinnedRef.current = true;
       window.requestAnimationFrame(() => {
-        element.scrollTop = element.scrollHeight;
+        stickToBottom(element);
       });
     };
     window.addEventListener(
@@ -684,7 +718,7 @@ export function ConversationView({
         keepConversationAtBottom,
       );
     };
-  }, []);
+  }, [stickToBottom]);
 
   const groupedThreads = React.useMemo(() => visibleThreadEntries(threads, lead), [threads, lead]);
 
@@ -721,6 +755,35 @@ export function ConversationView({
       return { ...entry, showDayChip };
     });
   }, [groupedThreads, leadNotes, leadCreatedAt]);
+
+  const currentLeadId = lead?._id ? String(lead._id) : null;
+  const newestAt = renderItems.length ? renderItems[renderItems.length - 1].sortKey : 0;
+  React.useEffect(() => {
+    const seen = newestSeenRef.current;
+    if (seen.leadId !== currentLeadId) {
+      newestSeenRef.current = { leadId: currentLeadId, at: newestAt };
+      setNewMessageFor(null);
+      return;
+    }
+    if (!(newestAt > seen.at)) return;
+    newestSeenRef.current = { leadId: currentLeadId, at: newestAt };
+    if (!pinnedRef.current && !highlightWaitingRef.current && currentLeadId) setNewMessageFor(currentLeadId);
+  }, [currentLeadId, newestAt]);
+
+  const handleThreadScroll = () => {
+    const element = messageAreaRef.current;
+    if (!element) return;
+    const top = element.scrollTop;
+    if (element.scrollHeight - top - element.clientHeight <= 80) {
+      pinnedRef.current = true;
+      autoTopRef.current = top;
+      if (newMessageFor) setNewMessageFor(null);
+      return;
+    }
+    if (top < autoTopRef.current - 2) pinnedRef.current = false;
+  };
+
+  const showNewMessage = Boolean(currentLeadId) && newMessageFor === currentLeadId;
 
   const renderCount = renderItems.length;
   React.useEffect(() => {
@@ -865,373 +928,387 @@ export function ConversationView({
         </button>
       )}
 
-      <div
-        ref={messageAreaRef}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6"
-      >
-        <div className="mx-auto w-full max-w-4xl">
-          {lead?._id && <CombineNotice leadId={String(lead._id)} combine={conversationMeta?.combine} onUndone={onCombineUndone} />}
-          {lead?._id && <EarlierConversations leadId={String(lead._id)} earlier={conversationMeta?.earlier} />}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={messageAreaRef}
+          onScroll={handleThreadScroll}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6"
+        >
+          <div ref={messageContentRef} className="mx-auto w-full max-w-4xl">
+            {lead?._id && <CombineNotice leadId={String(lead._id)} combine={conversationMeta?.combine} onUndone={onCombineUndone} />}
+            {lead?._id && <EarlierConversations leadId={String(lead._id)} earlier={conversationMeta?.earlier} />}
 
-          {loadState === "error" && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 flex-1">We couldn&apos;t load the full conversation. Showing what we have.</span>
-              {onRetryLoad && (
-                <button type="button" onClick={onRetryLoad} className="flex items-center gap-1 font-semibold underline-offset-2 hover:underline">
-                  <RefreshCw className="h-3 w-3" />
-                  Try again
-                </button>
-              )}
-            </div>
-          )}
-
-          {conversationMeta?.unavailableSources?.length ? (
-            <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[12px] text-slate-600 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-              <span>
-                {conversationMeta.unavailableSources.includes("email")
-                  ? "Email messages couldn't be loaded right now. Everything else is shown."
-                  : conversationMeta.unavailableSources.includes("email_not_in_mailbox") && conversationMeta.unavailableSources.length === 1
-                    ? "This lead's earlier emails are not in the connected email account, so they can't be shown here. New emails will show as usual."
-                    : "Some messages couldn't be loaded right now. Everything else is shown."}
-              </span>
-            </div>
-          ) : null}
-
-          {/* Conversation start marker */}
-          <div className="mb-6 flex flex-col items-center gap-2 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-              <MessageSquare className="h-5 w-5" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Beginning of lead conversation
-            </h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              {formatTimestamp(lead?.createdAt) || "Conversation started"}
-            </p>
-          </div>
-
-          {loadState === "loading" && renderItems.length === 0 ? (
-            <div className="mx-auto w-full max-w-xl space-y-3" aria-busy="true" aria-label="Loading conversation">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className={cn("flex", row % 2 ? "justify-end" : "justify-start")}>
-                  <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-emerald-400/10" />
-                </div>
-              ))}
-            </div>
-          ) : renderItems.length === 0 ? (
-            <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-emerald-400/15 dark:bg-[#0f1f19]">
-              <Mail className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
-              <div>
-                <strong className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  No synced messages yet
-                </strong>
-                <p className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">
-                  The lead inquiry is ready for your first response.
-                </p>
+            {loadState === "error" && (
+              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1">We couldn&apos;t load the full conversation. Showing what we have.</span>
+                {onRetryLoad && (
+                  <button type="button" onClick={onRetryLoad} className="flex items-center gap-1 font-semibold underline-offset-2 hover:underline">
+                    <RefreshCw className="h-3 w-3" />
+                    Try again
+                  </button>
+                )}
               </div>
-            </div>
-          ) : (
-            <div className="w-full space-y-4">
-              {renderItems.map((item) => {
-                if (item.kind === "note") {
-                  const { note, noteIndex, stamp, showDayChip } = item;
-                  const noteKey = note?._id || `note-${noteIndex}`;
-                  const highlighted = Boolean(highlightNoteId) && String(note?._id || "") === highlightNoteId;
+            )}
 
-                  return (
-                    <React.Fragment key={noteKey}>
-                      {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                      <div
-                        data-note-id={note?._id ? String(note._id) : undefined}
-                        data-highlighted={highlighted ? "true" : undefined}
-                        className={cn(
-                          "mx-auto flex w-full max-w-2xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200",
-                          highlighted && "ring-2 ring-amber-500 ring-offset-2 ring-offset-(--bg-base)",
-                        )}
-                      >
-                        <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
-                            <span>{note?.noteKind === "appointment" ? "Appointment" : note?.milestone ? "Milestone" : "Internal note"}</span>
-                            {note?.authorType === "ai" && (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-amber-700 dark:text-amber-200">
-                                <Bot className="h-2.5 w-2.5" />
-                                AI
+            {conversationMeta?.unavailableSources?.length ? (
+              <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[12px] text-slate-600 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-300">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>
+                  {conversationMeta.unavailableSources.includes("email")
+                    ? "Email messages couldn't be loaded right now. Everything else is shown."
+                    : conversationMeta.unavailableSources.includes("email_not_in_mailbox") && conversationMeta.unavailableSources.length === 1
+                      ? "This lead's earlier emails are not in the connected email account, so they can't be shown here. New emails will show as usual."
+                      : "Some messages couldn't be loaded right now. Everything else is shown."}
+                </span>
+              </div>
+            ) : null}
+
+            {/* Conversation start marker */}
+            <div className="mb-6 flex flex-col items-center gap-2 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Beginning of lead conversation
+              </h3>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {formatTimestamp(lead?.createdAt) || "Conversation started"}
+              </p>
+            </div>
+
+            {loadState === "loading" && renderItems.length === 0 ? (
+              <div className="mx-auto w-full max-w-xl space-y-3" aria-busy="true" aria-label="Loading conversation">
+                {[0, 1, 2].map((row) => (
+                  <div key={row} className={cn("flex", row % 2 ? "justify-end" : "justify-start")}>
+                    <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-slate-200/70 dark:bg-emerald-400/10" />
+                  </div>
+                ))}
+              </div>
+            ) : renderItems.length === 0 ? (
+              <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-emerald-400/15 dark:bg-[#0f1f19]">
+                <Mail className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
+                <div>
+                  <strong className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    No synced messages yet
+                  </strong>
+                  <p className="mt-0.5 text-[13px] text-slate-500 dark:text-slate-400">
+                    The lead inquiry is ready for your first response.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full space-y-4">
+                {renderItems.map((item) => {
+                  if (item.kind === "note") {
+                    const { note, noteIndex, stamp, showDayChip } = item;
+                    const noteKey = note?._id || `note-${noteIndex}`;
+                    const highlighted = Boolean(highlightNoteId) && String(note?._id || "") === highlightNoteId;
+
+                    return (
+                      <React.Fragment key={noteKey}>
+                        {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                        <div
+                          data-note-id={note?._id ? String(note._id) : undefined}
+                          data-highlighted={highlighted ? "true" : undefined}
+                          className={cn(
+                            "mx-auto flex w-full max-w-2xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200",
+                            highlighted && "ring-2 ring-amber-500 ring-offset-2 ring-offset-(--bg-base)",
+                          )}
+                        >
+                          <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                              <span>{note?.noteKind === "appointment" ? "Appointment" : note?.milestone ? "Milestone" : "Internal note"}</span>
+                              {note?.authorType === "ai" && (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-amber-700 dark:text-amber-200">
+                                  <Bot className="h-2.5 w-2.5" />
+                                  AI
+                                </span>
+                              )}
+                              <span className="font-normal normal-case text-amber-500 dark:text-amber-400">
+                                · {note?.authorName || "Team member"} · {formatTimestamp(stamp)}
                               </span>
-                            )}
-                            <span className="font-normal normal-case text-amber-500 dark:text-amber-400">
-                              · {note?.authorName || "Team member"} · {formatTimestamp(stamp)}
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-relaxed text-amber-900 dark:text-amber-100">
+                              {note?.text}
+                            </p>
+                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-amber-500/80 dark:text-amber-400/70">
+                              Only visible to your team
+                            </p>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  }
+
+                  const { message, index, stamp, showDayChip } = item;
+                  const outbound = isOutboundMessage(message, sourceEmail);
+                  const key =
+                    message?.timelineId ||
+                    message?._id ||
+                    message?.id ||
+                    message?.messageId ||
+                    `${lead?._id}-${index}`;
+
+                  if (message?.timelineKind === "call" && message?.call) {
+                    return (
+                      <React.Fragment key={key}>
+                        {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                        <CallCard
+                          call={message.call}
+                          outbound={outbound}
+                          customerName={getLeadName(lead)}
+                          timeLabel={formatTimestamp(stamp)}
+                          onChanged={onRetryLoad}
+                        />
+                      </React.Fragment>
+                    );
+                  }
+
+                  if (message?.timelineKind === "inquiry" && !message?.isLeadFallback) {
+                    const vehicle = [message?.inquiry?.vehicle?.year, message?.inquiry?.vehicle?.make, message?.inquiry?.vehicle?.model]
+                      .filter(Boolean)
+                      .join(" ");
+                    const source = [message?.inquiry?.source, message?.inquiry?.sourceProvider].filter(Boolean).join(" · ");
+                    return (
+                      <React.Fragment key={key}>
+                        {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                        <div className="mx-auto w-full max-w-2xl rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-[13px] text-sky-900 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            <span>New inquiry</span>
+                            <span className="font-normal normal-case text-sky-600/80 dark:text-sky-300/80">
+                              {[source, formatTimestamp(stamp)].filter(Boolean).join(" · ")}
                             </span>
                           </div>
-                          <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-relaxed text-amber-900 dark:text-amber-100">
-                            {note?.text}
-                          </p>
-                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-amber-500/80 dark:text-amber-400/70">
-                            Only visible to your team
-                          </p>
+                          {vehicle && <p className="mt-1 text-[12px] font-medium">Vehicle: {vehicle}</p>}
+                          {getMessageText(message) && (
+                            <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed">{getMessageText(message)}</p>
+                          )}
                         </div>
-                      </div>
-                    </React.Fragment>
-                  );
-                }
+                      </React.Fragment>
+                    );
+                  }
 
-                const { message, index, stamp, showDayChip } = item;
-                const outbound = isOutboundMessage(message, sourceEmail);
-                const key =
-                  message?.timelineId ||
-                  message?._id ||
-                  message?.id ||
-                  message?.messageId ||
-                  `${lead?._id}-${index}`;
-
-                if (message?.timelineKind === "call" && message?.call) {
-                  return (
-                    <React.Fragment key={key}>
-                      {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                      <CallCard
-                        call={message.call}
-                        outbound={outbound}
-                        customerName={getLeadName(lead)}
-                        timeLabel={formatTimestamp(stamp)}
-                        onChanged={onRetryLoad}
-                      />
-                    </React.Fragment>
-                  );
-                }
-
-                if (message?.timelineKind === "inquiry" && !message?.isLeadFallback) {
-                  const vehicle = [message?.inquiry?.vehicle?.year, message?.inquiry?.vehicle?.make, message?.inquiry?.vehicle?.model]
-                    .filter(Boolean)
-                    .join(" ");
-                  const source = [message?.inquiry?.source, message?.inquiry?.sourceProvider].filter(Boolean).join(" · ");
-                  return (
-                    <React.Fragment key={key}>
-                      {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                      <div className="mx-auto w-full max-w-2xl rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-[13px] text-sky-900 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100">
-                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
-                          <ClipboardList className="h-3.5 w-3.5" />
-                          <span>New inquiry</span>
-                          <span className="font-normal normal-case text-sky-600/80 dark:text-sky-300/80">
-                            {[source, formatTimestamp(stamp)].filter(Boolean).join(" · ")}
-                          </span>
-                        </div>
-                        {vehicle && <p className="mt-1 text-[12px] font-medium">Vehicle: {vehicle}</p>}
-                        {getMessageText(message) && (
-                          <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed">{getMessageText(message)}</p>
+                  if (!outbound && isLeadInquiryMessage(message, index)) {
+                    /*
+                     * The thread shows ONLY conversation content. The customer's
+                     * message renders as a normal inbound bubble; the field grid
+                     * lives in the sticky LeadInquiryDetails strip above.
+                     */
+                    const inquiryText = extractCustomerComments(lead, message);
+                    return (
+                      <React.Fragment key={key}>
+                        {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                        {inquiryText ? (
+                          <div className="flex w-full items-end justify-start gap-2.5">
+                            <Avatar
+                              first={lead?.firstName}
+                              last={lead?.lastName}
+                              size="sm"
+                            />
+                            <div className="flex min-w-0 max-w-[78%] flex-col items-start sm:max-w-[62%]">
+                              <div className="min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-800 shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100">
+                                {inquiryText}
+                              </div>
+                              <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                {getLeadName(lead)} · {formatTimestamp(stamp)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="py-1 text-center text-xs text-slate-400 dark:text-slate-500">
+                            {getLeadName(lead)} submitted an inquiry — details pinned above
+                          </p>
                         )}
-                      </div>
-                    </React.Fragment>
-                  );
-                }
+                      </React.Fragment>
+                    );
+                  }
 
-                if (!outbound && isLeadInquiryMessage(message, index)) {
-                  /*
-                   * The thread shows ONLY conversation content. The customer's
-                   * message renders as a normal inbound bubble; the field grid
-                   * lives in the sticky LeadInquiryDetails strip above.
-                   */
-                  const inquiryText = extractCustomerComments(lead, message);
+                  const text = cleanAggregatorText(getMessageText(message));
+                  const channelLabel = CHANNEL_LABELS[channelOf(message, lead)] || "";
+                  const deliveryLabel =
+                    message?.statusLabel && (outbound || channelOf(message, lead) === "email") && message?.status !== "failed"
+                      ? message.statusLabel
+                      : "";
+                  const attachments: string[] = Array.isArray(message?.attachments) ? message.attachments : [];
+                  const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
+                  const isAutomationMessage = outbound && message?.sentBy?.userId === "system" && String(message?.sentBy?.name || "").startsWith("Automation - ");
+                  const aiMessageChannel =
+                    message?.channel === "webchat" ||
+                    String(lead?.channel || "").toLowerCase() === "webchat"
+                      ? "webchat"
+                      : "sms";
+                  const senderLabel = outbound
+                    ? message?.sentBy?.name ||
+                      message?.senderName ||
+                      message?.sender ||
+                      organization?.name ||
+                      "Your Dealership"
+                    : getLeadName(lead);
+
                   return (
                     <React.Fragment key={key}>
                       {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                      {inquiryText ? (
-                        <div className="flex w-full items-end justify-start gap-2.5">
+                      <div
+                        className={cn(
+                          "flex w-full items-end gap-2.5",
+                          outbound ? "justify-end" : "justify-start",
+                        )}
+                      >
+                        {!outbound && (
                           <Avatar
                             first={lead?.firstName}
                             last={lead?.lastName}
                             size="sm"
                           />
-                          <div className="flex min-w-0 max-w-[78%] flex-col items-start sm:max-w-[62%]">
-                            <div className="min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-800 shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100">
-                              {inquiryText}
-                            </div>
-                            <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                              {getLeadName(lead)} · {formatTimestamp(stamp)}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="py-1 text-center text-xs text-slate-400 dark:text-slate-500">
-                          {getLeadName(lead)} submitted an inquiry — details pinned above
-                        </p>
-                      )}
-                    </React.Fragment>
-                  );
-                }
-
-                const text = cleanAggregatorText(getMessageText(message));
-                const channelLabel = CHANNEL_LABELS[channelOf(message, lead)] || "";
-                const deliveryLabel =
-                  message?.statusLabel && (outbound || channelOf(message, lead) === "email") && message?.status !== "failed"
-                    ? message.statusLabel
-                    : "";
-                const attachments: string[] = Array.isArray(message?.attachments) ? message.attachments : [];
-                const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
-                const isAutomationMessage = outbound && message?.sentBy?.userId === "system" && String(message?.sentBy?.name || "").startsWith("Automation - ");
-                const aiMessageChannel =
-                  message?.channel === "webchat" ||
-                  String(lead?.channel || "").toLowerCase() === "webchat"
-                    ? "webchat"
-                    : "sms";
-                const senderLabel = outbound
-                  ? message?.sentBy?.name ||
-                    message?.senderName ||
-                    message?.sender ||
-                    organization?.name ||
-                    "Your Dealership"
-                  : getLeadName(lead);
-
-                return (
-                  <React.Fragment key={key}>
-                    {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
-                    <div
-                      className={cn(
-                        "flex w-full items-end gap-2.5",
-                        outbound ? "justify-end" : "justify-start",
-                      )}
-                    >
-                      {!outbound && (
-                        <Avatar
-                          first={lead?.firstName}
-                          last={lead?.lastName}
-                          size="sm"
-                        />
-                      )}
-
-                      <div
-                        className={cn(
-                          "flex min-w-0 max-w-[78%] flex-col sm:max-w-[62%]",
-                          outbound ? "items-end" : "items-start",
                         )}
-                      >
+
                         <div
                           className={cn(
-                            "min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed shadow-[0_1px_2px_rgba(16,24,40,0.05)]",
-                            outbound
-                              ? "rounded-br-md bg-gradient-to-br from-emerald-600 to-emerald-500 text-white shadow-emerald-500/20 dark:from-emerald-500 dark:to-cyan-600"
-                              : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100",
+                            "flex min-w-0 max-w-[78%] flex-col sm:max-w-[62%]",
+                            outbound ? "items-end" : "items-start",
                           )}
                         >
-                          {message?.channel === "email" && message?.subject && (
-                            <span className={cn("mb-1 block text-[12px] font-semibold", outbound ? "text-white/90" : "text-slate-600 dark:text-slate-300")}>
-                              {message.subject}
+                          <div
+                            className={cn(
+                              "min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed shadow-[0_1px_2px_rgba(16,24,40,0.05)]",
+                              outbound
+                                ? "rounded-br-md bg-gradient-to-br from-emerald-600 to-emerald-500 text-white shadow-emerald-500/20 dark:from-emerald-500 dark:to-cyan-600"
+                                : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100",
+                            )}
+                          >
+                            {message?.channel === "email" && message?.subject && (
+                              <span className={cn("mb-1 block text-[12px] font-semibold", outbound ? "text-white/90" : "text-slate-600 dark:text-slate-300")}>
+                                {message.subject}
+                              </span>
+                            )}
+                            {text || (attachments.length ? "" : "Message content unavailable")}
+                            {attachments.length > 0 && (
+                              <span className={cn("mt-1.5 flex flex-wrap gap-1.5", text ? "" : "mt-0")}>
+                                {attachments.map((name) => (
+                                  <span
+                                    key={name}
+                                    className={cn(
+                                      "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
+                                      outbound ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600 dark:bg-emerald-400/10 dark:text-slate-300",
+                                    )}
+                                  >
+                                    <Paperclip className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{name}</span>
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                            {isAiAgentMessage && lead?._id && (message?._id || message?.id) && (
+                              <>
+                                <CoachAiPopover
+                                  leadId={String(lead._id)}
+                                  messageId={String(message._id || message.id)}
+                                  channel={aiMessageChannel}
+                                />
+                                <span>·</span>
+                              </>
+                            )}
+                            {senderLabel} · {formatTimestamp(stamp)}
+                            {channelLabel && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                {channelLabel === "Email" ? <Mail className="h-2.5 w-2.5" /> : channelLabel === "Web Chat" ? <MessageCircle className="h-2.5 w-2.5" /> : <MessageSquare className="h-2.5 w-2.5" />}
+                                {channelLabel}
+                              </span>
+                            )}
+                            {deliveryLabel && (
+                              <span
+                                className={cn(
+                                  "text-[10px] font-medium",
+                                  message?.status === "unconfirmed" ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-slate-500",
+                                )}
+                              >
+                                · {deliveryLabel}
+                              </span>
+                            )}
+                            {isAiAgentMessage && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-fuchsia-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-300">
+                                <Bot className="h-2.5 w-2.5" />
+                                AI
+                              </span>
+                            )}
+                          </span>
+
+                          {message?.inquiryScope === "shared" && (
+                            <span
+                              className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                              title="This message is from the customer's shared text thread and relates to a different vehicle inquiry."
+                            >
+                              <Link2 className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate">
+                                {message?.relatedVehicleLabel
+                                  ? `Other inquiry: ${message.relatedVehicleLabel}`
+                                  : "Shared thread"}
+                              </span>
                             </span>
                           )}
-                          {text || (attachments.length ? "" : "Message content unavailable")}
-                          {attachments.length > 0 && (
-                            <span className={cn("mt-1.5 flex flex-wrap gap-1.5", text ? "" : "mt-0")}>
-                              {attachments.map((name) => (
-                                <span
-                                  key={name}
-                                  className={cn(
-                                    "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
-                                    outbound ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600 dark:bg-emerald-400/10 dark:text-slate-300",
-                                  )}
-                                >
-                                  <Paperclip className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{name}</span>
-                                </span>
-                              ))}
-                            </span>
+
+                          {message?.status === "failed" && (
+                            <div className="mt-1 max-w-full">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedFailureKey((current) => (current === key ? null : key))
+                                }
+                                className="flex items-center gap-1 text-[11px] font-medium text-red-500 hover:text-red-600 dark:text-red-400"
+                              >
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                {message?.smsFailureMessage || "This message could not be delivered"}
+                              </button>
+                              {expandedFailureKey === key && message?.errorDetail && (
+                                <p className="mt-0.5 max-w-full break-words text-[10px] text-slate-400 dark:text-slate-500">
+                                  {String(message.errorDetail).slice(0, 300)}
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
 
-                        <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
-                          {isAiAgentMessage && lead?._id && (message?._id || message?.id) && (
-                            <>
-                              <CoachAiPopover
-                                leadId={String(lead._id)}
-                                messageId={String(message._id || message.id)}
-                                channel={aiMessageChannel}
-                              />
-                              <span>·</span>
-                            </>
-                          )}
-                          {senderLabel} · {formatTimestamp(stamp)}
-                          {channelLabel && (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              {channelLabel === "Email" ? <Mail className="h-2.5 w-2.5" /> : channelLabel === "Web Chat" ? <MessageCircle className="h-2.5 w-2.5" /> : <MessageSquare className="h-2.5 w-2.5" />}
-                              {channelLabel}
-                            </span>
-                          )}
-                          {deliveryLabel && (
-                            <span
-                              className={cn(
-                                "text-[10px] font-medium",
-                                message?.status === "unconfirmed" ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-slate-500",
-                              )}
-                            >
-                              · {deliveryLabel}
-                            </span>
-                          )}
-                          {isAiAgentMessage && (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-fuchsia-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-300">
-                              <Bot className="h-2.5 w-2.5" />
-                              AI
-                            </span>
-                          )}
-                        </span>
-
-                        {message?.inquiryScope === "shared" && (
-                          <span
-                            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
-                            title="This message is from the customer's shared text thread and relates to a different vehicle inquiry."
-                          >
-                            <Link2 className="h-2.5 w-2.5 shrink-0" />
-                            <span className="truncate">
-                              {message?.relatedVehicleLabel
-                                ? `Other inquiry: ${message.relatedVehicleLabel}`
-                                : "Shared thread"}
-                            </span>
-                          </span>
-                        )}
-
-                        {message?.status === "failed" && (
-                          <div className="mt-1 max-w-full">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedFailureKey((current) => (current === key ? null : key))
-                              }
-                              className="flex items-center gap-1 text-[11px] font-medium text-red-500 hover:text-red-600 dark:text-red-400"
-                            >
-                              <AlertTriangle className="h-3 w-3 shrink-0" />
-                              {message?.smsFailureMessage || "This message could not be delivered"}
-                            </button>
-                            {expandedFailureKey === key && message?.errorDetail && (
-                              <p className="mt-0.5 max-w-full break-words text-[10px] text-slate-400 dark:text-slate-500">
-                                {String(message.errorDetail).slice(0, 300)}
-                              </p>
+                        {outbound && (
+                          <div className="flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-[10px] font-bold text-white shadow-sm">
+                            {isAutomationMessage ? (
+                              <Zap className="h-3.5 w-3.5" aria-label="Automation" />
+                            ) : (
+                              (message?.sentBy?.name ||
+                                message?.senderName ||
+                                "AA")
+                                .split(" ")
+                                .map((part: string) => part[0])
+                                .join("")
+                                .slice(0, 2)
+                                .toUpperCase()
                             )}
                           </div>
                         )}
                       </div>
-
-                      {outbound && (
-                        <div className="flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-[10px] font-bold text-white shadow-sm">
-                          {isAutomationMessage ? (
-                            <Zap className="h-3.5 w-3.5" aria-label="Automation" />
-                          ) : (
-                            (message?.sentBy?.name ||
-                              message?.senderName ||
-                              "AA")
-                              .split(" ")
-                              .map((part: string) => part[0])
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase()
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
+        {showNewMessage && (
+          <button
+            type="button"
+            onClick={scrollToLatest}
+            className="absolute bottom-3 left-1/2 z-20 inline-flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full bg-emerald-600 px-4 text-[13px] font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+            data-testid="new-message-pill"
+          >
+            New message
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </section>
   );
