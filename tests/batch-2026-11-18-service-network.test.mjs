@@ -29,16 +29,35 @@ test('markers, distances, Closest and selecting a location all use the usable pi
   assert.match(page, /isClosest: Boolean\(userCoords\) && index === 0 && Number\.isFinite\(loc\.distanceNum\)/);
   assert.doesNotMatch(page, /userCoords && i === 0/);
   assert.equal(page.split('loc.isClosest').length - 1, 5, 'the marker and the four places on the list card');
-  assert.match(page, /if \(!pin\) \{\n\s+\/\/ Nothing to show on the map: stay on the list \(2026-11-18\)\.\n\s+setMapNotice\(NOT_ON_MAP\)\n\s+return\n\s+\}/);
+  // A card without a pin stays on the list and explains on the card itself (2026-11-23).
+  assert.match(page, /if \(!pin\) \{\n(?:\s+\/\/[^\n]*\n)+\s+setNoPinNoteId\(loc\._id\)\n\s+return\n\s+\}/);
 });
 
-test('locations without a usable pin are placed from their address, and the card says when one is missing', () => {
-  assert.match(page, /const needsGeocode = locations\.filter\(loc => !usablePin\(loc\) && loc\.address && loc\.city\)/);
-  assert.match(page, /usablePin\(\{ location: \{ coordinates: coords \} \}\)/);
-  assert.match(page, /Finding map pins… \{Math\.min\(geocodedCount, geocodeTotal\)\} of \{geocodeTotal\}/);
-  assert.match(page, /\{!loc\.pin && geocodeTotal > 0 && !isGeocoding && \(/);
-  assert.match(page, /Not on the map yet/);
+test('pins come only from saved locations: no browser lookup the Census service blocks (2026-11-23)', () => {
+  assert.doesNotMatch(page, /geocoding\.geo\.census\.gov/);
+  assert.doesNotMatch(page, /geocodeAddress|isGeocoding|geocodeTotal|Finding map pins/);
   assert.doesNotMatch(page, /Geocoding locations/);
+});
+
+test('each card says whether it is on our built-in map, never mixing it up with Google Maps (2026-11-23)', () => {
+  // On the map: a real button that opens it there (the Map tab on phones).
+  assert.match(page, /\{loc\.pin \? \(\n\s+<button\n\s+type="button"\n\s+onClick=\{e => \{ e\.stopPropagation\(\); flyToLocation\(loc\) \}\}/);
+  assert.match(page, /<span className="lg:hidden">Show on Map tab<\/span>/);
+  assert.match(page, /<span className="hidden lg:inline">Show on the map<\/span>/);
+  // Not on the map: says so, and tapping the card explains it on the card.
+  assert.match(page, /<span className="lg:hidden">Not shown on the Map tab<\/span>/);
+  assert.match(page, /<span className="hidden lg:inline">Not shown on the map<\/span>/);
+  assert.match(page, /\{noPinNoteId === loc\._id && !loc\.pin && \(\n\s+<p role="status"/);
+  assert.match(page, /This location isn&apos;t on the Map tab yet\./);
+  assert.match(page, /Open in Google Maps gives directions in a new tab\./);
+  assert.doesNotMatch(page, /Not on the map yet|NOT_ON_MAP/);
+});
+
+test('Open in Google Maps says where it goes and opens a separate tab safely (2026-11-23)', () => {
+  assert.match(page, /Open in Google Maps <ExternalLink className="w-3 h-3 ml-1\.5" aria-hidden="true" \/>/);
+  assert.match(page, /aria-label=\{`Open \$\{locationTitle\(loc\)\} in Google Maps \(opens in a new tab\)`\}/);
+  assert.match(page, /window\.open\(googleMapsUrl\(loc\), '_blank', 'noopener,noreferrer'\)/);
+  assert.doesNotMatch(page, /Open in Maps\b/);
 });
 
 test('the pop-up and the pin labels are built from text, not HTML', () => {
@@ -54,7 +73,7 @@ test('notices are plain, show above both tabs, and can be dismissed', () => {
   assert.match(page, /aria-label="Dismiss notice"/);
   assert.doesNotMatch(page, /absolute bottom-6 left-1\/2/, 'no longer only inside the map, which phones hide on the list tab');
   assert.doesNotMatch(page, /Mapbox token|Mapbox Token|NEXT_PUBLIC_MAPBOX_TOKEN<\/code>|WebGL/);
-  assert.match(page, /const NOT_ON_MAP = "This location isn't on the map yet\. Use Open in Maps for directions\."/);
+  assert.match(page, /const MAP_UNAVAILABLE = "The map isn't available right now\. Use the list and Open in Google Maps for directions\."/);
 });
 
 test('pin labels are readable and wrap instead of ending in "…"', () => {

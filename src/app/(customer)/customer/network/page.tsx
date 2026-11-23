@@ -4,7 +4,7 @@ import * as React from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, RefreshCw, List, Map as MapIcon, X } from "lucide-react"
+import { Search, MapPin, MapPinOff, Navigation, Phone, Clock, ExternalLink, Crosshair, RefreshCw, List, Map as MapIcon, X } from "lucide-react"
 import mapboxgl from "mapbox-gl"
 import { geolocation } from "@/lib/geolocation";
 import { validCoordinates } from "@/lib/driver-tracking-view"
@@ -148,22 +148,12 @@ function markerLabel(loc: { name?: string; city?: string }): string {
   return title.replace(/^jiffy lube\s*[-–]\s*/i, '') || title
 }
 
-const MAP_UNAVAILABLE = "The map isn't available right now. Use the list and Open in Maps for directions."
-const MAP_TROUBLE = "Part of the map didn't load. Check your connection, or use the list and Open in Maps for directions."
-const NOT_ON_MAP = "This location isn't on the map yet. Use Open in Maps for directions."
+const MAP_UNAVAILABLE = "The map isn't available right now. Use the list and Open in Google Maps for directions."
+const MAP_TROUBLE = "Part of the map didn't load. Check your connection, or use the list and Open in Google Maps for directions."
 
-// Geocode a single address using the US Census Geocoder (client-side, free, no key)
-async function geocodeAddress(address: string, city: string, state: string, zip: string): Promise<[number, number] | null> {
-  const q = encodeURIComponent(`${address}, ${city}, ${state} ${zip}`);
-  try {
-    const res = await fetch(
-      `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`
-    );
-    const json = await res.json();
-    const match = json?.result?.addressMatches?.[0];
-    if (match) return [parseFloat(match.coordinates.x), parseFloat(match.coordinates.y)];
-  } catch {/* silent */ }
-  return null;
+/** Google Maps for a location's address, opened in a new tab. */
+function googleMapsUrl(loc: { address?: string; city?: string; state?: string; zipCode?: string }): string {
+  return `https://maps.google.com/?q=${encodeURIComponent(`${loc.address}, ${loc.city}, ${loc.state} ${loc.zipCode}`)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -178,12 +168,11 @@ export default function ServiceNetworkPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [userCoords, setUserCoords] = React.useState<{ lat: number; lng: number } | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
-  const [isGeocoding, setIsGeocoding] = React.useState(false)
-  const [geocodedCount, setGeocodedCount] = React.useState(0)
-  const [geocodeTotal, setGeocodeTotal] = React.useState(0)
   const [mapNotice, setMapNotice] = React.useState<string | null>(null)
   const [isLocating, setIsLocating] = React.useState(false)
   const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(null)
+  // The card the customer tapped that has no pin: its note explains why (2026-11-23).
+  const [noPinNoteId, setNoPinNoteId] = React.useState<string | null>(null)
   const [mobileTab, setMobileTab] = React.useState<'list' | 'map'>('list')
   const [cardOpen, setCardOpen] = React.useState(false)
 
@@ -210,7 +199,8 @@ export default function ServiceNetworkPage() {
       if (apiData.length > 0) {
         setLocations(apiData)
       } else {
-        // DB not seeded yet — use static data and geocode on-the-fly
+        // DB not seeded yet: use the static list (no pins, so the list and
+        // Google Maps still work while the map stays empty).
         setLocations(STATIC_UTAH_LOCATIONS)
       }
     } catch {
@@ -222,41 +212,10 @@ export default function ServiceNetworkPage() {
 
   React.useEffect(() => { fetchLocations() }, [fetchLocations])
 
-  // -------------------------------------------------------------------------
-  // 2. Geocode static entries that have no coordinates yet (background)
-  // -------------------------------------------------------------------------
-  React.useEffect(() => {
-    // Every location without a usable pin, including saved ones at 0,0, is
-    // placed from its address (2026-11-18).
-    const needsGeocode = locations.filter(loc => !usablePin(loc) && loc.address && loc.city)
-    if (needsGeocode.length === 0) return
-
-    let cancelled = false
-    setIsGeocoding(true)
-    setGeocodeTotal(needsGeocode.length)
-    setGeocodedCount(0)
-
-      ; (async () => {
-        for (const loc of needsGeocode) {
-          if (cancelled) break
-          const coords = await geocodeAddress(loc.address, loc.city, loc.state, loc.zipCode)
-          if (coords && !cancelled && usablePin({ location: { coordinates: coords } })) {
-            setLocations(prev =>
-              prev.map(l =>
-                l._id === loc._id
-                  ? { ...l, location: { type: 'Point', coordinates: coords } }
-                  : l
-              )
-            )
-          }
-          if (!cancelled) setGeocodedCount(n => n + 1)
-          await new Promise(r => setTimeout(r, 150)) // gentle throttle
-        }
-        if (!cancelled) setIsGeocoding(false)
-      })()
-
-    return () => { cancelled = true; setIsGeocoding(false) }
-  }, [locations.length]) // only re-run if list itself changes
+  // 2. Pins come only from the saved locations (2026-11-23). The page used to
+  // look up missing ones from the browser with the US Census service, but that
+  // service doesn't let web pages read its answers, so every lookup failed.
+  // The pin script (scripts/fix-service-location-pins.ts) fixes saved pins.
 
   // -------------------------------------------------------------------------
   // 3. Map init
@@ -447,11 +406,12 @@ export default function ServiceNetworkPage() {
     setSelectedLocationId(loc._id)
     const pin: [number, number] | null = loc.pin ?? usablePin(loc)
     if (!pin) {
-      // Nothing to show on the map: stay on the list (2026-11-18).
-      setMapNotice(NOT_ON_MAP)
+      // Nothing to show on the map: stay on the list and explain on the card
+      // itself, where the customer is looking (2026-11-23).
+      setNoPinNoteId(loc._id)
       return
     }
-    setMapNotice(current => (current === NOT_ON_MAP ? null : current))
+    setNoPinNoteId(null)
     setMobileTab('map')
     mapInstanceRef.current?.flyTo({ center: pin, zoom: 14, duration: 1500 })
   }
@@ -500,8 +460,8 @@ export default function ServiceNetworkPage() {
         </div>
       </div>
 
-      {/* Notices (your location, the map, a location without a pin): above both
-          the list and the map, so phones see them on either tab (2026-11-18). */}
+      {/* Notices (your location, the map): above both the list and the map, so
+          phones see them on either tab (2026-11-18). */}
       {mapNotice && (
         <div role="status" aria-live="polite" className="mb-3 shrink-0 flex items-start gap-2 rounded-lg border border-border bg-zinc-100 px-3 py-2 text-sm text-foreground dark:bg-zinc-800">
           <Crosshair className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground ${isLocating ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -516,14 +476,6 @@ export default function ServiceNetworkPage() {
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
-        </div>
-      )}
-
-      {/* Map pins being placed from addresses */}
-      {isGeocoding && (
-        <div role="status" className="mb-3 shrink-0 flex items-center gap-2 text-xs text-muted-foreground bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-lg">
-          <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden="true" />
-          <span>Finding map pins… {Math.min(geocodedCount, geocodeTotal)} of {geocodeTotal}</span>
         </div>
       )}
 
@@ -612,10 +564,24 @@ export default function ServiceNetworkPage() {
                   {loc.address}, {loc.city}, {loc.state} {loc.zipCode}
                 </p>
 
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  {!loc.pin && geocodeTotal > 0 && !isGeocoding && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {/* Our built-in map (the Map tab on phones, beside the list on
+                      wider screens), never Google Maps (2026-11-23). */}
+                  {loc.pin ? (
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); flyToLocation(loc) }}
+                      className="-my-1 flex items-center gap-1 rounded py-1 font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
+                    >
+                      <MapIcon className="w-3 h-3" aria-hidden="true" />
+                      <span className="lg:hidden">Show on Map tab</span>
+                      <span className="hidden lg:inline">Show on the map</span>
+                    </button>
+                  ) : (
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" aria-hidden="true" /> Not on the map yet
+                      <MapPinOff className="w-3 h-3" aria-hidden="true" />
+                      <span className="lg:hidden">Not shown on the Map tab</span>
+                      <span className="hidden lg:inline">Not shown on the map</span>
                     </span>
                   )}
                   {loc.time && (
@@ -629,20 +595,26 @@ export default function ServiceNetworkPage() {
                   </span>
                 </div>
 
+                {noPinNoteId === loc._id && !loc.pin && (
+                  <p role="status" className="mt-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 text-xs text-foreground break-words">
+                    <span className="lg:hidden">This location isn&apos;t on the Map tab yet.</span>
+                    <span className="hidden lg:inline">This location isn&apos;t on the map yet.</span>
+                    {' '}Open in Google Maps gives directions in a new tab.
+                  </p>
+                )}
+
                 <div className="mt-3 flex gap-2">
                   <Button
                     variant={loc.isClosest ? 'default' : 'outline'}
                     size="sm"
                     className="flex-1 h-9 text-xs touch-manipulation"
+                    aria-label={`Open ${locationTitle(loc)} in Google Maps (opens in a new tab)`}
                     onClick={e => {
                       e.stopPropagation()
-                      window.open(
-                        `https://maps.google.com/?q=${encodeURIComponent(`${loc.address}, ${loc.city}, ${loc.state} ${loc.zipCode}`)}`,
-                        '_blank'
-                      )
+                      window.open(googleMapsUrl(loc), '_blank', 'noopener,noreferrer')
                     }}
                   >
-                    <Navigation2 className="w-3 h-3 mr-1.5" /> Open in Maps
+                    Open in Google Maps <ExternalLink className="w-3 h-3 ml-1.5" aria-hidden="true" />
                   </Button>
                 </div>
               </Card>
@@ -662,7 +634,7 @@ export default function ServiceNetworkPage() {
             {!mapboxgl.supported() ? (
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-10">
                 <p className="text-sm text-white bg-black/80 px-4 py-2 rounded-2xl">
-                  The map can&apos;t show in this browser. Use the list and Open in Maps for directions.
+                  The map can&apos;t show in this browser. Use the list and Open in Google Maps for directions.
                 </p>
               </div>
             ) : mapboxToken ? (
