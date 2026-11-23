@@ -16,7 +16,9 @@ import {
   type NextStopLayer,
   type NextStopMapState,
 } from "@/components/driver/driver-next-stop-layer";
-import { describeStopDistance, formatShortAge, resolveStopPosition, type StopPosition } from "@/lib/driver-next-stop";
+import { describeStopDistance, resolveStopPosition, type StopPosition } from "@/lib/driver-next-stop";
+import { DriverHeaderClock } from "@/components/driver/DriverHeaderClock";
+import { DriverGpsChip } from "@/components/driver/DriverGpsChip";
 import { nextStopForMap, placeAddressText, placePin } from "@/lib/load-navigation";
 import { LoadRouteSummary } from "@/components/driver-tracker/LoadRoutePanel";
 import { useLoadRoute } from "@/hooks/useLoadRoute";
@@ -110,11 +112,10 @@ import { announceDeliveryCompleted } from "@/components/driver/KeepSharingAfterD
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
-import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 import { userErrorMessage } from "@/lib/user-error";
 import { EQUIPMENT_PAGE_PATH } from "@/lib/trailer-setup";
 import { hasVehiclesOnBoard, isActiveLoadStatus, isGpsTrackingLoadStatus } from "@/lib/load-status";
-import { locationBlockedChip } from "@/lib/driver-location-messages";
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp";
 import { formatMountainDateTime } from "@/lib/mountain-time";
 import { WHO_SEES_DRIVER_LOCATION } from "@/lib/driver-privacy";
@@ -206,24 +207,6 @@ const MAP_STYLE_BY_THEME = {
   dark: "mapbox://styles/mapbox/navigation-night-v1",
   light: "mapbox://styles/mapbox/streets-v12",
 } as const;
-
-function formatDualTime(date: Date) {
-  const mountain = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-    timeZone: "America/Denver",
-  });
-  const mountainZone = getCalendarTimeZoneAbbreviation(date);
-  const utc = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
-  });
-  return { mountain, mountainZone, utc };
-}
 
 type DriverKpiSnapshot = {
   activeLoads: number;
@@ -487,12 +470,6 @@ export default function DriverDashboardPage() {
   const followingSelfRef = React.useRef(true);
   // The driver's own drag or zoom is under way: following waits for it.
   const mapGestureRef = React.useRef(false);
-
-  const [currentTime, setCurrentTime] = React.useState(new Date());
-  React.useEffect(() => {
-    const t = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   React.useEffect(() => {
     if (!user?.id) return;
@@ -1136,38 +1113,6 @@ export default function DriverDashboardPage() {
   }, [lastCoords, mapReady]);
 
 
-  // GPS status chip on the map.
-  const gpsFixAgeSeconds = lastCoords?.recordedAt
-    ? Math.max(0, (currentTime.getTime() - lastCoords.recordedAt) / 1000)
-    : null;
-  const gpsChip: { tone: "live" | "stale" | "waiting" | "blocked" | "off"; text: string } =
-    locationPermissionState === "denied"
-      ? { tone: "blocked", text: locationBlockedChip(inNativeApp) }
-      : isStarting
-        ? { tone: "waiting", text: "Connecting to GPS…" }
-        : isSharing && lastCoords
-          ? gpsFixAgeSeconds === null
-            ? { tone: "live", text: "Live" }
-            : gpsFixAgeSeconds <= 90
-              ? { tone: "live", text: `Live · updated ${formatShortAge(gpsFixAgeSeconds)} ago` }
-              : { tone: "stale", text: `Last update ${formatShortAge(gpsFixAgeSeconds)} ago` }
-          : isSharing
-            ? { tone: "waiting", text: "Waiting for a GPS fix…" }
-            : { tone: "off", text: "Not sharing your location" };
-  const gpsChipDot = {
-    live: "bg-emerald-500",
-    stale: "bg-amber-500",
-    waiting: "bg-amber-500 animate-pulse motion-reduce:animate-none",
-    blocked: "bg-rose-500",
-    off: "bg-slate-400",
-  }[gpsChip.tone];
-  const gpsChipText = {
-    live: "text-emerald-700 dark:text-emerald-400",
-    stale: "text-amber-700 dark:text-amber-400",
-    waiting: "text-amber-700 dark:text-amber-400",
-    blocked: "text-rose-700 dark:text-rose-400",
-    off: "text-muted-foreground",
-  }[gpsChip.tone];
   const nextStopDistance = describeStopDistance(
     lastCoords ? { lat: lastCoords.lat, lng: lastCoords.lng } : null,
     nextStopPosition,
@@ -1845,7 +1790,6 @@ export default function DriverDashboardPage() {
     [pathname, router, searchParams],
   );
 
-  const { mountain, mountainZone, utc } = formatDualTime(currentTime);
   const displayedDispatchLabel =
     OP_STATUS_CONFIG.find((item) => item.key === opStatus)?.label ?? "Active";
 
@@ -1863,12 +1807,8 @@ export default function DriverDashboardPage() {
             </div>
           </div>
           <p className="driver-page-description mt-2">Your availability, assigned work and live location.</p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <Clock className="size-3 shrink-0" />
-            <span>{currentTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver" })}</span>
-            <span className="font-semibold tabular-nums">{mountain} {mountainZone}</span>
-            <span className="hidden sm:inline tabular-nums">({utc} UTC)</span>
-          </div>
+          {/* Ticks on its own, so the page doesn't redraw every second (2026-11-18). */}
+          <DriverHeaderClock />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(isSharing || isStarting) && (
@@ -2175,21 +2115,16 @@ export default function DriverDashboardPage() {
                 <span className="break-words [overflow-wrap:anywhere]">{followingLive ? "Following your location" : "Follow my location"}</span>
               </button>
 
-              <div
-                role="status"
-                aria-live="polite"
+              {/* GPS status: ticks on its own, and screen readers hear only status changes (2026-11-18). */}
+              <DriverGpsChip
                 className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-9rem)] rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="relative flex size-2 shrink-0">
-                    {gpsChip.tone === "live" && (
-                      <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    )}
-                    <span className={cn("relative inline-flex rounded-full size-2", gpsChipDot)} />
-                  </span>
-                  <span className={cn("text-xs font-bold leading-snug", gpsChipText)}>{gpsChip.text}</span>
-                </div>
-              </div>
+                permissionDenied={locationPermissionState === "denied"}
+                inNativeApp={inNativeApp}
+                isStarting={isStarting}
+                isSharing={isSharing}
+                hasFix={Boolean(lastCoords)}
+                recordedAt={lastCoords?.recordedAt ?? null}
+              />
 
               {mapError && !mapNotice && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-muted/80 backdrop-blur-sm">

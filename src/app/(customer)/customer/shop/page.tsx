@@ -261,7 +261,6 @@ function ShopVehiclesContent() {
     handleVehicleClick,
     handleCheckAvailability,
     handleApplyNow,
-    handleCallUs,
     handleVideo,
     handleGetQuote,
   } = useInventoryActions();
@@ -489,7 +488,6 @@ function ShopVehiclesContent() {
           shippingPrice={shippingRates[vehicle.id]}
           onCheckAvailability={handleCheckAvailability}
           onApplyNow={handleApplyNow}
-          onCallUs={handleCallUs}
           onVideo={handleVideo}
           onGetQuote={handleGetQuote}
           onVehicleClick={handleVehicleClick}
@@ -503,7 +501,7 @@ function ShopVehiclesContent() {
       )),
     [
       vehicles, shippingRates, viewMode,
-      handleCheckAvailability, handleApplyNow, handleCallUs, handleVideo, handleGetQuote, handleVehicleClick,
+      handleCheckAvailability, handleApplyNow, handleVideo, handleGetQuote, handleVehicleClick,
       savedVehicleIds, handleToggleSave, comparedIds, toggleCompare, comparedVehicles.length,
     ],
   );
