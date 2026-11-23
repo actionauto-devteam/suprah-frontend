@@ -174,3 +174,58 @@ test('customers and staff read the same lines; the note to the customer is shown
   assert.match(staff, /label: "Note to customer", val: payment\.customerNote/);
   assert.match(staff, /label: "Internal notes", val: payment\.notes/);
 });
+
+// ── Create invoice feedback (2026-11-23): highlighted boxes and SuprahPay notices ──
+test('every box that stops a line is found, and server messages point at their box', () => {
+  const blank = { label: ' ', kind: 'product', quantity: '0', price: '' };
+  assert.deepEqual(invoice.draftLineIssues(blank, 1).map((issue) => issue.field), ['label', 'quantity', 'price']);
+  assert.equal(invoice.draftLineProblem(blank, 1), 'Line 2: add a description.');
+  assert.deepEqual(invoice.draftLineIssues({ label: 'Promo', kind: 'discount', quantity: '1', price: '0' }, 0), [
+    { field: 'price', message: 'Line 1: enter the discount amount.' },
+  ]);
+  assert.deepEqual(invoice.draftLineIssues({ label: 'Bundle', kind: 'product', quantity: '1', price: '0' }, 0), []);
+
+  // The server's own wording (aftermarket invoice and payment limit checks).
+  const key = invoice.invoiceIssueKeyForServerMessage;
+  assert.equal(key('Line 3: enter a price of $0 or more.'), 'line-2-price');
+  assert.equal(key('Line 1: enter a quantity greater than 0.'), 'line-0-quantity');
+  assert.equal(key('Line 2: keep the description under 200 characters.'), 'line-1-label');
+  assert.equal(key('Enter a tax rate from 0% to 100%.'), 'tax');
+  assert.equal(key('Enter a valid due date.'), 'due');
+  assert.equal(key('Keep the note to the customer under 1000 characters.'), 'note');
+  assert.equal(key("This is more than SuprahPay's limit of $5,000.00 for one payment. Split it into smaller payments, or contact Suprah."), 'total');
+  assert.equal(key('The invoice total must be more than $0.'), 'total');
+  assert.equal(key('Add at least one item to the invoice.'), 'items');
+  assert.equal(key('Sending invoices needs Finance access. Ask your dealership admin.'), null);
+});
+
+test('Create invoice highlights what to fix and shows SuprahPay notices for sent and not sent', () => {
+  const form = read('components/billing/InvoiceBuilder.tsx');
+  // Send can always be pressed (not while sending), so pressing it shows what's missing.
+  assert.match(form, /<PrimaryButton type="button" onClick=\{submit\} disabled=\{submitting\}/);
+  assert.doesNotMatch(form, /disabled=\{!canSend\}/);
+  // Each box can be highlighted, with its reason read out.
+  assert.match(form, /\{ hasError: true, "aria-invalid": true as const, "aria-describedby": errorId\(key\) \}/);
+  for (const box of ['line-${i}-label', 'line-${i}-quantity', 'line-${i}-price']) {
+    assert.ok(form.includes(`{...invalidProps(\`${box}\`)}`), `missing highlight for ${box}`);
+  }
+  for (const box of ['tax', 'due']) assert.ok(form.includes(`{...invalidProps("${box}")}`), `missing highlight for ${box}`);
+  assert.match(form, /aria-invalid=\{issues\.has\("note"\) \|\| undefined\}/);
+  assert.match(form, /border: `1px solid \$\{issues\.has\("total"\) \? T\.danger : T\.brandBorder\}`/);
+  // Pressing Send moves to the first box to fix; a server refusal highlights its box.
+  assert.match(form, /goToIssue\(keys\[0\]\);/);
+  assert.match(form, /const key = invoiceIssueKeyForServerMessage\(message\);/);
+  assert.match(form, /el\.focus\(\{ preventScroll: true \}\);/);
+  // The payment limit is checked before sending.
+  assert.match(form, /totals\.total > paymentLimit/);
+  // SuprahPay notices.
+  assert.match(form, /suprahPayToast\.success\(/);
+  assert.match(form, /was notified and can pay \$\{invoiceMoney\(totals\.total\)\} in SuprahPay\./);
+  assert.equal(form.match(/suprahPayToast\.error\(\s*"Invoice not sent"/g)?.length, 2, 'form problems and server refusals');
+
+  const notice = read('components/billing/SuprahPayToast.tsx');
+  assert.match(notice, /toast\.custom\(/);
+  assert.match(notice, /<Wordmark size=\{12\} \/>/);
+  assert.match(notice, /aria-label="Dismiss notification"/);
+  assert.match(notice, /background: T\.surface/, 'follows light and dark mode');
+});

@@ -81,18 +81,54 @@ export function invoiceTotals(amounts: number[], taxRate: number): InvoiceTotals
   return { itemsTotal, discountTotal, tax, total: cents(afterDiscounts + tax) };
 }
 
-/** Why a typed line can't be sent yet, or null when it's fine. */
-export function draftLineProblem(line: DraftInvoiceLine, index: number): string | null {
+/** The boxes on a line of the Create invoice form. */
+export type DraftLineField = "label" | "quantity" | "price";
+
+/**
+ * Everything on a typed line that stops it being sent, box by box, so the
+ * form can highlight each one (2026-11-23). Empty when the line is fine.
+ */
+export function draftLineIssues(line: DraftInvoiceLine, index: number): { field: DraftLineField; message: string }[] {
   const where = `Line ${index + 1}`;
-  if (!line.label.trim()) return `${where}: add a description.`;
+  const issues: { field: DraftLineField; message: string }[] = [];
+  if (!line.label.trim()) issues.push({ field: "label", message: `${where}: add a description.` });
   if (isDiscountLine(line)) {
     const off = typedNumber(line.price);
-    return Number.isFinite(off) && off > 0 ? null : `${where}: enter the discount amount.`;
+    if (!(Number.isFinite(off) && off > 0)) issues.push({ field: "price", message: `${where}: enter the discount amount.` });
+    return issues;
   }
   const quantity = typedNumber(line.quantity);
-  if (!Number.isFinite(quantity) || quantity <= 0) return `${where}: enter a quantity of 1 or more.`;
-  const price = typedNumber(line.price);
-  if (!Number.isFinite(price)) return `${where}: enter the price for one.`;
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    issues.push({ field: "quantity", message: `${where}: enter a quantity of 1 or more.` });
+  }
+  if (!Number.isFinite(typedNumber(line.price))) issues.push({ field: "price", message: `${where}: enter the price for one.` });
+  return issues;
+}
+
+/** Why a typed line can't be sent yet (its first problem), or null when it's fine. */
+export function draftLineProblem(line: DraftInvoiceLine, index: number): string | null {
+  return draftLineIssues(line, index)[0]?.message ?? null;
+}
+
+/**
+ * Which box of the Create invoice form a message from the server is about,
+ * so that box is highlighted too: "line-2-price", "tax", "due", "note",
+ * "items" or "total". Null when it isn't about one box (for example, no
+ * Finance access).
+ */
+export function invoiceIssueKeyForServerMessage(message: string): string | null {
+  const line = /^Line (\d+)/.exec(message);
+  if (line) {
+    const index = Number(line[1]) - 1;
+    if (/description/i.test(message)) return `line-${index}-label`;
+    if (/quantity/i.test(message)) return `line-${index}-quantity`;
+    return `line-${index}-price`;
+  }
+  if (/at least one item/i.test(message)) return "items";
+  if (/tax rate/i.test(message)) return "tax";
+  if (/due date/i.test(message)) return "due";
+  if (/note to the customer/i.test(message)) return "note";
+  if (/invoice total|limit of|amount must be/i.test(message)) return "total";
   return null;
 }
 
