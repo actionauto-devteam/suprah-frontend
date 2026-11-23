@@ -26,7 +26,6 @@ import { isActiveLoadStatus } from "@/lib/load-status";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Clock,
   Users,
   Radio,
   Truck,
@@ -98,7 +97,7 @@ import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialo
 import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility";
 import { toast } from "@/lib/readable-toast";
 import { useTheme } from "@/context/ThemeContext";
-import { getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
+import { TrackerHeaderClock } from "@/components/driver-tracker/TrackerHeaderClock";
 import {
   initializeSocket,
   getSocket,
@@ -2559,16 +2558,6 @@ export default function DriverTrackerPage() {
     };
   }, [mobileWorkspace]);
 
-  const [currentTime, setCurrentTime] = React.useState(new Date());
-
-  React.useEffect(() => {
-    const tick = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(tick);
-  }, []);
-
-  const mountainTimeZoneLabel =
-    getCalendarTimeZoneAbbreviation(currentTime);
-
   const totalLoads = drivers.reduce(
     (sum, d) => sum + (d.shipments?.length || 0),
     0,
@@ -2680,27 +2669,8 @@ export default function DriverTrackerPage() {
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 xl:max-w-md xl:justify-end">
-          <span className="flex w-full flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground xl:justify-end">
-            <Clock className="size-3 shrink-0" />
-            {currentTime.toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              timeZone: "America/Denver",
-            })}
-            <span className="text-primary/60 font-black whitespace-nowrap">
-              {currentTime.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-                timeZone: "America/Denver",
-              })}{" "}
-              {mountainTimeZoneLabel}
-            </span>
-            <span className="text-muted-foreground/40 font-medium normal-case whitespace-nowrap">
-              (Mountain Time)
-            </span>
-          </span>
+          {/* Ticks on its own, so the page doesn't redraw every second (2026-11-18). */}
+          <TrackerHeaderClock />
 
           {loadRequests.length > 0 && (
             <Badge
