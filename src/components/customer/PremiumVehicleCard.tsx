@@ -12,7 +12,6 @@ import {
   TruckIcon,
   GaugeIcon,
   MapPinIcon,
-  Phone,
   Play,
   CheckCircle2,
   Clock3,
@@ -47,7 +46,6 @@ interface PremiumVehicleCardProps {
   shippingPrice?: number;
   onCheckAvailability?: (vehicle: Vehicle) => void;
   onApplyNow?: (vehicle: Vehicle) => void;
-  onCallUs?: (vehicle: Vehicle) => void;
   onVideo?: (vehicle: Vehicle) => void;
   onGetQuote?: (vehicle: Vehicle) => void;
   onVehicleClick?: (vehicle: Vehicle) => void;
@@ -66,7 +64,6 @@ function PremiumVehicleCardComponent({
   shippingPrice,
   onCheckAvailability,
   onApplyNow,
-  onCallUs,
   onVideo,
   onGetQuote,
   onVehicleClick,
@@ -453,21 +450,12 @@ function PremiumVehicleCardComponent({
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-          <Button
-            onClick={() => onApplyNow?.(vehicle)}
-            className="w-full text-xs sm:text-sm h-11 font-semibold shadow-md"
-          >
-            Apply Now
-          </Button>
-          <Button
-            onClick={() => onCallUs?.(vehicle)}
-            variant="outline"
-            className="w-full text-xs sm:text-sm h-11 border-border/60 hover:bg-muted font-semibold"
-          >
-            <Phone className="w-4 h-4 mr-1.5 sm:mr-2 text-primary shrink-0" /> Call Us
-          </Button>
-        </div>
+        <Button
+          onClick={() => onApplyNow?.(vehicle)}
+          className="w-full text-xs sm:text-sm h-11 font-semibold shadow-md"
+        >
+          Apply Now
+        </Button>
 
         <Button
           onClick={() => (onCreateLoad || onGetQuote)?.(vehicle)}
@@ -508,7 +496,6 @@ export const PremiumVehicleCard = React.memo(
       prev.shippingPrice === next.shippingPrice &&
       prev.onCheckAvailability === next.onCheckAvailability &&
       prev.onApplyNow === next.onApplyNow &&
-      prev.onCallUs === next.onCallUs &&
       prev.onVideo === next.onVideo &&
       prev.onGetQuote === next.onGetQuote &&
       prev.onVehicleClick === next.onVehicleClick &&
