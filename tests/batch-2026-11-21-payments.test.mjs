@@ -132,3 +132,12 @@ test('an archived dealership that is still owed money is labelled on the payouts
   assert.match(page, /archived\?: boolean/);
   assert.match(page, /\{row\.archived && <Badge variant="secondary">Archived<\/Badge>\}/);
 });
+
+// ── Payout account setup shows the server's plain message on its own (2026-11-23) ──
+test('payout account setup shows one plain message, never Stripe wording', () => {
+  const panel = read('components/billing/SuprahPaySettingsPanel.tsx');
+  assert.match(panel, /toast\.error\(errorText\(e, "The payout account can't be set up right now\. Please try again\."\)\)/);
+  assert.match(panel, /toast\.error\("The payout account setup page didn't open\. Please try again\."\)/);
+  assert.doesNotMatch(panel, /Stripe didn't send a setup page/);
+  assert.doesNotMatch(panel, /description: errorText\(e, "Please try again\."\)/);
+});
