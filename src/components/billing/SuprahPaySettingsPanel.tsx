@@ -78,9 +78,10 @@ export function SuprahPaySettingsPanel({
         window.location.href = url; // Stripe's own setup page
         return;
       }
-      toast.error("Stripe didn't send a setup page. Please try again.");
+      toast.error("The payout account setup page didn't open. Please try again.");
     } catch (e) {
-      toast.error("The payout account can't be set up right now", { description: errorText(e, "Please try again.") });
+      // The server's message is already plain (2026-11-23): shown on its own.
+      toast.error(errorText(e, "The payout account can't be set up right now. Please try again."));
     }
     setConnecting(false);
   };
