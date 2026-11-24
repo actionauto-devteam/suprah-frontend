@@ -9,7 +9,7 @@
 import * as React from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Loader2, RefreshCw, Send } from "lucide-react"
+import { Loader2, RefreshCw, Send, ShieldCheck } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -43,6 +43,9 @@ interface PayoutRow {
     archived?: boolean
     suprahPayOn: boolean
     payoutAccountConnected: boolean
+    /** Why payouts are held until a super admin confirms the payout account (2026-11-23). */
+    payoutAccountHold: PayoutAccountHold | null
+    payoutAccountSetAt: string | null
     sending: boolean
     amount: number
     paymentsTotal: number
@@ -50,6 +53,23 @@ interface PayoutRow {
     adjustments: number
     paymentCount: number
     heldCount: number
+}
+
+type PayoutAccountHold = "new" | "replaced" | "bank_changed"
+
+/** What a super admin checks before confirming a payout account. */
+interface PayoutAccountCheck {
+    ready: boolean
+    needsMoreInfo: boolean
+    businessName: string | null
+    bank: { id: string; bankName: string | null; last4: string | null } | null
+    hold: PayoutAccountHold | null
+}
+
+const HOLD_TEXT: Record<PayoutAccountHold, string> = {
+    new: "New payout account: payouts are on hold until you confirm it.",
+    replaced: "Payout account replaced: payouts are on hold until you confirm the new one.",
+    bank_changed: "Bank details changed in Stripe: payouts are on hold until you confirm them.",
 }
 
 interface PayoutRecord {
@@ -185,6 +205,55 @@ export default function AdminSuprahPayPage() {
         )
     }
 
+    /* ── Confirming a new or replaced payout account (2026-11-23) ─────────── */
+    const [confirmingId, setConfirmingId] = React.useState<string | null>(null)
+    const confirmAccount = async (row: PayoutRow) => {
+        setConfirmingId(row._id)
+        let check: PayoutAccountCheck
+        try {
+            check = dataOf<PayoutAccountCheck>(
+                await apiClient.get(`/api/admin/suprahpay/payouts/${encodeURIComponent(row._id)}/payout-account`),
+            )
+        } catch (e) {
+            toast.error("The payout account couldn't be checked", { description: errorText(e, "Please try again.") })
+            setConfirmingId(null)
+            return
+        }
+        setConfirmingId(null)
+        if (!check.ready) {
+            toast.error(`${row.name}'s payout account isn't ready yet`, {
+                description: check.needsMoreInfo
+                    ? "Stripe needs more details from the dealership. Confirm it once it's ready."
+                    : "Stripe is still checking the dealership's details. Confirm it once it's ready.",
+            })
+            return
+        }
+        const bank = check.bank
+            ? `${check.bank.bankName ?? "a bank account"}${check.bank.last4 ? ` ending in ${check.bank.last4}` : ""}`
+            : "the bank account the dealership added in Stripe (Stripe doesn't show its details to Suprah)"
+        await confirm(
+            `Confirm ${row.name}'s payout account?`,
+            `Weekly payouts will go to ${bank}${check.businessName ? `, for ${check.businessName}` : ""}. Check these details with the dealership (for example, call their admin) before you confirm.`,
+            async () => {
+                setConfirmingId(row._id)
+                try {
+                    await apiClient.post(
+                        `/api/admin/suprahpay/payouts/${encodeURIComponent(row._id)}/confirm-account`,
+                        { bankId: check.bank?.id ?? null },
+                    )
+                    toast.success(`${row.name}'s payout account is confirmed`, { description: "Their payouts can be sent now." })
+                } catch (e) {
+                    toast.error("The payout account wasn't confirmed", { description: errorText(e, "Please refresh and try again.") })
+                } finally {
+                    setConfirmingId(null)
+                    refresh()
+                }
+            },
+            "Confirm account",
+            "Cancel",
+        )
+    }
+
     const [checkingId, setCheckingId] = React.useState<string | null>(null)
     const checkPayout = async (record: PayoutRecord) => {
         setCheckingId(record._id)
@@ -231,6 +300,7 @@ export default function AdminSuprahPayPage() {
                 ) : (
                     <ul className="divide-y divide-border">
                         {payouts.dealerships.map((row) => {
+                            const hold = row.payoutAccountConnected ? row.payoutAccountHold : null
                             const blocked = !row.payoutAccountConnected
                                 ? "No payout account yet"
                                 : row.sending
@@ -250,10 +320,20 @@ export default function AdminSuprahPayPage() {
                                             {row.adjustments ? ` · refunds and disputes ${formatCurrency(row.adjustments)}` : ""}
                                             {row.heldCount ? ` · ${row.heldCount} on hold for a card dispute` : ""}
                                         </p>
+                                        {hold && (
+                                            <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400 [overflow-wrap:anywhere]">
+                                                {HOLD_TEXT[hold]}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-3">
                                         <span className="font-mono text-base font-semibold tabular-nums">{formatCurrency(row.amount)}</span>
-                                        {blocked ? (
+                                        {hold ? (
+                                            <Button size="sm" variant="outline" className="h-10 gap-1.5" disabled={confirmingId === row._id} onClick={() => confirmAccount(row)}>
+                                                {confirmingId === row._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                                                Confirm account
+                                            </Button>
+                                        ) : blocked ? (
                                             <span className="text-xs text-muted-foreground">{blocked}</span>
                                         ) : (
                                             <Button size="sm" className="h-10 gap-1.5" disabled={sendingId === row._id} onClick={() => sendPayout(row)}>

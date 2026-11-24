@@ -178,7 +178,8 @@ function BillingDashboardInner() {
   }, []);
 
   const thisWeek = payouts?.thisWeek;
-  const accountReady = !!accountQuery.data?.ready;
+  // Ready only once Suprah has confirmed a new or replaced account (2026-11-23).
+  const accountReady = !!accountQuery.data?.ready && !accountQuery.data?.awaitingConfirmation;
   const balanceNote = !payouts
     ? undefined
     : payouts.payoutAccountConnected
@@ -258,7 +259,11 @@ function BillingDashboardInner() {
               }
               footerRight={
                 accountQuery.data
-                  ? accountReady ? "Payout account ready" : accountQuery.data.connected ? "Payout account not finished" : "No payout account yet"
+                  ? accountReady
+                    ? "Payout account ready"
+                    : accountQuery.data.ready && accountQuery.data.awaitingConfirmation
+                      ? "Payout account: Suprah is checking it"
+                      : accountQuery.data.connected ? "Payout account not finished" : "No payout account yet"
                   : null
               }
             />

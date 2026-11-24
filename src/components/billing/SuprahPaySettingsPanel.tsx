@@ -29,6 +29,10 @@ function payoutAccountLabel(account: PayoutAccount | undefined): { text: string;
       tone: T.warning,
     };
   }
+  // A new or replaced account is checked by Suprah before payouts go to it (2026-11-23).
+  if (account.ready && account.awaitingConfirmation) {
+    return { text: "Set up: Suprah is checking it before your payouts start", tone: T.textSub };
+  }
   if (account.ready) return { text: "Ready: Suprah can send your payouts", tone: T.success };
   if (account.needsMoreInfo) return { text: "Stripe needs more details", tone: T.warning };
   return { text: "Stripe is checking your details", tone: T.textSub };
