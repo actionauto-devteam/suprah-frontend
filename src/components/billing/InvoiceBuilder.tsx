@@ -5,18 +5,26 @@
  * Each item is Qty × Price = Amount, a discount takes its amount off, and the
  * totals read Subtotal, Discount, Tax and Total due. The note is shown to the
  * customer on their invoice in SuprahPay.
+ *
+ * Feedback (2026-11-23): Send can always be pressed. Anything that stops the
+ * invoice (from the form's own checks or the server) highlights its box with
+ * the reason under it, moves to the first one, and shows a SuprahPay notice;
+ * a sent invoice shows a SuprahPay notice too. Highlights clear as each box
+ * is fixed.
  */
 import * as React from "react";
 import { Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useSuprahPaySettings } from "@/hooks/useSuprahPay";
 import { GhostButton, PrimaryButton, T, FONT, numeric, TextInput, Wordmark } from "@/components/billing/ui";
+import { suprahPayToast } from "@/components/billing/SuprahPayToast";
 import {
   type DraftInvoiceLine,
   type InvoiceLineKind,
   draftLineAmount,
-  draftLineProblem,
+  draftLineIssues,
   draftLineToSend,
+  invoiceIssueKeyForServerMessage,
   invoiceMoney,
   invoiceTotals,
   isDiscountLine,
@@ -25,7 +33,11 @@ import {
 
 const MAX_LINES = 50;
 const NOTE_MAX = 1000;
-const FIRST_PRICE_ID = "invoice-first-price";
+const MAX_INVOICE_TOTAL = 999_999.99;
+/** The page id of a box: "line-0-price" → "invoice-line-0-price", "tax" → "invoice-tax". */
+const fieldId = (key: string) => `invoice-${key}`;
+const errorId = (key: string) => `invoice-${key}-error`;
+const errorTextStyle: React.CSSProperties = { margin: 0, fontSize: 12.5, fontWeight: 600, color: T.danger, lineHeight: 1.45 };
 
 export interface InvoiceBuilderProps {
   inquiryId: string;
@@ -52,7 +64,7 @@ function newLine(kind: InvoiceLineKind): DraftInvoiceLine {
 function MoneyInput({
   sign = "$",
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { sign?: string }) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { sign?: string; hasError?: boolean }) {
   return (
     <div style={{ position: "relative" }}>
       <span
@@ -101,16 +113,58 @@ export function InvoiceBuilder({
   const [dueDate, setDueDate] = React.useState("");
   const [note, setNote] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  // Highlights show once Send has been pressed, then follow each change.
+  const [attempted, setAttempted] = React.useState(false);
+  // What the server refused, until anything in the form changes.
+  const [serverIssue, setServerIssue] = React.useState<{ key: string | null; message: string } | null>(null);
 
   const rate = taxRate.trim() === "" ? 0 : typedNumber(taxRate);
   const totals = invoiceTotals(lines.map(draftLineAmount), Number.isFinite(rate) ? rate : 0);
   const itemCount = lines.filter((l) => !isDiscountLine(l)).length;
-  const canSend = totals.total > 0 && !submitting;
+  const firstItemIndex = Math.max(0, lines.findIndex((l) => !isDiscountLine(l)));
+  const paymentLimit = suprahPay?.maxPaymentAmount;
+
+  /** What stops this invoice being sent, by box, in the order the boxes appear. */
+  const formIssues = React.useMemo(() => {
+    const found = new Map<string, string>();
+    lines.forEach((line, i) => {
+      for (const issue of draftLineIssues(line, i)) found.set(`line-${i}-${issue.field}`, issue.message);
+    });
+    if (itemCount === 0) found.set("items", "Add at least one item. A discount can't be the only line.");
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) found.set("tax", "Enter a tax rate from 0% to 100%.");
+    const linesOk = ![...found.keys()].some((key) => key.startsWith("line-"));
+    if (linesOk && itemCount > 0 && totals.total <= 0) {
+      found.set("total", "The total due must be more than $0. Add a price to an item.");
+    } else if (totals.total > MAX_INVOICE_TOTAL) {
+      found.set("total", "The total due can't be more than $999,999.99.");
+    } else if (typeof paymentLimit === "number" && paymentLimit > 0 && totals.total > paymentLimit) {
+      found.set("total", `This is more than SuprahPay's limit of ${invoiceMoney(paymentLimit)} for one payment. Split it into smaller invoices, or contact Suprah.`);
+    }
+    return found;
+  }, [lines, itemCount, rate, totals.total, paymentLimit]);
+
+  const issues = new Map(attempted ? formIssues : []);
+  if (serverIssue?.key && !issues.has(serverIssue.key)) issues.set(serverIssue.key, serverIssue.message);
+  const issueFor = (key: string) => issues.get(key);
+  /** Props that mark a box as needing a fix and point screen readers at the reason. */
+  const invalidProps = (key: string) =>
+    issues.has(key) ? { hasError: true, "aria-invalid": true as const, "aria-describedby": errorId(key) } : {};
+
+  // A server refusal is about what was sent; any change starts fresh.
+  React.useEffect(() => setServerIssue(null), [lines, taxRate, dueDate, note]);
+
+  /** Moves to a box that needs a fix (the total points at the first item's price). */
+  const goToIssue = (key: string) => {
+    const target = key === "total" ? `line-${firstItemIndex}-price` : key;
+    const el = document.getElementById(fieldId(target));
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    el.focus({ preventScroll: true });
+  };
 
   React.useEffect(() => {
     // Start in the first price box, the field most invoices need first.
-    document.getElementById(FIRST_PRICE_ID)?.focus();
+    document.getElementById(fieldId("line-0-price"))?.focus();
   }, []);
 
   React.useEffect(() => {
@@ -128,29 +182,53 @@ export function InvoiceBuilder({
   const removeLine = (index: number) => setLines((current) => current.filter((_, i) => i !== index));
 
   const submit = async () => {
-    setError(null);
-    const problem = lines.map(draftLineProblem).find(Boolean);
-    if (problem) return setError(problem);
-    if (itemCount === 0) return setError("Add at least one item. A discount can't be the only line.");
-    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return setError("Enter a tax rate from 0% to 100%.");
-    if (totals.total <= 0) return setError("The total due must be more than $0.");
+    if (submitting) return;
+    setAttempted(true);
+    setServerIssue(null);
+    const keys = [...formIssues.keys()];
+    if (keys.length > 0) {
+      goToIssue(keys[0]);
+      suprahPayToast.error(
+        "Invoice not sent",
+        keys.length === 1 ? formIssues.get(keys[0]) : `Fix the ${keys.length} highlighted fields, then send it again.`,
+      );
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await apiClient.post(`/api/crm/aftermarket/inquiries/${encodeURIComponent(inquiryId)}/invoice`, {
+      const res = await apiClient.post(`/api/crm/aftermarket/inquiries/${encodeURIComponent(inquiryId)}/invoice`, {
         lineItems: lines.map(draftLineToSend),
         taxRate: rate,
         dueDate: dueDate || undefined,
         customerNote: note.trim() || undefined,
       });
+      const invoiceNumber = (res?.data as { data?: { payment?: { invoiceNumber?: unknown } } })?.data?.payment?.invoiceNumber;
+      suprahPayToast.success(
+        typeof invoiceNumber === "string" && invoiceNumber ? `Invoice ${invoiceNumber} sent` : "Invoice sent",
+        `${customerName} was notified and can pay ${invoiceMoney(totals.total)} in SuprahPay.`,
+      );
       onCreated();
     } catch (e: unknown) {
-      const message = (e as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
-      setError(typeof message === "string" && message ? message : "The invoice wasn't sent. Please try again.");
+      const sent = (e as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      const message = typeof sent === "string" && sent ? sent : "The invoice wasn't sent. Check your connection and try again.";
+      const key = invoiceIssueKeyForServerMessage(message);
+      setServerIssue({ key, message });
+      if (key) goToIssue(key);
+      suprahPayToast.error("Invoice not sent", message);
     } finally {
       setSubmitting(false);
     }
   };
+
+  // The line under the form: the server's reason, or how many boxes need a fix.
+  const footerProblem = serverIssue && !serverIssue.key
+    ? serverIssue.message
+    : issues.size > 0
+      ? issues.size === 1
+        ? [...issues.values()][0]
+        : `Fix the ${issues.size} highlighted fields to send this invoice.`
+      : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4" style={{ fontFamily: FONT }}>
@@ -245,11 +323,14 @@ export function InvoiceBuilder({
               const discount = isDiscountLine(line);
               const amount = draftLineAmount(line);
               const n = i + 1;
+              const lineIssues = (["label", "quantity", "price"] as const)
+                .map((field) => ({ key: `line-${i}-${field}`, message: issueFor(`line-${i}-${field}`) }))
+                .filter((issue): issue is { key: string; message: string } => Boolean(issue.message));
               return (
                 <div
                   key={i}
                   className="grid grid-cols-[minmax(0,1fr)_40px] items-start gap-2 sm:grid-cols-[minmax(0,1fr)_84px_124px_108px_40px] sm:items-center"
-                  style={{ borderRadius: 12, border: `1px solid ${T.border}`, padding: 10 }}
+                  style={{ borderRadius: 12, border: `1px solid ${lineIssues.length ? T.danger : T.border}`, padding: 10 }}
                 >
                   <div className="col-start-1 row-start-1 min-w-0 sm:col-start-auto sm:row-start-auto">
                     <TextInput
@@ -258,6 +339,8 @@ export function InvoiceBuilder({
                       placeholder={discount ? "What the discount is for" : "What you're charging for"}
                       aria-label={`Description, line ${n}`}
                       maxLength={200}
+                      id={fieldId(`line-${i}-label`)}
+                      {...invalidProps(`line-${i}-label`)}
                     />
                   </div>
 
@@ -279,6 +362,8 @@ export function InvoiceBuilder({
                           inputMode="decimal"
                           autoComplete="off"
                           aria-label={`Quantity, line ${n}`}
+                          id={fieldId(`line-${i}-quantity`)}
+                          {...invalidProps(`line-${i}-quantity`)}
                           style={{ textAlign: "center", ...numeric }}
                         />
                       )}
@@ -291,7 +376,8 @@ export function InvoiceBuilder({
                         onChange={(e) => updateLine(i, { price: e.target.value })}
                         placeholder="0.00"
                         aria-label={discount ? `Discount amount, line ${n}` : `Price for one, line ${n}`}
-                        id={i === 0 ? FIRST_PRICE_ID : undefined}
+                        id={fieldId(`line-${i}-price`)}
+                        {...invalidProps(`line-${i}-price`)}
                       />
                     </div>
                     <div className="grid gap-1">
@@ -315,6 +401,14 @@ export function InvoiceBuilder({
                   >
                     <Trash2 style={{ width: 16, height: 16 }} />
                   </button>
+
+                  {lineIssues.length > 0 && (
+                    <div className="col-span-2 grid gap-0.5 sm:col-span-5">
+                      {lineIssues.map((issue) => (
+                        <p key={issue.key} id={errorId(issue.key)} style={errorTextStyle}>{issue.message}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -327,6 +421,7 @@ export function InvoiceBuilder({
               ] as const).map(([kind, text]) => (
                 <GhostButton
                   key={kind}
+                  id={kind === "product" ? fieldId("items") : undefined}
                   type="button"
                   onClick={() => addLine(kind)}
                   disabled={lines.length >= MAX_LINES}
@@ -336,6 +431,7 @@ export function InvoiceBuilder({
                 </GhostButton>
               ))}
             </div>
+            {issueFor("items") && <p id={errorId("items")} style={errorTextStyle}>{issueFor("items")}</p>}
           </section>
 
           {/* Tax and due date */}
@@ -350,12 +446,15 @@ export function InvoiceBuilder({
                 autoComplete="off"
                 placeholder="0"
                 style={numeric}
+                {...invalidProps("tax")}
               />
+              {issueFor("tax") && <p id={errorId("tax")} style={errorTextStyle}>{issueFor("tax")}</p>}
               <p style={helpStyle}>Worked out on the total after any discount.</p>
             </div>
             <div className="grid gap-1.5">
               <label htmlFor="invoice-due" style={labelStyle}>Due date (optional)</label>
-              <TextInput id="invoice-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <TextInput id="invoice-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} {...invalidProps("due")} />
+              {issueFor("due") && <p id={errorId("due")} style={errorTextStyle}>{issueFor("due")}</p>}
               <p style={helpStyle}>Leave empty if it&apos;s due when they receive it.</p>
             </div>
           </div>
@@ -370,11 +469,14 @@ export function InvoiceBuilder({
               rows={3}
               placeholder="For example: pickup times, what's included, or how long the price is held."
               className="w-full resize-y"
+              aria-invalid={issues.has("note") || undefined}
+              aria-describedby={issues.has("note") ? errorId("note") : undefined}
               style={{
                 fontFamily: FONT, fontSize: 14, color: T.text, background: "rgba(255,255,255,0.04)",
-                border: `1px solid ${T.borderHi}`, borderRadius: 10, padding: "10px 13px", outline: "none",
+                border: `1px solid ${issues.has("note") ? T.danger : T.borderHi}`, borderRadius: 10, padding: "10px 13px", outline: "none",
               }}
             />
+            {issueFor("note") && <p id={errorId("note")} style={errorTextStyle}>{issueFor("note")}</p>}
             <div className="flex flex-wrap justify-between gap-2">
               <p style={helpStyle}>Shown to the customer on their invoice in SuprahPay.</p>
               <p style={{ ...helpStyle, ...numeric }}>{note.length}/{NOTE_MAX}</p>
@@ -385,7 +487,7 @@ export function InvoiceBuilder({
           <section
             aria-label="Totals"
             className="grid gap-1.5"
-            style={{ borderRadius: 12, border: `1px solid ${T.brandBorder}`, background: T.brandSofter, padding: "12px 14px" }}
+            style={{ borderRadius: 12, border: `1px solid ${issues.has("total") ? T.danger : T.brandBorder}`, background: T.brandSofter, padding: "12px 14px" }}
           >
             <div className="flex justify-between gap-3" style={{ fontSize: 13, color: T.textSub }}>
               <span>Subtotal</span>
@@ -408,36 +510,33 @@ export function InvoiceBuilder({
               <span style={{ fontSize: 15, fontWeight: 800 }}>Total due</span>
               <span style={{ fontSize: 20, fontWeight: 800, color: T.brand, ...numeric }}>{invoiceMoney(totals.total)}</span>
             </div>
+            {issueFor("total") && <p id={errorId("total")} style={{ ...errorTextStyle, marginTop: 4 }}>{issueFor("total")}</p>}
           </section>
-
-          {error && (
-            <p
-              role="alert"
-              style={{ margin: 0, fontSize: 13, color: T.danger, background: T.dangerBg, borderRadius: 10, padding: "10px 12px" }}
-            >
-              {error}
-            </p>
-          )}
         </div>
 
         {/* Footer */}
         {/* Phones: Send above Cancel, both full width. Computers: side by side on the right. */}
-        <div
-          className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-5"
-          style={{ borderTop: `1px solid ${T.border}` }}
-        >
-          {totals.total <= 0 && (
-            <p className="order-1 sm:mr-auto" style={helpStyle}>
-              Add a price to send this invoice.
+        <div className="grid gap-2 px-4 py-3 sm:px-5" style={{ borderTop: `1px solid ${T.border}` }}>
+          {footerProblem && (
+            // The notice and the highlighted box are announced; this keeps the reason in view.
+            <p style={{ ...errorTextStyle, background: T.dangerBg, borderRadius: 10, padding: "8px 12px", overflowWrap: "anywhere" }}>
+              {footerProblem}
             </p>
           )}
-          <GhostButton type="button" onClick={onClose} disabled={submitting} className="order-3 w-full sm:order-2 sm:w-auto">
-            Cancel
-          </GhostButton>
-          <PrimaryButton type="button" onClick={submit} disabled={!canSend} className="order-2 w-full sm:order-3 sm:w-auto">
-            {submitting ? <Loader2 className="animate-spin" style={{ width: 16, height: 16 }} /> : <Receipt style={{ width: 16, height: 16 }} />}
-            Send invoice · {invoiceMoney(totals.total)}
-          </PrimaryButton>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {totals.total <= 0 && !footerProblem && (
+              <p className="order-1 sm:mr-auto" style={helpStyle}>
+                Add a price to send this invoice.
+              </p>
+            )}
+            <GhostButton type="button" onClick={onClose} disabled={submitting} className="order-3 w-full sm:order-2 sm:w-auto">
+              Cancel
+            </GhostButton>
+            <PrimaryButton type="button" onClick={submit} disabled={submitting} className="order-2 w-full sm:order-3 sm:w-auto">
+              {submitting ? <Loader2 className="animate-spin" style={{ width: 16, height: 16 }} /> : <Receipt style={{ width: 16, height: 16 }} />}
+              Send invoice · {invoiceMoney(totals.total)}
+            </PrimaryButton>
+          </div>
         </div>
       </div>
     </div>
