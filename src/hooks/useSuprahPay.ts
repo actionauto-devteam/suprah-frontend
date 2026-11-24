@@ -8,6 +8,8 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/providers/AuthProvider";
+import { adminStore } from "@/store/admin-store";
 
 export interface SuprahPaySettings {
   /** SuprahPay is turned on for the dealership (Action Auto Utah pilots it first). */
@@ -64,17 +66,30 @@ export interface PayoutAccount {
 
 const dataOf = <T,>(res: { data?: { data?: unknown } }) => res?.data?.data as T;
 
+/**
+ * Who and which dealership the SuprahPay data is for (2026-11-23), so a super
+ * admin viewing another dealership, or someone who switches dealership, never
+ * sees the last dealership's settings or buttons while the new ones load.
+ */
+function useSuprahPayScope(): string {
+  const { userId, orgId } = useAuth();
+  const { impersonatedOrgId } = adminStore.useStore();
+  return `${userId ?? "signed-out"}:${impersonatedOrgId || orgId || "no-dealership"}`;
+}
+
 export function useSuprahPaySettings() {
+  const scope = useSuprahPayScope();
   return useQuery({
-    queryKey: ["suprahpay", "settings"],
+    queryKey: ["suprahpay", scope, "settings"],
     queryFn: async () => dataOf<SuprahPaySettings>(await apiClient.get("/api/payments/settings")),
     staleTime: 60_000,
   });
 }
 
 export function useDealershipPayouts(enabled = true) {
+  const scope = useSuprahPayScope();
   return useQuery({
-    queryKey: ["suprahpay", "payouts"],
+    queryKey: ["suprahpay", scope, "payouts"],
     queryFn: async () => dataOf<DealershipPayouts>(await apiClient.get("/api/payments/payouts")),
     enabled,
     staleTime: 30_000,
@@ -82,8 +97,9 @@ export function useDealershipPayouts(enabled = true) {
 }
 
 export function usePayoutAccount(enabled = true) {
+  const scope = useSuprahPayScope();
   return useQuery({
-    queryKey: ["suprahpay", "payout-account"],
+    queryKey: ["suprahpay", scope, "payout-account"],
     queryFn: async () => dataOf<PayoutAccount>(await apiClient.get("/api/payments/payout-account")),
     enabled,
     staleTime: 30_000,
