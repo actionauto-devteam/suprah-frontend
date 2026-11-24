@@ -41,7 +41,17 @@ const T = {
 
 type RequestState = "idle" | "loading" | "success" | "error";
 
-type AwaitingStatus = "all" | "pending" | "failed";
+type AwaitingStatus = "all" | "pending" | "processing" | "failed";
+
+/**
+ * One invoice row: a table row on computers; on phones a stacked card (who and
+ * how much, then the invoice, status and due date, then the button) so
+ * nothing scrolls sideways and nothing is cut off (2026-11-23).
+ */
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 " +
+  "md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.8fr)] md:items-center md:gap-3";
+const WRAP: React.CSSProperties = { whiteSpace: "normal", overflowWrap: "anywhere" };
 
 function Skeleton({
   width,
@@ -166,6 +176,7 @@ export default function AwaitingPaymentPage() {
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<AwaitingStatus>("all");
   const [requestStates, setRequestStates] = React.useState<Record<string, RequestState>>({});
+  const [requestErrors, setRequestErrors] = React.useState<Record<string, string>>({});
   // Sending a request needs Finance access and SuprahPay on (2026-11-21); the server checks too.
   const { data: suprahPay } = useSuprahPaySettings();
   const canSend = !!suprahPay?.canManagePayments && !!suprahPay?.enabled;
@@ -194,6 +205,11 @@ export default function AwaitingPaymentPage() {
 
   const handleRequest = async (payment: Payment) => {
     setRequestStates((prev) => ({ ...prev, [payment._id]: "loading" }));
+    setRequestErrors((prev) => {
+      const next = { ...prev };
+      delete next[payment._id];
+      return next;
+    });
     try {
       await apiClient.post(
         `/api/payments/${payment._id}/request`,
@@ -205,7 +221,11 @@ export default function AwaitingPaymentPage() {
         setRequestStates((prev) => ({ ...prev, [payment._id]: "idle" }));
       }, 2500);
     } catch (error) {
-      console.error(error);
+      const sent = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
+      setRequestErrors((prev) => ({
+        ...prev,
+        [payment._id]: typeof sent === "string" && sent ? sent : "The request wasn't sent. Check your connection and try again.",
+      }));
       setRequestStates((prev) => ({ ...prev, [payment._id]: "error" }));
       setTimeout(() => {
         setRequestStates((prev) => ({ ...prev, [payment._id]: "idle" }));
@@ -240,7 +260,7 @@ export default function AwaitingPaymentPage() {
         (payment) =>
           payment.dueDate &&
           new Date(payment.dueDate).getTime() < Date.now() &&
-          (payment.status === "pending" || payment.status === "failed"),
+          (payment.status === "pending" || payment.status === "processing" || payment.status === "failed"),
       ).length,
     [payments],
   );
@@ -251,6 +271,7 @@ export default function AwaitingPaymentPage() {
     () => ({
       all: payments.length,
       pending: payments.filter((payment) => payment.status === "pending").length,
+      processing: payments.filter((payment) => payment.status === "processing").length,
       failed: payments.filter((payment) => payment.status === "failed").length,
     }),
     [payments],
@@ -440,12 +461,12 @@ export default function AwaitingPaymentPage() {
               style={{
                 display: "flex",
                 gap: 8,
+                flexWrap: "wrap",
                 padding: 10,
                 borderBottom: `0.5px solid ${T.border}`,
-                overflowX: "auto",
               }}
             >
-              {(["all", "pending", "failed"] as AwaitingStatus[]).map((status) => {
+              {(["all", "pending", "processing", "failed"] as AwaitingStatus[]).map((status) => {
                 const active = statusFilter === status;
                 return (
                   <button
@@ -471,16 +492,14 @@ export default function AwaitingPaymentPage() {
               })}
             </div>
 
-            <div style={{ overflowX: "auto" }}>
+            <div>
             <div
+              aria-hidden="true"
+              className="hidden md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.8fr)] md:gap-3"
               style={{
-                display: "grid",
-                gridTemplateColumns: "1.2fr 1fr 0.8fr 0.7fr 0.8fr 0.8fr",
-                gap: 12,
                 padding: "10px 16px",
                 borderBottom: `0.5px solid ${T.border}`,
                 background: T.bg,
-                minWidth: 600,
               }}
             >
               {[
@@ -553,25 +572,20 @@ export default function AwaitingPaymentPage() {
                 return (
                   <div
                     key={payment._id}
+                    className={ROW_GRID}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.2fr 1fr 0.8fr 0.7fr 0.8fr 0.8fr",
-                      alignItems: "center",
-                      gap: 12,
                       padding: "12px 16px",
                       borderBottom: `0.5px solid ${T.border}`,
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
+                    <div className="order-1 md:order-none" style={{ minWidth: 0 }}>
                       <p
                         style={{
                           fontSize: 13,
                           fontWeight: 600,
                           color: T.text,
                           margin: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          ...WRAP,
                         }}
                       >
                         {payment.customerName}
@@ -581,24 +595,20 @@ export default function AwaitingPaymentPage() {
                           fontSize: 11,
                           color: T.textMute,
                           margin: "3px 0 0",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          ...WRAP,
                         }}
                       >
                         {payment.customerEmail}
                       </p>
                     </div>
 
-                    <div style={{ minWidth: 0 }}>
+                    <div className="order-3 col-span-2 md:order-none md:col-span-1" style={{ minWidth: 0 }}>
                       <p
                         style={{
                           fontSize: 12,
                           color: T.textSub,
                           margin: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          ...WRAP,
                           fontWeight: 500,
                         }}
                       >
@@ -609,9 +619,7 @@ export default function AwaitingPaymentPage() {
                           fontSize: 11,
                           color: T.textMute,
                           margin: "3px 0 0",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          ...WRAP,
                         }}
                       >
                         {payment.description}
@@ -619,6 +627,7 @@ export default function AwaitingPaymentPage() {
                     </div>
 
                     <p
+                      className="order-2 justify-self-end md:order-none md:justify-self-auto"
                       style={{
                         fontSize: 13,
                         fontWeight: 700,
@@ -630,9 +639,12 @@ export default function AwaitingPaymentPage() {
                       {formatCurrency(payment.amount)}
                     </p>
 
-                    <StatusBadge status={payment.status} />
+                    <div className="order-4 md:order-none">
+                      <StatusBadge status={payment.status} />
+                    </div>
 
                     <p
+                      className="order-5 justify-self-end md:order-none md:justify-self-auto"
                       style={{
                         fontSize: 12,
                         color: isOverdue ? T.red : T.textSub,
@@ -651,6 +663,8 @@ export default function AwaitingPaymentPage() {
                       type="button"
                       onClick={() => handleRequest(payment)}
                       disabled={requestState === "loading"}
+                      aria-describedby={requestErrors[payment._id] ? `request-error-${payment._id}` : undefined}
+                      className="order-6 col-span-2 md:order-none md:col-span-1"
                       style={{
                         justifySelf: "start",
                         display: "inline-flex",
@@ -691,9 +705,20 @@ export default function AwaitingPaymentPage() {
                           : "Request"}
                     </button>
                     ) : (
-                      <span style={{ justifySelf: "start", fontSize: 12, color: T.textSub }}>
+                      <span className="order-6 col-span-2 md:order-none md:col-span-1" style={{ justifySelf: "start", fontSize: 12, color: T.textSub }}>
                         {suprahPay?.enabled === false ? "SuprahPay isn't on yet" : "Needs Finance access"}
                       </span>
+                    )}
+
+                    {requestErrors[payment._id] && (
+                      <p
+                        id={`request-error-${payment._id}`}
+                        role="status"
+                        className="order-7 col-span-2 md:col-span-6"
+                        style={{ margin: 0, fontSize: 12, color: T.red, ...WRAP }}
+                      >
+                        {requestErrors[payment._id]}
+                      </p>
                     )}
                   </div>
                 );

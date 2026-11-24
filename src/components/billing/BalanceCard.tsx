@@ -57,10 +57,15 @@ export function BalanceCard({
     n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // These come from the dealership's card payments, not the balance above.
+  // Totals that couldn't be loaded show "—", never a made-up 0 (2026-11-23).
+  const unavailable = !isLoading && !stats;
+  const awaiting =
+    (stats?.byStatus?.pending?.count ?? 0) + (stats?.byStatus?.failed?.count ?? 0) + (stats?.byStatus?.processing?.count ?? 0);
   const statItems = [
-    { label: "Card payments received", value: money(stats?.totalRevenue ?? 0), Icon: TrendingUp },
-    { label: "Pending invoices", value: String(stats?.byStatus?.pending?.count ?? 0), Icon: Clock },
-    { label: "Transactions", value: String(stats?.totalCount ?? 0), Icon: Receipt },
+    { label: "Card payments received", value: unavailable ? "—" : money(stats?.totalRevenue ?? 0), Icon: TrendingUp },
+    // Every invoice still waiting for payment, the same as Awaiting payment.
+    { label: "Pending invoices", value: unavailable ? "—" : String(awaiting), Icon: Clock },
+    { label: "Transactions", value: unavailable ? "—" : String(stats?.totalCount ?? 0), Icon: Receipt },
   ];
 
   return (

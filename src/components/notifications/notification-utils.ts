@@ -101,6 +101,7 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   payment_pending: { icon: CreditCard, gradient: 'from-amber-500 to-yellow-500', bg: 'bg-amber-500' },
   payment_failed: { icon: CreditCard, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   payment_request: { icon: CreditCard, gradient: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500' },
+  payment_refunded: { icon: CreditCard, gradient: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-500' },
   payout_processed: { icon: DollarSign, gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-500' },
   team_invite_sent: { icon: Send, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   team_member_joined: { icon: UserPlus, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
@@ -245,6 +246,7 @@ const TYPE_LABELS: Record<string, string> = {
   payment_pending: 'Payment Pending',
   payment_failed: 'Payment Failed',
   payment_request: 'Payment Request',
+  payment_refunded: 'Refund',
   payout_processed: 'Payout Processed',
   team_invite_sent: 'Team Invite Sent',
   team_member_joined: 'Team Member Joined',
@@ -433,7 +435,7 @@ const ROUTE_MAP: Record<string, string> = {
   driver_dispatch_alert: '/driver/notifications',
   driver_dispatch_message: '/notifications',
   dispatch_channel: '/crm/suprah-mail',
-  payment_request: '/customer/payments', payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
+  payment_request: '/customer/payments', payment_refunded: '/customer/payments', payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
   payout_processed: '/billing',
   team_invite_sent: '/settings', team_member_joined: '/settings', team_member_left: '/settings', role_changed: '/settings',
   eotm_winner_announced: '/recognition/employee-of-the-month',
@@ -462,7 +464,7 @@ const DRIVER_ROUTE_MAP: Record<string, string> = {
 };
 
 const CUSTOMER_ROUTE_MAP: Record<string, string> = {
-  payment_request: '/customer/payments', payment_received: '/customer/payments',
+  payment_request: '/customer/payments', payment_refunded: '/customer/payments', payment_received: '/customer/payments',
   payment_pending: '/customer/payments', payment_failed: '/customer/payments',
   referral_joined: '/customer/refer', referral_rewarded: '/customer/refer',
   password_changed: '/customer/settings', email_changed: '/customer/settings',

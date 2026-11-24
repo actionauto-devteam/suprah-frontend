@@ -66,6 +66,7 @@ export type NotificationType =
   | 'payment_pending'
   | 'payment_failed'
   | 'payment_request'
+  | 'payment_refunded'
   | 'payout_processed'
   | 'team_invite_sent'
   | 'team_member_joined'

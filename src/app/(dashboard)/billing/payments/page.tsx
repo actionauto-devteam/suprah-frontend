@@ -1,6 +1,7 @@
  "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
@@ -244,6 +245,68 @@ function Skeleton({
   );
 }
 
+/** Laptop width and up (1024px): where the header's drawers sit beside the page. */
+function useWideScreen(): boolean | null {
+  const [wide, setWide] = React.useState<boolean | null>(null);
+  React.useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setWide(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return wide;
+}
+
+/**
+ * The header's Notifications and SuprahSpace drawers. Their buttons say when
+ * they're open (aria-expanded + aria-controls), the same way the header's own
+ * drawers check each other, so this page needs no change to the shared layout.
+ */
+const HEADER_DRAWER_IDS = ["notification-drawer", "suprahspace-drawer"];
+function openHeaderDrawerButtons(): HTMLButtonElement[] {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]'))
+    .filter((button) => HEADER_DRAWER_IDS.includes(button.getAttribute("aria-controls") ?? ""));
+}
+function useHeaderDrawerOpen(): boolean {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    const check = () => setOpen(openHeaderDrawerButtons().length > 0);
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["aria-expanded"] });
+    return () => observer.disconnect();
+  }, []);
+  return open;
+}
+
+/** Invoices still waiting for payment: the same rule as the server's (2026-11-23). */
+const isAwaitingPayment = (status: Payment["status"]) =>
+  status === "pending" || status === "failed" || status === "processing";
+
+/**
+ * Internal notes, with "Created from CRM lead <id>" shown as a link to that
+ * lead instead of its id (2026-11-23). The Leads page checks access itself.
+ */
+function InternalNotes({ notes }: { notes: string }) {
+  const match = /\bCRM lead ([a-f0-9]{24})\b/i.exec(notes);
+  if (!match) return <>{notes}</>;
+  const lead = notes.slice(0, match.index) + "CRM lead";
+  const rest = notes.slice(match.index + match[0].length);
+  return (
+    <>
+      {lead} ·{" "}
+      <Link
+        href={`/crm/leads?leadId=${match[1]}`}
+        style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}
+      >
+        Open lead
+      </Link>
+      {rest}
+    </>
+  );
+}
+
 function DetailDrawer({
   payment,
   onClose,
@@ -273,9 +336,15 @@ function DetailDrawer({
   const canManage = !!suprahPay?.canManagePayments;
   const canSend = canManage && !!suprahPay?.enabled;
 
+  // Computers: a drawer beside the list, which stays usable. Phones and
+  // tablets: a pop-up in the middle that fits the screen (2026-11-23).
+  const wide = useWideScreen();
+  const closeRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         onClose();
       }
     };
@@ -283,6 +352,37 @@ function DetailDrawer({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  // Start on Close, like the header's drawers.
+  React.useEffect(() => {
+    if (wide !== null) closeRef.current?.focus({ preventScroll: true });
+  }, [wide]);
+
+  // The pop-up keeps Tab inside it while it's open.
+  const keepFocusInside = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab" || !panelRef.current) return;
+    const items = Array.from(
+      panelRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex]:not([tabindex="-1"])'),
+    );
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  // What can be done here, so the actions box only shows when it has something in it.
+  const awaiting = isAwaitingPayment(payment.status);
+  const showSend = canSend && awaiting;
+  const showRefund = canManage && refundable > 0;
+  const showCancel = canManage && awaiting;
+  const showFinanceNote = !!suprahPay && !canManage && (awaiting || refundable > 0);
+  const hasActions = showFinanceNote || showSend || showRefund || showCancel;
 
   const authHeaders = async () => {
     const token = await getToken();
@@ -378,49 +478,14 @@ function DetailDrawer({
     ...(payment.failureReason ? [{ label: "Failure reason", val: payment.failureReason }] : []),
     ...(payment.customerNote ? [{ label: "Note to customer", val: payment.customerNote }] : []),
     // Notes are for the dealership's team only; customers never see them.
-    ...(payment.notes ? [{ label: "Internal notes", val: payment.notes }] : []),
+    ...(payment.notes ? [{ label: "Internal notes", val: <InternalNotes notes={payment.notes} /> }] : []),
   ];
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        left: 0,
-        bottom: 0,
-        zIndex: 900,
-        display: "flex",
-        justifyContent: "flex-end",
-      }}
-    >
-      <button
-        type="button"
-        aria-label="Close payment details"
-        onClick={onClose}
-        style={{
-          flex: 1,
-          border: "none",
-          background: "rgba(2, 6, 23, 0.32)",
-          cursor: "pointer",
-          padding: 0,
-        }}
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="Payment details"
-        style={{
-          width: "min(100vw, clamp(320px, 30vw, 440px))",
-          height: "100%",
-          background: T.hi,
-          borderLeft: `0.5px solid ${T.borderHi}`,
-          overflowY: "auto",
-          padding: "18px 16px 16px",
-          boxShadow: "-14px 0 44px rgba(0,0,0,0.22)",
-          animation: "drawerIn 0.22s ease both",
-        }}
-      >
+  // Until the screen size is known (the first moment after opening).
+  if (wide === null) return null;
+
+  const content = (
+    <>
         <div
           style={{
             display: "flex",
@@ -432,10 +497,11 @@ function DetailDrawer({
             borderBottom: `0.5px solid ${T.border}`,
           }}
         >
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: 0 }}>
+          <h3 id="payment-details-title" style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: 0 }}>
             Payment details
           </h3>
           <button
+            ref={closeRef}
             type="button"
             aria-label="Close payment details"
             onClick={onClose}
@@ -656,6 +722,7 @@ function DetailDrawer({
           </a>
         )}
 
+        {hasActions && (
         <div
           style={{
             background: T.surface,
@@ -667,13 +734,13 @@ function DetailDrawer({
             gap: 10,
           }}
         >
-          {suprahPay && !canManage && (
+          {showFinanceNote && (
             <p style={{ margin: 0, fontSize: 12.5, color: T.textSub, lineHeight: 1.5 }}>
               You can view this payment. Sending payment requests, cancelling and refunding need Finance access from your dealership&apos;s admin.
             </p>
           )}
 
-          {canSend && (payment.status === "pending" || payment.status === "failed") && (
+          {showSend && (
             <button
               onClick={() =>
                 action("Send request", async () => {
@@ -720,7 +787,7 @@ function DetailDrawer({
             </button>
           )}
 
-          {canManage && refundable > 0 && confirmRefund && (
+          {showRefund && confirmRefund && (
             <div
               role="alertdialog"
               aria-labelledby="refund-confirm-title"
@@ -802,7 +869,7 @@ function DetailDrawer({
             </div>
           )}
 
-          {canManage && refundable > 0 && !confirmRefund && (
+          {showRefund && !confirmRefund && (
             <button
               type="button"
               onClick={() => setConfirmRefund(true)}
@@ -831,7 +898,7 @@ function DetailDrawer({
             </button>
           )}
 
-          {canManage && (payment.status === "pending" || payment.status === "processing") && (
+          {showCancel && (
             <button
               onClick={() =>
                 action("Cancel", async () => {
@@ -879,8 +946,68 @@ function DetailDrawer({
             </button>
           )}
         </div>
-      </aside>
-    </div>
+        )}
+    </>
+  );
+
+  if (wide) {
+    // Beside the list (same size and place as Notifications), no dark layer:
+    // the list stays usable and another payment opens here instead.
+    return createPortal(
+      <aside
+        id="payment-details-drawer"
+        aria-labelledby="payment-details-title"
+        className="fixed inset-y-0 right-0 z-[60] w-[340px] xl:w-[380px] motion-reduce:animate-none"
+        style={{
+          background: T.hi,
+          borderLeft: `0.5px solid ${T.borderHi}`,
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          padding: "max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px 16px",
+          boxShadow: "-14px 0 44px rgba(0,0,0,0.22)",
+          animation: "drawerIn 0.22s ease both",
+        }}
+      >
+        {content}
+      </aside>,
+      document.body,
+    );
+  }
+
+  // Phones and tablets: in the middle, as big as the screen allows (notch and
+  // home bar left clear), scrolling inside when the details are long.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[65] flex items-center justify-center"
+      style={{
+        padding:
+          "max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))",
+      }}
+    >
+      <div aria-hidden="true" onClick={onClose} className="absolute inset-0" style={{ background: "rgba(2, 6, 23, 0.5)" }} />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payment-details-title"
+        onKeyDown={keepFocusInside}
+        className="relative w-full max-w-[480px] motion-reduce:animate-none"
+        style={{
+          maxHeight: "100%",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          borderRadius: 16,
+          background: T.hi,
+          border: `0.5px solid ${T.borderHi}`,
+          padding: "18px 16px 16px",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+          animation: "modalIn 0.18s ease both",
+        }}
+      >
+        {content}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1015,6 +1142,27 @@ export default function PaymentsPage() {
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [selected, setSelected] = React.useState<Payment | null>(null);
+  // The payment row that opened the details, so closing them goes back to it.
+  const openerRef = React.useRef<HTMLElement | null>(null);
+  const headerDrawerOpen = useHeaderDrawerOpen();
+
+  // One drawer at a time (2026-11-23): opening a payment closes Notifications
+  // or SuprahSpace the same way their own button does...
+  const openPayment = React.useCallback((payment: Payment) => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    for (const button of openHeaderDrawerButtons()) button.click();
+    setSelected(payment);
+  }, []);
+  const closePayment = React.useCallback(() => {
+    setSelected(null);
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (opener && document.contains(opener)) requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+  }, []);
+  // ...and opening one of those closes Payment details.
+  React.useEffect(() => {
+    if (headerDrawerOpen) setSelected(null);
+  }, [headerDrawerOpen]);
   const [filterPanelOpen, setFilterPanelOpen] = React.useState(false);
   const [advancedFilters, setAdvancedFilters] = React.useState<AdvancedPaymentFilters>(defaultAdvancedFilters);
   const [draftFilters, setDraftFilters] = React.useState<AdvancedPaymentFilters>(defaultAdvancedFilters);
@@ -1145,10 +1293,11 @@ export default function PaymentsPage() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes slideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
         @keyframes drawerIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes modalIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
         @keyframes skeletonShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
       `}</style>
 
-      <div style={{ background: T.bg, minHeight: "100%" }}>
+      <div className={selected ? "lg:pr-[340px] xl:pr-[380px]" : undefined} style={{ background: T.bg, minHeight: "100%" }}>
         <div
           style={{
             maxWidth: 1240,
@@ -1609,7 +1758,7 @@ export default function PaymentsPage() {
                   <PaymentRow
                     key={payment._id}
                     payment={payment}
-                    onSelect={() => setSelected(payment)}
+                    onSelect={() => openPayment(payment)}
                   />
                 ))}
               </div>
@@ -1916,7 +2065,7 @@ export default function PaymentsPage() {
         <DetailDrawer
           key={selected._id}
           payment={selected}
-          onClose={() => setSelected(null)}
+          onClose={closePayment}
           onRefresh={fetchData}
           getToken={getToken}
           toast={push}
