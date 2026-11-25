@@ -52,7 +52,10 @@ test('The load page shows who pays, the invoice, the cash and whether the driver
   assert.match(card, /Pricing was skipped, so this load is settled outside Suprah: your staff pay the driver directly\./);
   assert.match(card, /Choose who pays/);
   // Switching between SuprahPay and cash only until it's paid or the cash is confirmed.
-  assert.match(card, /const canSwitch = !!billing\?\.billTo && billing\.billTo === "customer" && !outside && !cancelled && !paid && !cashSettled/);
+  // Sending or cancelling invoices: admins and Finance access only (B4).
+  assert.match(card, /const canManage = !!settings\.data\?\.canManagePayments/);
+  assert.match(card, /const canSwitch = canManage && !!billing\?\.billTo && billing\.billTo === "customer" && !outside && !cancelled && !paid && !cashSettled/);
+  assert.match(card, /Your dealership&apos;s admins and staff with Finance access can choose it\./);
   assert.doesNotMatch(card, /\btruncate\b/);
 });
 
@@ -94,4 +97,12 @@ test('COP/COD: the driver confirms the cash, the customer confirms paying', () =
 test("A booked shipment's SuprahPay invoice can't be cancelled by the customer", () => {
   const payments = read('app/(customer)/customer/payments/page.tsx');
   assert.match(payments, /const cancellable = inv\.billedTo !== "customer" && \(/);
+});
+
+test('Payment started shows as soon as Pay is pressed, and coming back to SuprahPay puts unpaid ones back to due', () => {
+  const payments = read('app/(customer)/customer/payments/page.tsx');
+  assert.match(payments, /const shownStatus = paying \? "processing" : inv\.status;/);
+  assert.match(payments, /await apiClient\.post\("\/api\/payments\/checkout-return"\)/);
+  const cash = read('components/customer/CustomerCashPayments.tsx');
+  assert.match(cash, /couldn&apos;t be loaded\. Refresh to try again\./);
 });

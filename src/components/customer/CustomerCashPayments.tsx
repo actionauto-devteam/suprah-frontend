@@ -50,7 +50,14 @@ export function CustomerCashPayments() {
   };
 
   const list = cash.data ?? [];
-  if (cash.isLoading || cash.isError || list.length === 0) return null;
+  if (cash.isError) {
+    return (
+      <p role="alert" className="rounded-2xl border border-border/50 bg-card px-4 py-3 text-xs text-muted-foreground break-words">
+        Your cash payments to drivers couldn&apos;t be loaded. Refresh to try again.
+      </p>
+    );
+  }
+  if (cash.isLoading || list.length === 0) return null;
 
   return (
     <section aria-labelledby="cash-payments-title" className="space-y-3 rounded-2xl border border-border/50 bg-card p-4">

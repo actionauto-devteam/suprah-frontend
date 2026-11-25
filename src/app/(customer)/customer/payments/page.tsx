@@ -103,7 +103,9 @@ function InvoiceCard({
   onPay: () => void;
   onCancel: () => void;
 }) {
-  const meta = STATUS_META[inv.status];
+  // "Payment started" as soon as Pay is pressed, while Stripe's page opens (2026-11-25).
+  const shownStatus = paying ? "processing" : inv.status;
+  const meta = STATUS_META[shownStatus];
   const Icon = meta.icon;
   // "processing" = a Stripe payment page was opened. Pay stays available: the
   // server checks that page with Stripe first, so nobody pays twice.
@@ -134,7 +136,7 @@ function InvoiceCard({
           )}
         </div>
         <span className={cn("inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide font-mono px-2 py-1 rounded-full shrink-0", meta.cls)}>
-          <Icon className={cn("h-3 w-3", inv.status === "processing" && "animate-spin")} />
+          <Icon className={cn("h-3 w-3", shownStatus === "processing" && "animate-spin")} />
           {meta.label}
         </span>
       </div>
@@ -340,6 +342,17 @@ function PaymentsView() {
       // Buy Now created an invoice and sent us here — launch Checkout for it.
       payInvoice(pay);
       router.replace("/customer/payments");
+    } else {
+      // Back on SuprahPay (pressing Pay leaves this tab for Stripe's page), so
+      // any "Payment started" invoice they didn't pay goes back to due (2026-11-25).
+      void (async () => {
+        try {
+          const res = await apiClient.post("/api/payments/checkout-return");
+          if ((res.data as { data?: { changed?: number } })?.data?.changed) refetch();
+        } catch {
+          // Their invoices still go back to due the next time they open SuprahPay.
+        }
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);

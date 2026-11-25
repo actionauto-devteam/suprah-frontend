@@ -69,6 +69,8 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
   const [saving, setSaving] = React.useState(false)
 
   if (!billing && !settings.data?.enabled) return null
+  // Sending or cancelling invoices is for admins and staff with Finance access (decision B4).
+  const canManage = !!settings.data?.canManagePayments
 
   const save = async (body: unknown, done: string) => {
     setSaving(true)
@@ -93,7 +95,7 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
   }
 
   // A customer load can switch between SuprahPay and cash until it's paid or the cash is confirmed.
-  const canSwitch = !!billing?.billTo && billing.billTo === "customer" && !outside && !cancelled && !paid && !cashSettled
+  const canSwitch = canManage && !!billing?.billTo && billing.billTo === "customer" && !outside && !cancelled && !paid && !cashSettled
   const switchTo = (method: LoadBillingMethod) => {
     // A customer load without a quote needs a shipping price for SuprahPay: ask for it.
     if (method === "suprahpay" && !load.quoteId && !billing?.shippingPrice) {
@@ -115,7 +117,7 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
     )
   }
   const invoiceMissing =
-    !!billing?.billTo && billing.method === "suprahpay" && !outside && !cancelled && (!invoice || invoice.status === "cancelled")
+    canManage && !!billing?.billTo && billing.method === "suprahpay" && !outside && !cancelled && (!invoice || invoice.status === "cancelled")
 
   return (
     <Card className="border-border shadow-sm bg-card">
@@ -133,10 +135,10 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
             <div className="space-y-3">
               <LoadBillingFields value={input} onChange={setInput} carrierPay={carrierPay} idPrefix={`billing-${load._id}`} problem={tried ? problem : null} />
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={submitChoice} disabled={saving}>
+                <Button size="sm" className="min-h-11 sm:min-h-9" onClick={submitChoice} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null} Save
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setChoosing(false)} disabled={saving}>Cancel</Button>
+                <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setChoosing(false)} disabled={saving}>Cancel</Button>
               </div>
             </div>
         ) : !billing?.billTo ? (
@@ -147,7 +149,11 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
               <p className="text-sm text-muted-foreground break-words">
                 Who pays for this load&apos;s shipping hasn&apos;t been chosen yet. Choose it before paying the driver through SuprahPay.
               </p>
-              <Button size="sm" variant="outline" onClick={() => setChoosing(true)}>Choose who pays</Button>
+              {canManage ? (
+                <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setChoosing(true)}>Choose who pays</Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">Your dealership&apos;s admins and staff with Finance access can choose it.</p>
+              )}
             </div>
           )
         ) : (
@@ -196,6 +202,7 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
               <Button
                 size="sm"
                 variant="outline"
+                className="min-h-11 sm:min-h-9"
                 disabled={saving}
                 onClick={() =>
                   save(
@@ -212,13 +219,13 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
               </Button>
             )}
             {canSwitch && billing?.method !== "suprahpay" && (
-              <Button size="sm" variant="outline" disabled={saving} onClick={() => switchTo("suprahpay")}>Switch to a SuprahPay invoice</Button>
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("suprahpay")}>Switch to a SuprahPay invoice</Button>
             )}
             {canSwitch && billing?.method !== "cop" && (
-              <Button size="sm" variant="outline" disabled={saving} onClick={() => switchTo("cop")}>Switch to cash at pickup</Button>
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("cop")}>Switch to cash at pickup</Button>
             )}
             {canSwitch && billing?.method !== "cod" && (
-              <Button size="sm" variant="outline" disabled={saving} onClick={() => switchTo("cod")}>Switch to cash on delivery</Button>
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("cod")}>Switch to cash on delivery</Button>
             )}
           </div>
         )}
