@@ -15,6 +15,9 @@ import {
   updateLoad,
   uploadVehicleInspectionPhoto,
 } from "@/lib/api/loads"
+import { useSuprahPaySettings } from "@/hooks/useSuprahPay"
+import { LoadBillingFields } from "@/components/transportation/LoadBillingFields"
+import { EMPTY_BILLING_INPUT, billingInputProblem, billingInputToSend, type LoadBillingInput } from "@/lib/load-billing"
 import { apiClient } from "@/lib/api-client"
 import type { Load } from "@/types/load"
 import {
@@ -296,6 +299,13 @@ export function LoadFormLayout({
         ? mapPricingFromLoad(copySource.pricing, postType)
         : { isPricingEnabled: true, isVisibleToDriver: true },
   )
+  // Who pays for shipping (SuprahPay, 2026-11-25): asked in Create Load when
+  // the dealership has SuprahPay on. Editing shows it on the load page instead.
+  const suprahPaySettings = useSuprahPaySettings()
+  const billingOn = !isEdit && !!suprahPaySettings.data?.enabled
+  // Loads with a billing choice don't take a partial COP/COD amount: cash is all or nothing.
+  const billingManaged = billingOn || (isEdit && !!(initialLoad as { billing?: { billTo?: string } } | undefined)?.billing?.billTo)
+  const [billingInput, setBillingInput] = React.useState<LoadBillingInput>(EMPTY_BILLING_INPUT)
   const [contract, setContract] = React.useState<LoadContract>(() =>
     isEdit
       ? mapContractFromLoad(initialLoad!.contract)
@@ -424,6 +434,19 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
       return
     }
 
+    // Who pays for shipping must be chosen before the load is saved.
+    const billingCarrierPay =
+      pricing.isPricingEnabled === false || typeof pricing.carrierPayAmount !== "number" ? null : pricing.carrierPayAmount
+    const billingProblem =
+      billingOn && pricing.isPricingEnabled !== false ? billingInputProblem(billingInput, billingCarrierPay) : null
+    if (billingProblem) {
+      setShowValidationErrors(true)
+      toast.error(billingProblem)
+      const idx = steps.findIndex((s) => s.key === "pricing")
+      if (idx >= 0) setStepIndex(idx)
+      return
+    }
+
     setShowValidationErrors(false)
     for (const warning of validation.warnings) toast.warning(warning)
 
@@ -479,6 +502,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         trailerType,
         pricing,
         soldOnDelivery: soldOnDelivery ?? undefined,
+        ...(billingOn && pricing.isPricingEnabled !== false ? { billing: billingInputToSend(billingInput) } : {}),
       })
 
       if (warning) toast.warning(warning)
@@ -709,7 +733,29 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             trailerType={trailerType}
             pricing={pricing}
             onChange={setPricing}
+            hideCash={billingManaged}
           />
+        )}
+
+        {step.key === "pricing" && billingOn && pricing.isPricingEnabled !== false && (
+          <div className="mt-4 rounded-xl border border-border/60 bg-background/40 p-4">
+            <LoadBillingFields
+              value={billingInput}
+              onChange={setBillingInput}
+              carrierPay={typeof pricing.carrierPayAmount === "number" ? pricing.carrierPayAmount : null}
+              idPrefix="create-load-billing"
+              problem={
+                showValidationErrors
+                  ? billingInputProblem(billingInput, typeof pricing.carrierPayAmount === "number" ? pricing.carrierPayAmount : null)
+                  : null
+              }
+            />
+          </div>
+        )}
+        {step.key === "pricing" && billingOn && pricing.isPricingEnabled === false && (
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+            With pricing skipped, this load is settled outside Suprah: your staff pay the driver directly, and nobody gets a SuprahPay invoice for it.
+          </p>
         )}
 
         {step.key === "assignment" && (
@@ -911,6 +957,8 @@ interface PricingPanelProps {
   trailerType: string
   pricing: LoadPricingInput
   onChange: (p: LoadPricingInput) => void
+  /** Who pays is chosen instead (SuprahPay): no partial COP/COD amount or balance. */
+  hideCash?: boolean
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -923,6 +971,7 @@ function PricingPanel({
   trailerType,
   pricing,
   onChange,
+  hideCash = false,
 }: PricingPanelProps) {
   const [estimate, setEstimate] = React.useState<RateResult | null>(null)
   const [isCalculating, setIsCalculating] = React.useState(false)
@@ -1266,6 +1315,7 @@ function PricingPanel({
             inputMode="decimal"
           />
         </label>
+        {!hideCash && (<>
         <label className="block min-w-0">
           <span className="block text-[11px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
             COP / COD (USD)
@@ -1291,6 +1341,7 @@ function PricingPanel({
             </span>
           </div>
         </div>
+        </>)}
       </div>
 
       {/* Sync hint — only once both sides are live */}

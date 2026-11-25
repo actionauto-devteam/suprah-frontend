@@ -1,6 +1,7 @@
 import type { ConditionReport, DeliverySignature } from "@/lib/condition-report";
 import type { QuoteLeadRef } from "@/lib/quote-lead";
 import type { LoadGarageState } from "@/lib/load-garage";
+import type { LoadBilling, LoadBillingSummary } from "@/lib/load-billing";
 import type { PortalCustomerSummary } from "@/types/transportation";
 
 export interface LoadLocation {
@@ -90,6 +91,10 @@ export interface Load {
   } | null;
   /** Delivered customer requests only: whether the car can go to the customer's My Garage. */
   garage?: LoadGarageState | null;
+  /** Who pays for shipping and how (SuprahPay, 2026-11-25). */
+  billing?: LoadBilling | null;
+  /** Staff load page: the shipping invoice and whether the driver can be paid. */
+  billingSummary?: LoadBillingSummary | null;
   loadNumber: string;
   postType: "load-board" | "assign-carrier";
   status: LoadStatus;

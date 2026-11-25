@@ -40,6 +40,8 @@ export interface DeliverableLoad {
   };
   existingPayout?: DriverPayout | null;
   pendingConfirmation?: boolean;
+  /** Whether SuprahPay can pay the driver now (the load's carrier pay), or why not (2026-11-25). */
+  driverPay?: { ok: true; amount: number } | { ok: false; code: string; message: string };
   proofOfDelivery?: {
     imageUrl: string;
     submittedAt: string;

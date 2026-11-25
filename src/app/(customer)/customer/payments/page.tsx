@@ -47,6 +47,8 @@ interface PaymentInvoice {
   currency: string;
   status: "pending" | "processing" | "succeeded" | "failed" | "refunded" | "cancelled";
   source?: "manual" | "aftermarket";
+  /** "customer": Suprah's shipping invoice for a booked load (2026-11-25). */
+  billedTo?: "customer";
   dueDate?: string;
   paidAt?: string;
   receiptUrl?: string;
@@ -106,7 +108,8 @@ function InvoiceCard({
   // "processing" = a Stripe payment page was opened. Pay stays available: the
   // server checks that page with Stripe first, so nobody pays twice.
   const payable = inv.status === "pending" || inv.status === "failed" || inv.status === "processing";
-  const cancellable = inv.status === "pending" || inv.status === "failed" || inv.status === "processing";
+  // A booked shipment's invoice is cancelled with the shipment, not here (2026-11-25).
+  const cancellable = inv.billedTo !== "customer" && (inv.status === "pending" || inv.status === "failed" || inv.status === "processing");
 
   return (
     <div className="rounded-[14px] border border-border bg-card overflow-hidden">
