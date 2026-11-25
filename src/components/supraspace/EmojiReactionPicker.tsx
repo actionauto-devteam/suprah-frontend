@@ -93,14 +93,14 @@ export function EmojiReactionPicker({ onSelect, onClose, position }: EmojiReacti
       </div>
 
       { }
-      <div className="flex items-center gap-0.5 px-1.5 py-1 border-b border-white/10 shrink-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+      <div className="grid grid-cols-12 gap-0.5 px-1.5 py-1 border-b border-white/10 shrink-0">
         {EMOJI_CATS.map(cat => (
           <button
             key={cat.key}
             onClick={() => { setActiveCat(cat.key); setSearch(''); }}
             title={cat.label}
             className={cn(
-              'shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-base transition-colors',
+              'h-7 w-full min-w-0 rounded-lg flex items-center justify-center text-base transition-colors',
               activeCat === cat.key && !search
                 ? 'bg-(--positive-muted,rgba(52,201,125,0.2)) text-white'
                 : 'hover:bg-white/10 text-white/50'

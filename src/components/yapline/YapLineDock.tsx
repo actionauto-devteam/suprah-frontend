@@ -56,6 +56,8 @@ import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
 import { YapLineSummonMenu } from "@/components/yapline/YapLineSummonMenu";
 import { useDraggableWidget } from "@/hooks/useDraggableWidget";
 
+const PHONE_SCREEN_QUERY = "(max-width: 767px), (pointer: coarse) and (max-height: 500px)";
+
 const ini = (name?: string | null) =>
   (name || "?")
     .split(/\s+/)
@@ -121,6 +123,7 @@ export function YapLineDock() {
   const router = useRouter();
   const { conversations } = useSupraSpaceMessenger();
   const [mounted, setMounted] = React.useState(false);
+  const [phoneScreen, setPhoneScreen] = React.useState(false);
   const [fullscreen, setFullscreen] = React.useState(false);
   const [inviteConv, setInviteConv] = React.useState<
     { _id: string; name?: string; members: Array<{ _id: string }> } | null
@@ -128,6 +131,14 @@ export function YapLineDock() {
   const { setNode, style: dragStyle, handleProps } = useDraggableWidget("yapline-dock-pos");
 
   React.useEffect(() => setMounted(true), []);
+
+  React.useEffect(() => {
+    const query = window.matchMedia(PHONE_SCREEN_QUERY);
+    const update = () => setPhoneScreen(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   const cur = s.current;
   const liveSessions = Object.values(s.sessions);
@@ -168,7 +179,7 @@ export function YapLineDock() {
     return () => window.removeEventListener("keydown", onKey);
   }, [cur, s.pttKey]);
 
-  if (!mounted) return null;
+  if (!mounted || phoneScreen) return null;
   if (!cur && liveSessions.length === 0 && monitorList.length === 0) return null;
 
   /* ── The orb: the dock's only resting state ───────────────────────────── */

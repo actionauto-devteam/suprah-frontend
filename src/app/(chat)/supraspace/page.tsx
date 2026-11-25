@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { showShortStatusNotice } from '@/components/layout/SystemStatusBanner';
 import { useAuth } from '@/providers/AuthProvider';
 import { SSConversation, SSMessage, SSAttachment, SSLastReaction, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
@@ -71,9 +72,9 @@ import { getOperationalMessageKind, OperationalMessageCard, type OperationalMess
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, supraSpaceMessageToPlainText, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, keepSupraSpaceListMarkerOnSelectionEdit, writeSupraSpaceMessageToClipboard, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -5183,6 +5184,8 @@ const Bubble = React.memo(function Bubble({
   const [pickerPos, setPickerPos] = React.useState<PickerPosition | null>(null);
   const pickerPosRef = React.useRef<PickerPosition | null>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const barWidthRef = React.useRef(0);
+  const barHeightRef = React.useRef(0);
   const [mobileMenu, setMobileMenu] = React.useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = React.useState(false);
   const [mobileEmojiSheetOpen, setMobileEmojiSheetOpen] = React.useState(false);
@@ -5384,10 +5387,10 @@ const Bubble = React.memo(function Bubble({
     });
   };
   const copyMessageText = async () => {
-    const text = normalizeMessageMarkdownText(stripCopiedTextArtifacts(message.content || '')).trim();
+    const text = supraSpaceMessageToPlainText(normalizeMessageMarkdownText(stripCopiedTextArtifacts(message.content || '')));
     if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await writeSupraSpaceMessageToClipboard(markdownTextToEditorHtml(message.content || ''), text);
       toast.success('Message copied');
     } catch {
       toast.error('Could not copy message');
@@ -5408,7 +5411,7 @@ const Bubble = React.memo(function Bubble({
     if (!message.content || !event.clipboardData) return;
     event.preventDefault();
     event.clipboardData.setData('text/html', markdownTextToEditorHtml(message.content));
-    event.clipboardData.setData('text/plain', stripRichTextMarkupForPlainPaste(message.content));
+    event.clipboardData.setData('text/plain', supraSpaceMessageToPlainText(message.content));
   }, [message.content]);
   const syncEditDraft = React.useCallback(() => {
     const next = editAreaRef.current ? serializeVisibleRichText(editAreaRef.current) : '';
@@ -5940,23 +5943,41 @@ const Bubble = React.memo(function Bubble({
     if (!bubbleRef.current) return;
     const rect = bubbleRef.current.getBoundingClientRect();
     const isMobileMode = mode === 'mobile';
-    const BAR_W = isMobileMode ? 262 : 175;
+    const BAR_W = barWidthRef.current || (isMobileMode ? 262 : 175);
     const PAD = 8;
     const chatBoundary = bubbleRowRef.current
       ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
       ?.getBoundingClientRect();
     const minLeft = Math.max(PAD, (chatBoundary?.left ?? 0) + PAD);
     const maxLeft = Math.min(window.innerWidth - BAR_W - PAD, (chatBoundary?.right ?? window.innerWidth) - BAR_W - PAD);
-    const below = isMobileMode ? rect.top < 62 : rect.top < 120;
     const barLeft = isOwn
       ? Math.min(maxLeft, rect.left, rect.right - BAR_W)
       : Math.max(minLeft, rect.left, rect.right - BAR_W);
+    const messageArea = bubbleRowRef.current
+      ?.closest<HTMLElement>('.ss4-chat-messages')
+      ?.getBoundingClientRect();
+    const BAR_H = barHeightRef.current || (isMobileMode ? 48 : 30);
+    const aboveTop = rect.top - (isMobileMode ? 48 : 36);
+    const below = messageArea
+      ? aboveTop < messageArea.top + 4
+      : isMobileMode ? rect.top < 62 : rect.top < 120;
+    const top = below ? rect.bottom + (isMobileMode ? 8 : 4) : aboveTop;
     setActionsBelow(below);
     setActionBarPos({
-      top: below ? rect.bottom + (isMobileMode ? 8 : 4) : rect.top - (isMobileMode ? 48 : 36),
+      top: messageArea ? Math.max(messageArea.top + 4, Math.min(top, messageArea.bottom - BAR_H - 4)) : top,
       left: Math.max(minLeft, Math.min(maxLeft, barLeft)),
     });
   }, [isOwn]);
+
+  React.useLayoutEffect(() => {
+    const bar = hov && actionBarPos ? menuRef.current : null;
+    const width = bar?.offsetWidth ?? 0;
+    const height = bar?.offsetHeight ?? 0;
+    if (!width || (width === barWidthRef.current && height === barHeightRef.current)) return;
+    barWidthRef.current = width;
+    barHeightRef.current = height;
+    positionActionBar('desktop');
+  }, [hov, actionBarPos, positionActionBar]);
 
   const showDesktopActions = React.useCallback(() => {
     if (typeof window !== 'undefined' && window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
@@ -6462,6 +6483,7 @@ const Bubble = React.memo(function Bubble({
                 onKeyUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                                if ((e.key === 'Backspace' || e.key === 'Delete' || e.key.length === 1) && !e.ctrlKey && !e.metaKey && !e.altKey) keepSupraSpaceListMarkerOnSelectionEdit(e.currentTarget);
                                 if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
                                   e.preventDefault();
                                   document.execCommand('delete');
@@ -6841,20 +6863,25 @@ const Bubble = React.memo(function Bubble({
                 <button
                   onClick={(e) => {
                     const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const bar = menuRef.current?.getBoundingClientRect() ?? btn;
                     const chatBoundary = bubbleRowRef.current
                       ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
                       ?.getBoundingClientRect();
+                    const messageArea = bubbleRowRef.current
+                      ?.closest<HTMLElement>('.ss4-chat-messages')
+                      ?.getBoundingClientRect() ?? chatBoundary;
+                    const areaTop = messageArea?.top ?? 0;
+                    const areaBottom = messageArea?.bottom ?? window.innerHeight;
+                    const openAbove = bar.top - areaTop >= 348 || bar.top - areaTop >= areaBottom - bar.bottom;
                     const pos = {
-                      top: btn.top - 348,
-                      ...(chatBoundary ? {
-                        boundary: {
-                          top: chatBoundary.top,
-                          right: chatBoundary.right,
-                          bottom: chatBoundary.bottom,
-                          left: chatBoundary.left,
-                        },
-                      } : {}),
-                      ...(isOwn ? { right: Math.max(8, window.innerWidth - btn.right) } : { left: btn.left }),
+                      top: openAbove ? bar.top - 348 : bar.bottom + 8,
+                      boundary: {
+                        top: openAbove ? areaTop : bar.bottom,
+                        right: chatBoundary?.right ?? window.innerWidth,
+                        bottom: openAbove ? bar.top : areaBottom,
+                        left: chatBoundary?.left ?? 0,
+                      },
+                      ...(isOwn ? { right: Math.max(8, window.innerWidth - bar.right) } : { left: bar.left }),
                     };
                     pickerPosRef.current ? closePicker() : openPicker(pos);
                   }}
@@ -6883,25 +6910,36 @@ const Bubble = React.memo(function Bubble({
                     const willOpen = !moreActionsOpenRef.current;
                     if (willOpen && moreActionsRef.current) {
                       const rect = moreActionsRef.current.getBoundingClientRect();
+                      const bar = menuRef.current?.getBoundingClientRect() ?? rect;
                       const PAD = 10;
+                      const chatBoundary = bubbleRowRef.current
+                        ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
+                        ?.getBoundingClientRect();
+                      const messageArea = bubbleRowRef.current
+                        ?.closest<HTMLElement>('.ss4-chat-messages')
+                        ?.getBoundingClientRect() ?? chatBoundary;
+                      const areaLeft = Math.max(0, chatBoundary?.left ?? 0);
+                      const areaRight = Math.min(window.innerWidth, chatBoundary?.right ?? window.innerWidth);
+                      const areaTop = Math.max(0, messageArea?.top ?? 0);
+                      const areaBottom = Math.min(window.innerHeight, messageArea?.bottom ?? window.innerHeight);
                       const preferredWidth = 228;
-                      const width = Math.min(preferredWidth, window.innerWidth - PAD * 2);
-                      const openDown = rect.top < 320;
+                      const width = Math.min(preferredWidth, areaRight - areaLeft - PAD * 2);
+                      const roomBelow = areaBottom - bar.bottom - 6 - PAD;
+                      const roomAbove = bar.top - 6 - areaTop - PAD;
+                      const openDown = roomBelow >= 380 || roomBelow >= roomAbove;
                       const left = Math.max(
-                        PAD,
+                        areaLeft + PAD,
                         Math.min(
-                          window.innerWidth - width - PAD,
+                          areaRight - width - PAD,
                           rect.left + rect.width / 2 - width / 2,
                         ),
                       );
-                      const availableHeight = openDown
-                        ? window.innerHeight - rect.bottom - PAD
-                        : rect.top - PAD;
+                      const availableHeight = openDown ? roomBelow : roomAbove;
 
                       setDropdownFixedPos({
                         ...(openDown
-                          ? { top: rect.bottom + 6 }
-                          : { bottom: window.innerHeight - rect.top + 6 }),
+                          ? { top: bar.bottom + 6 }
+                          : { bottom: window.innerHeight - bar.top + 6 }),
                         left,
                         width,
                         maxHeight: Math.max(180, Math.min(380, availableHeight)),
@@ -7818,6 +7856,7 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
     } catch {
       setGifs([]);
       setUnavailable(true);
+      showShortStatusNotice('GIF search is temporarily unavailable. Please try again later.');
     } finally { setLoading(false); }
   }, [mobileInline]);
   React.useEffect(() => {
@@ -15793,6 +15832,7 @@ export default function SupraSpacePage() {
                               }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                                if ((e.key === 'Backspace' || e.key === 'Delete' || e.key.length === 1) && !e.ctrlKey && !e.metaKey && !e.altKey) keepSupraSpaceListMarkerOnSelectionEdit(e.currentTarget);
                                 if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
                                   e.preventDefault();
                                   document.execCommand('delete');

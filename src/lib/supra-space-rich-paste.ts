@@ -237,6 +237,124 @@ export function removeSupraSpaceInvisibleMarkersBeforeCaret(root: HTMLElement): 
   return true;
 }
 
+export async function writeSupraSpaceMessageToClipboard(html: string, plainText: string): Promise<void> {
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+      })]);
+      return;
+    } catch {
+      await navigator.clipboard.writeText(plainText);
+      return;
+    }
+  }
+  await navigator.clipboard.writeText(plainText);
+}
+
+export function keepSupraSpaceListMarkerOnSelectionEdit(root: HTMLElement): boolean {
+  const doc = root.ownerDocument;
+  const selection = doc.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+  const range = selection.getRangeAt(0).cloneRange();
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return false;
+
+  const invisible = /[​-‍⁠﻿]/;
+  const visibleText = (from: Node, fromOffset: number, to: Node, toOffset: number) => {
+    const span = doc.createRange();
+    span.setStart(from, fromOffset);
+    span.setEnd(to, toOffset);
+    return span.toString().replace(/[​-‍⁠﻿]/g, '');
+  };
+  const apply = () => {
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  };
+
+  const whole = doc.createRange();
+  whole.selectNodeContents(root);
+  if (
+    !visibleText(whole.startContainer, whole.startOffset, range.startContainer, range.startOffset)
+    && !visibleText(range.endContainer, range.endOffset, whole.endContainer, whole.endOffset)
+  ) return false;
+
+  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer as Element
+    : range.startContainer.parentElement;
+  const item = startElement?.closest('li');
+  if (item && root.contains(item)) {
+    if (item.contains(range.endContainer)) return false;
+    const itemEnd = doc.createRange();
+    itemEnd.selectNodeContents(item);
+    itemEnd.collapse(false);
+    if (visibleText(itemEnd.startContainer, itemEnd.startOffset, range.endContainer, range.endOffset)) return false;
+    if (!visibleText(range.startContainer, range.startOffset, itemEnd.startContainer, itemEnd.startOffset)) return false;
+    range.setEnd(itemEnd.startContainer, itemEnd.startOffset);
+    return apply();
+  }
+
+  let container: Element | null = startElement;
+  while (container && container !== root && !/^(DIV|P|BLOCKQUOTE|PRE|TD|TH)$/.test(container.tagName)) container = container.parentElement;
+  if (!container || !root.contains(container)) container = root;
+
+  const startPoint = range.cloneRange();
+  startPoint.collapse(true);
+  const lineStart = doc.createRange();
+  lineStart.selectNodeContents(container);
+  lineStart.collapse(true);
+  const lineEnd = doc.createRange();
+  lineEnd.selectNodeContents(container);
+  lineEnd.collapse(false);
+  for (const lineBreak of Array.from(container.querySelectorAll('br'))) {
+    const afterBreak = doc.createRange();
+    afterBreak.setStartAfter(lineBreak);
+    afterBreak.collapse(true);
+    if (afterBreak.compareBoundaryPoints(Range.START_TO_START, startPoint) <= 0) {
+      lineStart.setStart(afterBreak.startContainer, afterBreak.startOffset);
+      lineStart.collapse(true);
+      continue;
+    }
+    lineEnd.setStartBefore(lineBreak);
+    lineEnd.collapse(true);
+    break;
+  }
+
+  const lineText = visibleText(lineStart.startContainer, lineStart.startOffset, lineEnd.startContainer, lineEnd.startOffset);
+  const marker = lineText.match(/^[ \t ]*(?:\d+[.)]|[•◦▪])[ \t ]+/)?.[0];
+  if (!marker || lineText.length <= marker.length) return false;
+  const prefix = visibleText(lineStart.startContainer, lineStart.startOffset, range.startContainer, range.startOffset);
+  if (prefix.length >= marker.length) return false;
+
+  const endPoint = range.cloneRange();
+  endPoint.collapse(false);
+  if (endPoint.compareBoundaryPoints(Range.START_TO_START, lineEnd) > 0) {
+    if (visibleText(lineEnd.startContainer, lineEnd.startOffset, range.endContainer, range.endOffset)) return false;
+    range.setEnd(lineEnd.startContainer, lineEnd.startOffset);
+  }
+  if (visibleText(lineStart.startContainer, lineStart.startOffset, range.endContainer, range.endOffset).length <= marker.length) return false;
+
+  const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const lineRange = doc.createRange();
+  lineRange.setStart(lineStart.startContainer, lineStart.startOffset);
+  lineRange.setEnd(lineEnd.startContainer, lineEnd.startOffset);
+  let counted = 0;
+  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    if (!lineRange.intersectsNode(node)) continue;
+    const from = node === lineStart.startContainer ? lineStart.startOffset : 0;
+    for (let index = from; index < node.data.length; index += 1) {
+      if (invisible.test(node.data[index])) continue;
+      counted += 1;
+      if (counted === marker.length) {
+        range.setStart(node, index + 1);
+        return apply();
+      }
+    }
+  }
+  return false;
+}
+
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
   if (ordered) {
     return value.replace(/^\s*\d+[.)](?:\s+|(?=\S)|\s*$)/u, '');

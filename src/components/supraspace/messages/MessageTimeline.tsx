@@ -21,9 +21,15 @@ export const MessageTimeline = React.memo(function MessageTimeline({ messages, u
       const previousDate = previous ? dateLabel(previous.createdAt) : null;
       const nextDate = next ? dateLabel(next.createdAt) : null;
       const showDate = !previous || date !== previousDate;
-      const showAvatar = !previous || previous.sender?._id !== message.sender?._id || showDate;
+      const showAvatar = !previous
+        || previous.type === 'system'
+        || Boolean(previous.isDeleted)
+        || previous.sender?._id !== message.sender?._id
+        || showDate;
       const hideTime = Boolean(
         next
+        && next.type !== 'system'
+        && !next.isDeleted
         && next.sender?._id === message.sender?._id
         && nextDate === date
         && new Date(next.createdAt).getTime() - new Date(message.createdAt).getTime() < 5 * 60 * 1000,
