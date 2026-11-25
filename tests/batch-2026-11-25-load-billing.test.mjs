@@ -117,3 +117,11 @@ test('Cash to the driver is one choice, then at pickup (COP) or on delivery (COD
   assert.match(card, /Switch to cash to the driver \(COP\/COD\)/);
   assert.doesNotMatch(card, /Switch to cash at pickup|Switch to cash on delivery/);
 });
+
+test("Create Load's review shows who pays instead of the old partial cash amount", () => {
+  const review = read('components/create-load/ReviewSection.tsx');
+  assert.match(review, /\{whoPays \? \(\n\s+<Row label="Who pays" value=\{whoPays\} \/>/);
+  const form = read('components/create-load/LoadFormLayout.tsx');
+  assert.match(form, /whoPays=\{whoPaysLine\}/);
+  assert.match(form, /cash to the driver \$\{billingInput\.method === "cop" \? "at pickup \(COP\)" : "on delivery \(COD\)"\}/);
+});

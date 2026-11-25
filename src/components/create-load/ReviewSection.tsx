@@ -34,6 +34,8 @@ interface ReviewSectionProps {
   /** Edit mode only — the load's current assignee, shown read-only */
   currentAssigneeName?: string | null
   validation: StepValidation
+  /** Who pays for shipping (SuprahPay, 2026-11-26): shown instead of the partial COP/COD amount when it applies. */
+  whoPays?: string | null
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -80,6 +82,7 @@ export function ReviewSection({
   selectedDriverName,
   makeAvailable,
   currentAssigneeName,
+  whoPays,
   validation,
 }: ReviewSectionProps) {
   const trailerLabel =
@@ -167,6 +170,7 @@ export function ReviewSection({
                 label="Total Driver Pay"
                 value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
               />
+              {whoPays ? <Row label="Who pays" value={whoPays} /> : null}
               <Row
                 label="Driver pricing"
                 value={pricing.isVisibleToDriver === false ? "Hidden from driver" : "Visible to driver"}
@@ -178,10 +182,14 @@ export function ReviewSection({
                 label="Carrier Pay"
                 value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
               />
-              <Row
-                label="COP / COD"
-                value={pricing.copCodAmount != null ? `$${pricing.copCodAmount.toLocaleString()}` : "—"}
-              />
+              {whoPays ? (
+                <Row label="Who pays" value={whoPays} />
+              ) : (
+                <Row
+                  label="COP / COD"
+                  value={pricing.copCodAmount != null ? `$${pricing.copCodAmount.toLocaleString()}` : "—"}
+                />
+              )}
               <Row
                 label="$ / Mile"
                 value={pricing.pricePerMile != null ? `$${pricing.pricePerMile.toFixed(2)}` : "—"}

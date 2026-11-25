@@ -306,6 +306,19 @@ export function LoadFormLayout({
   // Loads with a billing choice don't take a partial COP/COD amount: cash is all or nothing.
   const billingManaged = billingOn || (isEdit && !!(initialLoad as { billing?: { billTo?: string } } | undefined)?.billing?.billTo)
   const [billingInput, setBillingInput] = React.useState<LoadBillingInput>(EMPTY_BILLING_INPUT)
+  // The review step's "Who pays" line (2026-11-26).
+  const whoPaysLine = React.useMemo(() => {
+    if (!billingManaged) return null
+    if (isEdit) return "See the load's Billing card"
+    if (!billingInput.billTo) return "Not chosen yet"
+    if (billingInput.billTo === "dealership") return "Your dealership (SuprahPay bill for the driver's pay)"
+    const who = billingInput.customerName.trim() || "The customer"
+    if (billingInput.method === "suprahpay") {
+      const price = Number(billingInput.shippingPrice)
+      return `${who}: SuprahPay invoice${billingInput.shippingPrice.trim() && Number.isFinite(price) ? ` for $${price.toFixed(2)}` : ""}`
+    }
+    return `${who}: cash to the driver ${billingInput.method === "cop" ? "at pickup (COP)" : "on delivery (COD)"}`
+  }, [billingManaged, isEdit, billingInput])
   const [contract, setContract] = React.useState<LoadContract>(() =>
     isEdit
       ? mapContractFromLoad(initialLoad!.contract)
@@ -807,6 +820,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
 
         {step.key === "review" && (
           <ReviewSection
+            whoPays={whoPaysLine}
             mode={isEdit ? "edit" : "create"}
             postType={postType}
             pickup={pickup}
