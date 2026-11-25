@@ -495,3 +495,42 @@ export function stripSupraSpaceFormattingForPreview(
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
+
+export function supraSpaceMessageToPlainText(content?: string | null): string {
+  if (!content) return '';
+  let inFence = false;
+  return stripSupraSpaceMarkdownLinksToLabels(
+    stripSupraSpaceControlMarkup(normalizeSupraSpaceLegacyMarkup(localizeSupraSpaceMultilineBold(content))),
+  )
+    .replace(/\r\n?/g, '\n')
+    .replace(/ /g, ' ')
+    .split('\n')
+    .flatMap(line => {
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return [];
+      }
+      if (inFence) return [line];
+      if (/^\s*(?:\*{3,}|-{3,}|_{3,})\s*$/.test(line)) return [''];
+      const escaped: string[] = [];
+      return [line
+        .replace(/\\([\\`*_[\]{}()#+\-.!~|>])/g, (_match, character: string) => {
+          escaped.push(character);
+          return `${escaped.length - 1}`;
+        })
+        .replace(/^(\s{0,3})#{1,6}\s+/, '$1')
+        .replace(/^(\s*)>\s?/, '$1')
+        .replace(/^(\s*)[*+](\s+)/, '$1•$2')
+        .replace(/\*\*\*(?=\S)([^*\n]*?\S)\*\*\*/g, '$1')
+        .replace(/\*\*(?=\S)([^*\n]*?\S)\*\*/g, '$1')
+        .replace(/(?<![\w_])___(?=\S)([^_\n]*?\S)___(?![\w_])/g, '$1')
+        .replace(/(?<![\w_])__(?=\S)([^_\n]*?\S)__(?![\w_])/g, '$1')
+        .replace(/~~(?=\S)([^~\n]*?\S)~~/g, '$1')
+        .replace(/`([^`\n]+)`/g, '$1')
+        .replace(/(?<![\w*])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?![\w*])/g, '$1')
+        .replace(/(?<![\w_])_(?=[^\s_])([^_\n]*?[^\s_])_(?![\w_])/g, '$1')
+        .replace(/(\d+)/g, (_match, index: string) => escaped[Number(index)] ?? '')];
+    })
+    .join('\n')
+    .trim();
+}

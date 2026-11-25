@@ -10,12 +10,13 @@ import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smil
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
+import { showShortStatusNotice } from '@/components/layout/SystemStatusBanner';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
 import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } from './composer/delivery-feedback';
 import { createMessageId } from './composer/send-state';
-import { containsSupraSpaceControlMarkup, localizeSupraSpaceMultilineBold, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, supraSpaceMessageToPlainText, localizeSupraSpaceMultilineBold, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, keepSupraSpaceListMarkerOnSelectionEdit, writeSupraSpaceMessageToClipboard, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
@@ -3350,6 +3351,7 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
     } catch {
       setGifs([]);
       setUnavailable(true);
+      showShortStatusNotice('GIF search is temporarily unavailable. Please try again later.');
     } finally { setLoading(false); }
   }, []);
   React.useEffect(() => {
@@ -4368,9 +4370,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // 3-dot more-actions dropdown
   const [moreMenuMsgId, setMoreMenuMsgId] = React.useState<string | null>(null);
-  const [moreMenuPos, setMoreMenuPos] = React.useState<{ top: number; left: number } | null>(null);
+  const [moreMenuPos, setMoreMenuPos] = React.useState<{ top: number; left: number; anchorTop?: number; anchorBottom?: number } | null>(null);
   const moreMenuRef = React.useRef<HTMLDivElement>(null);
   const moreMenuMsgIdRef = React.useRef<string | null>(null);
+
+  React.useLayoutEffect(() => {
+    const menu = moreMenuRef.current;
+    if (!menu || !moreMenuPos || moreMenuPos.anchorTop === undefined || moreMenuPos.anchorBottom === undefined) return;
+    const height = menu.offsetHeight;
+    const below = moreMenuPos.anchorBottom + 4;
+    const above = moreMenuPos.anchorTop - height - 4;
+    const top = below + height <= window.innerHeight - 8
+      ? below
+      : above >= 8 ? above : Math.max(8, window.innerHeight - 8 - height);
+    if (Math.abs(top - moreMenuPos.top) > 0.5) setMoreMenuPos({ ...moreMenuPos, top });
+  }, [moreMenuPos]);
 
   React.useEffect(() => {
     if (!moreMenuMsgId) return;
@@ -4518,13 +4532,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       || (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.rounded-2xl');
     const rect = (bubbleEl ?? e.currentTarget).getBoundingClientRect();
     const popupRect = (e.currentTarget.closest('[data-chat-popup-shell="true"]') as HTMLElement | null)?.getBoundingClientRect();
-    const BAR_W = 92;
-    const BAR_H = 32;
+    const listRect = (e.currentTarget.closest('[data-popup-chat-body="true"]') as HTMLElement | null)?.getBoundingClientRect();
+    const BAR_W = 94;
+    const BAR_H = 34;
     const PAD = 6;
     const minLeft = (popupRect?.left ?? 0) + PAD;
     const maxLeft = Math.max(minLeft, (popupRect?.right ?? window.innerWidth) - BAR_W - PAD);
-    const minTop = (popupRect?.top ?? 0) + HEADER_H + PAD;
-    const maxTop = Math.max(minTop, (popupRect?.bottom ?? window.innerHeight) - BAR_H - PAD);
+    const minTop = listRect ? listRect.top + 4 : (popupRect?.top ?? 0) + HEADER_H + PAD;
+    const maxTop = Math.max(minTop, listRect ? listRect.bottom - BAR_H - 4 : (popupRect?.bottom ?? window.innerHeight) - BAR_H - PAD);
     const preferredLeft = isOwn ? rect.left - BAR_W - 6 : rect.right + 6;
     const fitsBeside = preferredLeft >= minLeft && preferredLeft <= maxLeft;
     let barTop: number;
@@ -4533,7 +4548,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
       barLeft = preferredLeft;
     } else {
-      barTop = Math.max(minTop, rect.top - BAR_H - 6);
+      const aboveTop = rect.top - BAR_H - 6;
+      const belowTop = rect.bottom + 6;
+      barTop = aboveTop >= minTop ? Math.min(aboveTop, maxTop) : belowTop <= maxTop ? belowTop : minTop;
       barLeft = Math.max(minLeft, Math.min(rect.left + rect.width / 2 - BAR_W / 2, maxLeft));
     }
     const pos = { top: barTop, left: barLeft, isOwn };
@@ -6870,6 +6887,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if ((e.key === 'Backspace' || e.key === 'Delete' || e.key.length === 1) && !e.ctrlKey && !e.metaKey && !e.altKey) keepSupraSpaceListMarkerOnSelectionEdit(e.currentTarget);
     if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
       e.preventDefault();
       document.execCommand('delete');
@@ -7154,8 +7172,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const isOwn = msg.sender?._id === crmUserId;
                   const prevVisible = visibleMessages[idx - 1] || null;
                   const nextVisible = visibleMessages[idx + 1] || null;
-                  const showName = !isOwn && (!prevVisible || prevVisible.sender?._id !== msg.sender?._id);
+                  const showName = !isOwn && (!prevVisible || prevVisible.type === 'system' || prevVisible.sender?._id !== msg.sender?._id);
                   const hideTime = !!(nextVisible
+                    && nextVisible.type !== 'system'
                     && nextVisible.sender?._id === msg.sender?._id
                     && new Date(nextVisible.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
                   );
@@ -7372,6 +7391,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               onKeyUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                                if ((e.key === 'Backspace' || e.key === 'Delete' || e.key.length === 1) && !e.ctrlKey && !e.metaKey && !e.altKey) keepSupraSpaceListMarkerOnSelectionEdit(e.currentTarget);
                                 if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && removeSupraSpaceInvisibleMarkersBeforeCaret(e.currentTarget)) {
                                   e.preventDefault();
                                   document.execCommand('delete');
@@ -7684,7 +7704,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             if (!msg.content || !event.clipboardData) return;
                             event.preventDefault();
                             event.clipboardData.setData('text/html', markdownTextToEditorHtml(msg.content));
-                            event.clipboardData.setData('text/plain', stripRichTextMarkupForPlainPaste(msg.content));
+                            event.clipboardData.setData('text/plain', supraSpaceMessageToPlainText(msg.content));
                           }} style={{ ...getSupraSpaceMessageTextStyle(messageTextSize), overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
                             {/* Reply preview */}
                             {msg.replyTo && (
@@ -8418,10 +8438,13 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       {!isReadOnlyConversation && barPos && hovMsg && typeof document !== 'undefined' && createPortal(
         <div
           data-supraspace-action-ui="true"
-          className={cn('fixed z-9998 flex items-center gap-0.5 px-0.5 py-0.5', barPos.isOwn && 'flex-row-reverse')}
+          className={cn('fixed z-9998 flex items-center gap-0.5 px-0.5 py-0.5 rounded-full', barPos.isOwn && 'flex-row-reverse')}
           style={{
             top: barPos.top,
             left: barPos.left,
+            background: 'var(--popover)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
           }}
           onPointerEnter={handleBarEnter}
           onPointerLeave={handleBarLeave}
@@ -8435,7 +8458,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           {/* Emoji react button — opens quick-react popup */}
           <button title="React"
             className="hover:bg-white/10 rounded-full p-1.5 transition-colors"
-            style={{ color: quickReactMsgId === hovMsg ? '#16a34a' : 'rgba(255,255,255,0.55)' }}
+            style={{ color: quickReactMsgId === hovMsg ? '#16a34a' : 'var(--muted-foreground)' }}
             onClick={(e) => {
               e.stopPropagation();
               if (quickReactMsgId === hovMsg) {
@@ -8455,7 +8478,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           {/* Reply */}
           <button title="Reply"
             className="hover:bg-white/10 rounded-full p-1.5 transition-colors"
-            style={{ color: 'rgba(255,255,255,0.55)' }}
+            style={{ color: 'var(--muted-foreground)' }}
             onClick={() => handleReply(hovMsg)}
           >
             <Reply className="h-4 w-4" />
@@ -8465,7 +8488,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             type="button"
             title="More actions"
             className="hover:bg-white/10 rounded-full p-1.5 transition-colors"
-            style={{ color: moreMenuMsgId === hovMsg ? '#16a34a' : 'rgba(255,255,255,0.55)' }}
+            style={{ color: moreMenuMsgId === hovMsg ? '#16a34a' : 'var(--muted-foreground)' }}
             onPointerDown={event => {
               event.stopPropagation();
               handleBarEnter();
@@ -8496,9 +8519,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 Math.min(btn.left, (shell?.right ?? window.innerWidth) - 208 - 8),
               );
 
+              const barRect = (event.currentTarget.parentElement ?? event.currentTarget).getBoundingClientRect();
               moreMenuMsgIdRef.current = messageId;
               setMoreMenuMsgId(messageId);
-              setMoreMenuPos({ top, left });
+              setMoreMenuPos({ top, left, anchorTop: barRect.top, anchorBottom: barRect.bottom });
             }}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -8646,7 +8670,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </button>
                 {msg?.content && (
                   <button className={row} onClick={() => {
-                    navigator.clipboard.writeText(msg.content)
+                    writeSupraSpaceMessageToClipboard(markdownTextToEditorHtml(msg.content), supraSpaceMessageToPlainText(msg.content))
                       .then(() => toast.success('Message copied'))
                       .catch(() => toast.error('Could not copy message'));
                     close();

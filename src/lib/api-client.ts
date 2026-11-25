@@ -515,7 +515,7 @@ class ApiClient {
           );
         }
 
-        if (error.response?.status === 503) {
+        if (error.response?.status === 503 && !requestUrl.includes("/api/supraspace/gifs")) {
           notifyServiceDegraded(error.response.data?.message);
         }
 

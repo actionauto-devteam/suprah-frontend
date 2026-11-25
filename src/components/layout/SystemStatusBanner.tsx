@@ -5,14 +5,23 @@ import { CloudOff, X } from "lucide-react";
 
 const REARM_AFTER_DISMISS_MS = 60_000;
 const AUTO_HIDE_AFTER_QUIET_MS = 120_000;
+const SHORT_NOTICE_MS = 4_000;
 
 const DEFAULT_MESSAGE =
   "We're experiencing technical difficulties right now — some features may not work. Your account and data are safe. We're on it!";
+
+export function showShortStatusNotice(message: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("system:degraded", { detail: { message, hideAfterMs: SHORT_NOTICE_MS } })
+  );
+}
 
 export function SystemStatusBanner() {
   const [visible, setVisible] = React.useState(false);
   const [message, setMessage] = React.useState(DEFAULT_MESSAGE);
   const dismissedAtRef = React.useRef(0);
+  const shownRef = React.useRef<"" | "short" | "long">("");
   const hideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const bannerRef = React.useRef<HTMLDivElement>(null);
 
@@ -40,11 +49,17 @@ export function SystemStatusBanner() {
   React.useEffect(() => {
     const onDegraded = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (Date.now() - dismissedAtRef.current < REARM_AFTER_DISMISS_MS) return;
+      const hideAfterMs = Number(detail?.hideAfterMs) > 0 ? Number(detail.hideAfterMs) : 0;
+      if (hideAfterMs && shownRef.current === "long") return;
+      if (!hideAfterMs && Date.now() - dismissedAtRef.current < REARM_AFTER_DISMISS_MS) return;
+      shownRef.current = hideAfterMs ? "short" : "long";
       setMessage(typeof detail?.message === "string" && detail.message ? detail.message : DEFAULT_MESSAGE);
       setVisible(true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = setTimeout(() => setVisible(false), AUTO_HIDE_AFTER_QUIET_MS);
+      hideTimerRef.current = setTimeout(() => {
+        shownRef.current = "";
+        setVisible(false);
+      }, hideAfterMs || AUTO_HIDE_AFTER_QUIET_MS);
     };
 
     window.addEventListener("system:degraded", onDegraded);
@@ -70,7 +85,9 @@ export function SystemStatusBanner() {
         <button
           type="button"
           onClick={() => {
-            dismissedAtRef.current = Date.now();
+            if (shownRef.current === "long") dismissedAtRef.current = Date.now();
+            shownRef.current = "";
+            if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
             setVisible(false);
           }}
           aria-label="Dismiss notice"
