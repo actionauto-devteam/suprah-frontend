@@ -61,6 +61,8 @@ export interface PayoutAccount {
   needsMoreInfo?: boolean;
   detailsSubmitted?: boolean;
   needsReconnect?: boolean;
+  /** Set up or replaced, and waiting for a Suprah super admin to confirm it before payouts go to it (2026-11-23). */
+  awaitingConfirmation?: boolean;
   error?: string;
 }
 

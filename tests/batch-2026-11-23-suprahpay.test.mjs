@@ -114,3 +114,29 @@ test('the refund notice is a known notification type that opens SuprahPay', () =
   assert.match(utils, /payment_refunded: 'Refund',/);
   assert.equal(utils.split("payment_refunded: '/customer/payments'").length - 1, 2, 'staff and customer routes');
 });
+
+// ── Batch 7: a new or replaced payout account is held until a super admin confirms it ──
+test('super admins see why a payout is held and confirm the payout account they checked', () => {
+  const admin = read('app/(admin)/admin/suprahpay/page.tsx');
+  assert.match(admin, /new: "New payout account: payouts are on hold until you confirm it\."/);
+  assert.match(admin, /replaced: "Payout account replaced: payouts are on hold until you confirm the new one\."/);
+  assert.match(admin, /bank_changed: "Bank details changed in Stripe: payouts are on hold until you confirm them\."/);
+  // A held dealership gets Confirm account instead of Send.
+  assert.match(admin, /const hold = row\.payoutAccountConnected \? row\.payoutAccountHold : null/);
+  assert.match(admin, /\{hold \? \(\n\s+<Button size="sm" variant="outline"[^\n]*onClick=\{\(\) => confirmAccount\(row\)\}>/);
+  // It shows the bank and business to check with the dealership, then confirms the bank that was shown.
+  assert.match(admin, /\/payout-account`\),/);
+  assert.match(admin, /Check these details with the dealership \(for example, call their admin\) before you confirm\./);
+  assert.match(admin, /\{ bankId: check\.bank\?\.id \?\? null \},/);
+  assert.match(admin, /isn't ready yet`/);
+});
+
+test("the dealership's screens say Suprah is checking a new payout account", () => {
+  const hook = read('hooks/useSuprahPay.ts');
+  assert.match(hook, /awaitingConfirmation\?: boolean;/);
+  const panel = read('components/billing/SuprahPaySettingsPanel.tsx');
+  assert.match(panel, /if \(account\.ready && account\.awaitingConfirmation\) \{\n\s+return \{ text: "Set up: Suprah is checking it before your payouts start", tone: T\.textSub \};/);
+  const overview = read('app/(dashboard)/billing/page.tsx');
+  assert.match(overview, /const accountReady = !!accountQuery\.data\?\.ready && !accountQuery\.data\?\.awaitingConfirmation;/);
+  assert.match(overview, /"Payout account: Suprah is checking it"/);
+});
