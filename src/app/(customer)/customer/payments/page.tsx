@@ -240,11 +240,13 @@ function PaymentsView() {
       const r = await apiClient.get("/api/payments/my-payments");
       return r.data?.data as MyPaymentsResponse;
     },
-    // Poll while anything is pending/processing so webhook-driven status lands.
+    // Check again only while a card payment is going through, so Stripe's
+    // answer shows here (2026-11-23). An unpaid invoice can wait for weeks;
+    // checking every 8 seconds for those kept every open page busy.
     refetchInterval: (q) => {
       const d = q.state.data as MyPaymentsResponse | undefined;
-      const active = d?.payments?.some((p) => p.status === "pending" || p.status === "processing");
-      return active ? 8_000 : false;
+      const paying = d?.payments?.some((p) => p.status === "processing");
+      return paying ? 8_000 : false;
     },
     staleTime: 5_000,
   });

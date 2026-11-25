@@ -63,7 +63,7 @@ test('Payments, the CRM dashboard and billing reports show and count disputes', 
 test('the wallet card says where each number comes from', () => {
   const card = read('components/billing/BalanceCard.tsx');
   assert.match(card, /label: "Card payments received"/);
-  assert.match(card, /label: "Pending invoices", value: String\(/);
+  assert.match(card, /label: "Pending invoices", value: unavailable \? "—" : String\(awaiting\)/);
   assert.match(card, /\{balanceNote && \(/);
 });
 
@@ -172,7 +172,7 @@ test('customers and staff read the same lines; the note to the customer is shown
   const staff = read('app/(dashboard)/billing/payments/page.tsx');
   assert.match(staff, /Invoice lines/);
   assert.match(staff, /label: "Note to customer", val: payment\.customerNote/);
-  assert.match(staff, /label: "Internal notes", val: payment\.notes/);
+  assert.match(staff, /label: "Internal notes", val: <InternalNotes notes=\{payment\.notes\} \/>/);
 });
 
 // ── Create invoice feedback (2026-11-23): highlighted boxes and SuprahPay notices ──

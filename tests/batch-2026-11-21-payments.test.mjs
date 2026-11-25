@@ -71,9 +71,12 @@ test('dealership admins give or remove Finance access on the Members page, next 
 test('Send, Cancel and Refund show only for admins and staff with Finance access; others see why', () => {
   const payments = read('app/(dashboard)/billing/payments/page.tsx');
   assert.match(payments, /const canManage = !!suprahPay\?\.canManagePayments;/);
-  assert.match(payments, /\{canSend && \(payment\.status === "pending" \|\| payment\.status === "failed"\) && \(/);
-  assert.match(payments, /\{canManage && refundable > 0 && !confirmRefund && \(/);
-  assert.match(payments, /\{canManage && \(payment\.status === "pending" \|\| payment\.status === "processing"\) && \(/);
+  assert.match(payments, /const showSend = canSend && awaiting;/);
+  assert.match(payments, /\{showSend && \(/);
+  assert.match(payments, /const showRefund = canManage && refundable > 0;/);
+  assert.match(payments, /\{showRefund && !confirmRefund && \(/);
+  assert.match(payments, /const showCancel = canManage && awaiting;/);
+  assert.match(payments, /\{showCancel && \(/);
   assert.match(payments, /need Finance access from your dealership&apos;s admin/);
   const awaiting = read('app/(dashboard)/billing/awaiting-payment/page.tsx');
   assert.match(awaiting, /const canSend = !!suprahPay\?\.canManagePayments && !!suprahPay\?\.enabled;/);

@@ -34,6 +34,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { initializeSocket, onSocketChange } from "@/lib/socket.client"
 import { toast } from "sonner"
 import { useSuprahPaySettings } from "@/hooks/useSuprahPay"
+import { formatCurrency } from "@/utils/format"
 import { PAYMENT_PURPOSES } from "@/lib/payment-purpose"
 import { playMessageSound } from "@/lib/notification-sound"
 import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
@@ -266,7 +267,7 @@ const LEAD_SORT_OPTIONS: Array<{ value: LeadSortOption; label: string }> = [
 ];
 type LeadsViewportMode = "narrow" | "compact" | "wide";
 
-type LeadPaymentForm = CreatePaymentData & { customerPhone?: string; purpose?: string };
+type LeadPaymentForm = CreatePaymentData & { customerPhone?: string; purpose?: string; taxRate?: string };
 
 const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
   customerName: "",
@@ -277,7 +278,22 @@ const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
   dueDate: "",
   notes: "",
   purpose: "other",
+  taxRate: "",
 };
+
+/**
+ * Request Payment's tax (2026-11-23, decision B7): starts at the dealership's
+ * default sales tax and staff can change it, 0 included. Empty sends nothing,
+ * so the server uses the default. Returns null when what's typed isn't 0–100.
+ */
+function leadPaymentTax(form: LeadPaymentForm): { rate: number | undefined; tax: number; total: number } | null {
+  const typed = (form.taxRate ?? "").trim();
+  const rate = typed === "" ? undefined : Number(typed);
+  if (rate !== undefined && (!Number.isFinite(rate) || rate < 0 || rate > 100)) return null;
+  const amount = Number(form.amount) > 0 ? Number(form.amount) : 0;
+  const tax = Math.round(amount * (rate ?? 0)) / 100;
+  return { rate, tax, total: Math.round((amount + tax) * 100) / 100 };
+}
 
 const resolveLeadDateFilterRange = (
   filter: LeadDateFilterValue,
@@ -2604,6 +2620,7 @@ export function LeadsTab({
         ? `Created from CRM lead ${selectedLead._id}`
         : "Created from CRM Leads",
       purpose: "other",
+      taxRate: suprahPay ? String(suprahPay.defaultTaxRate ?? 0) : "",
     });
     setPaymentError(null);
     setPaymentOpen(true);
@@ -2622,6 +2639,11 @@ export function LeadsTab({
       setPaymentError("Add the customer's name and email, an amount and a description, then try again.");
       return;
     }
+    const tax = leadPaymentTax(paymentForm);
+    if (!tax) {
+      setPaymentError("Enter a tax rate from 0% to 100%, or 0 for no tax.");
+      return;
+    }
 
     setIsCreatingPayment(true);
 
@@ -2635,7 +2657,10 @@ export function LeadsTab({
           customerName,
           customerEmail,
           customerPhone: paymentForm.customerPhone?.trim() || undefined,
-          amount,
+          // One item for the amount, so the request shows its tax like an
+          // invoice: the server adds the tax and works out the total.
+          lineItems: [{ label: description.slice(0, 200), kind: "product", quantity: 1, unitPrice: amount }],
+          taxRate: tax.rate,
           currency: "usd",
           description,
           dueDate: paymentForm.dueDate || undefined,
@@ -4126,6 +4151,8 @@ function LeadPaymentDialog({
   /** Why the last try failed, in plain English. */
   error?: string | null;
 }) {
+  // What the customer pays with the tax typed (null when the tax isn't 0–100).
+  const taxPreview = leadPaymentTax(form);
   const fieldClass =
     "w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none ring-offset-background transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -4200,7 +4227,7 @@ function LeadPaymentDialog({
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <PaymentField label="Amount (USD)" required>
+              <PaymentField label="Amount before tax (USD)" required>
                 <input
                   type="number"
                   min="0.01"
@@ -4218,18 +4245,42 @@ function LeadPaymentDialog({
                 />
               </PaymentField>
 
-              <PaymentField label="Due date">
+              <PaymentField label="Tax (%)">
                 <input
-                  type="date"
-                  value={form.dueDate || ""}
-                  onChange={(event) =>
-                    onFormChange({ ...form, dueDate: event.target.value })
-                  }
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={form.taxRate ?? ""}
+                  onChange={(event) => onFormChange({ ...form, taxRate: event.target.value })}
                   className={fieldClass}
+                  placeholder="Your dealership's default"
+                  aria-invalid={taxPreview === null || undefined}
+                  aria-describedby="lead-payment-total"
                   disabled={isCreating}
                 />
               </PaymentField>
             </div>
+
+            <p id="lead-payment-total" className="text-xs text-muted-foreground break-words">
+              {taxPreview === null
+                ? "Enter a tax rate from 0% to 100%, or 0 for no tax."
+                : Number(form.amount) > 0 && taxPreview.rate === undefined
+                  ? `The customer pays ${formatCurrency(Number(form.amount))} plus your dealership's default sales tax.`
+                  : Number(form.amount) > 0
+                  ? `The customer pays ${formatCurrency(taxPreview.total)}${taxPreview.tax > 0 ? ` (includes ${formatCurrency(taxPreview.tax)} tax)` : " (no tax)"}.`
+                  : "Starts at your dealership's default sales tax. Change it for this request, or enter 0 for no tax."}
+            </p>
+
+            <PaymentField label="Due date">
+              <input
+                type="date"
+                value={form.dueDate || ""}
+                onChange={(event) =>
+                  onFormChange({ ...form, dueDate: event.target.value })
+                }
+                className={fieldClass}
+                disabled={isCreating}
+              />
+            </PaymentField>
 
             <PaymentField label="What it's for">
               <select

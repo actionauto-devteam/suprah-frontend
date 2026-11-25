@@ -94,6 +94,7 @@ function BillingDashboardInner() {
   const [recentPayments, setRecentPayments] = React.useState<Payment[]>([]);
   const [allPayments, setAllPayments] = React.useState<Payment[]>([]);
   const [pendingCount, setPendingCount] = React.useState(0);
+  const [statsError, setStatsError] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [hidden] = React.useState(false);
 
@@ -122,25 +123,6 @@ function BillingDashboardInner() {
     return null;
   }, []);
 
-  const buildStatsFromPayments = React.useCallback((payments: Payment[]): PaymentStats => {
-    const empty = {
-      pending: { count: 0, totalAmount: 0 }, processing: { count: 0, totalAmount: 0 },
-      succeeded: { count: 0, totalAmount: 0 }, failed: { count: 0, totalAmount: 0 },
-      refunded: { count: 0, totalAmount: 0 }, cancelled: { count: 0, totalAmount: 0 },
-    };
-    const byStatus = payments.reduce<Record<string, { count: number; totalAmount: number }>>((acc, p) => {
-      const s = p.status ?? "pending";
-      if (!acc[s]) acc[s] = { count: 0, totalAmount: 0 };
-      acc[s].count += 1; acc[s].totalAmount += Number(p.amount ?? 0);
-      return acc;
-    }, { ...empty });
-    return {
-      byStatus, totalCount: payments.length,
-      totalRevenue: Number(byStatus.succeeded?.totalAmount ?? 0),
-      pendingAmount: Number(byStatus.pending?.totalAmount ?? 0) + Number(byStatus.failed?.totalAmount ?? 0),
-    };
-  }, []);
-
   const load = React.useCallback(async () => {
     setIsLoading(true);
     try {
@@ -164,22 +146,21 @@ function BillingDashboardInner() {
       setAllPayments(merged);
       setRecentPayments(merged.slice(0, 6));
 
-      if (statsRes.status === "fulfilled") {
-        setStats(normalizeStats(statsRes.value.data?.data) ?? buildStatsFromPayments(merged));
-      } else {
-        setStats(buildStatsFromPayments(merged));
-      }
+      // Totals come only from the server (2026-11-23). Working them out from the
+      // few payments loaded here used to show wrong totals as if they were real.
+      const freshStats = statsRes.status === "fulfilled" ? normalizeStats(statsRes.value.data?.data) : null;
+      setStats(freshStats);
+      setStatsError(!freshStats);
 
-      setPendingCount(
-        loadedPending.length ||
-        merged.filter((p) => p.status === "pending" || p.status === "failed").length,
-      );
+      // Every invoice still waiting for payment: the server's Awaiting payment list.
+      setPendingCount(pendingRes.status === "fulfilled" ? loadedPending.length : 0);
     } catch (e) {
       console.error(e);
+      setStatsError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [buildStatsFromPayments, extractPayments, getToken, normalizeStats]);
+  }, [extractPayments, getToken, normalizeStats]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -204,19 +185,24 @@ function BillingDashboardInner() {
       ? "Card payments, less Suprah's fee and any refunds. Suprah sends it to your payout account every week once it's approved."
       : "Card payments, less Suprah's fee and any refunds. Set up your payout account below so Suprah can send it to your bank each week.";
 
-  const pending = stats?.byStatus?.pending;
   const failed = stats?.byStatus?.failed;
+  // Every invoice still waiting for payment (not paid, failed, or payment
+  // started), the same invoices the pending amount adds up (2026-11-23).
+  const awaitingCount =
+    (stats?.byStatus?.pending?.count ?? 0) + (failed?.count ?? 0) + (stats?.byStatus?.processing?.count ?? 0);
   const hasAnyData = (stats?.totalCount ?? 0) > 0 || allPayments.length > 0 || pendingCount > 0;
 
+  // Totals that couldn't be loaded show "—", never a made-up number.
+  const metric = (value: string) => (statsError ? "—" : value);
   const metrics = [
-    { label: "Total received", value: formatCurrency(stats?.totalRevenue ?? 0),
-      hint: `${stats?.byStatus?.succeeded?.count ?? 0} settled`, icon: TrendingUp, color: T.success, bg: T.successBg },
-    { label: "Pending amount", value: formatCurrency(stats?.pendingAmount ?? 0),
-      hint: `${pending?.count ?? 0} invoices`, icon: Clock, color: T.warning, bg: T.warningBg },
-    { label: "Transactions", value: String(stats?.totalCount ?? 0),
-      hint: "all time", icon: Receipt, color: T.info, bg: T.infoBg },
-    { label: "Failed", value: String(failed?.count ?? 0),
-      hint: "need review", icon: AlertCircle, color: T.danger, bg: T.dangerBg },
+    { label: "Total received", value: metric(formatCurrency(stats?.totalRevenue ?? 0)),
+      hint: statsError ? "couldn't load" : `${stats?.byStatus?.succeeded?.count ?? 0} settled`, icon: TrendingUp, color: T.success, bg: T.successBg },
+    { label: "Pending amount", value: metric(formatCurrency(stats?.pendingAmount ?? 0)),
+      hint: statsError ? "couldn't load" : `${awaitingCount} invoices`, icon: Clock, color: T.warning, bg: T.warningBg },
+    { label: "Transactions", value: metric(String(stats?.totalCount ?? 0)),
+      hint: statsError ? "couldn't load" : "all time", icon: Receipt, color: T.info, bg: T.infoBg },
+    { label: "Failed", value: metric(String(failed?.count ?? 0)),
+      hint: statsError ? "couldn't load" : "need review", icon: AlertCircle, color: T.danger, bg: T.dangerBg },
   ];
 
   return (
@@ -244,6 +230,14 @@ function BillingDashboardInner() {
               <p role="status" style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: 0 }}>SuprahPay is coming soon for your dealership</p>
               <p style={{ fontSize: 13, color: T.textSub, margin: "4px 0 0", lineHeight: 1.5 }}>
                 Payment requests and card payments open once Suprah turns SuprahPay on for you. Ask your Suprah contact if you&apos;d like it sooner.
+              </p>
+            </Card>
+          )}
+
+          {statsError && !isLoading && (
+            <Card pad="14px 18px" style={{ marginBottom: 18, borderColor: T.danger, background: T.dangerBg }}>
+              <p role="status" style={{ fontSize: 13.5, fontWeight: 600, color: T.text, margin: 0, lineHeight: 1.5 }}>
+                The payment totals couldn&apos;t be loaded, so they show &ldquo;—&rdquo;. Refresh the page to try again.
               </p>
             </Card>
           )}
