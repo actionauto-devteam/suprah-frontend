@@ -60,6 +60,7 @@ export function LoadBillingFields({
   const set = (patch: Partial<LoadBillingInput>) => onChange({ ...value, ...patch })
   const pay = carrierPay !== null && carrierPay > 0 ? `$${carrierPay.toFixed(2)}` : "the driver's pay"
   const problemId = `${idPrefix}-problem`
+  const cash = value.method === "cop" || value.method === "cod"
 
   return (
     <fieldset className="min-w-0 space-y-3" aria-describedby={problem ? problemId : undefined}>
@@ -113,21 +114,47 @@ export function LoadBillingFields({
           <div className="space-y-2">
             <p className="text-xs font-medium text-foreground">How the customer pays</p>
             <div className="grid gap-2">
-              {(["suprahpay", "cop", "cod"] as LoadBillingMethod[]).map((method) => (
-                <Choice
-                  key={method}
-                  name={`${idPrefix}-method`}
-                  checked={value.method === method}
-                  onChange={() => set({ method })}
-                  title={BILLING_METHOD_LABEL[method]}
-                  detail={
-                    method === "suprahpay"
-                      ? "Suprah sends the customer a SuprahPay invoice for the shipping price. The driver is paid once it's paid and the load is delivered."
-                      : `The customer hands the driver ${pay} in cash, outside Suprah. The driver confirms it in the app.`
-                  }
-                />
-              ))}
+              <Choice
+                name={`${idPrefix}-method`}
+                checked={value.method === "suprahpay"}
+                onChange={() => set({ method: "suprahpay" })}
+                title={BILLING_METHOD_LABEL.suprahpay}
+                detail="Suprah sends the customer a SuprahPay invoice for the shipping price. The driver is paid once it's paid and the load is delivered."
+              />
+              {/* COP and COD are one choice; when the cash is paid is asked below (2026-11-26). */}
+              <Choice
+                name={`${idPrefix}-method`}
+                checked={cash}
+                onChange={() => set({ method: cash ? value.method : "cod" })}
+                title="Cash to the driver (COP/COD)"
+                detail={`The customer hands the driver ${pay} in cash, outside Suprah. The driver confirms it in the app.`}
+              />
             </div>
+            {cash && (
+              <fieldset className="min-w-0 space-y-2 rounded-lg border border-border/60 p-3">
+                <legend className="px-1 text-xs font-medium text-foreground">When does the customer pay the driver?</legend>
+                <div className="flex flex-wrap gap-2">
+                  {(["cop", "cod"] as LoadBillingMethod[]).map((method) => (
+                    <label
+                      key={method}
+                      className={cn(
+                        "flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
+                        value.method === method ? "border-emerald-500/60 bg-emerald-500/5 font-semibold text-foreground" : "border-border/60 text-muted-foreground hover:bg-muted/40",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name={`${idPrefix}-cash-when`}
+                        checked={value.method === method}
+                        onChange={() => set({ method })}
+                        className="size-4 shrink-0 accent-emerald-600"
+                      />
+                      {method === "cop" ? "At pickup (COP)" : "On delivery (COD)"}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
           </div>
 
           {value.method === "suprahpay" && (

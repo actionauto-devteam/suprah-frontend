@@ -116,6 +116,18 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
       method === "suprahpay" ? "Switched to a SuprahPay invoice." : "Switched to cash to the driver.",
     )
   }
+  // Cash to the driver: the form asks when (at pickup or on delivery), starting on delivery.
+  const chooseCash = () => {
+    setInput({
+      billTo: "customer",
+      method: "cod",
+      customerName: billing?.customerName ?? "",
+      customerEmail: billing?.customerEmail ?? "",
+      shippingPrice: typeof billing?.shippingPrice === "number" ? String(billing.shippingPrice) : "",
+    })
+    setTried(false)
+    setChoosing(true)
+  }
   const invoiceMissing =
     canManage && !!billing?.billTo && billing.method === "suprahpay" && !outside && !cancelled && (!invoice || invoice.status === "cancelled")
 
@@ -221,11 +233,14 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
             {canSwitch && billing?.method !== "suprahpay" && (
               <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("suprahpay")}>Switch to a SuprahPay invoice</Button>
             )}
-            {canSwitch && billing?.method !== "cop" && (
-              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("cop")}>Switch to cash at pickup</Button>
+            {/* Cash is one choice (COP/COD); when it's paid is picked in the form (2026-11-26). */}
+            {canSwitch && billing?.method === "suprahpay" && (
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={chooseCash}>Switch to cash to the driver (COP/COD)</Button>
             )}
-            {canSwitch && billing?.method !== "cod" && (
-              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("cod")}>Switch to cash on delivery</Button>
+            {canSwitch && (billing?.method === "cop" || billing?.method === "cod") && (
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo(billing.method === "cop" ? "cod" : "cop")}>
+                {billing.method === "cop" ? "Change to cash on delivery (COD)" : "Change to cash at pickup (COP)"}
+              </Button>
             )}
           </div>
         )}

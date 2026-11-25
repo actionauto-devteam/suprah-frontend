@@ -106,3 +106,14 @@ test('Payment started shows as soon as Pay is pressed, and coming back to Suprah
   const cash = read('components/customer/CustomerCashPayments.tsx');
   assert.match(cash, /couldn&apos;t be loaded\. Refresh to try again\./);
 });
+
+test('Cash to the driver is one choice, then at pickup (COP) or on delivery (COD)', () => {
+  const fields = read('components/transportation/LoadBillingFields.tsx');
+  assert.match(fields, /title="Cash to the driver \(COP\/COD\)"/);
+  assert.match(fields, /When does the customer pay the driver\?/);
+  assert.match(fields, /\{method === "cop" \? "At pickup \(COP\)" : "On delivery \(COD\)"\}/);
+  assert.doesNotMatch(fields, /\["suprahpay", "cop", "cod"\] as LoadBillingMethod\[\]\)\.map/);
+  const card = read('components/transportation/LoadBillingCard.tsx');
+  assert.match(card, /Switch to cash to the driver \(COP\/COD\)/);
+  assert.doesNotMatch(card, /Switch to cash at pickup|Switch to cash on delivery/);
+});
