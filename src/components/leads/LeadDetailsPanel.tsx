@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Save, ScanBarcode } from "lucide-react";
+import { Layers, Save, ScanBarcode } from "lucide-react";
 import { ContactDetailsPanel } from "@/components/conversation-workspace/ContactDetailsPanel";
+import { LeadOverview } from "./LeadOverview";
 import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
 import {
   leadDetailSections,
@@ -97,6 +98,7 @@ interface LeadDetailsUpdate {
   source?: string;
   location?: string;
   opportunityValue?: number | null;
+  vehicleId?: string;
   vehicle?: {
     year?: string;
     make?: string;
@@ -116,6 +118,8 @@ interface LeadDetailsPanelProps {
   onAddNote: (note: string) => void | Promise<void>;
   onUpdateDetails: (changes: LeadDetailsUpdate) => void | Promise<void>;
   onAssign?: (userId: string | null) => void | Promise<void>;
+  composerBeside?: boolean;
+  onMerge?: () => void;
 }
 
 const STATUS_OPTIONS = LEAD_STATUS_SELECT_OPTIONS;
@@ -156,6 +160,8 @@ export function LeadDetailsPanel({
   onAddNote,
   onUpdateDetails,
   onAssign,
+  composerBeside = false,
+  onMerge,
 }: LeadDetailsPanelProps) {
   const { getToken } = useAuth();
   const [noteIntent, setNoteIntent] = React.useState(0);
@@ -274,8 +280,18 @@ export function LeadDetailsPanel({
   const dialablePhone = phone.replace(/[^\d+]/g, "");
   const contact = React.useMemo(() => leadToWorkspaceContact(lead), [lead]);
   const details = React.useMemo(
-    () => leadDetailSections(lead, sourceEmail, onAssign),
-    [lead, sourceEmail, onAssign],
+    () => leadDetailSections(lead, sourceEmail).filter((section) => section.id !== "team"),
+    [lead, sourceEmail],
+  );
+  const pickVehicle = React.useCallback(
+    async (vehicleId: string) => {
+      await onUpdateDetails({ vehicleId });
+    },
+    [onUpdateDetails],
+  );
+  const assignFromOverview = React.useMemo(
+    () => (onAssign ? async (userId: string | null) => { await onAssign(userId); } : undefined),
+    [onAssign],
   );
 
   const { items: timelineItems } = useCustomerTimeline(lead?._id);
@@ -297,8 +313,8 @@ export function LeadDetailsPanel({
         onQuote: onCalculateQuote,
         onNote: () => setNoteIntent((value) => value + 1),
         hasPhone: Boolean(dialablePhone),
-      }),
-    [dialablePhone, onOpenDialer, onAppointment, onCalculateQuote, onRequestPayment],
+      }).filter((action) => !composerBeside || (action.id !== "appointment" && action.id !== "note")),
+    [dialablePhone, onOpenDialer, onAppointment, onCalculateQuote, onRequestPayment, composerBeside],
   );
 
   const saveContact = async () => {
@@ -353,7 +369,7 @@ export function LeadDetailsPanel({
   return (
     <ContactDetailsPanel
       contact={contact}
-      contactTypeLabel="Contact type: Lead"
+      contactTypeLabel=""
       summary={
         summaryOverride?.summary ||
         lead?.aiSummary ||
@@ -370,6 +386,17 @@ export function LeadDetailsPanel({
       summaryStale={summaryIsStale(lead, summaryOverride?.generatedAt || lead?.aiSummaryGeneratedAt)}
       onRegenerateSummary={handleRegenerateSummary}
       belowSummary={<AiAgentTasksSection key={`${lead?._id || ""}:${lead?.status || ""}`} leadId={lead?._id} />}
+      summaryInScroll
+      overview={
+        <LeadOverview
+          lead={lead}
+          statusOptions={STATUS_OPTIONS}
+          onStatusChange={onStatusChange}
+          onAssign={assignFromOverview}
+          onPickVehicle={pickVehicle}
+        />
+      }
+      quickActionColumns={actions.length}
       detailsTop={
         lead?._id ? (
           <div className="space-y-2">
@@ -382,6 +409,18 @@ export function LeadDetailsPanel({
             <VehicleOfInterestCard key={lead._id} lead={lead} />
             {/* Transportation's part: shipping quotes for this lead. */}
             <LeadShippingCard key={`shipping-${lead._id}`} lead={lead} />
+            {onMerge ? (
+              <button
+                type="button"
+                onClick={onMerge}
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition hover:bg-(--bg-hover) max-lg:h-11"
+                style={{ borderColor: "var(--border-1)", color: "var(--text-secondary)" }}
+                data-testid="merge-lead-button"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Merge another card into this one
+              </button>
+            ) : null}
           </div>
         ) : null
       }
@@ -389,9 +428,6 @@ export function LeadDetailsPanel({
       detailSections={details}
       activities={activities}
       onClose={onClose}
-      status={lead?.status || "New"}
-      statusOptions={STATUS_OPTIONS}
-      onStatusChange={onStatusChange}
       onAddNote={onAddNote}
       activitySubtitle="Inquiry, notes, and status history"
       openNoteSignal={noteIntent}

@@ -554,6 +554,7 @@ function CalendarNotificationsGate({ children }: { children: React.ReactNode }) 
 }
 
 const RINGING_RECHECK_MS = 4000;
+const RINGING_RECHECK_CONNECTED_MS = 10000;
 
 function CommunicationSocketGate({
   enabled,
@@ -577,10 +578,20 @@ function CommunicationSocketGate({
     const stopRecovery = onCommunicationReconnect(recoverRingingCalls);
     const stopWatching = onSocketChange((next) => connectCommunicationSocket(next, orgId));
     if (socket) connectCommunicationSocket(socket, orgId);
-    const recheckWhenVisible = () => {
-      if (document.visibilityState === "visible") recoverRingingCalls();
+    let lastRecheck = 0;
+    const recheckOnTimer = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (socket?.connected && now - lastRecheck < RINGING_RECHECK_CONNECTED_MS) return;
+      lastRecheck = now;
+      recoverRingingCalls();
     };
-    const recheck = window.setInterval(recheckWhenVisible, RINGING_RECHECK_MS);
+    const recheckWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      lastRecheck = Date.now();
+      recoverRingingCalls();
+    };
+    const recheck = window.setInterval(recheckOnTimer, RINGING_RECHECK_MS);
     document.addEventListener("visibilitychange", recheckWhenVisible);
     return () => {
       stopRecovery();

@@ -74,7 +74,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, supraSpaceMessageToPlainText, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, keepSupraSpaceListMarkerOnSelectionEdit, writeSupraSpaceMessageToClipboard, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, keepSupraSpaceListMarkerOnSelectionEdit, scrollSupraSpaceEditorCaretIntoView, writeSupraSpaceMessageToClipboard, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -1489,9 +1489,9 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:flex!important; align-items:center; justify-content:center; }
       .ss4-mobile-leading { position:relative; }
       .ss4-mobile-trailing { gap:4px; min-width:0; color:var(--text-primary); flex-shrink:0; }
-      .ss4-composer-pill { min-height:44px; width:100%; max-width:100%; align-items:center; border-radius:999px; padding:8px 8px 8px 16px; background:var(--bubble-other-bg); min-width:0; overflow:hidden; }
+      .ss4-composer-pill { min-height:44px; width:100%; max-width:100%; align-items:center; border-radius:24px; padding:8px 8px 8px 16px; background:var(--bubble-other-bg); min-width:0; overflow:hidden; }
       .ss4-composer-pill .ss4-composer-placeholder { left:16px; top:50%; transform:translateY(-50%); }
-      .ss4-composer-pill .ss4-composer-editor { flex:1 1 0%; min-width:0; min-height:24px; max-height:88px; padding:0 !important; }
+      .ss4-composer-pill .ss4-composer-editor { flex:1 1 0%; min-width:0; min-height:24px; max-height:96px; padding:0 !important; }
       .ss4-mobile-emoji { flex:0 0 32px; width:32px; min-width:32px; }
       .ss4-mobile-format-trigger { flex:0 0 28px; width:28px; min-width:28px; height:28px; border-radius:999px; color:var(--text-secondary); display:flex; align-items:center; justify-content:center; }
       .ss4-mobile-format-trigger[aria-pressed="true"] { background:var(--bg-hover); color:var(--accent); }
@@ -16089,6 +16089,7 @@ export default function SupraSpacePage() {
                                       syncComposerText(nextText);
                                       saveComposerSelection();
                                       refreshActiveFormats();
+                                      scrollSupraSpaceEditorCaretIntoView(el);
                                     }
                                   });
                                   return;
@@ -16184,7 +16185,7 @@ export default function SupraSpacePage() {
                             </button>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileAttachSheet} className="ss4-icon-btn ss4-mobile-media-action" title="Add attachment" aria-label="Add attachment" aria-haspopup="dialog" aria-expanded={mobileAttachSheetOpen}><ImageIcon className="h-6 w-6" /></button>
+                            {!composerHasText && <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileAttachSheet} className="ss4-icon-btn ss4-mobile-media-action" title="Add attachment" aria-label="Add attachment" aria-haspopup="dialog" aria-expanded={mobileAttachSheetOpen}><ImageIcon className="h-6 w-6" /></button>}
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 type="button"

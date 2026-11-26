@@ -21,6 +21,7 @@ import {
   Loader2,
   Mail,
   MessageSquare,
+  Phone,
   RefreshCw,
   Tag,
   TrendingDown,
@@ -60,6 +61,22 @@ interface ReportsOverview {
   priceDropEmails: Record<string, number>
   vehicleReengagement: Record<string, number>
   unsubscribes: { sms: number; email: number }
+  repOutreach?: {
+    texts: OutreachCount
+    emails: OutreachCount
+    calls: OutreachCount
+  }
+}
+
+interface OutreachCount {
+  leads: number
+  sent: number
+}
+
+const NO_OUTREACH: OutreachCount = { leads: 0, sent: 0 }
+
+function countLabel(count: number, word: string): string {
+  return `${count.toLocaleString("en-US")} ${word}${count === 1 ? "" : "s"}`
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -98,14 +115,15 @@ function SectionHeader({ title, description }: { title: string; description: str
   )
 }
 
-function KpiCard({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: string }) {
+function KpiCard({ label, value, icon, tone, note, help }: { label: string; value: number; icon: React.ReactNode; tone: string; note?: string; help?: string }) {
   return (
-    <div className="min-w-0 rounded-xl border border-border/80 bg-card px-3.5 py-3 shadow-sm">
+    <div title={help} className="min-w-0 rounded-xl border border-border/80 bg-card px-3.5 py-3 shadow-sm">
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="min-w-0 text-[11px] font-bold uppercase leading-tight tracking-wide text-muted-foreground">{label}</p>
         <div className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", tone)}>{icon}</div>
       </div>
       <p className="mt-1.5 text-2xl font-black tracking-tight text-foreground">{value.toLocaleString("en-US")}</p>
+      {note && <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{note}</p>}
     </div>
   )
 }
@@ -297,6 +315,15 @@ export default function CrmReportsPage() {
         XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, salesReport.rows, salespersonExcelColumns, "No leads or activity in this range"), "By Salesperson")
         XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, salesReport.leads || [], salespersonLeadExcelColumns, "No leads in this range"), "Leads by Salesperson")
       }
+      const outreach = overview.repOutreach
+      XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, [
+        { label: "Leads texted", count: outreach?.texts.leads ?? 0 },
+        { label: "Texts sent", count: outreach?.texts.sent ?? 0 },
+        { label: "Leads emailed", count: outreach?.emails.leads ?? 0 },
+        { label: "Emails sent", count: outreach?.emails.sent ?? 0 },
+        { label: "Leads called", count: outreach?.calls.leads ?? 0 },
+        { label: "Calls made", count: outreach?.calls.sent ?? 0 },
+      ], countColumns, "No rep activity"), "Rep Activity")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.smsCampaigns), countColumns, "No SMS campaign activity"), "SMS Campaigns")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.smsDeliveryStatus), countColumns, "No SMS delivery confirmations"), "SMS Delivery Status")
       XLSX.utils.book_append_sheet(workbook, createDataSheet(XLSX, toRows(overview.emailCampaigns), countColumns, "No email campaign activity"), "Email Campaigns")
@@ -325,6 +352,9 @@ export default function CrmReportsPage() {
 
   const smsHasActivity = overview ? sum(overview.smsCampaigns) > 0 : false
   const emailHasActivity = overview ? sum(overview.emailCampaigns) > 0 : false
+  const repTexts = overview?.repOutreach?.texts ?? NO_OUTREACH
+  const repEmails = overview?.repOutreach?.emails ?? NO_OUTREACH
+  const repCalls = overview?.repOutreach?.calls ?? NO_OUTREACH
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
@@ -416,13 +446,41 @@ export default function CrmReportsPage() {
         <div className="space-y-8">
           <div>
             <SectionHeader title="Overview" description="Top-line totals for the selected period." />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <KpiCard label="Leads" value={overview.leads.total} icon={<Users className="size-4" />} tone="bg-blue-500/10 text-blue-600 dark:text-blue-400" />
-              <KpiCard label="SMS Sent" value={overview.smsCampaigns.sent || 0} icon={<MessageSquare className="size-4" />} tone="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
-              <KpiCard label="Email Sent" value={overview.emailCampaigns.sent || 0} icon={<Mail className="size-4" />} tone="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
-              <KpiCard label="Price Drops" value={overview.priceDropEmails.sent || 0} icon={<TrendingDown className="size-4" />} tone="bg-rose-500/10 text-rose-600 dark:text-rose-400" />
-              <KpiCard label="Re-engagement" value={overview.vehicleReengagement.sent || 0} icon={<RefreshCw className="size-4" />} tone="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
-              <KpiCard label="Unsubscribes" value={overview.unsubscribes.sms + overview.unsubscribes.email} icon={<UserX className="size-4" />} tone="bg-slate-500/10 text-slate-600 dark:text-slate-400" />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <KpiCard label="Leads" value={overview.leads.total} icon={<Users className="size-4" />} tone="bg-blue-500/10 text-blue-600 dark:text-blue-400" />
+                <KpiCard
+                  label="Leads Texted"
+                  value={repTexts.leads}
+                  note={`${countLabel(repTexts.sent, "text")} from reps`}
+                  help="Leads a team member texted in this period. AI, automations and campaigns are not counted."
+                  icon={<MessageSquare className="size-4" />}
+                  tone="bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                />
+                <KpiCard
+                  label="Leads Emailed"
+                  value={repEmails.leads}
+                  note={`${countLabel(repEmails.sent, "email")} from reps`}
+                  help="Leads a team member emailed from Suprah in this period. AI replies, automatic emails and campaigns are not counted."
+                  icon={<Mail className="size-4" />}
+                  tone="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                />
+                <KpiCard
+                  label="Leads Called"
+                  value={repCalls.leads}
+                  note={`${countLabel(repCalls.sent, "call")} made`}
+                  help="Leads a team member called from Suprah in this period."
+                  icon={<Phone className="size-4" />}
+                  tone="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <KpiCard label="Campaign SMS" value={overview.smsCampaigns.sent || 0} icon={<MessageSquare className="size-4" />} tone="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
+                <KpiCard label="Campaign Emails" value={overview.emailCampaigns.sent || 0} icon={<Mail className="size-4" />} tone="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
+                <KpiCard label="Price Drops" value={overview.priceDropEmails.sent || 0} icon={<TrendingDown className="size-4" />} tone="bg-rose-500/10 text-rose-600 dark:text-rose-400" />
+                <KpiCard label="Re-engagement" value={overview.vehicleReengagement.sent || 0} icon={<RefreshCw className="size-4" />} tone="bg-amber-500/10 text-amber-600 dark:text-amber-400" />
+                <KpiCard label="Unsubscribes" value={overview.unsubscribes.sms + overview.unsubscribes.email} icon={<UserX className="size-4" />} tone="bg-slate-500/10 text-slate-600 dark:text-slate-400" />
+              </div>
             </div>
           </div>
 
@@ -550,7 +608,7 @@ export default function CrmReportsPage() {
                 )}
               </ChartCard>
 
-              <ChartCard title="Vehicle Re-engagement" description="Outcome of AI-generated re-engagement texts.">
+              <ChartCard title="Vehicle Re-engagement" description="Outcome of automatic re-engagement texts.">
                 {sum(overview.vehicleReengagement) > 0 ? (
                   <StatusDonut data={overview.vehicleReengagement} palette={(key, i) => statusColor(key, ["#10b981", "#f59e0b", "#ef4444", "#64748b"][i % 4])} emptyMessage="No re-engagement activity in this period." centerLabel="attempts" />
                 ) : (

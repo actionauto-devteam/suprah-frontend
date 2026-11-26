@@ -22,8 +22,10 @@ import {
   Mail,
   MessageSquare,
   MoreHorizontal,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
 import { NOT_A_LEAD_REASONS, NOT_A_LEAD_STATUS, REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
@@ -81,6 +83,10 @@ interface ReplySectionProps {
   channelSelector?: ReplyChannelSelector | null;
   emailSubject?: { value: string; onChange: (value: string) => void; locked: boolean } | null;
   sendNotice?: { text: string; actionLabel?: string; onAction?: () => void; resend?: boolean } | null;
+  onAssignToMe?: () => Promise<void>;
+  hideBarActions?: boolean;
+  noteToggleRequest?: number;
+  onComposerModeChange?: (mode: "reply" | "note") => void;
 }
 
 export interface ReplyChannelChoice {
@@ -119,6 +125,10 @@ const ALLOWED_EXTENSIONS = [
 ] as const;
 
 const FILE_ACCEPT_VALUE = ALLOWED_EXTENSIONS.join(",");
+
+const TEXT_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"];
+const TEXT_ACCEPT_VALUE = TEXT_EXTENSIONS.join(",");
+const MAX_TEXT_FILES = 5;
 
 const EMOJIS = [
   "😀",
@@ -186,6 +196,10 @@ export const ReplySection = React.memo(
     channelSelector = null,
     emailSubject = null,
     sendNotice = null,
+    onAssignToMe,
+    hideBarActions = false,
+    noteToggleRequest = 0,
+    onComposerModeChange,
   }: ReplySectionProps) => {
     const draftKey = leadId && draftChannel ? `${leadId}:${draftChannel}` : null;
     const smsSelected = channelSelector?.value === "sms";
@@ -195,10 +209,28 @@ export const ReplySection = React.memo(
     >(null);
 
     const [attachments, setAttachments] = React.useState<File[]>([]);
+    const textFilesBlocked =
+      smsSelected &&
+      (attachments.length > MAX_TEXT_FILES ||
+        attachments.some((file) => !TEXT_EXTENSIONS.includes(getFileExtension(file.name))));
     const [attachmentError, setAttachmentError] = React.useState("");
     const [emojiOpen, setEmojiOpen] = React.useState(false);
 
     const [composerMode, setComposerMode] = React.useState<"reply" | "note">("reply");
+    const [assigningToMe, setAssigningToMe] = React.useState(false);
+
+    const assignToMe = async () => {
+      if (!onAssignToMe || assigningToMe) return;
+      setAssigningToMe(true);
+      try {
+        await onAssignToMe();
+      } catch (error) {
+        const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error(message || "Couldn't save the assignment. Please try again.");
+      } finally {
+        setAssigningToMe(false);
+      }
+    };
     const [noteText, setNoteText] = React.useState("");
     const [noteMentionedUserIds, setNoteMentionedUserIds] = React.useState<string[]>([]);
     const [noteMentionedGroupIds, setNoteMentionedGroupIds] = React.useState<string[]>([]);
@@ -211,6 +243,17 @@ export const ReplySection = React.memo(
       setAttachments([]);
       setAttachmentError("");
     }, [leadId]);
+
+    const lastNoteToggleRef = React.useRef(noteToggleRequest);
+    React.useEffect(() => {
+      if (noteToggleRequest === lastNoteToggleRef.current) return;
+      lastNoteToggleRef.current = noteToggleRequest;
+      if (onAddNote) setComposerMode((mode) => (mode === "note" ? "reply" : "note"));
+    }, [noteToggleRequest, onAddNote]);
+
+    React.useEffect(() => {
+      onComposerModeChange?.(composerMode);
+    }, [composerMode, onComposerModeChange]);
 
     const handleSaveNote = async () => {
       const trimmed = noteText.trim();
@@ -485,7 +528,7 @@ export const ReplySection = React.memo(
         isSending ||
         replyBlocked ||
         (!replyMessage.trim() && attachments.length === 0) ||
-        (smsSelected && attachments.length > 0)
+        textFilesBlocked
       ) {
         return;
       }
@@ -867,9 +910,15 @@ export const ReplySection = React.memo(
           )}
 
           {composerMode === "reply" && smsSelected && attachments.length > 0 && (
-            <p className="border-t border-slate-100 px-3 py-2 text-xs text-amber-700 dark:border-emerald-400/10 dark:text-amber-300">
-              Attachments can only be sent by email. Remove them or switch to Email.
-            </p>
+            textFilesBlocked ? (
+              <p className="border-t border-slate-100 px-3 py-2 text-xs text-amber-700 dark:border-emerald-400/10 dark:text-amber-300">
+                Only photos and PDF files can be sent by text, up to {MAX_TEXT_FILES} at a time. Remove the others or switch to Email.
+              </p>
+            ) : (
+              <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-emerald-400/10 dark:text-slate-400">
+                Photos are sent as picture messages. PDFs are sent as a link the customer can open.
+              </p>
+            )
           )}
 
           {composerMode === "reply" && attachmentError && (
@@ -924,26 +973,43 @@ export const ReplySection = React.memo(
 
           <div className="flex select-none items-center gap-2 border-t border-slate-100 px-2 py-1.5 dark:border-emerald-400/10 sm:flex-wrap sm:px-2.5 sm:py-2">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-wrap">
-              <LeadStatusSelect
-                value={selectedLeadStatus}
-                excludeCurrent
-                triggerLabel={<span className="max-[359px]:sr-only">Status</span>}
-                triggerIcon={<Circle className="h-3 w-3" />}
-                onChange={(status) =>
-                  REASON_REQUIRED_STATUSES.includes(status)
-                    ? setReasonModal({ kind: "status", status })
-                    : onStatusChange(status)
-                }
-              />
+              {!hideBarActions && (
+                <LeadStatusSelect
+                  value={selectedLeadStatus}
+                  excludeCurrent
+                  triggerLabel={<span className="max-[359px]:sr-only">Status</span>}
+                  triggerIcon={<Circle className="h-3 w-3" />}
+                  onChange={(status) =>
+                    REASON_REQUIRED_STATUSES.includes(status)
+                      ? setReasonModal({ kind: "status", status })
+                      : onStatusChange(status)
+                  }
+                />
+              )}
 
-              <button
-                type="button"
-                onClick={onApptOpen}
-                className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
-              >
-                <Calendar className="h-3 w-3" />
-                Schedule
-              </button>
+              {onAssignToMe && !hideBarActions && (
+                <button
+                  type="button"
+                  onClick={() => void assignToMe()}
+                  disabled={assigningToMe}
+                  className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] px-2 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-500/15 disabled:opacity-50 dark:border-emerald-400/30 dark:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                  data-testid="composer-assign-to-me"
+                >
+                  {assigningToMe ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                  Assign to me
+                </button>
+              )}
+
+              {!hideBarActions && (
+                <button
+                  type="button"
+                  onClick={onApptOpen}
+                  className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                >
+                  <Calendar className="h-3 w-3" />
+                  Schedule
+                </button>
+              )}
 
               {onReschedule && (
                 <button
@@ -956,7 +1022,7 @@ export const ReplySection = React.memo(
                 </button>
               )}
 
-              {onAddNote && (
+              {onAddNote && !hideBarActions && (
                 <button
                   type="button"
                   onClick={() => setComposerMode((mode) => (mode === "note" ? "reply" : "note"))}
@@ -1001,10 +1067,18 @@ export const ReplySection = React.memo(
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" className="w-52">
-                  <DropdownMenuItem onSelect={onApptOpen}>
-                    <Calendar />
-                    Schedule
-                  </DropdownMenuItem>
+                  {onAssignToMe && !hideBarActions && (
+                    <DropdownMenuItem disabled={assigningToMe} onSelect={() => void assignToMe()}>
+                      <UserPlus />
+                      Assign to me
+                    </DropdownMenuItem>
+                  )}
+                  {!hideBarActions && (
+                    <DropdownMenuItem onSelect={onApptOpen}>
+                      <Calendar />
+                      Schedule
+                    </DropdownMenuItem>
+                  )}
                   {onReschedule && (
                     <DropdownMenuItem onSelect={onReschedule}>
                       <CalendarClock />
@@ -1017,11 +1091,11 @@ export const ReplySection = React.memo(
                   </DropdownMenuItem>
                   {composerMode === "reply" && (
                     <DropdownMenuItem
-                      disabled={isSending || replyBlocked || smsSelected}
+                      disabled={isSending || replyBlocked}
                       onSelect={() => fileInputRef.current?.click()}
                     >
                       <Paperclip />
-                      {smsSelected ? "Attach file (email only)" : "Attach file"}
+                      {smsSelected ? "Attach photo or PDF" : "Attach file"}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -1081,7 +1155,7 @@ export const ReplySection = React.memo(
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={FILE_ACCEPT_VALUE}
+                    accept={smsSelected ? TEXT_ACCEPT_VALUE : FILE_ACCEPT_VALUE}
                     onChange={handleFileSelection}
                     className="hidden"
                   />
@@ -1089,9 +1163,9 @@ export const ReplySection = React.memo(
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isSending || replyBlocked || smsSelected}
+                    disabled={isSending || replyBlocked}
                     className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:inline-flex sm:h-7 sm:w-7"
-                    title={smsSelected ? "Attachments can only be sent by email" : "Attach file (maximum 5 MB per file)"}
+                    title={smsSelected ? "Attach a photo or PDF (up to 5 MB each)" : "Attach file (maximum 5 MB per file)"}
                     aria-label="Attach file"
                   >
                     <Paperclip className="h-4 w-4" />
@@ -1104,14 +1178,14 @@ export const ReplySection = React.memo(
                       isSending ||
                       replyBlocked ||
                       (!replyMessage.trim() && attachments.length === 0) ||
-                      (smsSelected && attachments.length > 0)
+                      textFilesBlocked
                     }
                     className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-emerald-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 dark:from-emerald-500 dark:to-cyan-600 sm:h-7"
                     title={
                       replyUnavailableReason
                         ? replyUnavailableReason
-                        : smsSelected && attachments.length > 0
-                          ? "Remove the attachments or switch to Email to send them"
+                        : textFilesBlocked
+                          ? "Only photos and PDF files can be sent by text"
                           : replyMessage.trim() || attachments.length > 0
                             ? channelSelector
                               ? `Send ${channelSelector.value === "sms" ? "text" : "email"}`

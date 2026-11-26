@@ -16,7 +16,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, supraSpaceMessageToPlainText, localizeSupraSpaceMultilineBold, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, keepSupraSpaceListMarkerOnSelectionEdit, writeSupraSpaceMessageToClipboard, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardSemanticClassFormatting, isSupraSpaceEditorPlaceholderBreak, keepSupraSpaceListMarkerOnSelectionEdit, scrollSupraSpaceEditorCaretIntoView, writeSupraSpaceMessageToClipboard, removeSupraSpaceInvisibleMarkersBeforeCaret, supraSpaceClipboardHeadingLooksBold, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, isSupraSpacePlainTextPasteShortcut, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, supraSpaceTablesToComparableText } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
@@ -72,6 +72,8 @@ const MORE_TEXT_COLORS = [
 
 const POPUP_RICH_EDIT_CSS = `
   .ss-popup-rich-edit { white-space: pre-wrap; line-height: 1.66; }
+  .dark [data-chat-popup-shell="true"] .ss4-readable-dark-color { color: var(--foreground) !important; }
+  .light [data-chat-popup-shell="true"] .bg-muted .ss4-readable-light-color { color: var(--foreground) !important; }
   .ss-popup-rich-edit table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: .82em; }
   .ss-popup-rich-edit th, .ss-popup-rich-edit td { min-width: 4.5rem; padding: .32rem .42rem; border: 1px solid rgba(255,255,255,.24); text-align: left; vertical-align: top; }
   .ss-popup-rich-edit th { background: rgba(255,255,255,.12); font-weight: 700; }
@@ -8393,6 +8395,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           syncComposerText(nextText, true);
                           rememberComposerSelection();
                           refreshComposerCaretFormats();
+                          scrollSupraSpaceEditorCaretIntoView(el);
                         }
                       });
                     }}

@@ -29,6 +29,16 @@ const TEXT_US_INK = "text-[oklch(0.15_0.02_269.18)]"
 const TEXT_US_GREETING = "Enter your information, and our team will get back to you shortly."
 const TEXT_US_NO_MESSAGE = "Sent the Text Us form without a message."
 
+function readableInk(hex: string) {
+  const value = hex.replace("#", "")
+  const channel = (start: number) => {
+    const c = parseInt(value.slice(start, start + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  }
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4)
+  return luminance > 0.35 ? "#080b14" : "#ffffff"
+}
+
 function locationKey(value?: string) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
 }
@@ -223,6 +233,16 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
   React.useEffect(() => {
     if (pageLauncher) postToParent({ type: "suprah-webchat:unread", count: unread })
   }, [unread, pageLauncher])
+
+  const themeColor = config?.color && /^#[0-9a-f]{6}$/i.test(config.color) ? config.color : ""
+  const themeInk = themeColor ? readableInk(themeColor) : ""
+  const themeStyle = themeColor
+    ? ({ "--primary": themeColor, "--color-primary": themeColor, "--primary-foreground": themeInk, "--color-primary-foreground": themeInk, "--ring": themeColor, "--color-ring": themeColor } as React.CSSProperties)
+    : undefined
+
+  React.useEffect(() => {
+    if (pageLauncher && themeColor) postToParent({ type: "suprah-webchat:theme", color: themeColor, ink: themeInk })
+  }, [pageLauncher, themeColor, themeInk])
 
   React.useEffect(() => {
     messagesRef.current = messages
@@ -488,8 +508,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
         )}
         style={
           embedMode
-            ? undefined
-            : { marginBottom: "env(safe-area-inset-bottom)", ...launcher?.handleProps.style, ...launcher?.style }
+            ? themeColor ? { ...themeStyle, background: themeColor, color: themeInk } : undefined
+            : { marginBottom: "env(safe-area-inset-bottom)", ...launcher?.handleProps.style, ...launcher?.style, ...(themeColor ? { ...themeStyle, background: themeColor, color: themeInk } : {}) }
         }
       >
         <MessageCircle className={textUs ? "h-5 w-5" : "h-6 w-6"} />
@@ -512,6 +532,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
     <div
       role="dialog"
       aria-label={panelTitle}
+      style={themeStyle}
       className={cn(
         "flex flex-col bg-background",
         textUs && "overflow-hidden text-foreground",
@@ -530,6 +551,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode, pref
           "flex items-center justify-between bg-primary py-3 sm:rounded-t-2xl",
           textUs ? cn("gap-2 px-3", TEXT_US_INK) : "gap-3 px-4 text-primary-foreground",
         )}
+        style={themeColor ? { background: themeColor, color: themeInk } : undefined}
       >
         {canChangeLocation && (
           <button

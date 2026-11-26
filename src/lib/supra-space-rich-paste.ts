@@ -237,6 +237,31 @@ export function removeSupraSpaceInvisibleMarkersBeforeCaret(root: HTMLElement): 
   return true;
 }
 
+export function scrollSupraSpaceEditorCaretIntoView(editor: HTMLElement): void {
+  const scrollToCaret = () => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !editor.contains(selection.focusNode)) return;
+    const range = selection.getRangeAt(0).cloneRange();
+    range.collapse(false);
+    let caret: DOMRect | undefined = range.getClientRects()[0];
+    if (!caret) {
+      const before = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer.childNodes[range.startOffset - 1]
+        : range.startContainer;
+      if (!before) return;
+      const probe = document.createRange();
+      probe.selectNode(before);
+      const rects = probe.getClientRects();
+      caret = rects[rects.length - 1] ?? probe.getBoundingClientRect();
+    }
+    const box = editor.getBoundingClientRect();
+    if (caret.bottom > box.bottom) editor.scrollTop += caret.bottom - box.bottom;
+    else if (caret.top < box.top) editor.scrollTop -= box.top - caret.top;
+  };
+  scrollToCaret();
+  requestAnimationFrame(scrollToCaret);
+}
+
 export async function writeSupraSpaceMessageToClipboard(html: string, plainText: string): Promise<void> {
   if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
     try {

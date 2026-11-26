@@ -28,6 +28,7 @@ import {
 import { CrmSettingsNav } from "@/components/crm/settings/CrmSettingsNav";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { apiClient } from "@/lib/api-client";
@@ -98,6 +99,8 @@ export default function IntegrationsSettingsPage() {
   const [savedWebchatGreeting, setSavedWebchatGreeting] = React.useState("");
   const [webchatTextMode, setWebchatTextMode] = React.useState(false);
   const [savedWebchatTextMode, setSavedWebchatTextMode] = React.useState(false);
+  const [webchatColor, setWebchatColor] = React.useState("");
+  const [savedWebchatColor, setSavedWebchatColor] = React.useState("");
   const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
   const [webchatOrgKey, setWebchatOrgKey] = React.useState("");
   const [embedOrigin, setEmbedOrigin] = React.useState("");
@@ -158,6 +161,9 @@ export default function IntegrationsSettingsPage() {
           const textMode = settingsData?.webchatTextMode === true;
           setWebchatTextMode(textMode);
           setSavedWebchatTextMode(textMode);
+          const chatColor = typeof settingsData?.webchatColor === "string" ? settingsData.webchatColor : "";
+          setWebchatColor(chatColor);
+          setSavedWebchatColor(chatColor);
           setWebchatOrgKey(typeof settingsData?.webchatOrgKey === "string" ? settingsData.webchatOrgKey : "");
           const mailingAddress = settingsData?.physicalMailingAddress || "";
           setPhysicalMailingAddress(mailingAddress);
@@ -373,10 +379,12 @@ export default function IntegrationsSettingsPage() {
         }
     }
 
+    const webchatColorValid = !webchatColor || /^#[0-9a-f]{6}$/i.test(webchatColor)
     const webchatSettingsDirty =
         webchatEnabled !== savedWebchatEnabled ||
         webchatGreeting.trim() !== savedWebchatGreeting ||
-        webchatTextMode !== savedWebchatTextMode
+        webchatTextMode !== savedWebchatTextMode ||
+        webchatColor.toLowerCase() !== savedWebchatColor.toLowerCase()
 
     const handleSaveWebchatSettings = async () => {
         if (!isAdmin) return
@@ -385,12 +393,13 @@ export default function IntegrationsSettingsPage() {
             const t = await getToken()
             await apiClient.patch(
                 "/api/crm/org-settings",
-                { webchatEnabled, webchatGreeting: webchatGreeting.trim(), webchatTextMode },
+                { webchatEnabled, webchatGreeting: webchatGreeting.trim(), webchatTextMode, webchatColor: webchatColor.toLowerCase() },
                 { headers: { Authorization: `Bearer ${t}` } },
             )
             setSavedWebchatEnabled(webchatEnabled)
             setSavedWebchatGreeting(webchatGreeting.trim())
             setSavedWebchatTextMode(webchatTextMode)
+            setSavedWebchatColor(webchatColor.toLowerCase())
             toast.success("Webchat settings saved", {
                 description: webchatEnabled
                     ? "The Text Us button is live on your website and vehicle pages."
@@ -969,11 +978,49 @@ export default function IntegrationsSettingsPage() {
                                     />
                                 </div>
 
+                                <div className="space-y-1.5 max-w-xl" data-testid="webchat-color">
+                                    <label htmlFor="webchat-color-hex" className="text-sm font-semibold text-foreground">Chat color</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">The color of the Text Us button and the top of the chat. Pick one that matches your website.</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <input
+                                            type="color"
+                                            aria-label="Pick the chat color"
+                                            disabled={!isAdmin || isSavingWebchat}
+                                            value={/^#[0-9a-f]{6}$/i.test(webchatColor) ? webchatColor : "#00b262"}
+                                            onChange={e => setWebchatColor(e.target.value)}
+                                            className="h-10 w-12 cursor-pointer rounded-lg border border-border bg-transparent p-1 disabled:cursor-not-allowed"
+                                        />
+                                        <Input
+                                            id="webchat-color-hex"
+                                            disabled={!isAdmin || isSavingWebchat}
+                                            value={webchatColor}
+                                            onChange={e => setWebchatColor(e.target.value.trim())}
+                                            placeholder="#00b262"
+                                            maxLength={7}
+                                            className="h-10 w-28 font-mono text-sm"
+                                        />
+                                        {webchatColor && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                disabled={!isAdmin || isSavingWebchat}
+                                                onClick={() => setWebchatColor("")}
+                                                className="h-10 px-3 text-xs"
+                                            >
+                                                Use Suprah green
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {!webchatColorValid && (
+                                        <p className="text-[11px] text-red-500">Type a color like #1e6fd9.</p>
+                                    )}
+                                </div>
+
                                 {isAdmin && (
                                     <div className="pt-2">
                                         <Button
                                             onClick={handleSaveWebchatSettings}
-                                            disabled={isSavingWebchat || !webchatSettingsDirty}
+                                            disabled={isSavingWebchat || !webchatSettingsDirty || !webchatColorValid}
                                             className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
                                         >
                                             {isSavingWebchat ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save webchat settings"}

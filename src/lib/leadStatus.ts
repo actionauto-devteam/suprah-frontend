@@ -123,6 +123,18 @@ export const REASON_REQUIRED_STATUSES: string[] = [
 
 export const CONTACT_RESTRICTED_STATUSES: string[] = ["Do Not Contact"];
 
+export const FINISHED_LEAD_STATUSES: string[] = [
+  "Closed",
+  "Sold",
+  "Bought Elsewhere",
+  "Bad Lead",
+  "Missed Opportunity",
+  "Declined",
+  "No Longer Interested",
+  NOT_A_LEAD_STATUS,
+  ...CONTACT_RESTRICTED_STATUSES,
+];
+
 export function notALeadReason(
   lead: { status?: string; statusHistory?: Array<{ to?: string; reason?: string } | null> } | null | undefined,
 ): string {

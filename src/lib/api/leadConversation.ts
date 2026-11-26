@@ -39,6 +39,7 @@ export interface ConversationItem {
     vehicle?: { year?: string; make?: string; model?: string; trim?: string } | null;
   };
   attachments?: string[];
+  media?: Array<{ index: number; name: string; contentType: string; size: number; kind: "image" | "file" }>;
   messageId?: string;
 }
 
@@ -183,6 +184,7 @@ export function conversationItemsToThread(items: ConversationItem[], leadId: str
         call: item.call,
         inquiry: item.inquiry,
         attachments: item.attachments,
+        media: item.media,
         isLeadFallback: item.kind === "inquiry" && Boolean(item.inquiry?.isOriginal),
       };
     });

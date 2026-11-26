@@ -633,7 +633,8 @@ export const useAssignedNewCount = (enabled: boolean, liveRefreshMs = 0) => {
         signal,
       });
       const resData = response.data?.data || response.data;
-      return Number(resData?.count) || 0;
+      const total = Number(resData?.total);
+      return { count: Number(resData?.count) || 0, total: Number.isFinite(total) ? total : null };
     },
 
     staleTime: 15_000,
@@ -641,7 +642,7 @@ export const useAssignedNewCount = (enabled: boolean, liveRefreshMs = 0) => {
     refetchInterval: enabled && liveRefreshMs > 0 ? liveRefreshMs : false,
   });
 
-  return data || 0;
+  return { count: data?.count || 0, total: data?.total ?? null };
 };
 
 export type LeadMentionStatus = "new" | "completed" | "all";
