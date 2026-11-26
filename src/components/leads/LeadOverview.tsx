@@ -5,6 +5,7 @@ import { Car, Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { AssigneePicker } from "./atomic/AssigneePicker";
 import { assigneeIdOf } from "./useConfirmedAssign";
+import { VehiclePicker } from "./VehiclePicker";
 import { WorkspaceStatusSelect } from "@/components/conversation-workspace/ContactDetailsPanel";
 import type { WorkspaceStatusOption } from "@/components/conversation-workspace/workspace-types";
 import { useAuth } from "@/providers/AuthProvider";
@@ -13,6 +14,7 @@ type OverviewLead = {
   _id?: string;
   status?: string;
   assignedTo?: unknown;
+  vehicleId?: unknown;
   vehicle?: { year?: string | number; make?: string; model?: string; stock?: string } | null;
 };
 
@@ -23,11 +25,13 @@ export function LeadOverview({
   statusOptions,
   onStatusChange,
   onAssign,
+  onPickVehicle,
 }: {
   lead: OverviewLead | null | undefined;
   statusOptions: WorkspaceStatusOption[];
   onStatusChange: (status: string) => void;
   onAssign?: (userId: string | null) => Promise<void>;
+  onPickVehicle?: (vehicleId: string) => Promise<void>;
 }) {
   const { userId: me } = useAuth();
   const owner = assigneeIdOf(lead?.assignedTo);
@@ -97,15 +101,27 @@ export function LeadOverview({
       <span className={labelClass} style={{ color: "var(--text-tertiary)" }}>
         Vehicle
       </span>
-      <p className="flex min-w-0 items-center gap-1.5 text-xs" data-testid="overview-vehicle">
-        <Car className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--text-tertiary)" }} />
-        <span className="truncate">{vehicle || "No vehicle yet"}</span>
-        {stock ? (
-          <span className="shrink-0 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            #{stock}
+      <div className="flex min-w-0 items-start gap-1.5 text-xs" data-testid="overview-vehicle">
+        <Car className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--text-tertiary)" }} />
+        <span className="min-w-0 flex-1 leading-snug [overflow-wrap:anywhere]">
+          {vehicle || "No vehicle yet"}
+          {stock ? (
+            <span className="ml-1 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+              #{stock}
+            </span>
+          ) : null}
+        </span>
+        {onPickVehicle ? (
+          <span className="shrink-0 pl-1">
+            <VehiclePicker
+              key={String(lead?._id || "")}
+              currentVehicleId={lead?.vehicleId ? String(lead.vehicleId) : null}
+              hasVehicle={Boolean(vehicle || stock)}
+              onPick={onPickVehicle}
+            />
           </span>
         ) : null}
-      </p>
+      </div>
     </div>
   );
 }

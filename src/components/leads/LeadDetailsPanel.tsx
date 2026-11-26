@@ -98,6 +98,7 @@ interface LeadDetailsUpdate {
   source?: string;
   location?: string;
   opportunityValue?: number | null;
+  vehicleId?: string;
   vehicle?: {
     year?: string;
     make?: string;
@@ -280,6 +281,12 @@ export function LeadDetailsPanel({
     () => leadDetailSections(lead, sourceEmail).filter((section) => section.id !== "team"),
     [lead, sourceEmail],
   );
+  const pickVehicle = React.useCallback(
+    async (vehicleId: string) => {
+      await onUpdateDetails({ vehicleId });
+    },
+    [onUpdateDetails],
+  );
   const assignFromOverview = React.useMemo(
     () => (onAssign ? async (userId: string | null) => { await onAssign(userId); } : undefined),
     [onAssign],
@@ -384,6 +391,7 @@ export function LeadDetailsPanel({
           statusOptions={STATUS_OPTIONS}
           onStatusChange={onStatusChange}
           onAssign={assignFromOverview}
+          onPickVehicle={pickVehicle}
         />
       }
       quickActionColumns={actions.length}

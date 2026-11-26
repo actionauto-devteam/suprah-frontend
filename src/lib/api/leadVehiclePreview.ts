@@ -56,3 +56,9 @@ export async function fetchLeadVehiclePreview(leadId: string): Promise<LeadVehic
   const res = await apiClient.get(`/api/leads/${leadId}/vehicle-preview`);
   return res.data?.data as LeadVehiclePreview;
 }
+
+export async function searchInventoryVehicles(query: string, signal?: AbortSignal): Promise<InventoryVehicleSummary[]> {
+  const res = await apiClient.get("/api/leads/vehicle-search", { params: { q: query }, signal });
+  const rows = res.data?.data;
+  return Array.isArray(rows) ? (rows as InventoryVehicleSummary[]) : [];
+}
