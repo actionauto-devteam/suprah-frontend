@@ -22,8 +22,10 @@ import {
   Mail,
   MessageSquare,
   MoreHorizontal,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
 import { NOT_A_LEAD_REASONS, NOT_A_LEAD_STATUS, REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
@@ -81,6 +83,7 @@ interface ReplySectionProps {
   channelSelector?: ReplyChannelSelector | null;
   emailSubject?: { value: string; onChange: (value: string) => void; locked: boolean } | null;
   sendNotice?: { text: string; actionLabel?: string; onAction?: () => void; resend?: boolean } | null;
+  onAssignToMe?: () => Promise<void>;
 }
 
 export interface ReplyChannelChoice {
@@ -190,6 +193,7 @@ export const ReplySection = React.memo(
     channelSelector = null,
     emailSubject = null,
     sendNotice = null,
+    onAssignToMe,
   }: ReplySectionProps) => {
     const draftKey = leadId && draftChannel ? `${leadId}:${draftChannel}` : null;
     const smsSelected = channelSelector?.value === "sms";
@@ -207,6 +211,20 @@ export const ReplySection = React.memo(
     const [emojiOpen, setEmojiOpen] = React.useState(false);
 
     const [composerMode, setComposerMode] = React.useState<"reply" | "note">("reply");
+    const [assigningToMe, setAssigningToMe] = React.useState(false);
+
+    const assignToMe = async () => {
+      if (!onAssignToMe || assigningToMe) return;
+      setAssigningToMe(true);
+      try {
+        await onAssignToMe();
+      } catch (error) {
+        const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error(message || "Couldn't save the assignment. Please try again.");
+      } finally {
+        setAssigningToMe(false);
+      }
+    };
     const [noteText, setNoteText] = React.useState("");
     const [noteMentionedUserIds, setNoteMentionedUserIds] = React.useState<string[]>([]);
     const [noteMentionedGroupIds, setNoteMentionedGroupIds] = React.useState<string[]>([]);
@@ -950,6 +968,19 @@ export const ReplySection = React.memo(
                 }
               />
 
+              {onAssignToMe && (
+                <button
+                  type="button"
+                  onClick={() => void assignToMe()}
+                  disabled={assigningToMe}
+                  className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] px-2 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-500/15 disabled:opacity-50 dark:border-emerald-400/30 dark:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                  data-testid="composer-assign-to-me"
+                >
+                  {assigningToMe ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                  Assign to me
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={onApptOpen}
@@ -1015,6 +1046,12 @@ export const ReplySection = React.memo(
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" className="w-52">
+                  {onAssignToMe && (
+                    <DropdownMenuItem disabled={assigningToMe} onSelect={() => void assignToMe()}>
+                      <UserPlus />
+                      Assign to me
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onSelect={onApptOpen}>
                     <Calendar />
                     Schedule

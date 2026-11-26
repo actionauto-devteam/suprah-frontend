@@ -55,6 +55,44 @@ function actionTone(tone: WorkspaceQuickAction["tone"]) {
   return "border-(--border-2) bg-(--bg-hover) text-(--text-secondary)";
 }
 
+export function WorkspaceStatusSelect({
+  value,
+  options,
+  onChange,
+  className,
+  id,
+}: {
+  value: string;
+  options: WorkspaceStatusOption[];
+  onChange: (status: string) => void;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className={cn("h-9 w-full rounded-lg border px-3 text-xs outline-none", className)}
+      style={{ background: "var(--input-bg)", borderColor: "var(--input-border)", color: "var(--text-primary)" }}
+    >
+      {options.some((option) => option.group)
+        ? Array.from(new Set(options.map((option) => option.group || ""))).map((group) => (
+            <optgroup key={group || "_"} label={group || "Other"}>
+              {options
+                .filter((option) => (option.group || "") === group)
+                .map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+            </optgroup>
+          ))
+        : options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+    </select>
+  );
+}
+
 export interface ContactDetailsPanelProps {
   contact: WorkspaceContact;
   contactTypeLabel?: string;
@@ -64,6 +102,9 @@ export interface ContactDetailsPanelProps {
   summaryStale?: boolean;
   onRegenerateSummary?: () => void;
   belowSummary?: React.ReactNode;
+  summaryInScroll?: boolean;
+  overview?: React.ReactNode;
+  quickActionColumns?: number;
   detailsTop?: React.ReactNode;
   quickActions?: WorkspaceQuickAction[];
   detailSections: WorkspaceDetailSection[];
@@ -91,6 +132,9 @@ export function ContactDetailsPanel({
   summaryStale = false,
   onRegenerateSummary,
   belowSummary,
+  summaryInScroll = false,
+  overview,
+  quickActionColumns,
   detailsTop,
   quickActions = [],
   detailSections,
@@ -208,6 +252,47 @@ export function ContactDetailsPanel({
     }
   };
 
+  const compactActions = Boolean(quickActionColumns && quickActionColumns <= 3);
+
+  const summaryBlock = summary || onRegenerateSummary ? (
+    <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--border-1)", background: "var(--bg-subtle)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <strong className="text-xs">Conversation summary</strong>
+        {onRegenerateSummary && (
+          <button
+            type="button"
+            onClick={onRegenerateSummary}
+            disabled={summaryLoading}
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium transition hover:bg-(--bg-hover) disabled:opacity-50"
+            style={{ color: "var(--text-tertiary)" }}
+            title="Regenerate summary"
+          >
+            {summaryLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+            {summaryUpdatedAt ? formatRelativeTimeShort(summaryUpdatedAt) : "Generate"}
+          </button>
+        )}
+      </div>
+      {summary ? (
+        <p className="mt-1.5 break-words text-[11px] leading-relaxed [overflow-wrap:anywhere]" style={{ color: "var(--text-secondary)" }}>
+          {summary}
+        </p>
+      ) : (
+        <p className="mt-1.5 text-[11px] italic" style={{ color: "var(--text-tertiary)" }}>
+          No summary yet.
+        </p>
+      )}
+      {summary && summaryStale && !summaryLoading && (
+        <p className="mt-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" data-testid="summary-stale">
+          This lead has changed since this summary was written. Press the refresh button for an updated summary.
+        </p>
+      )}
+    </div>
+  ) : null;
+
   return (
     <aside className="cw-details-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l max-lg:overflow-y-auto max-lg:overscroll-contain" style={{ borderColor: "var(--border-1)", background: "var(--bg-elevated)" }}>
       <div className="cw-profile-header shrink-0 border-b p-4" style={{ borderColor: "var(--border-1)" }}>
@@ -225,53 +310,23 @@ export function ContactDetailsPanel({
           </button>
         </div>
 
-        <p className="mt-2 text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--text-tertiary)" }}>
-          {contactTypeLabel}
-        </p>
-
-        {summary || onRegenerateSummary ? (
-          <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--border-1)", background: "var(--bg-subtle)" }}>
-            <div className="flex items-center justify-between gap-2">
-              <strong className="text-xs">Conversation summary</strong>
-              {onRegenerateSummary && (
-                <button
-                  type="button"
-                  onClick={onRegenerateSummary}
-                  disabled={summaryLoading}
-                  className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium transition hover:bg-(--bg-hover) disabled:opacity-50"
-                  style={{ color: "var(--text-tertiary)" }}
-                  title="Regenerate summary"
-                >
-                  {summaryLoading ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3" />
-                  )}
-                  {summaryUpdatedAt ? formatRelativeTimeShort(summaryUpdatedAt) : "Generate"}
-                </button>
-              )}
-            </div>
-            {summary ? (
-              <p className="mt-1.5 break-words text-[11px] leading-relaxed [overflow-wrap:anywhere]" style={{ color: "var(--text-secondary)" }}>
-                {summary}
-              </p>
-            ) : (
-              <p className="mt-1.5 text-[11px] italic" style={{ color: "var(--text-tertiary)" }}>
-                No summary yet.
-              </p>
-            )}
-            {summary && summaryStale && !summaryLoading && (
-              <p className="mt-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" data-testid="summary-stale">
-                This lead has changed since this summary was written. Press the refresh button for an updated summary.
-              </p>
-            )}
-          </div>
+        {contactTypeLabel ? (
+          <p className="mt-2 text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--text-tertiary)" }}>
+            {contactTypeLabel}
+          </p>
         ) : null}
 
-        {belowSummary}
+        {overview}
+
+        {!summaryInScroll && summaryBlock}
+
+        {!summaryInScroll && belowSummary}
 
         {quickActions.length > 0 ? (
-          <div className="cw-quick-actions mt-3 grid grid-cols-5 gap-1.5">
+          <div
+            className={cn("cw-quick-actions mt-3 grid gap-1.5", !quickActionColumns && "grid-cols-5")}
+            style={quickActionColumns ? { gridTemplateColumns: `repeat(${quickActionColumns}, minmax(0, 1fr))` } : undefined}
+          >
             {quickActions.map((action) => (
               <button
                 key={action.id}
@@ -281,7 +336,8 @@ export function ContactDetailsPanel({
                 title={action.title || action.label}
                 aria-pressed={action.isActive || undefined}
                 className={cn(
-                  "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border px-1 text-[9px] font-medium transition hover:bg-(--bg-active) disabled:cursor-not-allowed disabled:opacity-40",
+                  "flex min-w-0 items-center justify-center rounded-lg border px-1 font-medium transition hover:bg-(--bg-active) disabled:cursor-not-allowed disabled:opacity-40",
+                  compactActions ? "h-10 flex-row gap-1.5 text-[11px]" : "h-14 flex-col gap-1 text-[9px]",
                   actionTone(action.tone),
                   action.isActive && "border-emerald-400/60 bg-emerald-500/15 text-emerald-700 shadow-sm shadow-emerald-500/10 dark:text-emerald-300",
                 )}
@@ -298,26 +354,7 @@ export function ContactDetailsPanel({
             <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-tertiary)" }}>
               Lead status
             </label>
-            <select
-              value={status}
-              onChange={(event) => onStatusChange(event.target.value)}
-              className="h-9 w-full rounded-lg border px-3 text-xs outline-none"
-              style={{ background: "var(--input-bg)", borderColor: "var(--input-border)", color: "var(--text-primary)" }}
-            >
-              {statusOptions.some((option) => option.group)
-                ? Array.from(new Set(statusOptions.map((option) => option.group || ""))).map((group) => (
-                    <optgroup key={group || "_"} label={group || "Other"}>
-                      {statusOptions
-                        .filter((option) => (option.group || "") === group)
-                        .map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                    </optgroup>
-                  ))
-                : statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-            </select>
+            <WorkspaceStatusSelect value={status} options={statusOptions} onChange={onStatusChange} />
           </div>
         ) : null}
 
@@ -328,6 +365,12 @@ export function ContactDetailsPanel({
       </div>
 
       <div className="cw-details-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 max-lg:flex-none max-lg:overflow-y-visible max-lg:pb-8">
+        {summaryInScroll && (summaryBlock || belowSummary) ? (
+          <div className="mb-3 min-w-0 [&>*:first-child]:mt-0" data-testid="details-summary">
+            {summaryBlock}
+            {belowSummary}
+          </div>
+        ) : null}
         {tab === "details" ? (
           <div className="min-w-0 space-y-3">
             {detailsTop}

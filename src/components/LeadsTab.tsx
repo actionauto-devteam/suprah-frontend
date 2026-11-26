@@ -94,6 +94,7 @@ import { LeadsActiveFilters, type LeadsActiveFilterChip } from "./leads/LeadsAct
 import { LeadsLocationDropdown } from "./leads/LeadsLocationDropdown";
 import { ConversationView } from "./leads/ConversationView";
 import { LeadDetailsPanel } from "./leads/LeadDetailsPanel";
+import { useConfirmedAssign } from "./leads/useConfirmedAssign";
 import { ReplySection } from "./leads/ReplySection";
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal";
 import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
@@ -2894,6 +2895,36 @@ export function LeadsTab({
     }
   };
 
+  const assignSelectedLead = React.useCallback(
+    async (userId: string | null) => {
+      if (!selectedLeadId) {
+        throw new Error("No lead selected");
+      }
+      const saved = await assignLead({ id: selectedLeadId, assignedTo: userId });
+      const fresh = saved?.data;
+      _setSelectedLead((current) =>
+        current && current._id === selectedLeadId
+          ? {
+              ...current,
+              assignedTo: userId || null,
+              assignedAt: userId ? fresh?.assignedAt ?? new Date().toISOString() : null,
+              assignmentHistory: Array.isArray(fresh?.assignmentHistory) ? fresh.assignmentHistory : current.assignmentHistory,
+            }
+          : current,
+      );
+    },
+    [selectedLeadId, assignLead],
+  );
+  const confirmedAssign = useConfirmedAssign(selectedLead?.assignedTo, assignSelectedLead);
+  const assignWithConfirm = confirmedAssign.assign;
+  const assignSelectedLeadToMe = React.useMemo(
+    () =>
+      currentUserId && selectedLeadId && !confirmedAssign.isMine
+        ? () => assignWithConfirm(currentUserId)
+        : undefined,
+    [currentUserId, selectedLeadId, confirmedAssign.isMine, assignWithConfirm],
+  );
+
   const showLeadsPanel =
     !selectedLead || viewportMode === "wide";
 
@@ -3903,6 +3934,7 @@ export function LeadsTab({
                       showSavedNote(noteLeadId, saved);
                     }}
                     isSavingNote={isAddingNote}
+                    onAssignToMe={assignSelectedLeadToMe}
                   />
                   )}
                 </>
@@ -4043,30 +4075,15 @@ export function LeadsTab({
                   showSavedNote(noteLeadId, saved);
                 }}
                 onUpdateDetails={handleUpdateSelectedLeadDetails}
-                onAssign={async (userId) => {
-                  if (!selectedLead?._id) {
-                    throw new Error("No lead selected");
-                  }
-                  const leadId = selectedLead._id;
-                  const saved = await assignLead({ id: leadId, assignedTo: userId });
-                  const fresh = saved?.data;
-                  _setSelectedLead((current) =>
-                    current && current._id === leadId
-                      ? {
-                          ...current,
-                          assignedTo: userId || null,
-                          assignedAt: userId ? fresh?.assignedAt ?? new Date().toISOString() : null,
-                          assignmentHistory: Array.isArray(fresh?.assignmentHistory) ? fresh.assignmentHistory : current.assignmentHistory,
-                        }
-                      : current,
-                  );
-                }}
+                onAssign={assignWithConfirm}
+                composerBeside={viewportMode !== "narrow"}
               />
             </div>
           )}
         </ConversationWorkspace>
       )}
 
+      {confirmedAssign.dialog}
       <AddLeadModal
         isOpen={addLeadOpen}
         onOpenChange={setAddLeadOpen}
