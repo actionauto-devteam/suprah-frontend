@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Grid3x3, Phone, PhoneOff, Mic, MicOff, Pause, Play, PhoneIncoming, Loader2 } from "lucide-react";
 import { useCommStore, commActions, type ActiveCallState } from "@/lib/communicationStore";
@@ -10,8 +10,23 @@ import { DIAL_KEYS } from "@/lib/phoneDialing";
 import { CallRecordingControls } from './CallRecordingControls';
 import { CallTimer } from './CallTimer';
 import { CallMicrophoneControl } from './CallMicrophoneControl';
+import { useCallWakeLock } from "@/hooks/useCallWakeLock";
 
 const RINGTONE_SRC = "/sounds/ringtone.wav";
+
+const COARSE_POINTER = "(pointer: coarse)";
+
+function useTouchScreen(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia?.(COARSE_POINTER);
+      query?.addEventListener?.("change", onChange);
+      return () => query?.removeEventListener?.("change", onChange);
+    },
+    () => window.matchMedia?.(COARSE_POINTER).matches === true,
+    () => false,
+  );
+}
 
 function CallControl({ label, active, disabled, onClick, children }: { label: string; active?: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -24,7 +39,8 @@ function CallControl({ label, active, disabled, onClick, children }: { label: st
   );
 }
 
-function CallWindow({ call, onHangup, onMute, onHold, onDigit }: { call: ActiveCallState; onHangup: () => void; onMute: () => void; onHold: (hold: boolean) => boolean; onDigit: (digit: string) => boolean }) {
+function CallWindow({ call, screenOn, onHangup, onMute, onHold, onDigit }: { call: ActiveCallState; screenOn: boolean; onHangup: () => void; onMute: () => void; onHold: (hold: boolean) => boolean; onDigit: (digit: string) => boolean }) {
+  const touch = useTouchScreen();
   const [keypadOpen, setKeypadOpen] = useState(false);
   const [digits, setDigits] = useState("");
   const live = call.phase === "active";
@@ -92,6 +108,12 @@ function CallWindow({ call, onHangup, onMute, onHold, onDigit }: { call: ActiveC
           </button>
         </div>
         <CallMicrophoneControl variant="dark" autoStart muted={Boolean(call.muted)} />
+        {touch && (
+          <p role="note" className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-snug text-amber-200" data-testid="call-keep-open">
+            Keep Suprah open until the call ends. Switching apps or locking your phone can cut the call.
+            {screenOn ? " The screen will stay on during the call." : ""}
+          </p>
+        )}
         <div className="mt-3">
           <CallRecordingControls callId={call.callLogId} />
         </div>
@@ -107,6 +129,7 @@ export default function IncomingCallCenter() {
   const { incomingCalls, activeCall, callNotice } = useCommStore();
   const { answerInbound, hangup, toggleMute, toggleHold, sendDigit } = useTelnyxRTC();
   const onCall = Boolean(activeCall);
+  const screenOn = useCallWakeLock(Boolean(activeCall) && activeCall?.phase !== "ended");
   const focusRinging = useCallback(
     (node: HTMLElement | null) => {
       if (node && !onCall) node.focus({ preventScroll: true });
@@ -243,7 +266,7 @@ export default function IncomingCallCenter() {
         </div>
       )}
 
-      {activeCall && <CallWindow key={activeCall.clientCallId || activeCall.callLogId || activeCall.phoneNumber} call={activeCall} onHangup={hangup} onMute={toggleMute} onHold={toggleHold} onDigit={sendDigit} />}
+      {activeCall && <CallWindow key={activeCall.clientCallId || activeCall.callLogId || activeCall.phoneNumber} call={activeCall} screenOn={screenOn} onHangup={hangup} onMute={toggleMute} onHold={toggleHold} onDigit={sendDigit} />}
 
       <style jsx global>{`
         @keyframes commRing {
