@@ -84,6 +84,9 @@ interface ReplySectionProps {
   emailSubject?: { value: string; onChange: (value: string) => void; locked: boolean } | null;
   sendNotice?: { text: string; actionLabel?: string; onAction?: () => void; resend?: boolean } | null;
   onAssignToMe?: () => Promise<void>;
+  hideBarActions?: boolean;
+  noteToggleRequest?: number;
+  onComposerModeChange?: (mode: "reply" | "note") => void;
 }
 
 export interface ReplyChannelChoice {
@@ -194,6 +197,9 @@ export const ReplySection = React.memo(
     emailSubject = null,
     sendNotice = null,
     onAssignToMe,
+    hideBarActions = false,
+    noteToggleRequest = 0,
+    onComposerModeChange,
   }: ReplySectionProps) => {
     const draftKey = leadId && draftChannel ? `${leadId}:${draftChannel}` : null;
     const smsSelected = channelSelector?.value === "sms";
@@ -237,6 +243,17 @@ export const ReplySection = React.memo(
       setAttachments([]);
       setAttachmentError("");
     }, [leadId]);
+
+    const lastNoteToggleRef = React.useRef(noteToggleRequest);
+    React.useEffect(() => {
+      if (noteToggleRequest === lastNoteToggleRef.current) return;
+      lastNoteToggleRef.current = noteToggleRequest;
+      if (onAddNote) setComposerMode((mode) => (mode === "note" ? "reply" : "note"));
+    }, [noteToggleRequest, onAddNote]);
+
+    React.useEffect(() => {
+      onComposerModeChange?.(composerMode);
+    }, [composerMode, onComposerModeChange]);
 
     const handleSaveNote = async () => {
       const trimmed = noteText.trim();
@@ -956,19 +973,21 @@ export const ReplySection = React.memo(
 
           <div className="flex select-none items-center gap-2 border-t border-slate-100 px-2 py-1.5 dark:border-emerald-400/10 sm:flex-wrap sm:px-2.5 sm:py-2">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-wrap">
-              <LeadStatusSelect
-                value={selectedLeadStatus}
-                excludeCurrent
-                triggerLabel={<span className="max-[359px]:sr-only">Status</span>}
-                triggerIcon={<Circle className="h-3 w-3" />}
-                onChange={(status) =>
-                  REASON_REQUIRED_STATUSES.includes(status)
-                    ? setReasonModal({ kind: "status", status })
-                    : onStatusChange(status)
-                }
-              />
+              {!hideBarActions && (
+                <LeadStatusSelect
+                  value={selectedLeadStatus}
+                  excludeCurrent
+                  triggerLabel={<span className="max-[359px]:sr-only">Status</span>}
+                  triggerIcon={<Circle className="h-3 w-3" />}
+                  onChange={(status) =>
+                    REASON_REQUIRED_STATUSES.includes(status)
+                      ? setReasonModal({ kind: "status", status })
+                      : onStatusChange(status)
+                  }
+                />
+              )}
 
-              {onAssignToMe && (
+              {onAssignToMe && !hideBarActions && (
                 <button
                   type="button"
                   onClick={() => void assignToMe()}
@@ -981,14 +1000,16 @@ export const ReplySection = React.memo(
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={onApptOpen}
-                className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
-              >
-                <Calendar className="h-3 w-3" />
-                Schedule
-              </button>
+              {!hideBarActions && (
+                <button
+                  type="button"
+                  onClick={onApptOpen}
+                  className="hidden h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:flex sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                >
+                  <Calendar className="h-3 w-3" />
+                  Schedule
+                </button>
+              )}
 
               {onReschedule && (
                 <button
@@ -1001,7 +1022,7 @@ export const ReplySection = React.memo(
                 </button>
               )}
 
-              {onAddNote && (
+              {onAddNote && !hideBarActions && (
                 <button
                   type="button"
                   onClick={() => setComposerMode((mode) => (mode === "note" ? "reply" : "note"))}
@@ -1046,16 +1067,18 @@ export const ReplySection = React.memo(
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" className="w-52">
-                  {onAssignToMe && (
+                  {onAssignToMe && !hideBarActions && (
                     <DropdownMenuItem disabled={assigningToMe} onSelect={() => void assignToMe()}>
                       <UserPlus />
                       Assign to me
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onSelect={onApptOpen}>
-                    <Calendar />
-                    Schedule
-                  </DropdownMenuItem>
+                  {!hideBarActions && (
+                    <DropdownMenuItem onSelect={onApptOpen}>
+                      <Calendar />
+                      Schedule
+                    </DropdownMenuItem>
+                  )}
                   {onReschedule && (
                     <DropdownMenuItem onSelect={onReschedule}>
                       <CalendarClock />

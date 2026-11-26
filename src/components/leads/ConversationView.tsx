@@ -51,6 +51,7 @@ interface ConversationViewProps {
   onCombineUndone?: () => void;
   onBack?: () => void;
   onShowDetails?: () => void;
+  actionBar?: React.ReactNode;
   onNoReplyNeeded?: () => void;
   noReplyBusy?: boolean;
   highlightNoteId?: string | null;
@@ -634,6 +635,7 @@ export function ConversationView({
   onCombineUndone,
   onBack,
   onShowDetails,
+  actionBar,
   onNoReplyNeeded,
   noReplyBusy = false,
   highlightNoteId = null,
@@ -938,6 +940,8 @@ export function ConversationView({
       )}
 
       {/* Sticky lead-details strip — always visible, never scrolls away */}
+      {actionBar}
+
       <LeadInquiryDetails lead={lead} />
 
       <NeedsReplyBanner since={lead?.needsReplySince} onNoReplyNeeded={onNoReplyNeeded} busy={noReplyBusy} />

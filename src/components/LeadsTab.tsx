@@ -95,6 +95,7 @@ import { LeadsLocationDropdown } from "./leads/LeadsLocationDropdown";
 import { ConversationView } from "./leads/ConversationView";
 import { LeadDetailsPanel } from "./leads/LeadDetailsPanel";
 import { useConfirmedAssign } from "./leads/useConfirmedAssign";
+import { LeadActionBar } from "./leads/LeadActionBar";
 import { ReplySection } from "./leads/ReplySection";
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal";
 import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
@@ -511,6 +512,11 @@ export function LeadsTab({
   const activeCalls = useActiveCalls();
   const [liveUpdates, setLiveUpdates] = React.useState<boolean | null>(null);
   const [dialerOpen, setDialerOpen] = React.useState(false);
+  const [noteToggleRequest, setNoteToggleRequest] = React.useState(0);
+  const [composerNoteMode, setComposerNoteMode] = React.useState(false);
+  const handleComposerModeChange = React.useCallback((mode: "reply" | "note") => {
+    setComposerNoteMode(mode === "note");
+  }, []);
   const refreshLeadCounts = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["leads", "status-counts"] });
     void queryClient.invalidateQueries({ queryKey: ["leads", "location-counts"] });
@@ -3219,6 +3225,17 @@ export function LeadsTab({
   const showConversationPanel =
     Boolean(selectedLead) || viewportMode === "wide";
 
+  const narrowActions = viewportMode === "narrow" && Boolean(selectedLead);
+  const replyComposerShown =
+    Boolean(selectedLead) &&
+    !(
+      linkedChatTarget ||
+      selectedLead?.status === NOT_A_LEAD_STATUS ||
+      (selectedLead &&
+        conversationMeta[selectedLead._id]?.composer?.blocked &&
+        conversationMeta[selectedLead._id]?.status === selectedLead.status)
+    );
+
   const showDetailsPanel =
     Boolean(selectedLead) && showLeadDetails;
 
@@ -3781,6 +3798,21 @@ export function LeadsTab({
                     onClose={() => setSelectedLead(null)}
                     onBack={viewportMode !== "wide" ? () => setSelectedLead(null) : undefined}
                     onShowDetails={!showLeadDetails ? () => setShowLeadDetails(true) : undefined}
+                    actionBar={
+                      narrowActions ? (
+                        <LeadActionBar
+                          status={selectedLead.status || "New"}
+                          assignedTo={selectedLead.assignedTo}
+                          onStatusChange={handleDetailsStatus}
+                          onAssign={assignWithConfirm}
+                          onSchedule={() => setApptOpen(true)}
+                          onNote={replyComposerShown ? () => setNoteToggleRequest((value) => value + 1) : undefined}
+                          noteActive={replyComposerShown && composerNoteMode}
+                          onCall={() => setDialerOpen(true)}
+                          canCall={Boolean(String(selectedLead.phone || "").replace(/[^\d+]/g, ""))}
+                        />
+                      ) : undefined
+                    }
                     sourceEmail={LEADS_SOURCE_EMAIL}
                     siblingCount={
                       (selectedLead.vehicle as any)?.stock
@@ -3935,6 +3967,9 @@ export function LeadsTab({
                     }}
                     isSavingNote={isAddingNote}
                     onAssignToMe={assignSelectedLeadToMe}
+                    hideBarActions={narrowActions}
+                    noteToggleRequest={noteToggleRequest}
+                    onComposerModeChange={handleComposerModeChange}
                   />
                   )}
                 </>
