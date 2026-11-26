@@ -15,6 +15,7 @@ import {
   Bot,
   AlertTriangle,
   Link2,
+  Merge,
   MessageCircle,
   Paperclip,
   RefreshCw,
@@ -31,6 +32,7 @@ import { CoachAiPopover } from "./CoachAiPopover";
 import { visibleThreadEntries } from "@/lib/messageIdentity";
 import { CombineNotice, EarlierConversations } from "./EarlierConversations";
 import { CopyConversationLinkButton } from "./CopyConversationLinkButton";
+import { EmailAttachmentButton, TextMessageMedia, type MessageMediaItem } from "./MessageMedia";
 import type { LeadConversationMeta } from "@/lib/api/leadConversation";
 import { MDT_TZ, isTodayMDT, isYesterdayMDT, mdtDateKey } from "@/lib/timezone";
 
@@ -327,7 +329,7 @@ const looksLikeSentence = (text: string) =>
 
 const cleanAggregatorText = (raw: string): string => {
   const text = (raw || "").replace(/\s+/g, " ").trim();
-  if (!text || !AGGREGATOR_MARKERS.test(text)) return text;
+  if (!text || !AGGREGATOR_MARKERS.test(text)) return (raw || "").trim();
 
   const METADATA_PREFIXES = [
     "view shopper signals", "likelihood to buy", "cargurus", "deal rating",
@@ -355,15 +357,41 @@ const cleanAggregatorText = (raw: string): string => {
   return text; // nothing better found — show the original rather than nothing
 };
 
+const HTML_MARKUP = /<\/?(?:br|div|p|b|strong|em|span|table|tbody|tr|td|th|font|a|li|ul|ol|h[1-6]|html|body|style|center|hr)\b[^>]*>/gi;
+const ADF_MARKUP = /<\?xml|<\?adf|<adf[\s>]|<prospect[\s>]/i;
+
+const hasMarkup = (text: string) => ADF_MARKUP.test(text) || (text.match(HTML_MARKUP) || []).length >= 2;
+
+const plainFromHtml = (text: string) =>
+  decodeHtmlEntities(
+    text
+      .replace(/<(script|style|head)[^>]*>[\s\S]*?<\/\1>/gi, "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
+      .replace(/<[^>]+>/g, ""),
+  )
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const readableMarkup = (message: any, raw: string): string => {
+  const text = getMessageText(message);
+  if (message?.fromTimeline && text && !hasMarkup(text)) return text.trim();
+  return ADF_MARKUP.test(raw) ? "" : plainFromHtml(raw);
+};
+
 const extractCustomerComments = (
   lead: any,
   message: any,
 ): string => {
   const direct = decodeHtmlEntities(cleanValue(lead?.comments));
+  if (direct && hasMarkup(direct)) return readableMarkup(message, direct);
   if (direct) return cleanAggregatorText(direct);
 
   const text = getMessageText(message);
   if (!text) return "";
+  if (hasMarkup(text)) return readableMarkup(message, text);
 
   const section = text.match(
     /—\s*Customer Comments\s*—\s*\n?([\s\S]*?)(?=\n\s*—\s|$)/i,
@@ -859,7 +887,7 @@ export function ConversationView({
                   title="This chat visitor's phone and email were typed in and not verified, so the chat is kept separate from other leads."
                 >
                   <ShieldAlert className="h-3 w-3" />
-                  Unverified chat
+                  <span className="max-sm:sr-only">Unverified chat</span>
                 </span>
               )}
             </div>
@@ -883,10 +911,12 @@ export function ConversationView({
             <button
               type="button"
               onClick={onLinkUnverified}
-              className="hidden shrink-0 items-center gap-1 rounded-full border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-50 sm:flex dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
+              title="Link to a lead"
+              aria-label="Link to a lead"
+              className="flex h-9 w-9 shrink-0 items-center justify-center gap-1 rounded-lg border border-amber-300 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-50 sm:h-auto sm:w-auto sm:rounded-full sm:px-2.5 sm:py-1 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
             >
-              <Link2 className="h-3 w-3" />
-              Link to a lead
+              <Merge className="h-4 w-4 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">Link to a lead</span>
             </button>
           )}
 
@@ -1133,6 +1163,11 @@ export function ConversationView({
                       ? message.statusLabel
                       : "";
                   const attachments: string[] = Array.isArray(message?.attachments) ? message.attachments : [];
+                  const textMedia: MessageMediaItem[] = Array.isArray(message?.media) ? message.media : [];
+                  const gmailAttachmentId =
+                    message?.channel === "email" && message?.fromTimeline && message?._id && !String(message._id).startsWith("email:")
+                      ? String(message._id)
+                      : "";
                   const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
                   const isAutomationMessage = outbound && message?.sentBy?.userId === "system" && String(message?.sentBy?.name || "").startsWith("Automation - ");
                   const aiMessageChannel =
@@ -1184,22 +1219,36 @@ export function ConversationView({
                                 {message.subject}
                               </span>
                             )}
-                            {text || (attachments.length ? "" : "Message content unavailable")}
+                            {text || (attachments.length || textMedia.length ? "" : "Message content unavailable")}
                             {attachments.length > 0 && (
                               <span className={cn("mt-1.5 flex flex-wrap gap-1.5", text ? "" : "mt-0")}>
-                                {attachments.map((name) => (
-                                  <span
-                                    key={name}
-                                    className={cn(
-                                      "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
-                                      outbound ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600 dark:bg-emerald-400/10 dark:text-slate-300",
-                                    )}
-                                  >
-                                    <Paperclip className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{name}</span>
-                                  </span>
+                                {attachments.map((name, attachmentIndex) => (
+                                  gmailAttachmentId && lead?._id ? (
+                                    <EmailAttachmentButton
+                                      key={`${name}-${attachmentIndex}`}
+                                      leadId={String(lead._id)}
+                                      gmailId={gmailAttachmentId}
+                                      index={attachmentIndex}
+                                      name={name}
+                                      outbound={outbound}
+                                    />
+                                  ) : (
+                                    <span
+                                      key={`${name}-${attachmentIndex}`}
+                                      className={cn(
+                                        "inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]",
+                                        outbound ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600 dark:bg-emerald-400/10 dark:text-slate-300",
+                                      )}
+                                    >
+                                      <Paperclip className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">{name}</span>
+                                    </span>
+                                  )
                                 ))}
                               </span>
+                            )}
+                            {textMedia.length > 0 && (
+                              <TextMessageMedia messageId={String(message?._id || "")} media={textMedia} outbound={outbound} />
                             )}
                           </div>
 

@@ -14,6 +14,7 @@ import {
   Mail,
   MessageSquare,
   MessageSquareDot,
+  CircleDot,
   Moon,
   MoreHorizontal,
   Plus,
@@ -72,7 +73,9 @@ import {
   LEAD_STATUS_CATEGORY_LABEL,
   LEAD_STATUS_CATEGORY_ORDER,
   LEAD_STATUS_CATEGORIES,
+  NOT_A_LEAD_REASONS,
   NOT_A_LEAD_STATUS,
+  REASON_REQUIRED_STATUSES,
   getLeadStatusStyle,
   isContactRestrictedStatus,
   type LeadStatusCategory,
@@ -135,6 +138,7 @@ import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
 import { resolveCustomerEmail, resolveReplyRecipientEmail } from "@/components/conversation-workspace/customer-email";
 import { smsPhoneProblem } from "@/lib/smsPhone";
+import { prepareTextFiles } from "@/lib/textAttachments";
 import { announceLeadShipmentsChanged } from "@/lib/lead-shipping";
 
 
@@ -493,7 +497,8 @@ export function LeadsTab({
   const { counts: leadStatusCounts, isLoading: leadStatusCountsLoading } = useLeadStatusCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadLocationCounts } = useLeadLocationCounts(LEADS_LIVE_REFRESH_MS);
   const { counts: leadTypeCounts } = useLeadTypeCounts(LEADS_LIVE_REFRESH_MS);
-  const assignedNewCount = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
+  const assignedLeads = useAssignedNewCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
+  const assignedNewCount = assignedLeads.count;
   const needsReplyCount = useNeedsReplyCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
   const mentionCount = useLeadMentionCount(Boolean(currentUserId), LEADS_LIVE_REFRESH_MS);
   const completeMentions = useCompleteLeadMentions();
@@ -524,6 +529,8 @@ export function LeadsTab({
     }
     return tabs;
   }, [leadLocationCounts]);
+
+  const newLeadsCount = Number(leadStatusCounts?.New) || 0;
 
   const inboxTabTotals = React.useMemo(() => {
     let all = 0;
@@ -974,6 +981,7 @@ export function LeadsTab({
   const [rescheduleCandidates, setRescheduleCandidates] = React.useState<Appointment[]>([]);
   const [rescheduleTarget, setRescheduleTarget] = React.useState<Appointment | null>(null);
   const [doNotContactRemoval, setDoNotContactRemoval] = React.useState<{ status: string; lead: Lead } | null>(null);
+  const [detailsStatusRequest, setDetailsStatusRequest] = React.useState<{ status: string; lead: Lead } | null>(null);
   const [contactReasonRequest, setContactReasonRequest] = React.useState<{ resolve: (reason: string | null) => void } | null>(null);
   const [rescheduleModalOpen, setRescheduleModalOpen] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
@@ -2117,6 +2125,36 @@ export function LeadsTab({
     );
   };
 
+  const handleDetailsStatus = (status: string) => {
+    if (!selectedLead || status === selectedLead.status) return;
+    if (REASON_REQUIRED_STATUSES.includes(status) || selectedLead.status === "Closed") {
+      setDetailsStatusRequest({ status, lead: selectedLead });
+      return;
+    }
+    void handleStatus(status);
+  };
+
+  const detailsReasonProps: { title: string; description: string; confirmLabel: string; quickReasons?: string[] } | null = !detailsStatusRequest
+    ? null
+    : detailsStatusRequest.status === NOT_A_LEAD_STATUS
+      ? {
+          title: "Move to Others",
+          description: "This is not a lead, so it won't count in lead numbers or get automatic texts or emails. You can move it back anytime.",
+          confirmLabel: "Move to Others",
+          quickReasons: NOT_A_LEAD_REASONS,
+        }
+      : !REASON_REQUIRED_STATUSES.includes(detailsStatusRequest.status)
+        ? {
+            title: "Reopen this ticket",
+            description: `Why is this inquiry being reopened? This is logged on the ticket for the team to see later. The status will change to "${detailsStatusRequest.status}".`,
+            confirmLabel: "Reopen",
+          }
+        : {
+            title: `Move to "${detailsStatusRequest.status}"`,
+            description: "Why is this lead moving to this status? This is logged on the ticket for the team to see later.",
+            confirmLabel: "Confirm",
+          };
+
   const setSelectedLead = (lead: Lead | null) => {
     if (!lead) {
       _setSelectedLead(null);
@@ -2323,24 +2361,29 @@ export function LeadsTab({
           addToast("error", "This lead has no phone number on file");
           throw new Error("Missing phone number");
         }
-        if (attachments.length > 0) {
-          addToast(
-            "error",
-            "Attachments aren't supported for SMS replies yet",
-          );
-          throw new Error("Attachments unsupported for SMS");
-        }
-
         const smsRecipient = replyState.recipientPhone || selectedLead.phone;
+        const smsFields: Record<string, string> = {
+          toPhone: smsRecipient,
+          body: sendingBody,
+          leadId: selectedLead._id,
+          customerName: `${selectedLead.firstName || ""} ${selectedLead.lastName || ""}`.trim(),
+          clientRequestId: sendRequestIdFor(sendingDraftKey, [
+            "sms",
+            smsRecipient,
+            sendingBody,
+            ...attachments.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+          ]),
+        };
+        let smsPayload: Record<string, string> | FormData = smsFields;
+        if (attachments.length > 0) {
+          const form = new FormData();
+          Object.entries(smsFields).forEach(([key, value]) => form.append(key, value));
+          for (const file of await prepareTextFiles(attachments)) form.append("files", file, file.name);
+          smsPayload = form;
+        }
         const smsResponse = await apiClient.post(
           "/api/crm/communications/messages",
-          {
-            toPhone: smsRecipient,
-            body: sendingBody,
-            leadId: selectedLead._id,
-            customerName: `${selectedLead.firstName || ""} ${selectedLead.lastName || ""}`.trim(),
-            clientRequestId: sendRequestIdFor(sendingDraftKey, ["sms", smsRecipient, sendingBody]),
-          },
+          smsPayload,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -3044,7 +3087,7 @@ export function LeadsTab({
             : inboxView === "leads" && assignmentFilter === key && !(key === "all" && assigneeFilterId);
         const label = key === "mine" ? "My Leads" : key === "all" ? "All Leads" : key === "mentioned" ? "Mentioned" : "Others";
         const newCount = key === "mine" ? assignedNewCount : key === "mentioned" ? mentionCount : 0;
-        const total = key === "all" ? inboxTabTotals.all : key === "others" ? inboxTabTotals.others : null;
+        const total = key === "all" ? inboxTabTotals.all : key === "others" ? inboxTabTotals.others : key === "mine" ? assignedLeads.total : null;
         const newLabel =
           key === "mine"
             ? `${newCount} new lead${newCount === 1 ? "" : "s"} assigned to you`
@@ -3091,16 +3134,29 @@ export function LeadsTab({
               {label}
             </span>
             {total !== null ? (
-              leadStatusCountsLoading ? (
+              leadStatusCountsLoading && key !== "mine" ? (
                 <span className="h-4" aria-hidden />
               ) : (
                 <span
                   className={cn("h-4 text-[11px] font-medium leading-4 tabular-nums", selected ? "text-white/80" : "")}
                   style={selected ? undefined : { color: "var(--text-tertiary)" }}
-                  aria-label={key === "others" ? `${total} in Others` : `${total} leads`}
+                  aria-label={key === "others" ? `${total} in Others` : key === "mine" ? `${total} leads assigned to you` : `${total} leads`}
                   data-testid={`inbox-tab-${key}-count`}
                 >
                   {total >= 10000 ? `${Math.floor(total / 1000)}k` : total.toLocaleString("en-US")}
+                  {key === "mine" && newCount > 0 && (
+                    <span
+                      className={cn(
+                        "ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none",
+                        selected ? "bg-white/25 text-white" : "bg-emerald-500 text-white",
+                      )}
+                      aria-label={newLabel}
+                      title={newLabel}
+                      data-testid="my-leads-new-count"
+                    >
+                      {newCount > 99 ? "99+" : newCount}
+                    </span>
+                  )}
                 </span>
               )
             ) : newCount > 0 ? (
@@ -3611,6 +3667,26 @@ export function LeadsTab({
                           <span className="shrink-0 underline underline-offset-2">Show</span>
                         </button>
                       ) : null}
+
+                      {newLeadsCount > 0 && statusFilter !== "New" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveStatusCategory(null);
+                            setStatusFilter("New");
+                            setCurrentPage(1);
+                            setSelectedLead(null);
+                          }}
+                          className="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-left text-[12px] font-semibold text-sky-700 dark:text-sky-300"
+                          data-testid="new-leads-cue"
+                        >
+                          <CircleDot className="h-3.5 w-3.5 shrink-0" />
+                          <span className="min-w-0 flex-1 leading-snug">
+                            {newLeadsCount.toLocaleString("en-US")} {newLeadsCount === 1 ? "lead is" : "leads are"} still New (not contacted yet)
+                          </span>
+                          <span className="shrink-0 underline underline-offset-2">Show</span>
+                        </button>
+                      ) : null}
                     </div>
 
                     {isPlaceholderData && !isLoading ? (
@@ -3946,7 +4022,7 @@ export function LeadsTab({
                 onClose={() =>
                   setShowLeadDetails(false)
                 }
-                onStatusChange={handleStatus}
+                onStatusChange={handleDetailsStatus}
                 onAppointment={() =>
                   setApptOpen(true)
                 }
@@ -3971,7 +4047,19 @@ export function LeadsTab({
                   if (!selectedLead?._id) {
                     throw new Error("No lead selected");
                   }
-                  await assignLead({ id: selectedLead._id, assignedTo: userId });
+                  const leadId = selectedLead._id;
+                  const saved = await assignLead({ id: leadId, assignedTo: userId });
+                  const fresh = saved?.data;
+                  _setSelectedLead((current) =>
+                    current && current._id === leadId
+                      ? {
+                          ...current,
+                          assignedTo: userId || null,
+                          assignedAt: userId ? fresh?.assignedAt ?? new Date().toISOString() : null,
+                          assignmentHistory: Array.isArray(fresh?.assignmentHistory) ? fresh.assignmentHistory : current.assignmentHistory,
+                        }
+                      : current,
+                  );
                 }}
               />
             </div>
@@ -4032,6 +4120,22 @@ export function LeadsTab({
           const request = contactReasonRequest;
           setContactReasonRequest(null);
           request?.resolve(reason);
+        }}
+      />
+
+      <StatusReasonModal
+        open={Boolean(detailsStatusRequest)}
+        onOpenChange={(open) => {
+          if (!open) setDetailsStatusRequest(null);
+        }}
+        title={detailsReasonProps?.title || ""}
+        description={detailsReasonProps?.description || ""}
+        confirmLabel={detailsReasonProps?.confirmLabel || "Confirm"}
+        quickReasons={detailsReasonProps?.quickReasons}
+        onConfirm={(reason) => {
+          const request = detailsStatusRequest;
+          setDetailsStatusRequest(null);
+          if (request) void handleStatus(request.status, reason, request.lead);
         }}
       />
 

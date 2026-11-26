@@ -183,6 +183,13 @@
       if (wantOpen) sendOpen();
     } else if (data.type === "suprah-webchat:unread") {
       setBadge(data.count);
+    } else if (data.type === "suprah-webchat:theme") {
+      var color = String(data.color || "");
+      var ink = String(data.ink || "");
+      if (/^#[0-9a-f]{6}$/i.test(color)) {
+        launcher.style.background = color;
+        launcher.style.color = /^#[0-9a-f]{6}$/i.test(ink) ? ink : INK;
+      }
     } else if (data.type === "suprah-webchat:resize") {
       if (data.open) {
         if (!shown) showPanel();

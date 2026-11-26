@@ -183,7 +183,7 @@ export default function VehicleReengagementPage() {
           Vehicle Re-engagement
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          AI-drafted texts to past leads when a matching vehicle arrives. Blocked messages need a human before they go out.
+          Automatic texts to past leads when a matching vehicle is ready for sale. Blocked messages need a human before they go out.
         </p>
       </div>
 

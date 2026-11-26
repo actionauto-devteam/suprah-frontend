@@ -86,6 +86,7 @@ export interface WebChatConfig {
   greeting: string;
   withinHours: boolean;
   textMode?: boolean;
+  color?: string;
   dealershipName?: string;
   locations?: string[];
 }
@@ -103,6 +104,7 @@ export const getWebchatConfig = async (
     greeting: data?.greeting || "",
     withinHours: data?.withinHours !== false,
     textMode: data?.textMode === true,
+    color: typeof data?.color === "string" && /^#[0-9a-f]{6}$/i.test(data.color) ? data.color : "",
     dealershipName: data?.dealershipName || "",
     locations: Array.isArray(data?.locations)
       ? data.locations.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)

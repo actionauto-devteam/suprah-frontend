@@ -23,7 +23,22 @@ import {
   BarChart3,
   Contact,
   Handshake,
+  Settings,
+  GripVertical,
+  ArrowUpDown,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -62,11 +77,84 @@ function withAvatarCacheBust(avatar?: string | null) {
   return `${avatar}${avatar.includes("?") ? "&" : "?"}v=${Date.now()}`;
 }
 
-function QuickAction({ icon, label, onClick, accent = "emerald" }: {
-  icon: React.ReactNode; label: string; onClick: () => void; accent?: "emerald" | "amber" | "violet";
+type QuickActionAccent = "emerald" | "amber" | "violet";
+
+interface QuickActionItem {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  route: string;
+  accent?: QuickActionAccent;
+}
+
+const QUICK_ICON = "h-5 w-5 text-emerald-500 dark:text-emerald-400";
+
+const QUICK_ACTIONS: QuickActionItem[] = [
+  { key: "leads", icon: <Users className={QUICK_ICON} />, label: "Leads", route: "/crm/leads" },
+  { key: "customer-records", icon: <Contact className={QUICK_ICON} />, label: "Customer Records", route: "/crm/customers" },
+  { key: "deal-board", icon: <Handshake className={QUICK_ICON} />, label: "Deal Board", route: "/crm/deals" },
+  { key: "service-hub", icon: <Activity className={QUICK_ICON} />, label: "Service Hub", route: "/crm/appointments/dashboard" },
+  { key: "appointments", icon: <CalendarCheck className={QUICK_ICON} />, label: "Appointments", route: "/crm/appointments" },
+  { key: "finance-line", icon: <Tag className={QUICK_ICON} />, label: "Finance Line", route: "/crm/aftermarket" },
+  { key: "garage-review", icon: <Car className={QUICK_ICON} />, label: "Garage Review", route: "/crm/garage-review" },
+  { key: "re-engagement", icon: <RefreshCw className={QUICK_ICON} />, label: "Re-engagement", route: "/crm/vehicle-reengagement" },
+  { key: "price-drop-emails", icon: <TrendingDown className={QUICK_ICON} />, label: "Price Drop Emails", route: "/crm/price-drop-emails" },
+  { key: "campaigns", icon: <Mail className={QUICK_ICON} />, label: "Campaigns", route: "/crm/email-campaigns" },
+  { key: "ai-agent-tasks", icon: <Bot className={QUICK_ICON} />, label: "AI Agent Tasks", route: "/crm/ai-tasks" },
+  { key: "reports", icon: <BarChart3 className={QUICK_ICON} />, label: "Reports", route: "/crm/reports" },
+  { key: "support-center", icon: <Headset className={QUICK_ICON} />, label: "Support Center", route: "/crm/support-center" },
+  { key: "reviews", icon: <Star className={QUICK_ICON} />, label: "Reviews", route: "/crm/reviews" },
+  { key: "leaderboard", icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />, label: "Leaderboard", route: "/crm/leaderboard", accent: "amber" },
+  { key: "referrals", icon: <Gift className="h-5 w-5 text-violet-500 dark:text-violet-400" />, label: "Referrals", route: "/crm/referrals", accent: "violet" },
+  { key: "settings", icon: <Settings className={QUICK_ICON} />, label: "Settings", route: "/crm/settings" },
+];
+
+const DEFAULT_QUICK_ORDER = QUICK_ACTIONS.map((action) => action.key);
+
+function orderQuickActions(order: string[]): QuickActionItem[] {
+  const byKey = new Map(QUICK_ACTIONS.map((action) => [action.key, action]));
+  const seen = new Set<string>();
+  const list: QuickActionItem[] = [];
+  for (const key of order) {
+    const action = byKey.get(key);
+    if (action && !seen.has(key)) {
+      seen.add(key);
+      list.push(action);
+    }
+  }
+  for (const action of QUICK_ACTIONS) if (!seen.has(action.key)) list.push(action);
+  return list;
+}
+
+function SortableQuickAction({ action }: { action: QuickActionItem }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: action.key });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "relative h-full cursor-grab touch-manipulation select-none rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 active:cursor-grabbing",
+        isDragging && "z-10 opacity-80 shadow-lg",
+      )}
+      {...attributes}
+      {...listeners}
+      aria-label={`Move ${action.label}`}
+    >
+      <GripVertical className="pointer-events-none absolute left-2 top-2 z-10 h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />
+      <div className="pointer-events-none h-full">
+        <QuickAction icon={action.icon} label={action.label} onClick={() => {}} accent={action.accent ?? "emerald"} tabIndex={-1} />
+      </div>
+    </div>
+  );
+}
+
+function QuickAction({ icon, label, onClick, accent = "emerald", tabIndex }: {
+  icon: React.ReactNode; label: string; onClick: () => void; accent?: QuickActionAccent; tabIndex?: number;
 }) {
   return (
     <button
+      type="button"
+      tabIndex={tabIndex}
       onClick={onClick}
       className={cn(
         "group relative flex h-full w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl p-3 min-h-22 sm:gap-2.5 sm:p-4 sm:min-h-25",
@@ -159,7 +247,42 @@ export default function CrmDashboardPage() {
   const [token, setToken] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);
   const [mounted, setMounted] = React.useState(false);
+  const [quickOrder, setQuickOrder] = React.useState<string[]>(DEFAULT_QUICK_ORDER);
+  const [arrangeDraft, setArrangeDraft] = React.useState<string[] | null>(null);
+  const [savingOrder, setSavingOrder] = React.useState(false);
   const denverToday = useDenverDayPeriod();
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleArrangeEnd = React.useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setArrangeDraft((current) => {
+      if (!current) return current;
+      const from = current.indexOf(String(active.id));
+      const to = current.indexOf(String(over.id));
+      return from < 0 || to < 0 ? current : arrayMove(current, from, to);
+    });
+  }, []);
+
+  const saveQuickOrder = React.useCallback(async () => {
+    if (!arrangeDraft) return;
+    setSavingOrder(true);
+    try {
+      const order = arrangeDraft.join(",") === DEFAULT_QUICK_ORDER.join(",") ? [] : arrangeDraft;
+      await apiClient.put("/api/crm/me/quick-actions", { order }, { headers: { Authorization: `Bearer ${token}` } });
+      setQuickOrder(arrangeDraft);
+      setArrangeDraft(null);
+      toast.success("Quick actions saved.");
+    } catch {
+      toast.error("Couldn't save your quick actions. Please try again.");
+    } finally {
+      setSavingOrder(false);
+    }
+  }, [arrangeDraft, token]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -171,10 +294,13 @@ export default function CrmDashboardPage() {
       const t = localStorage.getItem("crm_token");
       if (!t) { router.replace("/crm"); return; }
       try {
-        const [res, profileRes] = await Promise.all([
+        const [res, profileRes, quickRes] = await Promise.all([
           apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } }),
           apiClient.get("/api/profile").catch(() => null),
+          apiClient.get("/api/crm/me/quick-actions", { headers: { Authorization: `Bearer ${t}` } }).catch(() => null),
         ]);
+        const savedOrder = quickRes?.data?.data?.order;
+        if (Array.isArray(savedOrder)) setQuickOrder(orderQuickActions(savedOrder).map((action) => action.key));
         const data = res.data?.data || res.data;
         const profile = profileRes?.data?.data || profileRes?.data;
         const profileAvatar = profile?.avatarUrl || profile?.avatar;
@@ -215,25 +341,9 @@ export default function CrmDashboardPage() {
     weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC",
   })} · ${denverToday.zone}`;
 
-  const quickActions = [
-    { icon: <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Leads", route: "/crm/leads" },
-    { icon: <Contact className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Customer Records", route: "/crm/customers" },
-    { icon: <Handshake className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Deal Board", route: "/crm/deals" },
-    { icon: <Activity className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Service Hub", route: "/crm/appointments/dashboard" },
-    { icon: <CalendarCheck className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Appointments", route: "/crm/appointments" },
-
-    { icon: <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Finance Line", route: "/crm/aftermarket" },
-    { icon: <Car className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Garage Review", route: "/crm/garage-review" },
-    { icon: <RefreshCw className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Re-engagement", route: "/crm/vehicle-reengagement" },
-    { icon: <TrendingDown className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Price Drop Emails", route: "/crm/price-drop-emails" },
-    { icon: <Mail className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Campaigns", route: "/crm/email-campaigns" },
-    { icon: <Bot className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "AI Agent Tasks", route: "/crm/ai-tasks" },
-    { icon: <BarChart3 className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Reports", route: "/crm/reports" },
-    { icon: <Headset className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Support Center", route: "/crm/support-center" },
-    { icon: <Star className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Reviews", route: "/crm/reviews" },
-    { icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />, label: "Leaderboard", route: "/crm/leaderboard", accent: "amber" as const },
-    { icon: <Gift className="h-5 w-5 text-violet-500 dark:text-violet-400" />, label: "Referrals", route: "/crm/referrals", accent: "violet" as const },
-  ];
+  const quickActions = orderQuickActions(arrangeDraft ?? quickOrder);
+  const arranging = arrangeDraft !== null;
+  const smallButton = "inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors disabled:opacity-50";
 
   return (
     <TooltipProvider>
@@ -307,15 +417,71 @@ export default function CrmDashboardPage() {
               "transition-all duration-700 delay-200 motion-reduce:transition-none",
               mounted ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
             )}>
-              <p className="mb-5 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">Quick Actions</p>
-              <div className="grid auto-rows-fr grid-cols-3 gap-2.5 sm:gap-3 lg:grid-cols-5">
-                {quickActions.map((action, i) => (
-                  <div key={action.label} className="h-full transition-all duration-500 motion-reduce:transition-none"
-                    style={{ transitionDelay: mounted ? `${200 + i * 50}ms` : "0ms", opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(12px)" }}>
-                    <QuickAction icon={action.icon} label={action.label} onClick={() => router.push(action.route)} accent={action.accent ?? "emerald"} />
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">Quick Actions</p>
+                {arranging ? (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setArrangeDraft([...DEFAULT_QUICK_ORDER])}
+                      disabled={savingOrder}
+                      className={cn(smallButton, "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800")}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setArrangeDraft(null)}
+                      disabled={savingOrder}
+                      className={cn(smallButton, "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800")}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveQuickOrder}
+                      disabled={savingOrder}
+                      className={cn(smallButton, "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700")}
+                    >
+                      {savingOrder ? "Saving..." : "Done"}
+                    </button>
                   </div>
-                ))}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setArrangeDraft(quickActions.map((action) => action.key))}
+                    className={cn(smallButton, "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800")}
+                  >
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                    Arrange
+                  </button>
+                )}
               </div>
+              {arranging && (
+                <p className="-mt-2 mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+                  Drag the buttons into the order you like. On a phone, press and hold a button, then drag. Only you will see this order.
+                </p>
+              )}
+              {arranging ? (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleArrangeEnd}>
+                  <SortableContext items={quickActions.map((action) => action.key)} strategy={rectSortingStrategy}>
+                    <div className="grid auto-rows-fr grid-cols-3 gap-2.5 sm:gap-3 lg:grid-cols-5">
+                      {quickActions.map((action) => (
+                        <SortableQuickAction key={action.key} action={action} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="grid auto-rows-fr grid-cols-3 gap-2.5 sm:gap-3 lg:grid-cols-5">
+                  {quickActions.map((action, i) => (
+                    <div key={action.key} className="h-full transition-all duration-500 motion-reduce:transition-none"
+                      style={{ transitionDelay: mounted ? `${200 + i * 50}ms` : "0ms", opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(12px)" }}>
+                      <QuickAction icon={action.icon} label={action.label} onClick={() => router.push(action.route)} accent={action.accent ?? "emerald"} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </main>

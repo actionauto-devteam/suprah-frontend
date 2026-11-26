@@ -32,14 +32,46 @@ type FormatToken = {
   linkHref?: string;
 };
 
-function readableColorClass(color?: string, isOwn?: boolean): string | undefined {
+const OWN_BUBBLE_COLORS = [[21, 128, 61], [22, 163, 74]];
+const DARK_OTHER_BUBBLE_COLOR = [37, 42, 49];
+const LIGHT_OTHER_BUBBLE_COLOR = [255, 255, 255];
+const BUBBLE_BLEND_DISTANCE = 25;
+
+function colorChannels(color?: string): number[] | null {
   const raw = color?.trim().replace(/^#/, '');
-  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return undefined;
+  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return null;
   const expanded = raw.length === 3 ? raw.split('').map(ch => ch + ch).join('') : raw.slice(0, 6);
   const channels = [0, 2, 4].map(index => Number.parseInt(expanded.slice(index, index + 2), 16));
-  if (!channels.every(Number.isFinite)) return undefined;
-  if (channels.every(channel => channel <= 24)) return 'ss4-readable-dark-color';
-  if (!isOwn && channels.every(channel => channel >= 238)) return 'ss4-readable-light-color';
+  return channels.every(Number.isFinite) ? channels : null;
+}
+
+function labFromChannels(channels: number[]): number[] {
+  const [r, g, b] = channels
+    .map(channel => channel / 255)
+    .map(value => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
+  const pivot = (value: number) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116);
+  const x = pivot((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = pivot(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = pivot((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+function blendsIntoBubble(channels: number[], bubble: number[]): boolean {
+  const [textL, textA, textB] = labFromChannels(channels);
+  const [bubbleL, bubbleA, bubbleB] = labFromChannels(bubble);
+  return Math.hypot(textL - bubbleL, textA - bubbleA, textB - bubbleB) < BUBBLE_BLEND_DISTANCE;
+}
+
+function blendsIntoOwnBubble(color?: string): boolean {
+  const channels = colorChannels(color);
+  return !!channels && OWN_BUBBLE_COLORS.some(bubble => blendsIntoBubble(channels, bubble));
+}
+
+function readableColorClass(color?: string, isOwn?: boolean): string | undefined {
+  const channels = colorChannels(color);
+  if (!channels) return undefined;
+  if (channels.every(channel => channel <= 24) || (!isOwn && blendsIntoBubble(channels, DARK_OTHER_BUBBLE_COLOR))) return 'ss4-readable-dark-color';
+  if (!isOwn && (channels.every(channel => channel >= 238) || blendsIntoBubble(channels, LIGHT_OTHER_BUBBLE_COLOR))) return 'ss4-readable-light-color';
   return undefined;
 }
 
@@ -171,7 +203,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
     if (token.start > cursor) pushPlain(text.slice(cursor, token.start));
     const key = `${keyPrefix}-fmt-${index++}`;
     const inner = text.slice(token.contentStart, token.contentEnd);
-    if (token.type === 'color') nodes.push(<span key={key} className={readableColorClass(token.color, isOwn)} style={{ color: token.color }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
+    if (token.type === 'color') nodes.push(<span key={key} className={readableColorClass(token.color, isOwn)} style={isOwn && blendsIntoOwnBubble(token.color) ? undefined : { color: token.color }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
     else if (token.type === 'highlight') nodes.push(<span key={key} style={{ backgroundColor: token.color, borderRadius: 3, padding: '0 2px' }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
     else if (token.type === 'font') nodes.push(<span key={key} style={{ fontFamily: FONT_FAMILIES[token.fontFamily || 'default'] }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
     else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `calc(${token.fontSize || 16}px * var(--ss4-message-font-scale, 1))` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);

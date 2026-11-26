@@ -120,6 +120,10 @@ const ALLOWED_EXTENSIONS = [
 
 const FILE_ACCEPT_VALUE = ALLOWED_EXTENSIONS.join(",");
 
+const TEXT_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"];
+const TEXT_ACCEPT_VALUE = TEXT_EXTENSIONS.join(",");
+const MAX_TEXT_FILES = 5;
+
 const EMOJIS = [
   "😀",
   "😁",
@@ -195,6 +199,10 @@ export const ReplySection = React.memo(
     >(null);
 
     const [attachments, setAttachments] = React.useState<File[]>([]);
+    const textFilesBlocked =
+      smsSelected &&
+      (attachments.length > MAX_TEXT_FILES ||
+        attachments.some((file) => !TEXT_EXTENSIONS.includes(getFileExtension(file.name))));
     const [attachmentError, setAttachmentError] = React.useState("");
     const [emojiOpen, setEmojiOpen] = React.useState(false);
 
@@ -485,7 +493,7 @@ export const ReplySection = React.memo(
         isSending ||
         replyBlocked ||
         (!replyMessage.trim() && attachments.length === 0) ||
-        (smsSelected && attachments.length > 0)
+        textFilesBlocked
       ) {
         return;
       }
@@ -867,9 +875,15 @@ export const ReplySection = React.memo(
           )}
 
           {composerMode === "reply" && smsSelected && attachments.length > 0 && (
-            <p className="border-t border-slate-100 px-3 py-2 text-xs text-amber-700 dark:border-emerald-400/10 dark:text-amber-300">
-              Attachments can only be sent by email. Remove them or switch to Email.
-            </p>
+            textFilesBlocked ? (
+              <p className="border-t border-slate-100 px-3 py-2 text-xs text-amber-700 dark:border-emerald-400/10 dark:text-amber-300">
+                Only photos and PDF files can be sent by text, up to {MAX_TEXT_FILES} at a time. Remove the others or switch to Email.
+              </p>
+            ) : (
+              <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-emerald-400/10 dark:text-slate-400">
+                Photos are sent as picture messages. PDFs are sent as a link the customer can open.
+              </p>
+            )
           )}
 
           {composerMode === "reply" && attachmentError && (
@@ -1017,11 +1031,11 @@ export const ReplySection = React.memo(
                   </DropdownMenuItem>
                   {composerMode === "reply" && (
                     <DropdownMenuItem
-                      disabled={isSending || replyBlocked || smsSelected}
+                      disabled={isSending || replyBlocked}
                       onSelect={() => fileInputRef.current?.click()}
                     >
                       <Paperclip />
-                      {smsSelected ? "Attach file (email only)" : "Attach file"}
+                      {smsSelected ? "Attach photo or PDF" : "Attach file"}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
@@ -1081,7 +1095,7 @@ export const ReplySection = React.memo(
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={FILE_ACCEPT_VALUE}
+                    accept={smsSelected ? TEXT_ACCEPT_VALUE : FILE_ACCEPT_VALUE}
                     onChange={handleFileSelection}
                     className="hidden"
                   />
@@ -1089,9 +1103,9 @@ export const ReplySection = React.memo(
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isSending || replyBlocked || smsSelected}
+                    disabled={isSending || replyBlocked}
                     className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:inline-flex sm:h-7 sm:w-7"
-                    title={smsSelected ? "Attachments can only be sent by email" : "Attach file (maximum 5 MB per file)"}
+                    title={smsSelected ? "Attach a photo or PDF (up to 5 MB each)" : "Attach file (maximum 5 MB per file)"}
                     aria-label="Attach file"
                   >
                     <Paperclip className="h-4 w-4" />
@@ -1104,14 +1118,14 @@ export const ReplySection = React.memo(
                       isSending ||
                       replyBlocked ||
                       (!replyMessage.trim() && attachments.length === 0) ||
-                      (smsSelected && attachments.length > 0)
+                      textFilesBlocked
                     }
                     className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-emerald-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 dark:from-emerald-500 dark:to-cyan-600 sm:h-7"
                     title={
                       replyUnavailableReason
                         ? replyUnavailableReason
-                        : smsSelected && attachments.length > 0
-                          ? "Remove the attachments or switch to Email to send them"
+                        : textFilesBlocked
+                          ? "Only photos and PDF files can be sent by text"
                           : replyMessage.trim() || attachments.length > 0
                             ? channelSelector
                               ? `Send ${channelSelector.value === "sms" ? "text" : "email"}`

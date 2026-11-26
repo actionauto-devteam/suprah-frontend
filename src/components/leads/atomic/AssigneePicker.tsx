@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, Search, UserRound, X } from "lucide-react";
+import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTeamMembers } from "@/hooks/useTeamPulse";
 import { useAuth } from "@/providers/AuthProvider";
@@ -23,8 +24,15 @@ export function AssigneePicker({
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const { data: members = [] } = useTeamMembers();
+  const { data: teamMembers = [] } = useTeamMembers();
   const { userId: currentUserId } = useAuth();
+  const members = React.useMemo(
+    () =>
+      [...teamMembers].sort((a, b) =>
+        String(a.name || a.email || "").localeCompare(String(b.name || b.email || ""), "en", { sensitivity: "base" })
+      ),
+    [teamMembers]
+  );
 
   const currentMember = React.useMemo(
     () => members.find((member) => member._id === currentAssignedTo),
@@ -56,6 +64,9 @@ export function AssigneePicker({
     try {
       await onAssign(userId);
       handleOpenChange(false);
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message || "Couldn't save the assignment. Please try again.");
     } finally {
       setSaving(false);
     }

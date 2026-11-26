@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle2, Loader2, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react"
+import { CheckCircle2, Loader2, Pencil, Plus, RefreshCw, Trash2, X, XCircle } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { useCrmLocations } from "@/hooks/useCrmLocations"
@@ -54,6 +54,7 @@ interface NumbersResponse {
   numbers: DealershipNumber[]
   suggestion: { number: string } | null
   allLocations?: AllLocations
+  otherNumbers?: string[]
 }
 
 interface TeamMember {
@@ -222,6 +223,115 @@ function AllLocationsCard({
       {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         {saved && !changed && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>}
+        <button type="button" onClick={submit} disabled={saving || !changed} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function OtherNumbersCard({
+  saved,
+  saving,
+  onSave,
+}: {
+  saved: string[]
+  saving: boolean
+  onSave: (numbers: string[]) => Promise<void>
+}) {
+  const [draft, setDraft] = React.useState<string[] | null>(null)
+  const [input, setInput] = React.useState("")
+  const [error, setError] = React.useState("")
+  const [done, setDone] = React.useState(false)
+  const list = draft ?? saved
+  const changed = draft !== null && (draft.length !== saved.length || draft.some((value, index) => value !== saved[index]))
+
+  const add = () => {
+    const digits = input.replace(/\D/g, "")
+    const ten = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits
+    if (ten.length !== 10) {
+      setError("Type a 10-digit US phone number.")
+      return
+    }
+    const number = `+1${ten}`
+    setError("")
+    setDone(false)
+    if (!list.includes(number)) setDraft([...list, number])
+    setInput("")
+  }
+
+  const remove = (number: string) => {
+    setError("")
+    setDone(false)
+    setDraft(list.filter((value) => value !== number))
+  }
+
+  const submit = async () => {
+    setError("")
+    setDone(false)
+    try {
+      await onSave(list)
+      setDraft(null)
+      setDone(true)
+    } catch (err) {
+      setError(errorMessage(err, "Could not save these numbers."))
+    }
+  }
+
+  return (
+    <section aria-label="Our numbers on other phone systems" data-testid="other-numbers-card" className="space-y-3 rounded-xl border bg-card p-4">
+      <div>
+        <h3 className="text-sm font-semibold">Our numbers on other phone systems</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Add the dealership numbers that are still on another phone system. Texts and calls from these numbers are not new leads: they go to Others, in one card per number, and Suprah does not send them a missed-call text or an AI reply. The Suprah numbers above are treated the same way.
+        </p>
+      </div>
+      {list.length ? (
+        <ul className="flex flex-wrap gap-2" aria-label="Numbers on other phone systems">
+          {list.map((number) => (
+            <li key={number} className="inline-flex min-h-9 items-center gap-1 rounded-full border bg-muted/30 pl-3 pr-1 text-sm">
+              {formatSmsRecipient(number) || number}
+              <button
+                type="button"
+                onClick={() => remove(number)}
+                aria-label={`Remove ${formatSmsRecipient(number) || number}`}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p role="status" className="text-xs text-muted-foreground">No numbers added yet.</p>
+      )}
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="min-w-0 flex-1 basis-48 text-xs font-medium text-muted-foreground">
+          Phone number
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                add()
+              }
+            }}
+            inputMode="tel"
+            placeholder="(801) 555-0123"
+            className={field}
+          />
+        </label>
+        <button type="button" onClick={add} disabled={!input.trim()} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium hover:bg-muted disabled:opacity-50">
+          <Plus className="h-4 w-4" />
+          Add
+        </button>
+      </div>
+      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {done && !changed && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>}
         <button type="button" onClick={submit} disabled={saving || !changed} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Save
@@ -434,6 +544,12 @@ export function PhoneNumbersPanel() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
   })
 
+  const saveOtherNumbers = useMutation({
+    mutationFn: async (list: string[]) =>
+      (await apiClient.put("/api/crm/phone-numbers/other-numbers", { numbers: list }, await headers())).data.data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  })
+
   const numbers = query.data?.numbers || []
   const suggestion = query.data?.suggestion || null
   const hasMain = numbers.some((row) => row.kind === "main")
@@ -580,6 +696,14 @@ export function PhoneNumbersPanel() {
             Replies go out from the number the customer texted or called. New texts and calls go out from the lead&apos;s location number, or the main number.
             Suprah only sends from a number that shows ready here. If none is ready, the current Suprah number is used.
           </p>
+
+          {!editing && (
+            <OtherNumbersCard
+              saved={query.data?.otherNumbers || []}
+              saving={saveOtherNumbers.isPending}
+              onSave={async (list) => { await saveOtherNumbers.mutateAsync(list) }}
+            />
+          )}
         </>
       )}
     </div>

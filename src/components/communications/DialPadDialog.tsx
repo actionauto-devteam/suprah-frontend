@@ -11,6 +11,7 @@ import { DIAL_KEYS, last10, toE164 } from "@/lib/phoneDialing";
 import { CallMicrophoneControl } from "./CallMicrophoneControl";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
+import { FINISHED_LEAD_STATUSES } from "@/lib/leadStatus";
 
 interface DialPadDialogProps {
   open: boolean;
@@ -46,7 +47,9 @@ export function DialPadDialog({ open, onOpenChange, phone = "", name, leadId }: 
     const headers = { Authorization: `Bearer ${await getToken()}` };
     const key = last10(e164);
     const found = await apiClient.get("/api/leads", { params: { search: key, limit: 10, page: 1 }, headers });
-    const match = ((found.data?.data?.leads || []) as Array<{ _id: string; phone?: string }>).find((lead) => last10(lead.phone || "") === key);
+    const match = ((found.data?.data?.leads || []) as Array<{ _id: string; phone?: string; status?: string }>).find(
+      (lead) => last10(lead.phone || "") === key && !FINISHED_LEAD_STATUSES.includes(lead.status || ""),
+    );
     if (match) return { id: match._id, existing: true };
     const created = await apiClient.post("/api/leads/", { firstName: firstName.trim() || "Unknown", phone: e164, email: "" }, { headers });
     const id = created.data?.data?._id as string | undefined;
