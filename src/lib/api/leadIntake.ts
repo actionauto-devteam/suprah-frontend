@@ -75,6 +75,11 @@ export async function linkUnverifiedLead(leadId: string, targetLeadId: string, n
   return res.data?.data as { leadId: string };
 }
 
+export async function mergeLeads(keepLeadId: string, mergeLeadId: string, note?: string) {
+  const res = await apiClient.post(`/api/crm/lead-intake/leads/${keepLeadId}/merge`, { mergeLeadId, ...(note ? { note } : {}) });
+  return res.data?.data as { mainLeadId: string; combinedLeadIds: string[] };
+}
+
 export async function getIntakeControl() {
   const res = await apiClient.get("/api/crm/lead-intake/control");
   return res.data?.data as { mode: IntakeMode; reason?: string | null; updatedAt?: string | null; canManage: boolean; heldEvents?: number | null };

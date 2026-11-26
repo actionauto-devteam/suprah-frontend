@@ -107,6 +107,7 @@ import { BulkTextDialog } from "@/components/leads/BulkTextDialog";
 import { ClosedLeadComposer } from "@/components/leads/ClosedLeadComposer";
 import { LeadReviewDialog } from "@/components/leads/LeadReviewDialog";
 import { LinkLeadDialog } from "@/components/leads/LinkLeadDialog";
+import { MergeLeadDialog } from "@/components/leads/MergeLeadDialog";
 import {
   DELIVERY_LABELS,
   conversationItemsToThread,
@@ -999,6 +1000,7 @@ export function LeadsTab({
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [reviewSummary, setReviewSummary] = React.useState<{ pending: number; canResolve: boolean; intakeMode: IntakeMode } | null>(null);
   const [linkLeadOpen, setLinkLeadOpen] = React.useState(false);
+  const [mergeLeadOpen, setMergeLeadOpen] = React.useState(false);
   const refreshReviewSummary = React.useCallback(() => {
     getLeadReviewCount().then(setReviewSummary).catch(() => undefined);
   }, []);
@@ -4112,6 +4114,14 @@ export function LeadsTab({
                 onUpdateDetails={handleUpdateSelectedLeadDetails}
                 onAssign={assignWithConfirm}
                 composerBeside={viewportMode !== "narrow"}
+                onMerge={
+                  reviewSummary?.canResolve &&
+                  selectedLead &&
+                  !selectedLead.combinedInto?.leadId &&
+                  selectedLead.intakeIdentity !== "unverified"
+                    ? () => setMergeLeadOpen(true)
+                    : undefined
+                }
               />
             </div>
           )}
@@ -4144,6 +4154,19 @@ export function LeadsTab({
           refetch();
         }}
       />
+      {selectedLead && (
+        <MergeLeadDialog
+          open={mergeLeadOpen}
+          onOpenChange={setMergeLeadOpen}
+          leadId={selectedLead._id}
+          leadName={[selectedLead.firstName, selectedLead.lastName].filter(Boolean).join(" ").trim() || "this lead"}
+          onMerged={() => {
+            addToast("success", "Cards merged. The other card is now under Earlier conversations.");
+            refetch();
+            void fetchThread(selectedLead);
+          }}
+        />
+      )}
       {selectedLead && (
         <LinkLeadDialog
           open={linkLeadOpen}

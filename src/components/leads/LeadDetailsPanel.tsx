@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Save, ScanBarcode } from "lucide-react";
+import { Layers, Save, ScanBarcode } from "lucide-react";
 import { ContactDetailsPanel } from "@/components/conversation-workspace/ContactDetailsPanel";
 import { LeadOverview } from "./LeadOverview";
 import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
@@ -119,6 +119,7 @@ interface LeadDetailsPanelProps {
   onUpdateDetails: (changes: LeadDetailsUpdate) => void | Promise<void>;
   onAssign?: (userId: string | null) => void | Promise<void>;
   composerBeside?: boolean;
+  onMerge?: () => void;
 }
 
 const STATUS_OPTIONS = LEAD_STATUS_SELECT_OPTIONS;
@@ -160,6 +161,7 @@ export function LeadDetailsPanel({
   onUpdateDetails,
   onAssign,
   composerBeside = false,
+  onMerge,
 }: LeadDetailsPanelProps) {
   const { getToken } = useAuth();
   const [noteIntent, setNoteIntent] = React.useState(0);
@@ -407,6 +409,18 @@ export function LeadDetailsPanel({
             <VehicleOfInterestCard key={lead._id} lead={lead} />
             {/* Transportation's part: shipping quotes for this lead. */}
             <LeadShippingCard key={`shipping-${lead._id}`} lead={lead} />
+            {onMerge ? (
+              <button
+                type="button"
+                onClick={onMerge}
+                className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition hover:bg-(--bg-hover) max-lg:h-11"
+                style={{ borderColor: "var(--border-1)", color: "var(--text-secondary)" }}
+                data-testid="merge-lead-button"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Merge another card into this one
+              </button>
+            ) : null}
           </div>
         ) : null
       }
