@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowLeft, CheckCircle2, ChevronRight, Loader2, MessageCircle, Send, X } from "lucide-react"
+import { ArrowLeft, CheckCircle2, ChevronRight, ExternalLink, Loader2, MessageCircle, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -168,15 +168,17 @@ function mergeMessages(current: WebChatVisitorMessage[], incoming: WebChatVisito
 
 function PoweredBySuprah({ className = "" }: { className?: string }) {
   return (
-    <p className={`text-center text-[10px] text-muted-foreground ${className}`} data-testid="webchat-powered-by">
+    <p className={`text-center text-[13px] text-muted-foreground ${className}`} data-testid="webchat-powered-by">
       <a
         href="https://www.suprah-app.com"
         target="_blank"
         rel="noopener noreferrer"
-        className="underline-offset-2 hover:underline focus-visible:underline"
-        title="Learn about Suprah"
+        className="group inline-flex items-center gap-1 rounded-md px-1.5 py-1 outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+        title="Learn about Suprah (opens in a new tab)"
       >
-        Powered by <span className="font-semibold text-foreground/80">Suprah</span>
+        <span>Powered by</span>
+        <span className="font-semibold text-[var(--color-primary)] underline decoration-2 underline-offset-[3px] group-hover:decoration-[3px]">Suprah</span>
+        <ExternalLink className="h-3 w-3 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
       </a>
     </p>
   )
