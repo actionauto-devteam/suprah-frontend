@@ -169,7 +169,15 @@ function mergeMessages(current: WebChatVisitorMessage[], incoming: WebChatVisito
 function PoweredBySuprah({ className = "" }: { className?: string }) {
   return (
     <p className={`text-center text-[10px] text-muted-foreground ${className}`} data-testid="webchat-powered-by">
-      Powered by <span className="font-semibold text-foreground/80">Suprah</span>
+      <a
+        href="https://www.suprah-app.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline-offset-2 hover:underline focus-visible:underline"
+        title="Learn about Suprah"
+      >
+        Powered by <span className="font-semibold text-foreground/80">Suprah</span>
+      </a>
     </p>
   )
 }
