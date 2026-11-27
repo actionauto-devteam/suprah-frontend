@@ -54,3 +54,16 @@ test('the dashboard and Schedule ask for current loads only', () => {
   assert.match(read('app/(driver)/driver/page.tsx'), /my-loads\?view=current/);
   assert.match(read('app/(driver)/driver/schedule/page.tsx'), /my-loads\?view=current/);
 });
+
+test('Current Load on computers: grows with its content, so the page scrolls over it (2026-11-26)', () => {
+  const page = read('app/(driver)/driver/page.tsx').replace(/\r\n/g, '\n');
+  // The card isn't a scroll box that holds the mouse wheel, and can't be squeezed.
+  assert.match(page, /className="driver-loads-panel flex flex-col [^"]*overflow-clip[^"]*"/);
+  assert.match(page, /<CardContent className="p-4 flex-1">/);
+  // The other loads list still scrolls on laptops but hands the wheel back to the page.
+  const panel = page.slice(page.indexOf('id="driver-loads-panel"'), page.indexOf('id="driver-preferences-panel"'));
+  assert.ok(panel.length > 0);
+  assert.doesNotMatch(panel, /overscroll-contain/);
+  const css = fs.readFileSync(path.join(SRC, 'app/(driver)/driver-portal.css'), 'utf8');
+  assert.match(css, /\.driver-work-column \{ height: 100%; grid-template-rows: auto 1fr; align-content: stretch; \}/);
+});

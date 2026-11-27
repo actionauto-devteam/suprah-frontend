@@ -2538,7 +2538,7 @@ export default function DriverDashboardPage() {
           </CardContent>
         </Card>
 
-          <Card id="driver-loads-panel" aria-label="Current loads" className="driver-loads-panel min-h-0 flex flex-col border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <Card id="driver-loads-panel" aria-label="Current loads" className="driver-loads-panel flex flex-col border-border/70 shadow-sm p-0 gap-0 overflow-clip bg-card/80 backdrop-blur-sm">
             <CardHeader className="shrink-0 py-3.5 px-5 border-b border-border/50">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2">
@@ -2584,9 +2584,10 @@ export default function DriverDashboardPage() {
               <Link href="/driver/loads">My Loads <ArrowRight className="size-3.5" /></Link>
               <Link href="/driver/available-loads">Available Loads <ArrowRight className="size-3.5" /></Link>
             </div>
-            {/* Scrolls inside itself only on computers, where this card is a fixed-height column.
-                On phones the card grows with its content, so swipes must reach the page. */}
-            <CardContent className="p-4 flex-1 min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-gutter:stable]">
+            {/* Grows with its content on every screen, so the mouse wheel and swipes
+                scroll the page (2026-11-26: on computers its own scroll area held the
+                wheel and cut off the bottom of the card). */}
+            <CardContent className="p-4 flex-1">
               {isLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-5 w-40" />
@@ -2930,7 +2931,7 @@ export default function DriverDashboardPage() {
                         </span>
                       </div>
 
-                      <div className="min-h-0 flex-1 lg:max-h-[320px] xl:max-h-none lg:overflow-y-auto lg:overscroll-contain touch-pan-y pr-1 space-y-1 lg:[scrollbar-gutter:stable]">
+                      <div className="min-h-0 flex-1 lg:max-h-[320px] xl:max-h-none lg:overflow-y-auto touch-pan-y pr-1 space-y-1 lg:[scrollbar-gutter:stable]">
                         {otherActiveLoads.map((load) => (
                           <button
                             key={load._id}
