@@ -31,6 +31,7 @@ import type { DriverLoadCompatibility } from '@/types/driver-tracking';
 import { EQUIPMENT_PAGE_PATH, trailerFitProblem } from '@/lib/trailer-setup';
 import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
 import { LoadCustomerChatButton } from '@/components/shipment-chat/LoadCustomerChatButton';
+import { DriverCashCard } from '@/components/driver/DriverCashCard';
 import { initializeSocket } from '@/lib/socket.client';
 import { userErrorMessage } from "@/lib/user-error";
 import { formatScheduleDate } from "@/utils/calendar.utils";
@@ -576,6 +577,9 @@ export default function LoadDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Cash on delivery: the driver confirms the cash (SuprahPay, 2026-11-25). */}
+          <DriverCashCard load={data} onChanged={() => void fetchDetail()} />
 
           {isAccepted && (
             <Card className="border-border/20 rounded-2xl overflow-hidden">

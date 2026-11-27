@@ -73,7 +73,7 @@ const dataOf = <T,>(res: { data?: { data?: unknown } }) => res?.data?.data as T;
  * admin viewing another dealership, or someone who switches dealership, never
  * sees the last dealership's settings or buttons while the new ones load.
  */
-function useSuprahPayScope(): string {
+export function useSuprahPayScope(): string {
   const { userId, orgId } = useAuth();
   const { impersonatedOrgId } = adminStore.useStore();
   return `${userId ?? "signed-out"}:${impersonatedOrgId || orgId || "no-dealership"}`;

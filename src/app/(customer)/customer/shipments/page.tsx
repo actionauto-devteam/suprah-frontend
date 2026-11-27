@@ -35,6 +35,7 @@ import { CUSTOMER_SHIPMENT_CHANGED_EVENT, LIVE_MAP_STAGES, isShipmentNotificatio
 import { ShipmentLiveMap } from "@/components/customer/ShipmentLiveMap";
 import { ShipmentChatButtons } from "@/components/customer/ShipmentChatButtons";
 import { ShipmentReceivedSection } from "@/components/customer/ShipmentReceivedSection";
+import { CustomerCashPayments } from "@/components/customer/CustomerCashPayments";
 import { ShipmentChatSheet } from "@/components/shipment-chat/ShipmentChatSheet";
 import { SHIPMENT_CHAT_EVENTS, type ShipmentChatKind } from "@/lib/api/shipmentChat";
 import { initializeSocket } from "@/lib/socket.client";
@@ -505,6 +506,9 @@ export default function MyShipmentsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Cash to the driver on delivery (COD): the customer confirms paying (2026-11-25). */}
+      <CustomerCashPayments />
 
       {isLoading ? (
         <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-6 text-sm text-muted-foreground">

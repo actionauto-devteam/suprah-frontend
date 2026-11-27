@@ -14,33 +14,26 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/user-error";
+import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const PAYOUT_IN_DEVELOPMENT_MESSAGE =
-  "Driver payouts are still being built. No payout was sent. Delivery confirmation is recorded separately.";
 
 const cardClass = "rounded-2xl border border-border bg-card text-card-foreground";
 const fieldClass =
   "w-full rounded-xl border border-input bg-background text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30";
 
-function PayoutActionCard({ load }: { load: Load }) {
-  const [amount, setAmount] = React.useState(load.pricing?.carrierPayAmount || 0);
+function PayoutActionCard({ load, onPaid }: { load: Load; onPaid: () => void }) {
   const [notes, setNotes] = React.useState("");
-  const [showNotice, setShowNotice] = React.useState(false);
-
-  // Billing and payout processing are still in development, so this button
-  // must never move money yet. It only explains that to the dispatcher.
-  const handleSubmit = () => {
-    setShowNotice(true);
-    toast.info("Payout feature is still in development", {
-      description: PAYOUT_IN_DEVELOPMENT_MESSAGE,
-    });
-  };
+  const [confirming, setConfirming] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
 
   // A payout follows Dispatch confirming the delivery proof.
   const isConfirmed = !!load.proofOfDelivery?.confirmedAt;
+  const driver = typeof load.assignedDriverId === "object" && load.assignedDriverId ? (load.assignedDriverId as { _id?: string; name?: string }) : null;
+  const driverId = driver?._id ?? (typeof load.assignedDriverId === "string" ? load.assignedDriverId : "");
+  // Whether SuprahPay can pay the driver now, and how much: the load's carrier pay (2026-11-25).
+  const driverPay = load.billingSummary?.driverPay ?? null;
 
   if (!isConfirmed) {
     return (
@@ -58,60 +51,97 @@ function PayoutActionCard({ load }: { load: Load }) {
     );
   }
 
+  const send = async () => {
+    if (!driverPay?.ok) return;
+    setSending(true);
+    try {
+      await apiClient.post("/api/driver-payouts", {
+        loadId: load._id,
+        driverId,
+        amount: driverPay.amount,
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      });
+      toast.success(`Payout sent: ${formatCurrency(driverPay.amount)} to ${driver?.name || "the driver"}.`);
+      setConfirming(false);
+      onPaid();
+    } catch (error) {
+      toast.error(userErrorMessage(error, "send this payout"));
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className={cn(cardClass, "p-6")}>
       <h3 className="mb-5 flex items-center gap-2 text-lg font-bold text-foreground">
         <DollarSign className="size-[18px] text-primary" />
-        Process Payout
+        Pay the Driver
       </h3>
 
-      <div className="flex flex-col gap-4">
-        <div>
-          <label htmlFor="payout-amount" className="mb-2 block text-xs text-muted-foreground">
-            Payout Amount (USD) <span className="text-primary">*</span>
-          </label>
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-muted-foreground">$</span>
-            <input
-              id="payout-amount"
-              type="number"
-              value={amount || ""}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              placeholder="0.00"
-              className={cn(fieldClass, "py-3 pl-7 pr-3.5 font-mono text-base")}
+      {!driverPay ? (
+        <p className="text-[13px] text-muted-foreground">Checking whether the driver can be paid…</p>
+      ) : !driverPay.ok ? (
+        <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+          <Info className="mt-0.5 size-4 shrink-0" />
+          <div className="min-w-0 space-y-2">
+            <p className="text-[13px] leading-relaxed break-words">{driverPay.message}</p>
+            {driverPay.code === "needs_billing" && (
+              <Link href={`/transportation/load/${load._id}`} className="text-[13px] font-semibold text-primary underline-offset-2 hover:underline">
+                Choose who pays on the load page
+              </Link>
+            )}
+            {driverPay.code === "awaiting_payment" && load.billing?.billTo === "dealership" && (
+              <Link href="/billing" className="text-[13px] font-semibold text-primary underline-offset-2 hover:underline">
+                Open Bills from Suprah
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Driver&apos;s pay (the load&apos;s carrier pay)</p>
+            <p className="mt-1 font-mono text-2xl font-bold text-foreground">{formatCurrency(driverPay.amount)}</p>
+          </div>
+
+          <div>
+            <label htmlFor="payout-notes" className="mb-2 block text-xs text-muted-foreground">
+              Notes for the driver (optional)
+            </label>
+            <textarea
+              id="payout-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="For example, thanks for the quick delivery."
+              className={cn(fieldClass, "resize-none px-3.5 py-3 text-[13px]")}
             />
           </div>
-          <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
-            Carrier Pay: {formatCurrency(load.pricing?.carrierPayAmount || 0)}
-          </p>
+
+          {confirming ? (
+            <div role="alert" className="rounded-xl border border-primary/30 bg-primary/5 p-3.5">
+              <p className="text-[13px] text-foreground break-words">
+                Send {formatCurrency(driverPay.amount)} to {driver?.name || "the driver"} for load {load.loadNumber} through SuprahPay? This can&apos;t be undone.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button type="button" onClick={send} disabled={sending} className="h-11 flex-1 gap-2 rounded-xl font-bold">
+                  {sending ? <Loader2 className="size-4 animate-spin" /> : <DollarSign className="size-4" />}
+                  Send {formatCurrency(driverPay.amount)}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setConfirming(false)} disabled={sending} className="h-11 flex-1 rounded-xl">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button type="button" onClick={() => setConfirming(true)} className="h-12 w-full gap-2.5 rounded-xl text-[15px] font-bold">
+              <DollarSign className="size-[18px]" />
+              Approve & Send Payout
+            </Button>
+          )}
         </div>
-
-        <div>
-          <label htmlFor="payout-notes" className="mb-2 block text-xs text-muted-foreground">
-            Notes for Driver
-          </label>
-          <textarea
-            id="payout-notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Add any internal or driver-facing notes..."
-            className={cn(fieldClass, "resize-none px-3.5 py-3 text-[13px]")}
-          />
-        </div>
-
-        {showNotice && (
-          <div role="status" className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-            <Info className="mt-0.5 size-3.5 shrink-0" />
-            <p className="text-[13px]">{PAYOUT_IN_DEVELOPMENT_MESSAGE}</p>
-          </div>
-        )}
-
-        <Button type="button" onClick={handleSubmit} className="h-12 w-full gap-2.5 rounded-xl text-[15px] font-bold">
-          <DollarSign className="size-[18px]" />
-          Approve & Send Payout
-        </Button>
-      </div>
+      )}
     </div>
   );
 }
@@ -238,7 +268,7 @@ export default function PayoutDetailPage() {
             <div className="h-6 w-px bg-border" />
             <div className="min-w-0">
               <h1 className="text-lg font-bold sm:text-xl">Review Payout</h1>
-              <p className="mt-0.5 truncate font-mono text-[11px] text-primary">{load.loadNumber}</p>
+              <p className="mt-0.5 break-all font-mono text-[11px] text-primary">{load.loadNumber}</p>
             </div>
           </div>
 
@@ -342,7 +372,7 @@ export default function PayoutDetailPage() {
                 <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3.5 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
                     <Truck className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate font-semibold">{v.year} {v.make} {v.model}</span>
+                    <span className="min-w-0 break-words font-semibold">{v.year} {v.make} {v.model}</span>
                   </div>
                   <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{v.vin || "NO VIN"}</span>
                 </div>
@@ -361,8 +391,8 @@ export default function PayoutDetailPage() {
                 {driver?.name?.[0] || "?"}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-base font-bold">{driver?.name || "Unassigned"}</p>
-                <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{driver?.email || "No email"}</p>
+                <p className="min-w-0 break-words text-base font-bold">{driver?.name || "Unassigned"}</p>
+                <p className="mt-0.5 break-all text-[13px] text-muted-foreground">{driver?.email || "No email"}</p>
               </div>
             </div>
           </div>
@@ -400,7 +430,7 @@ export default function PayoutDetailPage() {
           )}
 
           {/* Payout Action */}
-          <PayoutActionCard load={load} />
+          <PayoutActionCard load={load} onPaid={() => void fetchData({ silent: true })} />
 
           {/* Quick Links */}
           <Button asChild variant="outline" className="h-11 w-full gap-2 rounded-xl text-[13px] font-semibold">

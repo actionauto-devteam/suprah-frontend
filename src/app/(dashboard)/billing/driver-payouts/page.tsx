@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Truck,
   DollarSign,
-  X,
   Package,
   FileCheck,
   Eye,
@@ -151,97 +150,6 @@ function PayoutStatusBadge({ status }: { status: string }) {
   );
 }
 
-const fieldClass =
-  "mt-1.5 block w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30";
-
-function PayoutModal({
-  target,
-  onClose,
-}: {
-  target: DeliverableLoad;
-  onClose: () => void;
-  onCreated: () => void;
-  getToken: () => Promise<string | null>;
-}) {
-  const [amount, setAmount] = React.useState(0);
-  const [notes, setNotes] = React.useState("");
-  const [notice, setNotice] = React.useState<string | null>(null);
-
-  // Billing and payout processing are still in development, so this window
-  // must never move money yet. It only explains that to the user.
-  const handleSubmit = () => {
-    setNotice(
-      "Driver payouts are still being built. No payout was sent. Delivery confirmation is recorded separately on the load.",
-    );
-  };
-
-  return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-5">
-      <div className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-xl">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-foreground">Send Driver Payout</h3>
-            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{target.trackingNumber}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex size-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="mb-4 rounded-xl bg-muted/50 px-3.5 py-3">
-          <p className="text-[13px] text-muted-foreground">Driver</p>
-          <p className="mt-0.5 text-[15px] font-bold text-foreground">
-            {target.assignedDriverId?.name || "Unknown Driver"}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3.5">
-          <label className="text-xs text-muted-foreground">
-            Payout Amount (USD) <span className="text-primary">*</span>
-            <input
-              type="number"
-              value={amount || ""}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className={cn(fieldClass, "font-mono text-base")}
-            />
-          </label>
-
-          <label className="text-xs text-muted-foreground">
-            Notes (optional)
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Delivery bonus, route details..."
-              className={cn(fieldClass, "resize-y text-[13px]")}
-            />
-          </label>
-
-          {notice && <p role="status" className="text-[13px] text-amber-700 dark:text-amber-400">{notice}</p>}
-
-          <div className="flex gap-2.5">
-            <Button type="button" variant="outline" className="h-11 flex-1 rounded-xl" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="button" className="h-11 flex-[2] gap-2 rounded-xl font-bold" onClick={handleSubmit}>
-              <DollarSign className="size-3.5" />
-              Send Payout
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function DriverPayoutsPage() {
   const { getToken } = useAuth();
   const [deliverableLoads, setDeliverableLoads] = React.useState<DeliverableLoad[]>([]);
@@ -249,7 +157,6 @@ export default function DriverPayoutsPage() {
   const [payouts, setPayouts] = React.useState<DriverPayout[]>([]);
   const [payoutStats, setPayoutStats] = React.useState<DriverPayoutStats | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [payoutTarget, setPayoutTarget] = React.useState<DeliverableLoad | null>(null);
   const [lightboxSrc, setLightboxSrc] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"pending-proofs" | "deliverable" | "history">("pending-proofs");
 
@@ -437,12 +344,22 @@ export default function DriverPayoutsPage() {
 
                     <div>
                       <p className="text-xs text-muted-foreground">Driver</p>
-                      <p className="mt-0.5 text-[15px] font-bold text-foreground">{s.assignedDriverId?.name || "-"}</p>
+                      <p className="mt-0.5 text-[15px] font-bold text-foreground break-words">{s.assignedDriverId?.name || "-"}</p>
                     </div>
+                    {/* What SuprahPay can pay now, or why not (2026-11-25). */}
+                    {s.existingPayout?.status === "paid" ? (
+                      <p className="text-[13px] text-muted-foreground">Paid {formatCurrency(s.existingPayout.amount)}.</p>
+                    ) : s.driverPay?.ok ? (
+                      <p className="text-[13px] text-foreground">
+                        Driver&apos;s pay: <span className="font-mono font-bold">{formatCurrency(s.driverPay.amount)}</span>
+                      </p>
+                    ) : s.driverPay ? (
+                      <p className="text-[13px] leading-relaxed text-amber-700 dark:text-amber-400 break-words">{s.driverPay.message}</p>
+                    ) : null}
                     <Button asChild className="min-h-11 w-full gap-1.5 rounded-xl text-xs font-bold">
                       <Link href={`/billing/driver-payouts/${s._id}`}>
                         <DollarSign className="size-3.5" />
-                        Process Payout
+                        {s.driverPay?.ok && s.existingPayout?.status !== "paid" ? "Review & Pay Driver" : "Open"}
                       </Link>
                     </Button>
                   </div>
@@ -500,9 +417,6 @@ export default function DriverPayoutsPage() {
         </div>
       </div>
 
-      {payoutTarget && (
-        <PayoutModal target={payoutTarget} onClose={() => setPayoutTarget(null)} onCreated={fetchData} getToken={getToken} />
-      )}
       {lightboxSrc && <ProofLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </>
   );

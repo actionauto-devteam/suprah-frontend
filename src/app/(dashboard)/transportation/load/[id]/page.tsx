@@ -36,6 +36,7 @@ import type { Load } from "@/types/load"
 import { arrivalAt, formatWait } from "@/lib/load-arrival"
 import { formatMountainDateTime } from "@/lib/mountain-time"
 import { ConditionReportCard } from "@/components/transportation/ConditionReportCard"
+import { LoadBillingCard } from "@/components/transportation/LoadBillingCard"
 import { useIsNativeApp } from "@/components/mobile/useIsNativeApp"
 import { linkedLead, leadPageHref } from "@/lib/quote-lead"
 
@@ -884,6 +885,12 @@ export default function LoadDetailsPage() {
 
       {/* The portal customer's "Confirm received" and review, once delivered. */}
       {load.status === "Delivered" && load.quoteOrigin?.portalCustomer && <LoadCustomerReviewCard loadId={String(load._id)} />}
+
+      {/* ── Billing: who pays for shipping (SuprahPay, 2026-11-25) ── */}
+      <LoadBillingCard
+        load={load}
+        onChanged={() => void queryClient.invalidateQueries({ queryKey: ["transportation-load-detail", id] })}
+      />
 
       {/* ── Route Card ── */}
       <Card className="border-border shadow-sm overflow-hidden bg-card relative p-0">

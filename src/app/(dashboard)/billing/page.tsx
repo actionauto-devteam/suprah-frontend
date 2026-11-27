@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { BalanceCard } from "@/components/billing/BalanceCard";
 import { SuprahPaySettingsPanel } from "@/components/billing/SuprahPaySettingsPanel";
+import { SuprahBillsCard } from "@/components/billing/SuprahBillsCard";
 import {
   useDealershipPayouts,
   usePayoutAccount,
@@ -310,6 +311,15 @@ function BillingDashboardInner() {
               </div>
             </Card>
           </section>
+
+          {/* Bills from Suprah: the driver's pay on the dealership's own loads (2026-11-25) */}
+          {settings?.enabled && (
+            <section style={{ marginBottom: 18 }}>
+              <React.Suspense fallback={null}>
+                <SuprahBillsCard canPay={!!settings.canManagePayments} />
+              </React.Suspense>
+            </section>
+          )}
 
           {/* SuprahPay settings and payout account */}
           {settings && (
