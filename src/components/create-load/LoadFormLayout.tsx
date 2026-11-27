@@ -17,7 +17,14 @@ import {
 } from "@/lib/api/loads"
 import { useSuprahPaySettings } from "@/hooks/useSuprahPay"
 import { LoadBillingFields } from "@/components/transportation/LoadBillingFields"
-import { EMPTY_BILLING_INPUT, billingInputProblem, billingInputToSend, type LoadBillingInput } from "@/lib/load-billing"
+import {
+  EMPTY_BILLING_INPUT,
+  billingInputProblem,
+  billingInputToSend,
+  formatDollars,
+  vehicleInvoiceTotal,
+  type LoadBillingInput,
+} from "@/lib/load-billing"
 import { apiClient } from "@/lib/api-client"
 import type { Load } from "@/types/load"
 import {
@@ -303,7 +310,7 @@ export function LoadFormLayout({
   // the dealership has SuprahPay on. Editing shows it on the load page instead.
   const suprahPaySettings = useSuprahPaySettings()
   const billingOn = !isEdit && !!suprahPaySettings.data?.enabled
-  // Loads with a billing choice don't take a partial COP/COD amount: cash is all or nothing.
+  // Loads with a billing choice don't take a partial cash amount: cash on delivery is all or nothing.
   const billingManaged = billingOn || (isEdit && !!(initialLoad as { billing?: { billTo?: string } } | undefined)?.billing?.billTo)
   const [billingInput, setBillingInput] = React.useState<LoadBillingInput>(EMPTY_BILLING_INPUT)
   // The review step's "Who pays" line (2026-11-26).
@@ -317,7 +324,7 @@ export function LoadFormLayout({
       const price = Number(billingInput.shippingPrice)
       return `${who}: SuprahPay invoice${billingInput.shippingPrice.trim() && Number.isFinite(price) ? ` for $${price.toFixed(2)}` : ""}`
     }
-    return `${who}: cash to the driver ${billingInput.method === "cop" ? "at pickup (COP)" : "on delivery (COD)"}`
+    return `${who}: cash to the driver on delivery (COD)`
   }, [billingManaged, isEdit, billingInput])
   const [contract, setContract] = React.useState<LoadContract>(() =>
     isEdit
@@ -331,6 +338,15 @@ export function LoadFormLayout({
   const [soldOnDelivery, setSoldOnDelivery] = React.useState<boolean | null>(() =>
     isEdit ? initialLoad!.soldOnDelivery === true : null,
   )
+  // A car sold to the person receiving it (2026-11-26): with SuprahPay billing,
+  // Create Load asks its price and sales tax for the dealership's car invoice.
+  const carSale = billingOn && pricing.isPricingEnabled !== false && soldOnDelivery === true
+  const dealershipTaxRate = suprahPaySettings.data?.defaultTaxRate ?? 0
+  const carSaleLine = React.useMemo(() => {
+    if (!carSale) return null
+    const total = vehicleInvoiceTotal(billingInput.vehiclePrice, billingInput.vehicleTaxRate, dealershipTaxRate)
+    return total === null ? "Car's price not entered yet" : `${formatDollars(total)} invoiced by your dealership (car plus sales tax)`
+  }, [carSale, billingInput.vehiclePrice, billingInput.vehicleTaxRate, dealershipTaxRate])
 
   // ── Inspect step: create mode holds Files client-side (no load._id yet) ──
   const [pendingPhotos, setPendingPhotos] = React.useState<Record<string, File>>({})
@@ -451,7 +467,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
     const billingCarrierPay =
       pricing.isPricingEnabled === false || typeof pricing.carrierPayAmount !== "number" ? null : pricing.carrierPayAmount
     const billingProblem =
-      billingOn && pricing.isPricingEnabled !== false ? billingInputProblem(billingInput, billingCarrierPay) : null
+      billingOn && pricing.isPricingEnabled !== false ? billingInputProblem(billingInput, billingCarrierPay, carSale) : null
     if (billingProblem) {
       setShowValidationErrors(true)
       toast.error(billingProblem)
@@ -515,7 +531,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         trailerType,
         pricing,
         soldOnDelivery: soldOnDelivery ?? undefined,
-        ...(billingOn && pricing.isPricingEnabled !== false ? { billing: billingInputToSend(billingInput) } : {}),
+        ...(billingOn && pricing.isPricingEnabled !== false ? { billing: billingInputToSend(billingInput, carSale) } : {}),
       })
 
       if (warning) toast.warning(warning)
@@ -757,9 +773,11 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
               onChange={setBillingInput}
               carrierPay={typeof pricing.carrierPayAmount === "number" ? pricing.carrierPayAmount : null}
               idPrefix="create-load-billing"
+              soldToReceiver={carSale}
+              defaultTaxRate={dealershipTaxRate}
               problem={
                 showValidationErrors
-                  ? billingInputProblem(billingInput, typeof pricing.carrierPayAmount === "number" ? pricing.carrierPayAmount : null)
+                  ? billingInputProblem(billingInput, typeof pricing.carrierPayAmount === "number" ? pricing.carrierPayAmount : null, carSale)
                   : null
               }
             />
@@ -767,7 +785,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         )}
         {step.key === "pricing" && billingOn && pricing.isPricingEnabled === false && (
           <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-            With pricing skipped, this load is settled outside Suprah: your staff pay the driver directly, and nobody gets a SuprahPay invoice for it.
+            With pricing skipped, this load is settled outside Suprah: your staff pay the driver directly, and nobody gets a SuprahPay invoice for it{soldOnDelivery === true ? ", not even for the car" : ""}.
           </p>
         )}
 
@@ -821,6 +839,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         {step.key === "review" && (
           <ReviewSection
             whoPays={whoPaysLine}
+            carInvoice={carSaleLine}
             mode={isEdit ? "edit" : "create"}
             postType={postType}
             pickup={pickup}

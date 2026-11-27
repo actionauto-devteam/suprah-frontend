@@ -578,7 +578,7 @@ export default function LoadDetailPage() {
             </CardContent>
           </Card>
 
-          {/* COP/COD: the driver confirms the cash (SuprahPay, 2026-11-25). */}
+          {/* Cash on delivery: the driver confirms the cash (SuprahPay, 2026-11-25). */}
           <DriverCashCard load={data} onChanged={() => void fetchDetail()} />
 
           {isAccepted && (

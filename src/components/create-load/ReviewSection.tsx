@@ -36,6 +36,8 @@ interface ReviewSectionProps {
   validation: StepValidation
   /** Who pays for shipping (SuprahPay, 2026-11-26): shown instead of the partial COP/COD amount when it applies. */
   whoPays?: string | null
+  /** A car sold to the receiver (2026-11-26): the dealership's car invoice total. */
+  carInvoice?: string | null
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -43,7 +45,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold text-foreground text-right">{value}</span>
+      <span className="min-w-0 font-semibold text-foreground text-right break-words">{value}</span>
     </div>
   )
 }
@@ -83,6 +85,7 @@ export function ReviewSection({
   makeAvailable,
   currentAssigneeName,
   whoPays,
+  carInvoice,
   validation,
 }: ReviewSectionProps) {
   const trailerLabel =
@@ -171,6 +174,7 @@ export function ReviewSection({
                 value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
               />
               {whoPays ? <Row label="Who pays" value={whoPays} /> : null}
+              {carInvoice ? <Row label="Car invoice" value={carInvoice} /> : null}
               <Row
                 label="Driver pricing"
                 value={pricing.isVisibleToDriver === false ? "Hidden from driver" : "Visible to driver"}
@@ -183,7 +187,10 @@ export function ReviewSection({
                 value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
               />
               {whoPays ? (
-                <Row label="Who pays" value={whoPays} />
+                <>
+                  <Row label="Who pays" value={whoPays} />
+                  {carInvoice ? <Row label="Car invoice" value={carInvoice} /> : null}
+                </>
               ) : (
                 <Row
                   label="COP / COD"

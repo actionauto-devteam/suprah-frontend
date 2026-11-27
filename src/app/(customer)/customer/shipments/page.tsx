@@ -507,7 +507,7 @@ export default function MyShipmentsPage() {
         </div>
       </div>
 
-      {/* Cash to the driver (COP/COD): the customer confirms paying (2026-11-25). */}
+      {/* Cash to the driver on delivery (COD): the customer confirms paying (2026-11-25). */}
       <CustomerCashPayments />
 
       {isLoading ? (

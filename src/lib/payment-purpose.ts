@@ -13,8 +13,13 @@ export const PAYMENT_PURPOSES = [
 
 export type PaymentPurpose = (typeof PAYMENT_PURPOSES)[number]["value"];
 
+/** Purposes only Suprah sets, never offered in a form: a car sold on a load (2026-11-26). */
+const AUTOMATIC_PURPOSE_LABELS: Record<string, string> = {
+  vehicle: "Vehicle purchase",
+};
+
 /** The label for a purpose, or null when there's nothing worth showing. */
 export function paymentPurposeLabel(purpose: string | null | undefined): string | null {
   if (!purpose || purpose === "other") return null;
-  return PAYMENT_PURPOSES.find((p) => p.value === purpose)?.label ?? null;
+  return PAYMENT_PURPOSES.find((p) => p.value === purpose)?.label ?? AUTOMATIC_PURPOSE_LABELS[purpose] ?? null;
 }

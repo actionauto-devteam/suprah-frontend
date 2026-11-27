@@ -2,9 +2,11 @@
 
 /**
  * The load page's Billing card (SuprahPay, 2026-11-25): who pays for the
- * load's shipping and how, its SuprahPay invoice, COP/COD cash, and whether
- * the driver can be paid. Staff choose for an older load, switch a customer
- * load between SuprahPay and cash, or send the invoice again. The server
+ * load's shipping and how, its SuprahPay invoice, cash on delivery, and
+ * whether the driver can be paid. Staff choose for an older load, switch a
+ * customer load between SuprahPay and cash on delivery, or send the invoice
+ * again. A car sold to the person receiving it (2026-11-26) shows the
+ * dealership's invoice for the car, which staff can send again. The server
  * checks every change.
  */
 import * as React from "react"
@@ -22,6 +24,8 @@ import {
   INVOICE_STATUS_LABEL,
   billingInputProblem,
   billingInputToSend,
+  formatDollars,
+  isCashMethod,
   type LoadBilling,
   type LoadBillingInput,
   type LoadBillingMethod,
@@ -29,7 +33,7 @@ import {
 } from "@/lib/load-billing"
 
 const money = (value: number | null | undefined) =>
-  typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}` : "—"
+  typeof value === "number" && Number.isFinite(value) ? formatDollars(value) : "—"
 
 interface BillingLoad {
   _id: string
@@ -62,6 +66,8 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
   const invoice = summary?.invoice ?? null
   const paid = invoice?.status === "succeeded"
   const cashSettled = !!billing?.cashConfirmedAt
+  const carInvoice = summary?.carInvoice ?? null
+  const carSold = typeof billing?.vehiclePrice === "number" && billing.vehiclePrice > 0
 
   const [choosing, setChoosing] = React.useState(false)
   const [input, setInput] = React.useState<LoadBillingInput>(EMPTY_BILLING_INPUT)
@@ -87,6 +93,20 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
     }
   }
 
+  // The car's invoice, sent again (it wasn't sent, or staff cancelled it).
+  const sendCarInvoice = async () => {
+    setSaving(true)
+    try {
+      await apiClient.post(`/api/loads/${encodeURIComponent(load._id)}/billing/car-invoice`, {})
+      toast.success("The car's invoice was sent to the customer.")
+      onChanged()
+    } catch (error) {
+      toast.error(userErrorMessage(error, "send the car's invoice"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const problem = billingInputProblem(input, carrierPay)
   const submitChoice = () => {
     setTried(true)
@@ -99,7 +119,7 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
   const switchTo = (method: LoadBillingMethod) => {
     // A customer load without a quote needs a shipping price for SuprahPay: ask for it.
     if (method === "suprahpay" && !load.quoteId && !billing?.shippingPrice) {
-      setInput({ billTo: "customer", method, customerName: billing?.customerName ?? "", customerEmail: billing?.customerEmail ?? "", shippingPrice: "" })
+      setInput({ ...EMPTY_BILLING_INPUT, billTo: "customer", method, customerName: billing?.customerName ?? "", customerEmail: billing?.customerEmail ?? "" })
       setChoosing(true)
       return
     }
@@ -113,23 +133,12 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
             customerEmail: billing?.customerEmail,
             shippingPrice: billing?.shippingPrice,
           },
-      method === "suprahpay" ? "Switched to a SuprahPay invoice." : "Switched to cash to the driver.",
+      method === "suprahpay" ? "Switched to a SuprahPay invoice." : "Switched to cash to the driver on delivery.",
     )
-  }
-  // Cash to the driver: the form asks when (at pickup or on delivery), starting on delivery.
-  const chooseCash = () => {
-    setInput({
-      billTo: "customer",
-      method: "cod",
-      customerName: billing?.customerName ?? "",
-      customerEmail: billing?.customerEmail ?? "",
-      shippingPrice: typeof billing?.shippingPrice === "number" ? String(billing.shippingPrice) : "",
-    })
-    setTried(false)
-    setChoosing(true)
   }
   const invoiceMissing =
     canManage && !!billing?.billTo && billing.method === "suprahpay" && !outside && !cancelled && (!invoice || invoice.status === "cancelled")
+  const carInvoiceMissing = canManage && carSold && !outside && !cancelled && (!carInvoice || carInvoice.status === "cancelled")
 
   return (
     <Card className="border-border shadow-sm bg-card">
@@ -187,7 +196,7 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
                   : "Not sent"}
               </Row>
             )}
-            {(billing.method === "cop" || billing.method === "cod") && (
+            {isCashMethod(billing.method) && (
               <Row label="Cash">
                 <span className="inline-flex flex-wrap items-center gap-x-1.5">
                   <Banknote className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
@@ -200,6 +209,21 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
                 </span>
               </Row>
             )}
+            {carSold && (
+              <>
+                <Row label="Car sold to">
+                  {`${billing.customerName || "The customer"}${billing.customerEmail ? ` (${billing.customerEmail})` : ""}`}
+                </Row>
+                <Row label="Car's price">
+                  {`${money(billing.vehiclePrice)} plus ${typeof billing.vehicleTaxRate === "number" ? billing.vehicleTaxRate : 0}% sales tax`}
+                </Row>
+                <Row label="Car invoice">
+                  {carInvoice
+                    ? `${INVOICE_STATUS_LABEL[carInvoice.status] ?? carInvoice.status} · ${money(carInvoice.amount)}${carInvoice.invoiceNumber ? ` · ${carInvoice.invoiceNumber}` : ""}`
+                    : "Not sent"}
+                </Row>
+              </>
+            )}
             {summary && load.status === "Delivered" && (
               <Row label="Paying the driver">
                 {summary.driverPay.ok ? `Ready: ${money(summary.driverPay.amount)} through SuprahPay.` : summary.driverPay.message}
@@ -208,7 +232,7 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
           </dl>
         )}
 
-        {!choosing && (canSwitch || invoiceMissing) && (
+        {!choosing && (canSwitch || invoiceMissing || carInvoiceMissing) && (
           <div className="flex flex-wrap gap-2 border-t border-border pt-3">
             {invoiceMissing && (
               <Button
@@ -233,13 +257,13 @@ export function LoadBillingCard({ load, onChanged }: { load: BillingLoad; onChan
             {canSwitch && billing?.method !== "suprahpay" && (
               <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("suprahpay")}>Switch to a SuprahPay invoice</Button>
             )}
-            {/* Cash is one choice (COP/COD); when it's paid is picked in the form (2026-11-26). */}
+            {/* Cash is on delivery only (2026-11-26). */}
             {canSwitch && billing?.method === "suprahpay" && (
-              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={chooseCash}>Switch to cash to the driver (COP/COD)</Button>
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo("cod")}>Switch to cash on delivery (COD)</Button>
             )}
-            {canSwitch && (billing?.method === "cop" || billing?.method === "cod") && (
-              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => switchTo(billing.method === "cop" ? "cod" : "cop")}>
-                {billing.method === "cop" ? "Change to cash on delivery (COD)" : "Change to cash at pickup (COP)"}
+            {carInvoiceMissing && (
+              <Button size="sm" variant="outline" className="min-h-11 sm:min-h-9" disabled={saving} onClick={() => void sendCarInvoice()}>
+                Send the car invoice
               </Button>
             )}
           </div>

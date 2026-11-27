@@ -1,8 +1,8 @@
 "use client"
 
 /**
- * COP/COD loads (SuprahPay, 2026-11-25): the customer pays the driver their
- * pay in cash, at pickup (COP) or on delivery (COD), outside Suprah. The
+ * Cash on delivery loads (SuprahPay, 2026-11-25; COD only since 2026-11-26):
+ * the customer pays the driver their pay in cash on delivery, outside Suprah. The
  * driver confirms it here, which settles it, or says they weren't paid
  * (their dispatcher and the dealership are told). The server checks it all.
  */
@@ -25,21 +25,17 @@ interface CashLoad {
   } | null
 }
 
-const DUE: Record<string, string[]> = {
-  cop: ["Picked Up", "In-Transit", "Delivered"],
-  cod: ["Delivered"],
-}
 
 export function DriverCashCard({ load, onChanged }: { load: CashLoad; onChanged: () => void }) {
   const [saving, setSaving] = React.useState<boolean | null>(null)
   const method = load.billing?.method
-  if (method !== "cop" && method !== "cod") return null
+  // "cop" is only on loads saved while testing: treated as cash on delivery.
+  if (method !== "cod" && method !== "cop") return null
 
   const pay = load.pricing?.isVisibleToDriver !== false && typeof load.pricing?.carrierPayAmount === "number"
     ? `$${load.pricing.carrierPayAmount.toFixed(2)}`
     : "your pay"
-  const when = method === "cop" ? "at pickup" : "on delivery"
-  const due = DUE[method].includes(String(load.status))
+  const due = load.status === "Delivered"
   const confirmed = !!load.billing?.cashConfirmedAt
   const notPaid = !!load.billing?.cashNotReceivedAt
 
@@ -66,12 +62,12 @@ export function DriverCashCard({ load, onChanged }: { load: CashLoad; onChanged:
       </div>
       <CardContent className="p-4 space-y-3">
         <p className="text-sm text-foreground break-words">
-          The customer pays you {pay} in cash {when} ({method === "cop" ? "COP" : "COD"}). Suprah doesn&apos;t send a payout for this load.
+          The customer pays you {pay} in cash on delivery (COD). Suprah doesn&apos;t send a payout for this load.
         </p>
         {confirmed ? (
           <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">You confirmed receiving the cash.</p>
         ) : !due ? (
-          <p className="text-xs text-muted-foreground">Confirm it here once the car is {method === "cop" ? "picked up" : "delivered"}.</p>
+          <p className="text-xs text-muted-foreground">Confirm it here once the car is delivered.</p>
         ) : (
           <>
             {notPaid && (

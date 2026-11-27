@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * My Shipments: shipments the customer pays the driver for in cash (COP at
- * pickup, COD on delivery), from a quote or booked by the dealership for
+ * My Shipments: shipments the customer pays the driver for in cash on
+ * delivery (COD), from a quote or booked by the dealership for
  * them (SuprahPay, 2026-11-25). The customer confirms paying; the driver's
  * own confirmation is what settles it. The server checks it all.
  */
@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 interface CashShipment {
   loadId: string;
   loadNumber: string;
-  method: "cop" | "cod";
+  /** "cop" only on shipments saved while testing: shown as cash on delivery. */
+  method: "cod" | "cop";
   amount: number | null;
   due: boolean;
   driverConfirmedAt: string | null;
@@ -68,7 +69,6 @@ export function CustomerCashPayments() {
       <ul className="space-y-2">
         {list.map((shipment) => {
           const amount = typeof shipment.amount === "number" ? `$${shipment.amount.toFixed(2)}` : "the agreed amount";
-          const when = shipment.method === "cop" ? "at pickup" : "on delivery";
           return (
             <li key={shipment.loadId} className="flex flex-col gap-2 rounded-xl border border-border/50 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -76,7 +76,7 @@ export function CustomerCashPayments() {
                   {shipment.route || `Shipment ${shipment.loadNumber}`}
                 </p>
                 <p className="text-xs leading-relaxed text-muted-foreground break-words">
-                  You pay the driver {amount} in cash {when}.
+                  You pay the driver {amount} in cash on delivery.
                   {shipment.driverConfirmedAt ? " The driver confirmed receiving it." : ""}
                 </p>
               </div>
@@ -90,7 +90,7 @@ export function CustomerCashPayments() {
                   I paid the driver {amount}
                 </Button>
               ) : (
-                <span className="text-xs text-muted-foreground">You can confirm this {shipment.method === "cop" ? "once the car is picked up" : "once the car is delivered"}.</span>
+                <span className="text-xs text-muted-foreground">You can confirm this once the car is delivered.</span>
               )}
             </li>
           );

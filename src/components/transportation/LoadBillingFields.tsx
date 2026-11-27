@@ -2,16 +2,21 @@
 
 /**
  * "Who pays for shipping?" (SuprahPay, 2026-11-25): a customer (name, email,
- * and either a SuprahPay invoice at a shipping price, or cash to the driver at
- * pickup or delivery) or the dealership (billed the driver's pay through
- * SuprahPay). Used in Create Load and on the load page for older loads.
+ * and either a SuprahPay invoice at a shipping price, or cash to the driver on
+ * delivery) or the dealership (billed the driver's pay through SuprahPay).
+ * Used in Create Load and on the load page for older loads.
+ *
+ * 2026-11-26: no cash at pickup (the customer collecting the car at the
+ * dealership means there's no shipment). When the car is sold to the person
+ * receiving it, the car's price and sales tax are asked too: the dealership
+ * sends that customer a SuprahPay invoice for the car, separate from shipping.
  */
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { BILLING_METHOD_LABEL, type LoadBillingInput, type LoadBillingMethod } from "@/lib/load-billing"
+import { BILLING_METHOD_LABEL, formatDollars, vehicleInvoiceTotal, type LoadBillingInput } from "@/lib/load-billing"
 
 const inputClass =
-  "h-10 w-full min-w-0 rounded-lg border border-border/60 bg-background/40 px-3 text-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+  "h-11 w-full min-w-0 rounded-lg border border-border/60 bg-background/40 px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
 
 function Choice({
   name,
@@ -42,12 +47,53 @@ function Choice({
   )
 }
 
+function CustomerFields({
+  value,
+  set,
+  idPrefix,
+}: {
+  value: LoadBillingInput
+  set: (patch: Partial<LoadBillingInput>) => void
+  idPrefix: string
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="block min-w-0">
+        <span className="mb-1 block text-xs font-medium text-foreground">Customer&apos;s name</span>
+        <input
+          id={`${idPrefix}-name`}
+          className={inputClass}
+          value={value.customerName}
+          onChange={(e) => set({ customerName: e.target.value })}
+          maxLength={200}
+          autoComplete="off"
+        />
+      </label>
+      <label className="block min-w-0">
+        <span className="mb-1 block text-xs font-medium text-foreground">Customer&apos;s email</span>
+        <input
+          id={`${idPrefix}-email`}
+          className={inputClass}
+          type="email"
+          inputMode="email"
+          value={value.customerEmail}
+          onChange={(e) => set({ customerEmail: e.target.value })}
+          maxLength={254}
+          autoComplete="off"
+        />
+      </label>
+    </div>
+  )
+}
+
 export function LoadBillingFields({
   value,
   onChange,
   carrierPay,
   idPrefix = "load-billing",
   problem,
+  soldToReceiver = false,
+  defaultTaxRate = 0,
 }: {
   value: LoadBillingInput
   onChange: (next: LoadBillingInput) => void
@@ -56,11 +102,16 @@ export function LoadBillingFields({
   idPrefix?: string
   /** Shown under the fields when the choice can't be saved. */
   problem?: string | null
+  /** Create Load's "the car is sold to the person receiving it": asks the car's price and sales tax. */
+  soldToReceiver?: boolean
+  /** The dealership's sales tax, used when no tax is entered for the car. */
+  defaultTaxRate?: number
 }) {
   const set = (patch: Partial<LoadBillingInput>) => onChange({ ...value, ...patch })
-  const pay = carrierPay !== null && carrierPay > 0 ? `$${carrierPay.toFixed(2)}` : "the driver's pay"
+  const pay = carrierPay !== null && carrierPay > 0 ? formatDollars(carrierPay) : "the driver's pay"
   const problemId = `${idPrefix}-problem`
-  const cash = value.method === "cop" || value.method === "cod"
+  const carTotal = soldToReceiver ? vehicleInvoiceTotal(value.vehiclePrice, value.vehicleTaxRate, defaultTaxRate) : null
+  const carTax = value.vehicleTaxRate.trim() ? Number(value.vehicleTaxRate.trim()) : defaultTaxRate
 
   return (
     <fieldset className="min-w-0 space-y-3" aria-describedby={problem ? problemId : undefined}>
@@ -71,7 +122,7 @@ export function LoadBillingFields({
           checked={value.billTo === "customer"}
           onChange={() => set({ billTo: "customer" })}
           title="For a customer"
-          detail="The customer pays: through a SuprahPay invoice, or in cash to the driver."
+          detail="The customer pays: through a SuprahPay invoice, or in cash to the driver on delivery."
         />
         <Choice
           name={`${idPrefix}-bill-to`}
@@ -84,35 +135,10 @@ export function LoadBillingFields({
 
       {value.billTo === "customer" && (
         <div className="space-y-3 rounded-lg border border-border/60 p-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block min-w-0">
-              <span className="mb-1 block text-xs font-medium text-foreground">Customer&apos;s name</span>
-              <input
-                id={`${idPrefix}-name`}
-                className={inputClass}
-                value={value.customerName}
-                onChange={(e) => set({ customerName: e.target.value })}
-                maxLength={200}
-                autoComplete="off"
-              />
-            </label>
-            <label className="block min-w-0">
-              <span className="mb-1 block text-xs font-medium text-foreground">Customer&apos;s email</span>
-              <input
-                id={`${idPrefix}-email`}
-                className={inputClass}
-                type="email"
-                inputMode="email"
-                value={value.customerEmail}
-                onChange={(e) => set({ customerEmail: e.target.value })}
-                maxLength={254}
-                autoComplete="off"
-              />
-            </label>
-          </div>
+          <CustomerFields value={value} set={set} idPrefix={idPrefix} />
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-foreground">How the customer pays</p>
+            <p className="text-xs font-medium text-foreground">How the customer pays for shipping</p>
             <div className="grid gap-2">
               <Choice
                 name={`${idPrefix}-method`}
@@ -121,40 +147,14 @@ export function LoadBillingFields({
                 title={BILLING_METHOD_LABEL.suprahpay}
                 detail="Suprah sends the customer a SuprahPay invoice for the shipping price. The driver is paid once it's paid and the load is delivered."
               />
-              {/* COP and COD are one choice; when the cash is paid is asked below (2026-11-26). */}
               <Choice
                 name={`${idPrefix}-method`}
-                checked={cash}
-                onChange={() => set({ method: cash ? value.method : "cod" })}
-                title="Cash to the driver (COP/COD)"
-                detail={`The customer hands the driver ${pay} in cash, outside Suprah. The driver confirms it in the app.`}
+                checked={value.method === "cod"}
+                onChange={() => set({ method: "cod" })}
+                title={BILLING_METHOD_LABEL.cod}
+                detail={`The customer hands the driver ${pay} in cash when the car is delivered, outside Suprah. The driver confirms it in the app.`}
               />
             </div>
-            {cash && (
-              <fieldset className="min-w-0 space-y-2 rounded-lg border border-border/60 p-3">
-                <legend className="px-1 text-xs font-medium text-foreground">When does the customer pay the driver?</legend>
-                <div className="flex flex-wrap gap-2">
-                  {(["cop", "cod"] as LoadBillingMethod[]).map((method) => (
-                    <label
-                      key={method}
-                      className={cn(
-                        "flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
-                        value.method === method ? "border-emerald-500/60 bg-emerald-500/5 font-semibold text-foreground" : "border-border/60 text-muted-foreground hover:bg-muted/40",
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name={`${idPrefix}-cash-when`}
-                        checked={value.method === method}
-                        onChange={() => set({ method })}
-                        className="size-4 shrink-0 accent-emerald-600"
-                      />
-                      {method === "cop" ? "At pickup (COP)" : "On delivery (COD)"}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
           </div>
 
           {value.method === "suprahpay" && (
@@ -176,6 +176,56 @@ export function LoadBillingFields({
             </label>
           )}
         </div>
+      )}
+
+      {soldToReceiver && value.billTo && (
+        <fieldset className="min-w-0 space-y-3 rounded-lg border border-border/60 p-3">
+          <legend className="px-1 text-xs font-semibold text-foreground">The car&apos;s sale</legend>
+          <p className="text-xs leading-relaxed text-muted-foreground break-words">
+            The car is sold to the person receiving it, so your dealership sends them a SuprahPay invoice for the car&apos;s price plus sales tax, by card, Apple Pay or Google Pay. It&apos;s separate from the shipping.
+            {value.billTo === "customer" ? " It goes to the customer above." : ""}
+          </p>
+          {value.billTo === "dealership" && <CustomerFields value={value} set={set} idPrefix={`${idPrefix}-buyer`} />}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block min-w-0">
+              <span className="mb-1 block text-xs font-medium text-foreground">Car&apos;s price (USD)</span>
+              <input
+                id={`${idPrefix}-car-price`}
+                className={inputClass}
+                type="number"
+                min={0.01}
+                step="0.01"
+                inputMode="decimal"
+                value={value.vehiclePrice}
+                onChange={(e) => set({ vehiclePrice: e.target.value })}
+              />
+            </label>
+            <label className="block min-w-0">
+              <span className="mb-1 block text-xs font-medium text-foreground">Sales tax (%)</span>
+              <input
+                id={`${idPrefix}-car-tax`}
+                className={inputClass}
+                type="number"
+                min={0}
+                max={100}
+                step="0.001"
+                inputMode="decimal"
+                placeholder={String(defaultTaxRate)}
+                value={value.vehicleTaxRate}
+                onChange={(e) => set({ vehicleTaxRate: e.target.value })}
+                aria-describedby={`${idPrefix}-car-tax-hint`}
+              />
+              <span id={`${idPrefix}-car-tax-hint`} className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                Leave it blank for your dealership&apos;s sales tax ({defaultTaxRate}%). Enter 0 for none.
+              </span>
+            </label>
+          </div>
+          {carTotal !== null && (
+            <p className="text-sm font-semibold text-foreground break-words" aria-live="polite">
+              The customer&apos;s car invoice: {formatDollars(carTotal)} ({formatDollars(Number(value.vehiclePrice))} plus {carTax}% sales tax)
+            </p>
+          )}
+        </fieldset>
       )}
 
       {problem && (
